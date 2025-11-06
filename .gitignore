@@ -1,0 +1,17 @@
+# IDE
+.idea
+.vscode
+
+# Environment variables with secrets
+.env
+
+# Caddy data and certificates
+caddy-data/
+caddy_config/
+
+# Docker volumes and logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

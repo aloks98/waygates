@@ -1,0 +1,24 @@
+services:
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "2019:2019"  # Admin API
+    environment:
+      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    env_file:
+      - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+    volumes:
+      - ./conf:/etc/caddy
+      - ./caddy-data:/data
+      - ./caddy_config:/config

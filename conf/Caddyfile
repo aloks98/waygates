@@ -1,0 +1,49 @@
+{
+    # Global options
+    admin 0.0.0.0:2019
+    email {$CLOUDFLARE_EMAIL}
+
+    # Use public DNS resolvers for DNS propagation checks
+    acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+}
+
+# Catch all *.caddy.e412.in addresses and return custom 404
+*.caddy.e412.in {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+        resolvers 1.1.1.1 1.0.0.1
+    }
+
+    root * /etc/caddy/templates
+    handle {
+        templates
+        rewrite * /404.html
+        file_server
+    }
+}
+
+# Example reverse proxy configurations (uncomment and modify as needed)
+# Replace with your actual services
+
+# app.example.com {
+#     reverse_proxy localhost:3000
+# }
+
+# api.example.com {
+#     reverse_proxy localhost:8080
+# }
+
+# Example with additional headers
+# service.example.com {
+#     reverse_proxy localhost:9000 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+# }
+
+# Example with multiple backends (load balancing)
+# balanced.example.com {
+#     reverse_proxy localhost:8001 localhost:8002 localhost:8003
+# }
