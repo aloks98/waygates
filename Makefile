@@ -1,8 +1,11 @@
 .PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
+.PHONY: backend-run backend-build backend-test migrate-create
 
 # Default target
 help:
 	@echo "Available commands:"
+	@echo ""
+	@echo "Caddy (Docker):"
 	@echo "  make build         - Build the Caddy Docker image"
 	@echo "  make up            - Start containers in detached mode"
 	@echo "  make down          - Stop and remove containers"
@@ -13,8 +16,19 @@ help:
 	@echo "  make clean         - Remove containers, volumes, and images"
 	@echo "  make rebuild       - Clean build and restart everything"
 	@echo "  make validate      - Validate Caddyfile syntax"
-	@echo "  make env-check     - Check if .env file exists and is configured"
 	@echo "  make deploy        - Full deployment (env-check, build, up)"
+	@echo ""
+	@echo "Backend (Go):"
+	@echo "  make backend-run   - Run the Go backend server"
+	@echo "  make backend-build - Build the Go backend binary"
+	@echo "  make backend-test  - Run backend tests"
+	@echo ""
+	@echo "Database Migrations:"
+	@echo "  make migrate-create NAME=name - Create new migration files"
+	@echo "  Note: Migrations run automatically when backend starts"
+	@echo ""
+	@echo "Other:"
+	@echo "  make env-check     - Check if .env file exists and is configured"
 
 # Check if .env file exists and is configured
 env-check:
@@ -106,3 +120,45 @@ deploy: env-check build up
 	@echo "  HTTPS:     https://localhost:443"
 	@echo ""
 	@echo "View logs with: make logs-follow"
+
+# ============================================
+# Backend Commands
+# ============================================
+
+# Run the Go backend server
+backend-run: env-check
+	@echo "Starting Go backend server..."
+	@go run backend/cmd/server/main.go
+
+# Build the Go backend binary
+backend-build:
+	@echo "Building Go backend..."
+	@go build -o bin/caddy-manager backend/cmd/server/main.go
+	@echo "✓ Binary created at: bin/caddy-manager"
+
+# Run backend tests
+backend-test:
+	@echo "Running backend tests..."
+	@go test -v ./backend/...
+
+# ============================================
+# Database Migration Commands
+# ============================================
+# Note: Migrations run automatically when the backend starts
+
+# Create new migration files
+migrate-create:
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Error: NAME is required"; \
+		echo "Usage: make migrate-create NAME=create_users_table"; \
+		exit 1; \
+	fi
+	@echo "Creating migration: $(NAME)"
+	@bash -c 'NEXT=$$(ls backend/migrations/*.up.sql 2>/dev/null | wc -l | tr -d " "); \
+		NEXT=$$((NEXT + 1)); \
+		NUM=$$(printf "%06d" $$NEXT); \
+		touch backend/migrations/$${NUM}_$(NAME).up.sql; \
+		touch backend/migrations/$${NUM}_$(NAME).down.sql; \
+		echo "✓ Created:"; \
+		echo "  backend/migrations/$${NUM}_$(NAME).up.sql"; \
+		echo "  backend/migrations/$${NUM}_$(NAME).down.sql"'

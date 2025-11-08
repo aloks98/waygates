@@ -1,0 +1,74 @@
+# Security snippet for blocking common exploits
+# Import this snippet with: import snippets/security
+
+# Block SQL injection attempts
+@sql_injection {
+    query *union*select*(*
+    query *union*all*select*
+    query *concat*(*
+}
+handle @sql_injection {
+    respond "Forbidden - SQL injection detected" 403
+}
+
+# Block file injection attempts
+@file_injection {
+    query *http://*
+    query *https://*
+    query *../*
+    query *../../*
+    query *../../../*
+}
+handle @file_injection {
+    respond "Forbidden - File injection detected" 403
+}
+
+# Block common exploits (XSS, PHP globals, etc.)
+@common_exploits {
+    query *<script*
+    query *%3Cscript*
+    query *GLOBALS=*
+    query *GLOBALS[*
+    query *_REQUEST=*
+    query *_REQUEST[*
+    query *proc/self/environ*
+    query *mosConfig_*
+    query *base64_encode*
+    query *base64_decode*
+}
+handle @common_exploits {
+    respond "Forbidden - Common exploit detected" 403
+}
+
+# Block spam keywords
+@spam {
+    query *ultram*
+    query *viagra*
+    query *vicodin*
+    query *xanax*
+    query *cialis*
+    query *levitra*
+    query *phentermin*
+    query *tramadol*
+    query *ambien*
+    query *valium*
+}
+handle @spam {
+    respond "Forbidden - Spam detected" 403
+}
+
+# Block malicious user agents
+@bad_user_agents {
+    header User-Agent *Indy?Library*
+    header User-Agent *libwww-perl*
+    header User-Agent *GetRight*
+    header User-Agent *GetWeb!*
+    header User-Agent *Go!Zilla*
+    header User-Agent *Download?Demon*
+    header User-Agent *Go-Ahead-Got-It*
+    header User-Agent *TurnitinBot*
+    header User-Agent *GrabNet*
+}
+handle @bad_user_agents {
+    respond "Forbidden - Blocked user agent" 403
+}
