@@ -14,10 +14,18 @@ type RouteConfig struct {
 	ID     string           `json:"@id,omitempty"`
 }
 
-// MatchConfig represents a Caddy match configuration
+// FileMatcherConfig represents a Caddy file matcher configuration.
+type FileMatcherConfig struct {
+	Root     string   `json:"root,omitempty"`
+	TryFiles []string `json:"try_files,omitempty"`
+}
+
+// MatchConfig represents a Caddy matcher set.
 type MatchConfig struct {
-	Host []string `json:"host,omitempty"`
-	Path []string `json:"path,omitempty"`
+	Host []string           `json:"host,omitempty"`
+	Path []string           `json:"path,omitempty"`
+	Not  []MatchConfig      `json:"not,omitempty"`
+	File *FileMatcherConfig `json:"file,omitempty"`
 }
 
 // HandlerConfig represents a Caddy handler configuration
@@ -30,12 +38,12 @@ type HandlerConfig struct {
 	LoadBalancing    *LoadBalancingConfig    `json:"load_balancing,omitempty"`
 	HealthChecks     *HealthChecksConfig     `json:"health_checks,omitempty"`
 	Transport        *TransportConfig        `json:"transport,omitempty"`    // For reverse_proxy TLS
-	To               string                  `json:"to,omitempty"`           // For redirects
+	URI              string                  `json:"uri,omitempty"`          // For rewrites
 	StatusCode       int                     `json:"status_code,omitempty"`  // For redirects
 	Root             string                  `json:"root,omitempty"`         // For file server
 	IndexNames       []string                `json:"index_names,omitempty"`  // For file server
-	Templates        *TemplatesConfig        `json:"templates,omitempty"`
-	TryFiles         []string                `json:"try_files,omitempty"`
+	FileRoot         string                  `json:"file_root,omitempty"`    // For templates handler
+	Routes           []RouteConfig           `json:"routes,omitempty"`       // For subroute handler
 }
 
 // MarshalJSON implements custom JSON marshaling for HandlerConfig
@@ -104,10 +112,6 @@ type ActiveHealthChecks struct {
 	ExpectBody   string `json:"expect_body,omitempty"`   // Expected body content (regex)
 }
 
-// TemplatesConfig represents template configuration
-type TemplatesConfig struct {
-	FileRoot string `json:"file_root,omitempty"`
-}
 
 // TransportConfig represents transport configuration for reverse_proxy
 type TransportConfig struct {
@@ -360,32 +364,59 @@ func buildStaticHandlers(proxy *models.Proxy) ([]HandlerConfig, error) {
 
 	templateRendering, _ := staticConfig["template_rendering"].(bool)
 	tryFiles, _ := staticConfig["try_files"].([]interface{})
+	catchAllPage, _ := staticConfig["catch_all_page"].(string)
 
 	// Add template handler if enabled
 	if templateRendering {
 		handlers = append(handlers, HandlerConfig{
-			Handler: "templates",
-			Templates: &TemplatesConfig{
-				FileRoot: rootPath,
-			},
+			Handler:  "templates",
+			FileRoot: rootPath,
 		})
 	}
 
-	// Add rewrite handler for SPA support (try_files pattern)
-	// This implements the pattern: try {path}, fallback to /index.html
+	// Add subroute for SPA rewrite if try_files is configured
 	if len(tryFiles) > 0 {
-		var files []string
-		for _, f := range tryFiles {
-			if str, ok := f.(string); ok {
-				files = append(files, str)
-			}
+		fallbackFile, ok := tryFiles[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid try_files format")
 		}
 
-		// Add rewrite handler with try_files
-		handlers = append(handlers, HandlerConfig{
-			Handler:  "rewrite",
-			TryFiles: files,
-		})
+		// This subroute contains the rewrite handler for SPA fallback
+		spaRewriteRoute := RouteConfig{
+			Match: []MatchConfig{
+				{
+					Not: []MatchConfig{
+						{
+							File: &FileMatcherConfig{
+								Root:     rootPath,
+								TryFiles: []string{"{http.request.uri.path}", "{http.request.uri.path}/"},
+							},
+						},
+					},
+				},
+			},
+			Handle: []HandlerConfig{
+				{
+					Handler: "rewrite",
+					URI:     fallbackFile,
+				},
+			},
+		}
+
+		subrouteHandler := HandlerConfig{
+			Handler: "subroute",
+			Routes:  []RouteConfig{spaRewriteRoute},
+		}
+		handlers = append(handlers, subrouteHandler)
+	}
+
+	// Add unconditional rewrite if catch_all_page is configured
+	if catchAllPage != "" {
+		rewriteHandler := HandlerConfig{
+			Handler: "rewrite",
+			URI:     catchAllPage,
+		}
+		handlers = append(handlers, rewriteHandler)
 	}
 
 	// Build file_server handler

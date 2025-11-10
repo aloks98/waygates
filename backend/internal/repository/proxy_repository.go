@@ -105,7 +105,7 @@ func (r *ProxyRepository) Create(proxy *models.Proxy) error {
 
 // Update updates an existing proxy
 func (r *ProxyRepository) Update(proxy *models.Proxy) error {
-	return r.db.Save(proxy).Error
+	return r.db.Updates(proxy).Error
 }
 
 // Delete deletes a proxy by ID

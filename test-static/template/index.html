@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Caddy Template Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f4; color: #333; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; }
+        p { line-height: 1.6; }
+        .variable { font-weight: bold; color: #d9534f; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Caddy Template Test Page</h1>
+        <p>This page demonstrates Caddy's template functionality.</p>
+        <p>Requested Host: <span class="variable">{{.Req.Host}}</span></p>
+        <p>Request Method: <span class="variable">{{.Req.Method}}</span></p>
+        <p>Current time: <span class="variable">{{now | date "2006-01-02 15:04:05"}}</span></p>
+        <p>Request URI: <span class="variable">{{.Req.RequestURI}}</span></p>
+    </div>
+</body>
+</html>

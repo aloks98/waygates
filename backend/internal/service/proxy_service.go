@@ -198,18 +198,17 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	proxy.CreatedBy = existing.CreatedBy
 	proxy.CreatedAt = existing.CreatedAt
 
-	// Preserve type-specific configs if not provided
-	if proxy.LoadBalancing == nil && existing.LoadBalancing != nil {
-		proxy.LoadBalancing = existing.LoadBalancing
+	// Clean up configs that don't apply to the new type
+	if proxy.Type != models.ProxyTypeReverseProxy {
+		proxy.Upstreams = nil
+		proxy.LoadBalancing = nil
+		proxy.CustomHeaders = nil
 	}
-	if proxy.CustomHeaders == nil && existing.CustomHeaders != nil {
-		proxy.CustomHeaders = existing.CustomHeaders
+	if proxy.Type != models.ProxyTypeRedirect {
+		proxy.RedirectConfig = nil
 	}
-	if proxy.RedirectConfig == nil && existing.RedirectConfig != nil {
-		proxy.RedirectConfig = existing.RedirectConfig
-	}
-	if proxy.StaticConfig == nil && existing.StaticConfig != nil {
-		proxy.StaticConfig = existing.StaticConfig
+	if proxy.Type != models.ProxyTypeStatic {
+		proxy.StaticConfig = nil
 	}
 
 	// Update in database

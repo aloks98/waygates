@@ -194,9 +194,11 @@ func parseRedirectHandler(handler *HandlerConfig, proxy *models.Proxy) error {
 func parseStaticHandler(handlers []HandlerConfig, proxy *models.Proxy) error {
 	staticConfig := make(map[string]interface{})
 
-	// Find file_server handler
 	var fileHandler *HandlerConfig
 	var hasTemplates bool
+	var tryFilesConfigured bool
+	var tryFilesFallback string
+	var catchAllPage string
 
 	for i := range handlers {
 		if handlers[i].Handler == "templates" {
@@ -204,6 +206,21 @@ func parseStaticHandler(handlers []HandlerConfig, proxy *models.Proxy) error {
 		}
 		if handlers[i].Handler == "file_server" {
 			fileHandler = &handlers[i]
+		}
+		// Check for the subroute handler that implements try_files
+		if handlers[i].Handler == "subroute" && len(handlers[i].Routes) > 0 {
+			// Check if the subroute contains the SPA rewrite logic
+			subroute := handlers[i].Routes[0]
+			if len(subroute.Handle) > 0 && subroute.Handle[0].Handler == "rewrite" {
+				// This is likely the SPA rewrite subroute
+				tryFilesConfigured = true
+				tryFilesFallback = subroute.Handle[0].URI
+			}
+		}
+		// Check for the unconditional rewrite for catch-all page
+		if handlers[i].Handler == "rewrite" {
+			// An unconditional rewrite at this level is the catch-all page
+			catchAllPage = handlers[i].URI
 		}
 	}
 
@@ -224,13 +241,14 @@ func parseStaticHandler(handlers []HandlerConfig, proxy *models.Proxy) error {
 	// Parse template rendering
 	staticConfig["template_rendering"] = hasTemplates
 
-	// Parse try_files
-	if len(fileHandler.TryFiles) > 0 {
-		tryFiles := make([]interface{}, len(fileHandler.TryFiles))
-		for i, f := range fileHandler.TryFiles {
-			tryFiles[i] = f
-		}
-		staticConfig["try_files"] = tryFiles
+	// Reconstruct try_files if found
+	if tryFilesConfigured {
+		staticConfig["try_files"] = []interface{}{tryFilesFallback}
+	}
+
+	// Reconstruct catch_all_page if found
+	if catchAllPage != "" {
+		staticConfig["catch_all_page"] = catchAllPage
 	}
 
 	// Default browse to false
