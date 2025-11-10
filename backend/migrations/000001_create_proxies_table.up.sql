@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     -- For reverse_proxy type
     upstreams TEXT,  -- JSON: [{"host": "...", "port": 8080, "scheme": "http"}]
     load_balancing TEXT,  -- JSON: {"strategy": "round_robin", "health_checks": {...}}
-    block_exploits BOOLEAN NOT NULL DEFAULT 1,
+    block_exploits BOOLEANNOT NULL DEFAULT 1,
     custom_headers TEXT,  -- JSON: {"X-Header": "value"}
 
     -- For redirect type

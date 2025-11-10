@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Files Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 { color: #667eea; }
+        .test {
+            background: #f7fafc;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        #status { color: #48bb78; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Static File Server Test</h1>
+
+        <div class="test">
+            <h3>JavaScript Test</h3>
+            <p id="status">Checking...</p>
+        </div>
+
+        <div class="test">
+            <h3>File List</h3>
+            <ul>
+                <li>index.html - This page</li>
+                <li>test.txt - <a href="test.txt">Download test file</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('status').textContent = 'JavaScript loaded successfully!';
+        console.log('Static file test loaded');
+    </script>
+</body>
+</html>

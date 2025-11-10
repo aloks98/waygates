@@ -4,13 +4,18 @@ import (
 	"time"
 
 	"github.com/aloks98/homelab-proxy/backend/internal/api/handlers"
+	"github.com/aloks98/homelab-proxy/backend/internal/caddy"
+	"github.com/aloks98/homelab-proxy/backend/internal/config"
+	"github.com/aloks98/homelab-proxy/backend/internal/repository"
+	"github.com/aloks98/homelab-proxy/backend/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"gorm.io/gorm"
 )
 
 // SetupRoutes configures all application routes
-func SetupRoutes(corsOrigins []string) *chi.Mux {
+func SetupRoutes(cfg *config.Config, db *gorm.DB) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Middleware
@@ -22,7 +27,7 @@ func SetupRoutes(corsOrigins []string) *chi.Mux {
 
 	// CORS
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   corsOrigins,
+		AllowedOrigins:   cfg.Security.CORSOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
@@ -30,12 +35,33 @@ func SetupRoutes(corsOrigins []string) *chi.Mux {
 		MaxAge:           300,
 	}))
 
-	// Health handler
+	// Initialize dependencies
+	caddyClient := caddy.NewClient(cfg.Caddy.AdminURL, cfg.Caddy.Timeout)
+
+	// Repositories
+	proxyRepo := repository.NewProxyRepository(db)
+
+	// Services
+	proxyService := service.NewProxyService(proxyRepo, caddyClient)
+
+	// Handlers
 	healthHandler := handlers.NewHealthHandler()
+	proxyHandler := handlers.NewProxyHandler(proxyService)
 
 	// Public routes (no auth required)
 	r.Group(func(r chi.Router) {
 		r.Get("/api/health", healthHandler.HealthCheck)
+	})
+
+	// Proxy routes (temporarily public for testing, will add auth later)
+	r.Route("/api/proxies", func(r chi.Router) {
+		r.Get("/", proxyHandler.ListProxies)
+		r.Get("/{id}", proxyHandler.GetProxy)
+		r.Post("/", proxyHandler.CreateProxy)
+		r.Put("/{id}", proxyHandler.UpdateProxy)
+		r.Delete("/{id}", proxyHandler.DeleteProxy)
+		r.Post("/{id}/enable", proxyHandler.EnableProxy)
+		r.Post("/{id}/disable", proxyHandler.DisableProxy)
 	})
 
 	// Protected routes will be added here

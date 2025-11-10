@@ -12,6 +12,13 @@ caddy_config/
 # Docker volumes and logs
 *.log
 
+# Backend - Go
+backend/data/
+bin/
+*.db
+*.db-shm
+*.db-wal
+
 # OS files
 .DS_Store
 Thumbs.db

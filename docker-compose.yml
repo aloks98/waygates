@@ -10,9 +10,6 @@ services:
       - "443:443"
       - "443:443/udp"
       - "2019:2019"  # Admin API
-    environment:
-      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
-      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     env_file:
       - .env
     dns:
@@ -22,3 +19,4 @@ services:
       - ./conf:/etc/caddy
       - ./caddy-data:/data
       - ./caddy_config:/config
+      - ./test-static:/srv/test-static:ro  # Mount test files as read-only

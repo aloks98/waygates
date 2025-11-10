@@ -45,8 +45,18 @@ func main() {
 	}
 	logger.Info("Database migrations completed successfully")
 
+	// Connect to database
+	logger.Info("Connecting to database...")
+	// Use GORM logger Silent mode for now (we have zap for logging)
+	db, err := database.Connect(cfg.Database.Type, cfg.GetDatabaseDSN(), 1) // 1 = Silent mode
+	if err != nil {
+		logger.Fatal("Failed to connect to database", zap.Error(err))
+	}
+	defer database.Close()
+	logger.Info("Database connection established")
+
 	// Setup routes
-	router := routes.SetupRoutes(cfg.Security.CORSOrigins)
+	router := routes.SetupRoutes(cfg, db)
 
 	// Create HTTP server
 	srv := &http.Server{
