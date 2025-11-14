@@ -1,54 +1,110 @@
-# Curl Examples for Testing Proxy API
+# Curl Examples for Testing API
 
-This document provides curl commands to test all proxy management endpoints.
+This document provides curl commands to test all API endpoints.
 
-**Base URL**: `http://localhost:8080/api/proxies`
+**Base URL**: `http://localhost:8080/api`
 
 ---
 
-## 1. List Proxies
+## 1. Authentication
+
+First, you need to register a user and log in to get an access token.
+
+### a. Register a new user
+
+```bash
+curl -X POST "http://localhost:8080/api/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Admin",
+    "username": "admin",
+    "email": "admin@example.com",
+    "password": "password123"
+  }'
+```
+
+### b. Login to get tokens
+
+```bash
+curl -X POST "http://localhost:8080/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "identifier": "admin",
+    "password": "password123"
+  }'
+```
+
+### c. Store the access token
+
+From the login response, copy the `access_token` and store it in an environment variable for convenience.
+
+```bash
+export TOKEN="ey..."
+```
+
+---
+
+## 2. Get Application Status
+
+**GET** `/api/status`
+
+```bash
+curl -X GET "http://localhost:8080/api/status"
+```
+
+---
+
+## 3. Proxy Management Endpoints (Authentication Required)
+
+**Note**: All proxy endpoints require authentication. Ensure you have obtained and exported a `$TOKEN` as described in the Authentication section.
+
+### a. List Proxies
 
 **GET** `/api/proxies`
 
 ```bash
 # List all proxies (default pagination)
-curl -X GET "http://localhost:8080/api/proxies"
+curl -X GET "http://localhost:8080/api/proxies" \
+  -H "Authorization: Bearer $TOKEN"
 
 # List with pagination
-curl -X GET "http://localhost:8080/api/proxies?page=1&limit=10"
+curl -X GET "http://localhost:8080/api/proxies?page=1&limit=10" \
+  -H "Authorization: Bearer $TOKEN"
 
 # Search by name/hostname
-curl -X GET "http://localhost:8080/api/proxies?search=example"
+curl -X GET "http://localhost:8080/api/proxies?search=example" \
+  -H "Authorization: Bearer $TOKEN"
 
 # Filter by type (reverse_proxy, redirect, static)
-curl -X GET "http://localhost:8080/api/proxies?type=reverse_proxy"
+curl -X GET "http://localhost:8080/api/proxies?type=reverse_proxy" \
+  -H "Authorization: Bearer $TOKEN"
 
 # Filter by status
-curl -X GET "http://localhost:8080/api/proxies?status=active"
+curl -X GET "http://localhost:8080/api/proxies?status=active" \
+  -H "Authorization: Bearer $TOKEN"
 
 # Sort and order
-curl -X GET "http://localhost:8080/api/proxies?sort=created_at&order=desc"
+curl -X GET "http://localhost:8080/api/proxies?sort=created_at&order=desc" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-## 2. Get Proxy by ID
+### b. Get Proxy by ID
 
 **GET** `/api/proxies/:id`
 
 ```bash
-curl -X GET "http://localhost:8080/api/proxies/1"
+curl -X GET "http://localhost:8080/api/proxies/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-## 3. Create Reverse Proxy (Simple)
+### c. Create Reverse Proxy (Simple)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "My Backend API",
@@ -64,15 +120,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 3a. Create Reverse Proxy (HTTPS Backend with Self-Signed Certificate)
+### d. Create Reverse Proxy (HTTPS Backend with Self-Signed Certificate)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "Internal HTTPS Service",
@@ -91,15 +146,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
 
 **Note**: Set `tls_insecure_skip_verify: true` when proxying to HTTPS backends with self-signed certificates.
 
----
-
-## 4. Create Reverse Proxy (Load Balanced with Health Checks)
+### e. Create Reverse Proxy (Load Balanced with Health Checks)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "Load Balanced App",
@@ -139,15 +193,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 5. Create Redirect (301 Permanent)
+### f. Create Redirect (301 Permanent)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "redirect",
     "name": "Old Domain Redirect",
@@ -161,15 +214,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 6. Create Redirect (302 Temporary, No Path Preservation)
+### g. Create Redirect (302 Temporary, No Path Preservation)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "redirect",
     "name": "Temporary Redirect",
@@ -183,15 +235,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 7. Create Static Site (Simple)
+### h. Create Static Site (Simple)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "static",
     "name": "Marketing Site",
@@ -205,15 +256,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 8. Create Static Site (SPA with Try Files)
+### i. Create Static Site (SPA with Try Files)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "static",
     "name": "React App",
@@ -228,15 +278,14 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 9. Create Static Site (With Template Rendering)
+### j. Create Static Site (With Template Rendering)
 
 **POST** `/api/proxies`
 
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "static",
     "name": "Blog",
@@ -250,9 +299,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
----
-
-## 10. Update Proxy
+### k. Update Proxy
 
 **PUT** `/api/proxies/:id`
 
@@ -260,6 +307,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
 # Update hostname and add custom header
 curl -X PUT "http://localhost:8080/api/proxies/1" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "My Backend API (Updated)",
@@ -278,39 +326,36 @@ curl -X PUT "http://localhost:8080/api/proxies/1" \
   }'
 ```
 
----
-
-## 11. Delete Proxy
+### l. Delete Proxy
 
 **DELETE** `/api/proxies/:id`
 
 ```bash
-curl -X DELETE "http://localhost:8080/api/proxies/1"
+curl -X DELETE "http://localhost:8080/api/proxies/1" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-## 12. Enable Proxy
+### m. Enable Proxy
 
 **POST** `/api/proxies/:id/enable`
 
 ```bash
-curl -X POST "http://localhost:8080/api/proxies/1/enable"
+curl -X POST "http://localhost:8080/api/proxies/1/enable" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
-
-## 13. Disable Proxy
+### n. Disable Proxy
 
 **POST** `/api/proxies/:id/disable`
 
 ```bash
-curl -X POST "http://localhost:8080/api/proxies/1/disable"
+curl -X POST "http://localhost:8080/api/proxies/1/disable" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-## Testing Workflow
+## 4. Testing Workflow
 
 Here's a recommended testing workflow:
 
@@ -320,10 +365,15 @@ cd /Users/aloks98/homelab-proxy
 go run backend/cmd/server/main.go
 ```
 
-### 2. Create a test reverse proxy
+### 2. Register and Login
+See Section 1 above to register a user and get an access token.
+Make sure to `export` the token.
+
+### 3. Create a test reverse proxy
 ```bash
 curl -X POST "http://localhost:8080/api/proxies" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "Test App",
@@ -339,30 +389,31 @@ curl -X POST "http://localhost:8080/api/proxies" \
   }'
 ```
 
-### 3. List all proxies to verify creation
+### 4. List all proxies to verify creation
 ```bash
-curl -X GET "http://localhost:8080/api/proxies"
+curl -X GET "http://localhost:8080/api/proxies" -H "Authorization: Bearer $TOKEN"
 ```
 
-### 4. Get the specific proxy (replace 1 with actual ID)
+### 5. Get the specific proxy (replace 1 with actual ID)
 ```bash
-curl -X GET "http://localhost:8080/api/proxies/1"
+curl -X GET "http://localhost:8080/api/proxies/1" -H "Authorization: Bearer $TOKEN"
 ```
 
-### 5. Disable the proxy
+### 6. Disable the proxy
 ```bash
-curl -X POST "http://localhost:8080/api/proxies/1/disable"
+curl -X POST "http://localhost:8080/api/proxies/1/disable" -H "Authorization: Bearer $TOKEN"
 ```
 
-### 6. Re-enable the proxy
+### 7. Re-enable the proxy
 ```bash
-curl -X POST "http://localhost:8080/api/proxies/1/enable"
+curl -X POST "http://localhost:8080/api/proxies/1/enable" -H "Authorization: Bearer $TOKEN"
 ```
 
-### 7. Update the proxy
+### 8. Update the proxy
 ```bash
 curl -X PUT "http://localhost:8080/api/proxies/1" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "type": "reverse_proxy",
     "name": "Test App (Updated)",
@@ -378,9 +429,9 @@ curl -X PUT "http://localhost:8080/api/proxies/1" \
   }'
 ```
 
-### 8. Delete the proxy
+### 9. Delete the proxy
 ```bash
-curl -X DELETE "http://localhost:8080/api/proxies/1"
+curl -X DELETE "http://localhost:8080/api/proxies/1" -H "Authorization: Bearer $TOKEN"
 ```
 
 ---

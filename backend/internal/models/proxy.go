@@ -94,12 +94,7 @@ func (j *JSONField) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// User represents a user (minimal for now, will be expanded later)
-type User struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
+
 
 // ProxyListResponse is the response for listing proxies
 type ProxyListResponse struct {

@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
+.PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check ui-build
 .PHONY: backend-run backend-build backend-test migrate-create
 
 # Default target
@@ -23,6 +23,9 @@ help:
 	@echo "  make backend-build - Build the Go backend binary"
 	@echo "  make backend-test  - Run backend tests"
 	@echo ""
+	@echo "UI (Next.js):"
+	@echo "  make ui-build      - Build the UI Docker image"
+	@echo ""
 	@echo "Database Migrations:"
 	@echo "  make migrate-create NAME=name - Create new migration files"
 	@echo "  Note: Migrations run automatically when backend starts"
@@ -45,10 +48,17 @@ env-check:
 	fi
 	@echo "✓ Environment file configured"
 
-# Build the Docker image
+# Build the Docker images
 build:
 	@echo "Building Caddy with Cloudflare DNS plugin..."
 	docker compose build
+	$(MAKE) ui-build
+
+# Build the UI Docker image
+ui-build:
+	@echo "Building UI Docker image..."
+	docker build -f Dockerfile.ui -t homelab-proxy-ui .
+	@echo "✓ UI Docker image built: homelab-proxy-ui"
 
 # Start containers
 up:

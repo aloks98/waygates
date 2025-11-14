@@ -3,6 +3,8 @@
 **Version:** 1.0
 **Last Updated:** 2024-11-08
 
+> **Note:** All endpoints in this API are protected and require a valid JWT access token. See the [Authentication API documentation](./API_AUTH.md) for details on how to obtain a token.
+
 ## Overview
 
 The Proxy Management API provides endpoints to create, read, update, and delete proxy configurations. It supports three proxy types:

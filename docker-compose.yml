@@ -20,3 +20,16 @@ services:
       - ./caddy-data:/data
       - ./caddy_config:/config
       - ./test-static:/srv/test-static:ro  # Mount test files as read-only
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: homelab-proxy-ui
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ui:/app
+    env_file:
+      - .env

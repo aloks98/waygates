@@ -13,6 +13,8 @@ import (
 	"github.com/aloks98/homelab-proxy/backend/internal/api/routes"
 	"github.com/aloks98/homelab-proxy/backend/internal/config"
 	"github.com/aloks98/homelab-proxy/backend/internal/database"
+	"github.com/aloks98/homelab-proxy/backend/internal/repository"
+	"github.com/aloks98/homelab-proxy/backend/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -55,8 +57,15 @@ func main() {
 	defer database.Close()
 	logger.Info("Database connection established")
 
+	// Create default user if needed
+	userRepo := repository.NewUserRepository(db)
+	tokenService := service.NewTokenService(cfg.JWT)
+	authService := service.NewAuthService(userRepo, tokenService, cfg.Security)
+	userService := service.NewUserService(userRepo, authService, cfg, logger)
+	userService.CreateDefaultUserIfNeeded()
+
 	// Setup routes
-	router := routes.SetupRoutes(cfg, db)
+	router := routes.SetupRoutes(cfg, db, logger)
 
 	// Create HTTP server
 	srv := &http.Server{

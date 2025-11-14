@@ -131,7 +131,7 @@ func (s *ProxyService) GetProxyByID(id int) (*models.Proxy, error) {
 }
 
 // CreateProxy creates a new proxy
-func (s *ProxyService) CreateProxy(proxy *models.Proxy) error {
+func (s *ProxyService) CreateProxy(proxy *models.Proxy, userID int) error {
 	// Validate
 	if err := proxy.Validate(); err != nil {
 		return err
@@ -145,6 +145,9 @@ func (s *ProxyService) CreateProxy(proxy *models.Proxy) error {
 	if exists {
 		return ErrHostnameConflict
 	}
+
+	// Set creator
+	proxy.CreatedBy = userID
 
 	// Create in database first to get ID
 	if err := s.repo.Create(proxy); err != nil {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/aloks98/homelab-proxy/backend/internal/api/middleware"
 	"github.com/aloks98/homelab-proxy/backend/internal/models"
 	"github.com/aloks98/homelab-proxy/backend/internal/service"
 	"github.com/aloks98/homelab-proxy/backend/internal/utils"
@@ -83,6 +84,13 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 
 // CreateProxy handles POST /api/proxies
 func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
+	// Get user from context
+	user, ok := middleware.GetUserFromContext(r.Context())
+	if !ok {
+		utils.Unauthorized(w, "User not found in context")
+		return
+	}
+
 	// Parse request body
 	var proxy models.Proxy
 	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
@@ -98,7 +106,7 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.IsActive = true
 
 	// Create proxy via service
-	if err := h.service.CreateProxy(&proxy); err != nil {
+	if err := h.service.CreateProxy(&proxy, user.ID); err != nil {
 		if err == service.ErrHostnameConflict {
 			utils.Conflict(w, "Hostname already exists")
 			return

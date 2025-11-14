@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1
+
+# 1. Install dependencies only when needed
+FROM oven/bun:1 AS base
+
+# 2. Install dependencies
+FROM base AS deps
+WORKDIR /app
+COPY ui/package.json ui/bun.lockb* ./
+RUN bun install --no-save --frozen-lockfile
+
+# 3. Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY ui/. .
+
+# ---
+# ENV NEXT_TELEMETRY_DISABLED 1
+# ---
+
+RUN bun run build
+
+# 4. Production image, copy all the files and run next
+FROM base AS runner
+WORKDIR /app
+
+# ---
+# ENV NEXT_TELEMETRY_DISABLED 1
+# ---
+
+ENV NODE_ENV=production
+# ---
+# You may change this port
+ENV PORT 3000
+# ---
+# You may change this hostname
+ENV HOSTNAME "0.0.0.0"
+# ---
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["bun", "./server.js"]

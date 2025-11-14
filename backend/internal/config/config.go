@@ -9,12 +9,13 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Caddy    CaddyConfig
-	JWT      JWTConfig
-	Security SecurityConfig
-	Logging  LoggingConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Caddy       CaddyConfig
+	JWT         JWTConfig
+	Security    SecurityConfig
+	Logging     LoggingConfig
+	DefaultUser DefaultUserConfig
 }
 
 // ServerConfig holds HTTP server configuration
@@ -59,6 +60,14 @@ type LoggingConfig struct {
 	Format string // "json" or "console"
 }
 
+// DefaultUserConfig holds the default user credentials
+type DefaultUserConfig struct {
+	Name     string
+	Username string
+	Email    string
+	Password string
+}
+
 // Load reads configuration from environment variables and config files
 func Load() (*Config, error) {
 	// Set default values
@@ -101,6 +110,12 @@ func Load() (*Config, error) {
 			Level:  viper.GetString("LOG_LEVEL"),
 			Format: viper.GetString("LOG_FORMAT"),
 		},
+		DefaultUser: DefaultUserConfig{
+			Name:     viper.GetString("DEFAULT_USER_NAME"),
+			Username: viper.GetString("DEFAULT_USER_USERNAME"),
+			Email:    viper.GetString("DEFAULT_USER_EMAIL"),
+			Password: viper.GetString("DEFAULT_USER_PASSWORD"),
+		},
 	}
 
 	// Validate critical configuration
@@ -119,7 +134,7 @@ func setDefaults() {
 
 	// Database
 	viper.SetDefault("DB_TYPE", "sqlite")
-	viper.SetDefault("DB_PATH", "./data/caddy-manager.db")
+	viper.SetDefault("DB_PATH", "./backend/data/caddy-manager.db")
 	viper.SetDefault("DB_PORT", 5432)
 
 	// Caddy
