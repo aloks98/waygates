@@ -145,6 +145,143 @@ You can log in with either your `username` or `email`.
   ```
 - **500 Internal Server Error**: For any other server-side errors.
 
+### 4. Refresh Token
+
+Exchanges a valid refresh token for a new access token and refresh token pair.
+
+- **Endpoint**: `POST /api/auth/refresh`
+- **Access**: Public
+
+**Request Body**
+
+```json
+{
+  "refresh_token": "ey..."
+}
+```
+
+**Success Response (200 OK)**
+
+```json
+{
+  "success": true,
+  "message": "Token refreshed successfully",
+  "data": {
+    "access_token": "ey...",
+    "refresh_token": "ey..."
+  }
+}
+```
+
+**Error Responses**
+
+- **400 Bad Request**: If the refresh token is missing.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Refresh token is required"
+    }
+  }
+  ```
+- **401 Unauthorized**: If the refresh token is invalid or expired.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "UNAUTHORIZED",
+      "message": "Invalid or expired refresh token"
+    }
+  }
+  ```
+
+### 5. Logout
+
+Revokes the current access token and optionally the refresh token.
+
+- **Endpoint**: `POST /api/auth/logout`
+- **Access**: Authenticated (requires Bearer token)
+
+**Request Headers**
+
+```
+Authorization: Bearer <access_token>
+```
+
+**Request Body (Optional)**
+
+```json
+{
+  "refresh_token": "ey..."
+}
+```
+
+**Success Response (200 OK)**
+
+```json
+{
+  "success": true,
+  "message": "Logged out successfully",
+  "data": null
+}
+```
+
+**Error Responses**
+
+- **400 Bad Request**: If no token is provided in the Authorization header.
+
+**Notes**:
+- The access token is always revoked.
+- If a refresh token is provided in the body, it will also be revoked.
+- For complete logout, include both the access token (in header) and refresh token (in body).
+
+### 6. Get Current User
+
+Returns information about the currently authenticated user, including their role and permissions.
+
+- **Endpoint**: `GET /api/auth/me`
+- **Access**: Authenticated (requires Bearer token)
+
+**Request Headers**
+
+```
+Authorization: Bearer <access_token>
+```
+
+**Success Response (200 OK)**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "Alice",
+    "username": "alice",
+    "email": "alice@example.com",
+    "role": "admin",
+    "permissions": [
+      "proxy:read",
+      "proxy:create",
+      "proxy:update",
+      "proxy:delete",
+      "user:read",
+      "user:manage"
+    ]
+  }
+}
+```
+
+**Response Fields**
+
+- `role`: The user's assigned role (`"admin"`, `"operator"`, or `null` if no role assigned)
+- `permissions`: Array of permission strings the user has
+
+**Error Responses**
+
+- **401 Unauthorized**: If the token is missing or invalid.
+- **404 Not Found**: If the user no longer exists.
+
 ## Authentication Flow
 
 1.  **Check Status**: Before registration, the UI can call `GET /api/status` to see if `user_setup_complete` is `false`. If so, it can show the registration page to create the first admin user.
@@ -156,7 +293,13 @@ You can log in with either your `username` or `email`.
     Authorization: Bearer <access_token>
     ```
 
-5.  **Token Expiration**: The access token is short-lived (e.g., 15 minutes). When it expires, the API will return a `401 Unauthorized` error. The client should then use the `refresh_token` to get a new access token (refresh endpoint not yet implemented).
+5.  **Token Expiration**: The access token is short-lived (e.g., 15 minutes). When it expires, the API will return a `401 Unauthorized` error. The client should use the `refresh_token` with `POST /api/auth/refresh` to get a new token pair.
+
+6.  **Token Refresh**: Call `POST /api/auth/refresh` with the refresh token to obtain new access and refresh tokens. This implements token rotation - each refresh invalidates the old refresh token and issues a new one.
+
+7.  **Logout**: Call `POST /api/auth/logout` with both the access token (in Authorization header) and optionally the refresh token (in body) to fully revoke the session.
+
+8.  **Get User Info**: Call `GET /api/auth/me` to retrieve the current user's profile, role, and permissions.
 
 ## Default User Creation
 

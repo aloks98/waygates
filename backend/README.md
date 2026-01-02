@@ -23,18 +23,21 @@ Go-based backend API that provides an authenticated middleware layer between the
 | GET    | `/api/status`        | Get application and Caddy status          | ✅ Done |
 | POST   | `/api/auth/register` | Register a new user                       | ✅ Done |
 | POST   | `/api/auth/login`    | Log in and receive JWT tokens             | ✅ Done |
+| POST   | `/api/auth/refresh`  | Refresh access token using refresh token  | ✅ Done |
 
 ### Protected Endpoints (Auth Required)
 
-| Method | Endpoint                | Description                 | Status |
-|--------|-------------------------|-----------------------------|--------|
-| GET    | `/api/proxies`          | List all proxies            | ✅ Done |
-| GET    | `/api/proxies/:id`      | Get a single proxy          | ✅ Done |
-| POST   | `/api/proxies`          | Create a new proxy          | ✅ Done |
-| PUT    | `/api/proxies/:id`      | Update a proxy              | ✅ Done |
-| DELETE | `/api/proxies/:id`      | Delete a proxy              | ✅ Done |
-| POST   | `/api/proxies/:id/enable`| Enable a proxy             | ✅ Done |
-| POST   | `/api/proxies/:id/disable`| Disable a proxy            | ✅ Done |
+| Method | Endpoint                  | Description                     | Status |
+|--------|---------------------------|---------------------------------|--------|
+| GET    | `/api/auth/me`            | Get current user info & perms   | ✅ Done |
+| POST   | `/api/auth/logout`        | Revoke tokens and log out       | ✅ Done |
+| GET    | `/api/proxies`            | List all proxies                | ✅ Done |
+| GET    | `/api/proxies/:id`        | Get a single proxy              | ✅ Done |
+| POST   | `/api/proxies`            | Create a new proxy              | ✅ Done |
+| PUT    | `/api/proxies/:id`        | Update a proxy                  | ✅ Done |
+| DELETE | `/api/proxies/:id`        | Delete a proxy                  | ✅ Done |
+| POST   | `/api/proxies/:id/enable` | Enable a proxy                  | ✅ Done |
+| POST   | `/api/proxies/:id/disable`| Disable a proxy                 | ✅ Done |
 
 ...
 
@@ -61,7 +64,7 @@ JWT_ACCESS_EXPIRY=15m
 JWT_REFRESH_EXPIRY=168h
 
 # Security
-BCRYPT_COST=10
+BCRYPT_COST=12
 CORS_ORIGINS=http://localhost:3000,http://localhost:8080
 
 # Logging
@@ -78,14 +81,21 @@ DEFAULT_USER_PASSWORD=password
 
 ...
 
-### Immediate TODOs
+### Completed Features
 
-1. Implement database models and migrations
-2. Create Caddy Admin API client
-3. Implement authentication (JWT)
-4. Add proxy management endpoints
-5. Add user management
-6. Implement audit logging
+1. ✅ Database models and migrations (SQLite/PostgreSQL)
+2. ✅ Caddy Admin API client
+3. ✅ JWT authentication with refresh tokens
+4. ✅ RBAC with goauth library
+5. ✅ Proxy management endpoints (CRUD, enable/disable)
+6. ✅ Input validation
+7. ✅ Comprehensive test coverage
+
+### Remaining TODOs
+
+1. 🚧 User management endpoints
+2. 🚧 Audit logging
+3. 🚧 OIDC authentication (Phase 2)
 
 ## Troubleshooting
 

@@ -40,6 +40,40 @@ From the login response, copy the `access_token` and store it in an environment 
 
 ```bash
 export TOKEN="ey..."
+export REFRESH_TOKEN="ey..."
+```
+
+### d. Refresh token
+
+```bash
+curl -X POST "http://localhost:8080/api/auth/refresh" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "'"$REFRESH_TOKEN"'"
+  }'
+```
+
+### e. Get current user
+
+```bash
+curl -X GET "http://localhost:8080/api/auth/me" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### f. Logout
+
+```bash
+# Logout (revoke access token only)
+curl -X POST "http://localhost:8080/api/auth/logout" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Logout (revoke both tokens - recommended)
+curl -X POST "http://localhost:8080/api/auth/logout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "'"$REFRESH_TOKEN"'"
+  }'
 ```
 
 ---
@@ -205,7 +239,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
     "type": "redirect",
     "name": "Old Domain Redirect",
     "hostname": "old.example.com",
-    "redirect_config": {
+    "redirect": {
       "target": "https://new.example.com",
       "status_code": 301,
       "preserve_path": true,
@@ -226,7 +260,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
     "type": "redirect",
     "name": "Temporary Redirect",
     "hostname": "temp.example.com",
-    "redirect_config": {
+    "redirect": {
       "target": "https://target.example.com/landing",
       "status_code": 302,
       "preserve_path": false,
@@ -247,7 +281,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
     "type": "static",
     "name": "Marketing Site",
     "hostname": "marketing.example.com",
-    "static_config": {
+    "static": {
       "root_path": "/var/www/marketing",
       "index_file": "index.html",
       "browse": false,
@@ -268,12 +302,12 @@ curl -X POST "http://localhost:8080/api/proxies" \
     "type": "static",
     "name": "React App",
     "hostname": "app.example.com",
-    "static_config": {
+    "static": {
       "root_path": "/var/www/react-app/build",
       "index_file": "index.html",
       "browse": false,
       "template_rendering": false,
-      "try_files": ["index.html"]
+      "try_files": ["/index.html"]
     }
   }'
 ```
@@ -290,7 +324,7 @@ curl -X POST "http://localhost:8080/api/proxies" \
     "type": "static",
     "name": "Blog",
     "hostname": "blog.example.com",
-    "static_config": {
+    "static": {
       "root_path": "/var/www/blog",
       "index_file": "index.html",
       "browse": true,
