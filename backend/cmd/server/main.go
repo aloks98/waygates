@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,11 +12,16 @@ import (
 	"time"
 
 	"github.com/aloks98/homelab-proxy/backend/internal/api/routes"
+	"github.com/aloks98/homelab-proxy/backend/internal/auth"
 	"github.com/aloks98/homelab-proxy/backend/internal/config"
 	"github.com/aloks98/homelab-proxy/backend/internal/database"
+	"github.com/aloks98/homelab-proxy/backend/internal/models"
 	"github.com/aloks98/homelab-proxy/backend/internal/repository"
-	"github.com/aloks98/homelab-proxy/backend/internal/service"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
+
+	// PostgreSQL driver
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -42,30 +48,41 @@ func main() {
 
 	// Run database migrations
 	logger.Info("Running database migrations...")
-	if err := database.RunMigrations(cfg.Database.Type, cfg.GetDatabaseDSN()); err != nil {
+	if err := database.RunMigrations(cfg.GetDatabaseURL()); err != nil {
 		logger.Fatal("Failed to run migrations", zap.Error(err))
 	}
 	logger.Info("Database migrations completed successfully")
 
-	// Connect to database
-	logger.Info("Connecting to database...")
-	// Use GORM logger Silent mode for now (we have zap for logging)
-	db, err := database.Connect(cfg.Database.Type, cfg.GetDatabaseDSN(), 1) // 1 = Silent mode
+	// Connect to database (GORM)
+	logger.Info("Connecting to PostgreSQL...")
+	gormDB, err := database.Connect(cfg.GetDatabaseDSN(), 1) // 1 = Silent mode
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer database.Close()
 	logger.Info("Database connection established")
 
+	// Get the underlying *sql.DB for goauth
+	sqlDB, err := getSQLDB(gormDB)
+	if err != nil {
+		logger.Fatal("Failed to get SQL DB connection", zap.Error(err))
+	}
+
+	// Initialize goauth
+	logger.Info("Initializing authentication system...")
+	goauthInstance, err := auth.NewAuth(cfg, sqlDB)
+	if err != nil {
+		logger.Fatal("Failed to initialize goauth", zap.Error(err))
+	}
+	defer goauthInstance.Close()
+	logger.Info("Authentication system initialized")
+
 	// Create default user if needed
-	userRepo := repository.NewUserRepository(db)
-	tokenService := service.NewTokenService(cfg.JWT)
-	authService := service.NewAuthService(userRepo, tokenService, cfg.Security)
-	userService := service.NewUserService(userRepo, authService, cfg, logger)
-	userService.CreateDefaultUserIfNeeded()
+	userRepo := repository.NewUserRepository(gormDB)
+	createDefaultUserIfNeeded(cfg, userRepo, goauthInstance, logger)
 
 	// Setup routes
-	router := routes.SetupRoutes(cfg, db, logger)
+	router := routes.SetupRoutes(cfg, gormDB, logger, goauthInstance.Auth)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -100,6 +117,63 @@ func main() {
 	}
 
 	logger.Info("Server stopped")
+}
+
+// getSQLDB extracts the underlying *sql.DB from a GORM DB
+func getSQLDB(gormDB *gorm.DB) (*sql.DB, error) {
+	return gormDB.DB()
+}
+
+// createDefaultUserIfNeeded creates the default admin user if no users exist
+func createDefaultUserIfNeeded(cfg *config.Config, userRepo *repository.UserRepository, goauthInstance *auth.Auth, logger *zap.Logger) {
+	// Only create a default user if the credentials are provided in the config
+	if cfg.DefaultUser.Username == "" || cfg.DefaultUser.Email == "" || cfg.DefaultUser.Password == "" {
+		logger.Info("Default user not fully configured, skipping creation.")
+		return
+	}
+
+	count, err := userRepo.Count()
+	if err != nil {
+		logger.Error("Failed to count users", zap.Error(err))
+		return
+	}
+
+	if count == 0 {
+		logger.Info("No users found in database, creating default admin user")
+		name := cfg.DefaultUser.Name
+		if name == "" {
+			name = cfg.DefaultUser.Username
+		}
+
+		user := &models.User{
+			Name:     name,
+			Username: cfg.DefaultUser.Username,
+			Email:    cfg.DefaultUser.Email,
+		}
+
+		if err := user.SetPassword(cfg.DefaultUser.Password, cfg.Security.BcryptCost); err != nil {
+			logger.Error("Failed to hash password for default user", zap.Error(err))
+			return
+		}
+
+		if err := userRepo.Create(user); err != nil {
+			logger.Error("Failed to create default user", zap.Error(err))
+			return
+		}
+
+		// Assign admin role to the default user
+		ctx := context.Background()
+		userIDStr := fmt.Sprintf("%d", user.ID)
+		if err := goauthInstance.AssignRole(ctx, userIDStr, "admin"); err != nil {
+			logger.Error("Failed to assign admin role to default user", zap.Error(err))
+		}
+
+		logger.Info("Default user created successfully",
+			zap.String("username", cfg.DefaultUser.Username),
+			zap.String("email", cfg.DefaultUser.Email),
+			zap.String("role", "admin"),
+		)
+	}
 }
 
 // initLogger creates and configures a logger based on config

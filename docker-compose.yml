@@ -1,15 +1,47 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: homelab-proxy-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-homelab_proxy}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-homelab_proxy}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: homelab-proxy-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      caddy:
+        condition: service_started
+
   caddy:
     build:
       context: .
       dockerfile: Dockerfile.caddy
-    container_name: caddy
+    container_name: homelab-proxy-caddy
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
-      - "2019:2019"  # Admin API
+      - "2019:2019"
     env_file:
       - .env
     dns:
@@ -17,9 +49,8 @@ services:
       - 1.0.0.1
     volumes:
       - ./conf:/etc/caddy
-      - ./caddy-data:/data
-      - ./caddy_config:/config
-      - ./test-static:/srv/test-static:ro  # Mount test files as read-only
+      - caddy-data:/data
+      - caddy-config:/config
 
   ui:
     build:
@@ -29,7 +60,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    volumes:
-      - ./ui:/app
-    env_file:
-      - .env
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

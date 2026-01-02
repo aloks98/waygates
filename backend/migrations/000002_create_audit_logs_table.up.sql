@@ -1,6 +1,6 @@
 -- Create audit_logs table
 CREATE TABLE IF NOT EXISTS audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
 
     -- User information
     user_id INTEGER,  -- NULL for system actions or failed login attempts

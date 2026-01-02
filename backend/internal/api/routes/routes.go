@@ -1,10 +1,14 @@
 package routes
 
 import (
+	"log"
 	"time"
 
+	"github.com/aloks98/goauth"
+	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/aloks98/homelab-proxy/backend/internal/api/handlers"
 	"github.com/aloks98/homelab-proxy/backend/internal/api/middleware"
+	"github.com/aloks98/homelab-proxy/backend/internal/auth"
 	"github.com/aloks98/homelab-proxy/backend/internal/caddy"
 	"github.com/aloks98/homelab-proxy/backend/internal/config"
 	"github.com/aloks98/homelab-proxy/backend/internal/repository"
@@ -17,8 +21,30 @@ import (
 )
 
 // SetupRoutes configures all application routes
-func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *chi.Mux {
+func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInstance *goauth.Auth[*auth.CustomClaims]) *chi.Mux {
 	r := chi.NewRouter()
+
+	// Validate CORS configuration - warn if wildcard with credentials
+	corsOrigins := cfg.Security.CORSOrigins
+	for _, origin := range corsOrigins {
+		if origin == "*" {
+			log.Println("[SECURITY WARNING] CORS wildcard '*' is configured. This is insecure when AllowCredentials is true.")
+			// Replace wildcard with empty to prevent insecure configuration
+			// In production, explicit origins should be configured
+			corsOrigins = []string{}
+			break
+		}
+	}
+
+	// CORS configuration
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   corsOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 
 	// Middleware
 	r.Use(chiMiddleware.RequestID)
@@ -26,16 +52,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *chi.Mux {
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.Timeout(60 * time.Second))
-
-	// CORS
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   cfg.Security.CORSOrigins,
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
+	r.Use(middleware.BodyLimit(middleware.DefaultBodyLimit)) // 1MB body limit
 
 	// Initialize dependencies
 	caddyClient := caddy.NewClient(cfg.Caddy.AdminURL, cfg.Caddy.Timeout)
@@ -45,13 +62,19 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *chi.Mux {
 	userRepo := repository.NewUserRepository(db)
 
 	// Services
-	tokenService := service.NewTokenService(cfg.JWT)
-	authService := service.NewAuthService(userRepo, tokenService, cfg.Security)
-	proxyService := service.NewProxyService(proxyRepo, caddyClient)
+	proxyService := service.NewProxyService(proxyRepo, caddyClient, logger)
+
+	// Create auth adapter for middleware
+	authAdapter := &auth.Adapter{}
+	authAdapter.SetAuth(goauthInstance)
+
+	// Middleware config with custom error handler
+	mwConfig := chimw.DefaultConfig()
+	mwConfig.ErrorHandler = auth.ErrorHandler()
 
 	// Handlers
-	healthHandler := handlers.NewHealthHandler()
-	authHandler := handlers.NewAuthHandler(authService)
+	healthHandler := handlers.NewHealthHandlerWithDB(db)
+	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, cfg.Security.BcryptCost)
 	proxyHandler := handlers.NewProxyHandler(proxyService)
 	statusHandler := handlers.NewStatusHandler(caddyClient, userRepo)
 
@@ -61,21 +84,34 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger) *chi.Mux {
 		r.Get("/api/status", statusHandler.GetStatus)
 		r.Post("/api/auth/register", authHandler.Register)
 		r.Post("/api/auth/login", authHandler.Login)
+		r.Post("/api/auth/refresh", authHandler.RefreshToken)
 	})
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware(tokenService, userRepo))
+		// Apply authentication middleware
+		r.Use(chimw.Authenticate(authAdapter, authAdapter, mwConfig))
 
-		// Proxy routes
+		// Auth routes (require authentication)
+		r.Post("/api/auth/logout", authHandler.Logout)
+		r.Get("/api/auth/me", authHandler.GetMe)
+
+		// Proxy routes with permission checks
 		r.Route("/api/proxies", func(r chi.Router) {
-			r.Get("/", proxyHandler.ListProxies)
-			r.Get("/{id}", proxyHandler.GetProxy)
-			r.Post("/", proxyHandler.CreateProxy)
-			r.Put("/{id}", proxyHandler.UpdateProxy)
-			r.Delete("/{id}", proxyHandler.DeleteProxy)
-			r.Post("/{id}/enable", proxyHandler.EnableProxy)
-			r.Post("/{id}/disable", proxyHandler.DisableProxy)
+			// Read operations - require proxies:read
+			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/", proxyHandler.ListProxies)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/{id}", proxyHandler.GetProxy)
+
+			// Create operations - require proxies:create
+			r.With(chimw.RequirePermission(authAdapter, "proxies:create", mwConfig)).Post("/", proxyHandler.CreateProxy)
+
+			// Update operations - require proxies:update
+			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Put("/{id}", proxyHandler.UpdateProxy)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/{id}/enable", proxyHandler.EnableProxy)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/{id}/disable", proxyHandler.DisableProxy)
+
+			// Delete operations - require proxies:delete
+			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Delete("/{id}", proxyHandler.DeleteProxy)
 		})
 	})
 

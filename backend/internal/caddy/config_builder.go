@@ -169,18 +169,20 @@ func BuildRouteConfig(proxy *models.Proxy) (*RouteConfig, error) {
 func buildReverseProxyHandlers(proxy *models.Proxy) ([]HandlerConfig, error) {
 	var handlers []HandlerConfig
 
-	// Add security handler if block_exploits is enabled
-	if proxy.BlockExploits {
-		// In Caddy, we use import snippets for security
-		// This will be handled at the route level, not handler level
-		// We'll add a comment marker for now
-	}
+	// NOTE: block_exploits feature is not yet implemented in Caddy config generation.
+	// The BlockExploits field is preserved in the model for future use.
+	// Implementation would involve adding request matchers to filter common exploit patterns
+	// (e.g., path traversal, SQL injection attempts) using Caddy's request_header matcher
+	// or a custom WAF-like middleware. See GetSecuritySnippetPath() for the planned approach.
 
 	// Build reverse_proxy handler
 	handler := HandlerConfig{
 		Handler: "reverse_proxy",
 		ID:      fmt.Sprintf("handler_%d", proxy.ID),
 	}
+
+	// Track if any upstream uses HTTPS for TLS transport config
+	var hasHTTPSUpstream bool
 
 	// Add upstreams
 	if proxy.Upstreams != nil {
@@ -198,12 +200,21 @@ func buildReverseProxyHandlers(proxy *models.Proxy) ([]HandlerConfig, error) {
 					scheme = "http"
 				}
 
+				if scheme == "https" {
+					hasHTTPSUpstream = true
+				}
+
 				dial := fmt.Sprintf("%s:%d", host, int(port))
 				handler.Upstreams = append(handler.Upstreams, UpstreamConfig{
 					Dial: dial,
 				})
 			}
 		}
+	}
+
+	// Validate that we have at least one upstream
+	if len(handler.Upstreams) == 0 {
+		return nil, fmt.Errorf("reverse_proxy requires at least one upstream")
 	}
 
 	// Add load balancing if multiple upstreams
@@ -252,13 +263,16 @@ func buildReverseProxyHandlers(proxy *models.Proxy) ([]HandlerConfig, error) {
 		}
 	}
 
-	// Add transport config if TLS insecure skip verify is enabled
-	if proxy.TLSInsecureSkipVerify {
+	// Add transport config for HTTPS upstreams or if TLS insecure skip verify is enabled
+	if hasHTTPSUpstream || proxy.TLSInsecureSkipVerify {
 		handler.Transport = &TransportConfig{
-			Protocol: "http",
-			TLS: &TLSConfig{
-				InsecureSkipVerify: true,
-			},
+			Protocol: "http", // This is the Caddy transport protocol, not the upstream scheme
+		}
+		// Add TLS config if needed
+		if hasHTTPSUpstream || proxy.TLSInsecureSkipVerify {
+			handler.Transport.TLS = &TLSConfig{
+				InsecureSkipVerify: proxy.TLSInsecureSkipVerify,
+			}
 		}
 	}
 

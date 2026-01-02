@@ -1,9 +1,28 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/aloks98/homelab-proxy/backend/internal/models"
 	"gorm.io/gorm"
 )
+
+// Allowed sort fields for proxy listing (whitelist to prevent SQL injection)
+var allowedSortFields = map[string]string{
+	"id":         "id",
+	"name":       "name",
+	"hostname":   "hostname",
+	"type":       "type",
+	"is_active":  "is_active",
+	"created_at": "created_at",
+	"updated_at": "updated_at",
+}
+
+// Allowed sort orders (whitelist to prevent SQL injection)
+var allowedSortOrders = map[string]string{
+	"asc":  "ASC",
+	"desc": "DESC",
+}
 
 // ProxyRepository handles database operations for proxies
 type ProxyRepository struct {
@@ -55,15 +74,19 @@ func (r *ProxyRepository) List(params ProxyListParams) ([]models.Proxy, int64, e
 		return nil, 0, err
 	}
 
-	// Apply sorting
-	sortField := params.Sort
-	if sortField == "" {
-		sortField = "created_at"
+	// Apply sorting with whitelist validation to prevent SQL injection
+	sortField := "created_at" // default
+	if params.Sort != "" {
+		if validField, ok := allowedSortFields[strings.ToLower(params.Sort)]; ok {
+			sortField = validField
+		}
 	}
 
-	sortOrder := params.Order
-	if sortOrder == "" {
-		sortOrder = "desc"
+	sortOrder := "DESC" // default
+	if params.Order != "" {
+		if validOrder, ok := allowedSortOrders[strings.ToLower(params.Order)]; ok {
+			sortOrder = validOrder
+		}
 	}
 
 	query = query.Order(sortField + " " + sortOrder)

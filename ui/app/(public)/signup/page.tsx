@@ -6,6 +6,7 @@ import { z } from "zod"
 import { useSearchParams } from 'next/navigation'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { Suspense } from "react"
 
 import { Button } from "@e412/titanium"
 import {
@@ -26,7 +27,7 @@ import {
 } from "@e412/titanium"
 
 import { api } from "@/lib/api";
-import { RegisterRequest } from "@/types/api";
+import {ErrorResponse, RegisterRequest, RegisterResponseData} from "@/types/api";
 
 const formSchema = z.object({
     username: z.string().min(2, {
@@ -44,7 +45,7 @@ const formSchema = z.object({
     path: ["confirmPassword"],
 });
 
-export default function Signup() {
+function SignupForm() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const isNew = searchParams.get('new') === 'true'
@@ -68,7 +69,7 @@ export default function Signup() {
         };
 
         try {
-            const response = await api('/auth/register', {
+            const response = await api<RegisterResponseData, RegisterRequest>('/auth/register', {
                 method: 'POST',
                 body: registerData,
             });
@@ -79,8 +80,15 @@ export default function Signup() {
                 console.error("Registration failed:", response.message);
                 // TODO: Display error message to the user
             }
-        } catch (error) {
-            console.error("An unexpected error occurred during registration:", error);
+        } catch (error: unknown) {
+            let errorMessage = "An unexpected error occurred during registration";
+            try {
+                const errorResponse: ErrorResponse = JSON.parse(error.message);
+                errorMessage = errorResponse?.error?.message || errorMessage;
+            } catch {
+                // If parsing fails, use the default message
+            }
+            console.error(errorMessage);
             // TODO: Display error message to the user
         }
     }
@@ -165,5 +173,17 @@ export default function Signup() {
                 </CardContent>
             </Card>
         </div>
+    )
+}
+
+import Loader from '@/components/loader';
+
+// ... (rest of the file)
+
+export default function Signup() {
+    return (
+        <Suspense fallback={<Loader />}>
+            <SignupForm />
+        </Suspense>
     )
 }

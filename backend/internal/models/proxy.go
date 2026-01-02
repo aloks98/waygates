@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -129,8 +130,17 @@ func (p *Proxy) Validate() error {
 		return ErrProxyNameRequired
 	}
 
+	if len(p.Name) > 255 {
+		return ErrProxyNameTooLong
+	}
+
 	if p.Hostname == "" {
 		return ErrProxyHostnameRequired
+	}
+
+	// Validate hostname format
+	if err := validateHostname(p.Hostname); err != nil {
+		return err
 	}
 
 	// Type-specific validation
@@ -158,14 +168,59 @@ func (p *Proxy) Validate() error {
 	return nil
 }
 
+// validateHostname validates that a hostname is properly formatted
+func validateHostname(hostname string) error {
+	hostname = strings.TrimSpace(hostname)
+
+	// Check length
+	if len(hostname) > 253 {
+		return ErrHostnameTooLong
+	}
+
+	// Check for scheme
+	if strings.Contains(hostname, "://") {
+		return ErrHostnameHasScheme
+	}
+
+	// Check for port
+	if strings.Contains(hostname, ":") {
+		return ErrHostnameHasPort
+	}
+
+	// Check for path
+	if strings.Contains(hostname, "/") {
+		return ErrHostnameHasPath
+	}
+
+	// Basic DNS label validation
+	labels := strings.Split(hostname, ".")
+	for _, label := range labels {
+		if len(label) == 0 {
+			return ErrHostnameEmptyLabel
+		}
+		if len(label) > 63 {
+			return ErrHostnameLabelTooLong
+		}
+	}
+
+	return nil
+}
+
 // Custom errors
 var (
-	ErrInvalidProxyType        = &ValidationError{Message: "invalid proxy type"}
-	ErrProxyNameRequired       = &ValidationError{Message: "proxy name is required"}
-	ErrProxyHostnameRequired   = &ValidationError{Message: "proxy hostname is required"}
-	ErrUpstreamsRequired       = &ValidationError{Message: "upstreams are required for reverse_proxy type"}
-	ErrRedirectConfigRequired  = &ValidationError{Message: "redirect configuration is required for redirect type"}
-	ErrStaticConfigRequired    = &ValidationError{Message: "static configuration is required for static type"}
+	ErrInvalidProxyType       = &ValidationError{Message: "invalid proxy type"}
+	ErrProxyNameRequired      = &ValidationError{Message: "proxy name is required"}
+	ErrProxyNameTooLong       = &ValidationError{Message: "proxy name must be at most 255 characters"}
+	ErrProxyHostnameRequired  = &ValidationError{Message: "proxy hostname is required"}
+	ErrHostnameTooLong        = &ValidationError{Message: "hostname must be at most 253 characters"}
+	ErrHostnameHasScheme      = &ValidationError{Message: "hostname should not include a scheme (http:// or https://)"}
+	ErrHostnameHasPort        = &ValidationError{Message: "hostname should not include a port"}
+	ErrHostnameHasPath        = &ValidationError{Message: "hostname should not include a path"}
+	ErrHostnameEmptyLabel     = &ValidationError{Message: "hostname contains empty label"}
+	ErrHostnameLabelTooLong   = &ValidationError{Message: "hostname label exceeds 63 characters"}
+	ErrUpstreamsRequired      = &ValidationError{Message: "upstreams are required for reverse_proxy type"}
+	ErrRedirectConfigRequired = &ValidationError{Message: "redirect configuration is required for redirect type"}
+	ErrStaticConfigRequired   = &ValidationError{Message: "static configuration is required for static type"}
 )
 
 // ValidationError represents a validation error

@@ -97,16 +97,22 @@ func parseReverseProxyHandler(handler *HandlerConfig, proxy *models.Proxy) error
 		lbConfig := make(map[string]interface{})
 
 		// Map Caddy selection policy to our strategy
+		// SelectionPolicy can be either a string or a map[string]interface{} with "policy" key
 		strategy := "round_robin"
-		switch handler.LoadBalancing.SelectionPolicy {
-		case "round_robin":
+		switch sp := handler.LoadBalancing.SelectionPolicy.(type) {
+		case string:
+			strategy = sp
+		case map[string]interface{}:
+			if policy, ok := sp["policy"].(string); ok {
+				strategy = policy
+			}
+		}
+		// Normalize known strategies
+		switch strategy {
+		case "round_robin", "least_conn", "ip_hash", "random":
+			// Valid strategy, keep as-is
+		default:
 			strategy = "round_robin"
-		case "least_conn":
-			strategy = "least_conn"
-		case "ip_hash":
-			strategy = "ip_hash"
-		case "random":
-			strategy = "random"
 		}
 		lbConfig["strategy"] = strategy
 
@@ -168,22 +174,36 @@ func parseRedirectHandler(handler *HandlerConfig, proxy *models.Proxy) error {
 	}
 
 	// Parse Location header for target
-	if handler.Headers != nil && handler.Headers.Response != nil && handler.Headers.Response.Set != nil {
-		if locations, ok := handler.Headers.Response.Set["Location"]; ok && len(locations) > 0 {
-			target := locations[0]
-
-			// Determine if path/query are preserved
-			preservePath := strings.Contains(target, "{http.request.uri.path}")
-			preserveQuery := strings.Contains(target, "{http.request.uri.query}")
-
-			// Remove placeholders to get base target
-			target = strings.ReplaceAll(target, "{http.request.uri.path}", "")
-			target = strings.ReplaceAll(target, "{http.request.uri.query}", "")
-
-			redirectConfig["target"] = target
-			redirectConfig["preserve_path"] = preservePath
-			redirectConfig["preserve_query"] = preserveQuery
+	// For static_response, Caddy returns headers as a direct map (StaticHeaders)
+	// not the nested Headers.Response.Set format used by reverse_proxy
+	var locations []string
+	if handler.StaticHeaders != nil {
+		if locs, ok := handler.StaticHeaders["Location"]; ok {
+			locations = locs
 		}
+	}
+	// Also check the nested format for backwards compatibility
+	if len(locations) == 0 && handler.Headers != nil && handler.Headers.Response != nil && handler.Headers.Response.Set != nil {
+		if locs, ok := handler.Headers.Response.Set["Location"]; ok {
+			locations = locs
+		}
+	}
+
+	if len(locations) > 0 {
+		target := locations[0]
+
+		// Determine if path/query are preserved
+		preservePath := strings.Contains(target, "{http.request.uri.path}")
+		preserveQuery := strings.Contains(target, "{http.request.uri.query}")
+
+		// Remove placeholders to get base target
+		target = strings.ReplaceAll(target, "{http.request.uri.path}", "")
+		target = strings.ReplaceAll(target, "?{http.request.uri.query}", "")
+		target = strings.ReplaceAll(target, "{http.request.uri.query}", "")
+
+		redirectConfig["target"] = target
+		redirectConfig["preserve_path"] = preservePath
+		redirectConfig["preserve_query"] = preserveQuery
 	}
 
 	proxy.RedirectConfig = redirectConfig

@@ -25,11 +25,24 @@ type ErrorDetail struct {
 	Details interface{} `json:"details,omitempty"`
 }
 
-// JSON sends a JSON response
+// JSON sends a JSON response.
+// The function marshals data to JSON before writing to ensure proper error handling.
+// If marshaling fails, it falls back to a generic error response.
 func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	// Marshal first to catch any encoding errors before writing headers
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		// Fall back to a simple error response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		// Write a hardcoded error that we know will succeed
+		w.Write([]byte(`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"Failed to encode response"}}`))
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	w.Write(jsonData)
 }
 
 // Success sends a success response

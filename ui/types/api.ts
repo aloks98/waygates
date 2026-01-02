@@ -1,4 +1,4 @@
-export interface SuccessResponse<T = any> {
+export interface SuccessResponse<T = never> {
     success: boolean;
     message?: string;
     data?: T;
@@ -12,7 +12,7 @@ export interface ErrorResponse {
 export interface ErrorDetail {
     code: string;
     message: string;
-    details?: any;
+    details?: never;
 }
 
 export interface StatusResponseData {
@@ -28,11 +28,32 @@ export interface RegisterRequest {
 }
 
 export interface LoginRequest {
-    email: string;
+    identifier: string;
     password: string;
 }
 
 export interface LoginResponseData {
-    token: string; // Assuming the API returns a token upon successful login
-    // Add any other relevant user data returned by the login API
+    access_token: string;
+    refresh_token: string;
+}
+
+export interface User {
+    id: number;
+    name: string;
+    username: string;
+    email: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RegisterResponseData {
+    user: User;
+}
+
+export interface RefreshTokenRequest {
+    refresh_token: string;
+}
+
+export interface RefreshTokenResponse {
+    access_token: string;
 }

@@ -27,6 +27,19 @@ Provides the status of the Caddy server and whether the initial user setup has b
 - `caddy_status`: "healthy" or "unhealthy"
 - `user_setup_complete`: `true` if at least one user exists in the database, `false` otherwise.
 
+**Error Responses**
+
+- **500 Internal Server Error**: If the database query to count users fails.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "INTERNAL_ERROR",
+      "message": "Failed to check user status"
+    }
+  }
+  ```
+
 ### 2. Register a New User
 
 Creates a new user account.
@@ -62,6 +75,30 @@ Creates a new user account.
 }
 ```
 
+**Error Responses**
+
+- **400 Bad Request**: If the request body is invalid or missing required fields.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Name, username, email, and password are required"
+    }
+  }
+  ```
+- **409 Conflict**: If a user with the same username or email already exists.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "CONFLICT",
+      "message": "User with this email or username already exists"
+    }
+  }
+  ```
+- **500 Internal Server Error**: For any other server-side errors.
+
 ### 3. User Login
 
 Authenticates a user and returns access and refresh tokens.
@@ -92,6 +129,21 @@ You can log in with either your `username` or `email`.
   }
 }
 ```
+
+**Error Responses**
+
+- **400 Bad Request**: If the request body is invalid.
+- **401 Unauthorized**: If the credentials are a invalid.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "UNAUTHORIZED",
+      "message": "Invalid credentials"
+    }
+  }
+  ```
+- **500 Internal Server Error**: For any other server-side errors.
 
 ## Authentication Flow
 

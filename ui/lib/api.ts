@@ -44,7 +44,7 @@ export async function api<T = never, B = never>(
         if (!response.ok) {
             // Handle non-2xx responses
             console.error('API Error:', json);
-            return Promise.reject(json);
+            throw new Error(JSON.stringify(json)); // Throw an Error object
         }
 
         return json;

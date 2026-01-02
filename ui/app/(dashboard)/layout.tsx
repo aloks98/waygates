@@ -5,8 +5,9 @@ import {
     SidebarInset,
     SidebarProvider,
 } from "@e412/titanium"
+import {ReactNode} from "react";
 
-export default function Page({children}) {
+export default function Page({children}: { children: ReactNode }) {
     return (
         <SidebarProvider
         >

@@ -25,11 +25,19 @@ import {
 } from "@e412/titanium"
 
 import { api } from "@/lib/api";
-import { LoginRequest, LoginResponseData } from "@/types/api";
+import { LoginRequest, LoginResponseData, ErrorResponse } from "@/types/api";
+import { useMutation } from '@tanstack/react-query';
 
 const formSchema = z.object({
-    email: z.string().email({
-        message: "Please enter a valid email address.",
+    identifier: z.string().refine(value => {
+        // Check if it's a valid email
+        if (z.string().email().safeParse(value).success) {
+            return true;
+        }
+        // Otherwise, check if it's a non-empty string (username)
+        return value.trim().length > 0;
+    }, {
+        message: "Please enter a valid email address or username.",
     }),
     password: z.string().min(8, {
         message: "Password must be at least 8 characters.",
@@ -41,35 +49,49 @@ export default function Login() {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            email: "",
+            identifier: "",
             password: "",
         },
     })
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
-        const loginData: LoginRequest = {
-            email: values.email,
-            password: values.password,
-        };
-
-        try {
-            const response = await api<LoginResponseData, LoginRequest>('/auth/login', {
+    const loginMutation = useMutation({
+        mutationFn: async (loginData: LoginRequest) => {
+            return api<LoginResponseData, LoginRequest>('/auth/login', {
                 method: 'POST',
                 body: loginData,
+                authenticate: false,
             });
-
-            if (response.success && response.data?.token) {
-                localStorage.setItem('authToken', response.data.token);
+        },
+        onSuccess: (response) => {
+            if (response.success && response.data?.access_token) {
+                localStorage.setItem('authToken', response.data.access_token);
+                localStorage.setItem('refreshToken', response.data.refresh_token);
                 console.log("Login successful, token saved and redirecting to /proxies");
                 router.push("/proxies");
             } else {
                 console.error("Login failed:", response.message || "Unknown error");
                 // TODO: Display error message to the user
             }
-        } catch (error) {
-            console.error("An unexpected error occurred during login:", error);
-            // TODO: Display error message to the user
-        }
+        },
+        onError: (error: Error) => {
+            let errorMessage = "An unexpected error occurred during login";
+            try {
+                const errorResponse: ErrorResponse = JSON.parse(error.message);
+                errorMessage = errorResponse?.error?.message || errorMessage;
+            } catch {
+                // If parsing fails, use the default message
+            }
+            console.error(errorMessage);
+            // TODO: Display error message to the user using a toast notification
+        },
+    });
+
+    function onSubmit(values: z.infer<typeof formSchema>) {
+        const loginData: LoginRequest = {
+            identifier: values.identifier,
+            password: values.password,
+        };
+        loginMutation.mutate(loginData);
     }
 
     return (
@@ -78,7 +100,7 @@ export default function Login() {
                 <CardHeader>
                     <CardTitle className="text-2xl">Login</CardTitle>
                     <CardDescription>
-                        Enter your email below to login to your account
+                        Enter your username or email below to login to your account
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -86,12 +108,12 @@ export default function Login() {
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                             <FormField
                                 control={form.control}
-                                name="email"
+                                name="identifier"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel>Username or Email</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="m@example.com" {...field} />
+                                            <Input placeholder="username or m@example.com" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -110,8 +132,8 @@ export default function Login() {
                                     </FormItem>
                                 )}
                             />
-                            <Button type="submit" className="w-full">
-                                Login
+                            <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+                                {loginMutation.isPending ? 'Logging in...' : 'Login'}
                             </Button>
                         </form>
                     </Form>

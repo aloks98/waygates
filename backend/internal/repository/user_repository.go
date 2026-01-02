@@ -51,3 +51,8 @@ func (r *UserRepository) Count() (int64, error) {
 	}
 	return count, nil
 }
+
+// Delete deletes a user by ID
+func (r *UserRepository) Delete(id int) error {
+	return r.db.Delete(&models.User{}, id).Error
+}

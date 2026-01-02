@@ -26,9 +26,7 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-	Type     string // "sqlite" or "postgres"
-	Path     string // For SQLite
-	Host     string // For PostgreSQL
+	Host     string
 	Port     int
 	User     string
 	Password string
@@ -52,6 +50,7 @@ type JWTConfig struct {
 type SecurityConfig struct {
 	BcryptCost  int
 	CORSOrigins []string
+	RBACPath    string // Path to RBAC configuration file
 }
 
 // LoggingConfig holds logging configuration
@@ -85,8 +84,6 @@ func Load() (*Config, error) {
 			Port: viper.GetInt("SERVER_PORT"),
 		},
 		Database: DatabaseConfig{
-			Type:     viper.GetString("DB_TYPE"),
-			Path:     viper.GetString("DB_PATH"),
 			Host:     viper.GetString("DB_HOST"),
 			Port:     viper.GetInt("DB_PORT"),
 			User:     viper.GetString("DB_USER"),
@@ -105,6 +102,7 @@ func Load() (*Config, error) {
 		Security: SecurityConfig{
 			BcryptCost:  viper.GetInt("BCRYPT_COST"),
 			CORSOrigins: viper.GetStringSlice("CORS_ORIGINS"),
+			RBACPath:    viper.GetString("RBAC_PATH"),
 		},
 		Logging: LoggingConfig{
 			Level:  viper.GetString("LOG_LEVEL"),
@@ -132,10 +130,12 @@ func setDefaults() {
 	viper.SetDefault("SERVER_HOST", "0.0.0.0")
 	viper.SetDefault("SERVER_PORT", 8080)
 
-	// Database
-	viper.SetDefault("DB_TYPE", "sqlite")
-	viper.SetDefault("DB_PATH", "./backend/data/caddy-manager.db")
+	// Database (PostgreSQL)
+	viper.SetDefault("DB_HOST", "postgres")
 	viper.SetDefault("DB_PORT", 5432)
+	viper.SetDefault("DB_USER", "homelab")
+	viper.SetDefault("DB_PASSWORD", "homelab")
+	viper.SetDefault("DB_NAME", "homelab_proxy")
 
 	// Caddy
 	viper.SetDefault("CADDY_ADMIN_URL", "http://localhost:2019")
@@ -146,13 +146,18 @@ func setDefaults() {
 	viper.SetDefault("JWT_REFRESH_EXPIRY", 7*24*time.Hour)
 
 	// Security
-	viper.SetDefault("BCRYPT_COST", 10)
-	viper.SetDefault("CORS_ORIGINS", []string{"http://localhost:3000"})
+	viper.SetDefault("BCRYPT_COST", 12) // Increased from 10 for better security
+	// This should be configured via the .env file for production
+	viper.SetDefault("CORS_ORIGINS", []string{})
+	viper.SetDefault("RBAC_PATH", "./backend/rbac.yaml")
 
 	// Logging
 	viper.SetDefault("LOG_LEVEL", "info")
 	viper.SetDefault("LOG_FORMAT", "json")
 }
+
+// MinJWTSecretLength is the minimum required length for JWT secret
+const MinJWTSecretLength = 32
 
 // validate checks if required configuration is present
 func validate(cfg *Config) error {
@@ -160,35 +165,35 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("JWT_SECRET is required")
 	}
 
-	if cfg.Database.Type != "sqlite" && cfg.Database.Type != "postgres" {
-		return fmt.Errorf("DB_TYPE must be 'sqlite' or 'postgres'")
+	if len(cfg.JWT.Secret) < MinJWTSecretLength {
+		return fmt.Errorf("JWT_SECRET must be at least %d characters for security", MinJWTSecretLength)
 	}
 
-	if cfg.Database.Type == "sqlite" && cfg.Database.Path == "" {
-		return fmt.Errorf("DB_PATH is required when using SQLite")
-	}
-
-	if cfg.Database.Type == "postgres" {
-		if cfg.Database.Host == "" || cfg.Database.Name == "" {
-			return fmt.Errorf("DB_HOST and DB_NAME are required when using PostgreSQL")
-		}
+	if cfg.Database.Host == "" || cfg.Database.Name == "" {
+		return fmt.Errorf("DB_HOST and DB_NAME are required")
 	}
 
 	return nil
 }
 
-// GetDatabaseDSN returns the database connection string
+// GetDatabaseDSN returns the database connection string for GORM
 func (c *Config) GetDatabaseDSN() string {
-	if c.Database.Type == "sqlite" {
-		return c.Database.Path
-	}
-
-	// PostgreSQL DSN
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		c.Database.Host,
 		c.Database.Port,
 		c.Database.User,
 		c.Database.Password,
+		c.Database.Name,
+	)
+}
+
+// GetDatabaseURL returns the database URL for golang-migrate
+func (c *Config) GetDatabaseURL() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+		c.Database.User,
+		c.Database.Password,
+		c.Database.Host,
+		c.Database.Port,
 		c.Database.Name,
 	)
 }

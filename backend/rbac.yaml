@@ -1,0 +1,53 @@
+version: 1
+
+permission_groups:
+  - name: "Proxies"
+    permissions:
+      - key: "proxies:read"
+        name: "View Proxies"
+        description: "View proxy configurations"
+      - key: "proxies:create"
+        name: "Create Proxies"
+        description: "Create new proxy configurations"
+      - key: "proxies:update"
+        name: "Update Proxies"
+        description: "Modify existing proxy configurations"
+      - key: "proxies:delete"
+        name: "Delete Proxies"
+        description: "Remove proxy configurations"
+
+  - name: "Users"
+    permissions:
+      - key: "users:read"
+        name: "View Users"
+        description: "View user accounts"
+      - key: "users:manage"
+        name: "Manage Users"
+        description: "Create, update, and delete user accounts"
+
+  - name: "System"
+    permissions:
+      - key: "system:status"
+        name: "View System Status"
+        description: "View system health and status"
+
+role_templates:
+  - key: "admin"
+    name: "Administrator"
+    description: "Full access to all features"
+    permissions:
+      - "*"
+
+  - key: "operator"
+    name: "Operator"
+    description: "Manage proxy configurations"
+    permissions:
+      - "proxies:*"
+      - "system:status"
+
+  - key: "viewer"
+    name: "Viewer"
+    description: "Read-only access"
+    permissions:
+      - "proxies:read"
+      - "system:status"

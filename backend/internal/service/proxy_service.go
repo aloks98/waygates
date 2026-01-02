@@ -3,10 +3,12 @@ package service
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/aloks98/homelab-proxy/backend/internal/caddy"
 	"github.com/aloks98/homelab-proxy/backend/internal/models"
 	"github.com/aloks98/homelab-proxy/backend/internal/repository"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -14,13 +16,20 @@ import (
 type ProxyService struct {
 	repo        *repository.ProxyRepository
 	caddyClient *caddy.Client
+	logger      *zap.Logger
 }
 
 // NewProxyService creates a new proxy service
-func NewProxyService(repo *repository.ProxyRepository, caddyClient *caddy.Client) *ProxyService {
+func NewProxyService(repo *repository.ProxyRepository, caddyClient *caddy.Client, logger *zap.Logger) *ProxyService {
+	// Use a no-op logger if none provided
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	service := &ProxyService{
 		repo:        repo,
 		caddyClient: caddyClient,
+		logger:      logger.Named("proxy-service"),
 	}
 
 	// Sync active proxies to Caddy on startup
@@ -32,27 +41,67 @@ func NewProxyService(repo *repository.ProxyRepository, caddyClient *caddy.Client
 // syncProxiesToCaddy syncs all active proxies from database to Caddy
 // This is called on startup to restore configurations after Caddy restart
 func (s *ProxyService) syncProxiesToCaddy() {
+	s.logger.Info("Starting Caddy sync")
+
+	// Wait for Caddy to be ready with retries
+	maxRetries := 10
+	retryDelay := 2 * time.Second
+	var caddyReady bool
+
+	for i := 0; i < maxRetries; i++ {
+		if err := s.caddyClient.HealthCheck(); err != nil {
+			s.logger.Warn("Waiting for Caddy to be ready",
+				zap.Int("attempt", i+1),
+				zap.Int("max_retries", maxRetries),
+				zap.Error(err))
+			time.Sleep(retryDelay)
+			continue
+		}
+		caddyReady = true
+		break
+	}
+
+	if !caddyReady {
+		s.logger.Error("Caddy not reachable after max retries, skipping sync")
+		return
+	}
+
+	s.logger.Info("Caddy is ready, proceeding with sync")
+
 	// Get all active proxies
 	proxies, _, err := s.repo.List(repository.ProxyListParams{
 		Status: "active",
 		Limit:  1000, // Get all active proxies
 	})
 	if err != nil {
-		// Log error but don't fail startup
-		// TODO: Add proper logging
+		s.logger.Error("Failed to list active proxies", zap.Error(err))
 		return
 	}
 
+	if len(proxies) == 0 {
+		s.logger.Info("No active proxies to sync")
+		return
+	}
+
+	s.logger.Info("Found active proxies to sync", zap.Int("count", len(proxies)))
+
 	// Ensure HTTP server exists
 	if err := s.ensureHTTPServerExists(); err != nil {
+		s.logger.Error("Failed to ensure HTTP server exists", zap.Error(err))
 		return
 	}
 
 	// Build all routes
 	var routes []interface{}
+	var failedCount int
 	for _, proxy := range proxies {
 		route, err := caddy.BuildRouteConfig(&proxy)
 		if err != nil {
+			s.logger.Warn("Failed to build route for proxy",
+				zap.Int("proxy_id", proxy.ID),
+				zap.String("proxy_name", proxy.Name),
+				zap.Error(err))
+			failedCount++
 			continue
 		}
 		routes = append(routes, route)
@@ -60,9 +109,19 @@ func (s *ProxyService) syncProxiesToCaddy() {
 
 	// Apply all routes at once
 	if len(routes) > 0 {
-		path := "/config/apps/http/servers/srv0/routes"
-		s.caddyClient.PATCH(path, routes)
+		path := caddy.RoutesPath
+		if err := s.caddyClient.PATCH(path, routes); err != nil {
+			s.logger.Error("Failed to apply routes to Caddy", zap.Error(err))
+			return
+		}
+		s.logger.Info("Successfully synced routes to Caddy", zap.Int("count", len(routes)))
 	}
+
+	if failedCount > 0 {
+		s.logger.Warn("Some proxies failed to sync", zap.Int("failed_count", failedCount))
+	}
+
+	s.logger.Info("Caddy sync completed")
 }
 
 // ListProxiesRequest holds parameters for listing proxies
@@ -158,7 +217,9 @@ func (s *ProxyService) CreateProxy(proxy *models.Proxy, userID int) error {
 	if proxy.IsActive {
 		if err := s.applyCaddyConfig(proxy); err != nil {
 			// Rollback database entry if Caddy config fails
-			s.repo.Delete(proxy.ID)
+			if delErr := s.repo.Delete(proxy.ID); delErr != nil {
+				return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %v", err, delErr)
+			}
 			return fmt.Errorf("failed to apply Caddy configuration: %w", err)
 		}
 	}
@@ -290,7 +351,9 @@ func (s *ProxyService) EnableProxy(id int) error {
 	// Apply configuration to Caddy
 	if err := s.applyCaddyConfig(proxy); err != nil {
 		// Rollback status update
-		s.repo.UpdateStatus(id, false)
+		if rollbackErr := s.repo.UpdateStatus(id, false); rollbackErr != nil {
+			return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %v", err, rollbackErr)
+		}
 		return fmt.Errorf("failed to apply Caddy configuration: %w", err)
 	}
 
@@ -363,7 +426,7 @@ func (s *ProxyService) applyCaddyConfig(proxy *models.Proxy) error {
 	filteredRoutes = append(filteredRoutes, newRoute)
 
 	// Update all routes at once
-	path := "/config/apps/http/servers/srv0/routes"
+	path := caddy.RoutesPath
 	if err := s.caddyClient.PATCH(path, filteredRoutes); err != nil {
 		return NewCaddyError(fmt.Sprintf("failed to update routes in Caddy: %v", err))
 	}
@@ -436,7 +499,7 @@ func (s *ProxyService) ensureHTTPServerExists() error {
 	// Initialize routes array if it doesn't exist
 	if _, hasRoutes := srv0["routes"]; !hasRoutes {
 		// Create empty routes array
-		if err := s.caddyClient.PUT("/config/apps/http/servers/srv0/routes", []interface{}{}); err != nil {
+		if err := s.caddyClient.PUT(caddy.RoutesPath, []interface{}{}); err != nil {
 			return fmt.Errorf("failed to initialize routes array: %w", err)
 		}
 	}
@@ -480,7 +543,7 @@ func (s *ProxyService) removeCaddyConfig(proxyID int) error {
 	}
 
 	// Update routes array
-	path := "/config/apps/http/servers/srv0/routes"
+	path := caddy.RoutesPath
 	if err := s.caddyClient.PATCH(path, filteredRoutes); err != nil {
 		return fmt.Errorf("failed to update routes in Caddy: %w", err)
 	}

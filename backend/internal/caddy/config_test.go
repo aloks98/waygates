@@ -344,3 +344,525 @@ func TestJSON(t *testing.T) {
 		t.Fatalf("Failed to marshal config to JSON: %v", err)
 	}
 }
+
+// TestRedirectConfig_RoundTrip tests that redirect configs survive build/parse cycle
+func TestRedirectConfig_RoundTrip(t *testing.T) {
+	original := &models.Proxy{
+		ID:       100,
+		Type:     models.ProxyTypeRedirect,
+		Name:     "Redirect Test",
+		Hostname: "old.example.com",
+		RedirectConfig: map[string]interface{}{
+			"target":         "https://new.example.com",
+			"status_code":    float64(301),
+			"preserve_path":  true,
+			"preserve_query": true,
+		},
+	}
+
+	// Build Caddy config
+	route, err := caddy.BuildRouteConfig(original)
+	if err != nil {
+		t.Fatalf("Failed to build redirect config: %v", err)
+	}
+
+	// Verify the handler has StaticHeaders (not nested Headers)
+	if len(route.Handle) == 0 {
+		t.Fatal("No handlers in route")
+	}
+
+	handler := route.Handle[0]
+	if handler.Handler != "static_response" {
+		t.Errorf("Expected handler 'static_response', got '%s'", handler.Handler)
+	}
+
+	// Verify the status code
+	if handler.StatusCode != 301 {
+		t.Errorf("Expected status code 301, got %d", handler.StatusCode)
+	}
+
+	// Verify StaticHeaders contains Location
+	if handler.StaticHeaders == nil {
+		t.Fatal("StaticHeaders is nil")
+	}
+
+	locations, ok := handler.StaticHeaders["Location"]
+	if !ok || len(locations) == 0 {
+		t.Fatal("No Location header in StaticHeaders")
+	}
+
+	expectedLocation := "https://new.example.com{http.request.uri.path}?{http.request.uri.query}"
+	if locations[0] != expectedLocation {
+		t.Errorf("Expected Location '%s', got '%s'", expectedLocation, locations[0])
+	}
+
+	// Parse back to proxy
+	parsed, err := caddy.ParseRouteToProxy(route)
+	if err != nil {
+		t.Fatalf("Failed to parse redirect config: %v", err)
+	}
+
+	if parsed.Type != models.ProxyTypeRedirect {
+		t.Errorf("Expected type 'redirect', got '%s'", parsed.Type)
+	}
+
+	// Verify redirect config was parsed correctly
+	if parsed.RedirectConfig == nil {
+		t.Fatal("RedirectConfig is nil after parsing")
+	}
+
+	target, _ := parsed.RedirectConfig["target"].(string)
+	if target != "https://new.example.com" {
+		t.Errorf("Expected target 'https://new.example.com', got '%s'", target)
+	}
+
+	preservePath, _ := parsed.RedirectConfig["preserve_path"].(bool)
+	if !preservePath {
+		t.Error("Expected preserve_path to be true")
+	}
+
+	preserveQuery, _ := parsed.RedirectConfig["preserve_query"].(bool)
+	if !preserveQuery {
+		t.Error("Expected preserve_query to be true")
+	}
+}
+
+// TestLoadBalancing_RoundTrip tests that load balancing configs survive build/parse cycle
+func TestLoadBalancing_RoundTrip(t *testing.T) {
+	testCases := []struct {
+		name     string
+		strategy string
+	}{
+		{"round_robin", "round_robin"},
+		{"least_conn", "least_conn"},
+		{"ip_hash", "ip_hash"},
+		{"random", "random"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			original := &models.Proxy{
+				ID:       200,
+				Type:     models.ProxyTypeReverseProxy,
+				Name:     "LB Test",
+				Hostname: "lb.example.com",
+				Upstreams: []interface{}{
+					map[string]interface{}{
+						"host":   "backend1",
+						"port":   float64(8080),
+						"scheme": "http",
+					},
+					map[string]interface{}{
+						"host":   "backend2",
+						"port":   float64(8080),
+						"scheme": "http",
+					},
+				},
+				LoadBalancing: map[string]interface{}{
+					"strategy": tc.strategy,
+				},
+			}
+
+			// Build Caddy config
+			route, err := caddy.BuildRouteConfig(original)
+			if err != nil {
+				t.Fatalf("Failed to build config: %v", err)
+			}
+
+			// Verify the handler has load balancing config
+			if len(route.Handle) == 0 {
+				t.Fatal("No handlers in route")
+			}
+
+			handler := route.Handle[0]
+			if handler.LoadBalancing == nil {
+				t.Fatal("LoadBalancing is nil")
+			}
+
+			// SelectionPolicy should be a map with "policy" key
+			selPolicy, ok := handler.LoadBalancing.SelectionPolicy.(map[string]interface{})
+			if !ok {
+				t.Fatalf("SelectionPolicy is not a map, got %T", handler.LoadBalancing.SelectionPolicy)
+			}
+
+			policy, ok := selPolicy["policy"].(string)
+			if !ok || policy != tc.strategy {
+				t.Errorf("Expected policy '%s', got '%v'", tc.strategy, selPolicy["policy"])
+			}
+
+			// Parse back to proxy
+			parsed, err := caddy.ParseRouteToProxy(route)
+			if err != nil {
+				t.Fatalf("Failed to parse config: %v", err)
+			}
+
+			// Verify load balancing was parsed correctly
+			if parsed.LoadBalancing == nil {
+				t.Fatal("LoadBalancing is nil after parsing")
+			}
+
+			parsedStrategy, _ := parsed.LoadBalancing["strategy"].(string)
+			if parsedStrategy != tc.strategy {
+				t.Errorf("Expected strategy '%s', got '%s'", tc.strategy, parsedStrategy)
+			}
+		})
+	}
+}
+
+// TestBuildRouteConfig_UnsupportedType tests that unsupported types return error
+func TestBuildRouteConfig_UnsupportedType(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     "unsupported_type",
+		Name:     "Test",
+		Hostname: "test.example.com",
+	}
+
+	_, err := caddy.BuildRouteConfig(proxy)
+	if err == nil {
+		t.Error("Expected error for unsupported proxy type")
+	}
+}
+
+// TestBuildReverseProxy_NoUpstreams tests that reverse proxy without upstreams returns error
+func TestBuildReverseProxy_NoUpstreams(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:        1,
+		Type:      models.ProxyTypeReverseProxy,
+		Name:      "Test",
+		Hostname:  "test.example.com",
+		Upstreams: nil,
+	}
+
+	_, err := caddy.BuildRouteConfig(proxy)
+	if err == nil {
+		t.Error("Expected error for reverse proxy without upstreams")
+	}
+}
+
+// TestBuildReverseProxy_EmptyUpstreams tests that reverse proxy with empty upstreams returns error
+func TestBuildReverseProxy_EmptyUpstreams(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:        1,
+		Type:      models.ProxyTypeReverseProxy,
+		Name:      "Test",
+		Hostname:  "test.example.com",
+		Upstreams: []interface{}{},
+	}
+
+	_, err := caddy.BuildRouteConfig(proxy)
+	if err == nil {
+		t.Error("Expected error for reverse proxy with empty upstreams")
+	}
+}
+
+// TestBuildReverseProxy_HTTPSUpstream tests that HTTPS upstreams get proper TLS transport
+func TestBuildReverseProxy_HTTPSUpstream(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeReverseProxy,
+		Name:     "HTTPS Backend",
+		Hostname: "app.example.com",
+		Upstreams: []interface{}{
+			map[string]interface{}{
+				"host":   "secure-backend",
+				"port":   float64(443),
+				"scheme": "https",
+			},
+		},
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	handler := route.Handle[0]
+	if handler.Transport == nil {
+		t.Fatal("Expected transport config for HTTPS upstream")
+	}
+
+	if handler.Transport.Protocol != "http" {
+		t.Errorf("Expected transport protocol 'http', got '%s'", handler.Transport.Protocol)
+	}
+
+	if handler.Transport.TLS == nil {
+		t.Error("Expected TLS config for HTTPS upstream")
+	}
+}
+
+// TestBuildReverseProxy_TLSInsecureSkipVerify tests TLS insecure skip verify setting
+func TestBuildReverseProxy_TLSInsecureSkipVerify(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeReverseProxy,
+		Name:     "Insecure Backend",
+		Hostname: "app.example.com",
+		Upstreams: []interface{}{
+			map[string]interface{}{
+				"host":   "backend",
+				"port":   float64(8080),
+				"scheme": "http",
+			},
+		},
+		TLSInsecureSkipVerify: true,
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	handler := route.Handle[0]
+	if handler.Transport == nil {
+		t.Fatal("Expected transport config for TLS insecure skip verify")
+	}
+
+	if handler.Transport.TLS == nil {
+		t.Fatal("Expected TLS config")
+	}
+
+	if !handler.Transport.TLS.InsecureSkipVerify {
+		t.Error("Expected InsecureSkipVerify to be true")
+	}
+}
+
+// TestBuildReverseProxy_HealthChecks tests health check configuration
+func TestBuildReverseProxy_HealthChecks(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeReverseProxy,
+		Name:     "HA Backend",
+		Hostname: "app.example.com",
+		Upstreams: []interface{}{
+			map[string]interface{}{
+				"host":   "backend1",
+				"port":   float64(8080),
+				"scheme": "http",
+			},
+			map[string]interface{}{
+				"host":   "backend2",
+				"port":   float64(8080),
+				"scheme": "http",
+			},
+		},
+		LoadBalancing: map[string]interface{}{
+			"strategy": "round_robin",
+			"health_checks": map[string]interface{}{
+				"enabled":             true,
+				"path":                "/health",
+				"interval":            "30s",
+				"timeout":             "5s",
+				"unhealthy_threshold": float64(3),
+				"healthy_threshold":   float64(2),
+			},
+		},
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	handler := route.Handle[0]
+	if handler.HealthChecks == nil {
+		t.Fatal("Expected health checks config")
+	}
+
+	if handler.HealthChecks.Active == nil {
+		t.Fatal("Expected active health checks")
+	}
+
+	if handler.HealthChecks.Active.Path != "/health" {
+		t.Errorf("Expected path '/health', got '%s'", handler.HealthChecks.Active.Path)
+	}
+
+	if handler.HealthChecks.Active.Interval != "30s" {
+		t.Errorf("Expected interval '30s', got '%s'", handler.HealthChecks.Active.Interval)
+	}
+
+	if handler.HealthChecks.Active.Fails != 3 {
+		t.Errorf("Expected fails 3, got %d", handler.HealthChecks.Active.Fails)
+	}
+
+	if handler.HealthChecks.Active.Passes != 2 {
+		t.Errorf("Expected passes 2, got %d", handler.HealthChecks.Active.Passes)
+	}
+}
+
+// TestBuildRedirect_MissingTarget tests that redirect without target returns error
+func TestBuildRedirect_MissingTarget(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeRedirect,
+		Name:     "Redirect",
+		Hostname: "old.example.com",
+		RedirectConfig: map[string]interface{}{
+			"status_code": float64(301),
+		},
+	}
+
+	_, err := caddy.BuildRouteConfig(proxy)
+	if err == nil {
+		t.Error("Expected error for redirect without target")
+	}
+}
+
+// TestBuildRedirect_DefaultStatusCode tests default redirect status code
+func TestBuildRedirect_DefaultStatusCode(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeRedirect,
+		Name:     "Redirect",
+		Hostname: "old.example.com",
+		RedirectConfig: map[string]interface{}{
+			"target": "https://new.example.com",
+		},
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	handler := route.Handle[0]
+	if handler.StatusCode != 302 {
+		t.Errorf("Expected default status code 302, got %d", handler.StatusCode)
+	}
+}
+
+// TestBuildStatic_MissingRootPath tests that static without root_path returns error
+func TestBuildStatic_MissingRootPath(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeStatic,
+		Name:     "Static",
+		Hostname: "static.example.com",
+		StaticConfig: map[string]interface{}{
+			"index_file": "index.html",
+		},
+	}
+
+	_, err := caddy.BuildRouteConfig(proxy)
+	if err == nil {
+		t.Error("Expected error for static without root_path")
+	}
+}
+
+// TestBuildStatic_DefaultIndexFile tests default index file
+func TestBuildStatic_DefaultIndexFile(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeStatic,
+		Name:     "Static",
+		Hostname: "static.example.com",
+		StaticConfig: map[string]interface{}{
+			"root_path": "/var/www/html",
+		},
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	// Find file_server handler
+	var fileHandler *caddy.HandlerConfig
+	for i := range route.Handle {
+		if route.Handle[i].Handler == "file_server" {
+			fileHandler = &route.Handle[i]
+			break
+		}
+	}
+
+	if fileHandler == nil {
+		t.Fatal("No file_server handler found")
+	}
+
+	if len(fileHandler.IndexNames) == 0 || fileHandler.IndexNames[0] != "index.html" {
+		t.Errorf("Expected default index file 'index.html', got %v", fileHandler.IndexNames)
+	}
+}
+
+// TestBuildStatic_CatchAllPage tests catch all page configuration
+func TestBuildStatic_CatchAllPage(t *testing.T) {
+	proxy := &models.Proxy{
+		ID:       1,
+		Type:     models.ProxyTypeStatic,
+		Name:     "SPA",
+		Hostname: "spa.example.com",
+		StaticConfig: map[string]interface{}{
+			"root_path":      "/var/www/app",
+			"catch_all_page": "/index.html",
+		},
+	}
+
+	route, err := caddy.BuildRouteConfig(proxy)
+	if err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+
+	// Should have rewrite handler before file_server
+	hasRewrite := false
+	for _, h := range route.Handle {
+		if h.Handler == "rewrite" && h.URI == "/index.html" {
+			hasRewrite = true
+			break
+		}
+	}
+
+	if !hasRewrite {
+		t.Error("Expected rewrite handler for catch_all_page")
+	}
+}
+
+// TestGetSecuritySnippetPath tests security snippet path generation
+func TestGetSecuritySnippetPath(t *testing.T) {
+	testCases := []struct {
+		name          string
+		proxy         *models.Proxy
+		expectedPath  string
+	}{
+		{
+			name: "Reverse proxy with block exploits",
+			proxy: &models.Proxy{
+				Type:          models.ProxyTypeReverseProxy,
+				BlockExploits: true,
+			},
+			expectedPath: "snippets/security",
+		},
+		{
+			name: "Reverse proxy without block exploits",
+			proxy: &models.Proxy{
+				Type:          models.ProxyTypeReverseProxy,
+				BlockExploits: false,
+			},
+			expectedPath: "",
+		},
+		{
+			name: "Redirect with block exploits (should be empty)",
+			proxy: &models.Proxy{
+				Type:          models.ProxyTypeRedirect,
+				BlockExploits: true,
+			},
+			expectedPath: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := caddy.GetSecuritySnippetPath(tc.proxy)
+			if path != tc.expectedPath {
+				t.Errorf("Expected path '%s', got '%s'", tc.expectedPath, path)
+			}
+		})
+	}
+}
+
+// TestRoutesPathConstant tests that RoutesPath constant is defined correctly
+func TestRoutesPathConstant(t *testing.T) {
+	expected := "/config/apps/http/servers/srv0/routes"
+	if caddy.RoutesPath != expected {
+		t.Errorf("Expected RoutesPath '%s', got '%s'", expected, caddy.RoutesPath)
+	}
+}

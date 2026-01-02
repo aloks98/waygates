@@ -1,6 +1,6 @@
 -- Create proxies table
 CREATE TABLE IF NOT EXISTS proxies (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
 
     -- Common fields
     type VARCHAR(50) NOT NULL,  -- 'reverse_proxy', 'redirect', 'static'
@@ -9,14 +9,14 @@ CREATE TABLE IF NOT EXISTS proxies (
     description TEXT,
 
     -- SSL/TLS
-    ssl_enabled BOOLEAN NOT NULL DEFAULT 1,
-    ssl_forced BOOLEAN NOT NULL DEFAULT 1,
+    ssl_enabled BOOLEAN NOT NULL DEFAULT true,
+    ssl_forced BOOLEAN NOT NULL DEFAULT true,
 
     -- Type-specific configurations (stored as JSON)
     -- For reverse_proxy type
     upstreams TEXT,  -- JSON: [{"host": "...", "port": 8080, "scheme": "http"}]
     load_balancing TEXT,  -- JSON: {"strategy": "round_robin", "health_checks": {...}}
-    block_exploits BOOLEANNOT NULL DEFAULT 1,
+    block_exploits BOOLEAN NOT NULL DEFAULT true,
     custom_headers TEXT,  -- JSON: {"X-Header": "value"}
 
     -- For redirect type
@@ -26,15 +26,12 @@ CREATE TABLE IF NOT EXISTS proxies (
     static_config TEXT,  -- JSON: {"root_path": "...", "index_file": "index.html", ...}
 
     -- Status
-    is_active BOOLEAN NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT true,
 
     -- Metadata
     created_by INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-
-    -- Foreign key constraint will be added after users table is created
-    -- FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Create indexes for better query performance

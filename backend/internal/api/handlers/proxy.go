@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/api/middleware"
+	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/aloks98/homelab-proxy/backend/internal/models"
 	"github.com/aloks98/homelab-proxy/backend/internal/service"
 	"github.com/aloks98/homelab-proxy/backend/internal/utils"
@@ -26,14 +26,39 @@ func NewProxyHandler(service *service.ProxyService) *ProxyHandler {
 
 // ListProxies handles GET /api/proxies
 func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	// Parse and validate query parameters
+	var page, limit int
+	var err error
+
+	pageStr := r.URL.Query().Get("page")
+	if pageStr != "" {
+		page, err = strconv.Atoi(pageStr)
+		if err != nil || page < 0 {
+			utils.BadRequest(w, "Invalid page parameter: must be a non-negative integer", nil)
+			return
+		}
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr != "" {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil || limit < 0 || limit > 100 {
+			utils.BadRequest(w, "Invalid limit parameter: must be an integer between 0 and 100", nil)
+			return
+		}
+	}
+
 	search := r.URL.Query().Get("search")
 	proxyType := r.URL.Query().Get("type")
 	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
+
+	// Validate status if provided
+	if status != "" && status != "active" && status != "inactive" {
+		utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
+		return
+	}
 
 	// Create request
 	req := service.ListProxiesRequest{
@@ -84,19 +109,23 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 
 // CreateProxy handles POST /api/proxies
 func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
-	// Get user from context
-	user, ok := middleware.GetUserFromContext(r.Context())
-	if !ok {
+	// Get user ID from context (set by goauth middleware)
+	userIDStr := chimw.UserID(r)
+	if userIDStr == "" {
 		utils.Unauthorized(w, "User not found in context")
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		utils.Unauthorized(w, "Invalid user ID")
 		return
 	}
 
 	// Parse request body
 	var proxy models.Proxy
 	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
-		utils.BadRequest(w, "Invalid request body", map[string]string{
-			"error": err.Error(),
-		})
+		utils.BadRequest(w, "Invalid request body format", nil)
 		return
 	}
 
@@ -106,7 +135,7 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.IsActive = true
 
 	// Create proxy via service
-	if err := h.service.CreateProxy(&proxy, user.ID); err != nil {
+	if err := h.service.CreateProxy(&proxy, userID); err != nil {
 		if err == service.ErrHostnameConflict {
 			utils.Conflict(w, "Hostname already exists")
 			return
@@ -138,9 +167,7 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var proxy models.Proxy
 	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
-		utils.BadRequest(w, "Invalid request body", map[string]string{
-			"error": err.Error(),
-		})
+		utils.BadRequest(w, "Invalid request body format", nil)
 		return
 	}
 

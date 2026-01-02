@@ -308,67 +308,15 @@ CREATE INDEX idx_proxies_created_at ON proxies(created_at);
 
 **GET** `/api/proxies`
 
+Lists all proxy configurations with pagination.
+
 #### Query Parameters
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `page` | integer | No | 1 | Page number |
-| `limit` | integer | No | 20 | Items per page (max: 100) |
-| `search` | string | No | - | Search by hostname or name |
-| `type` | string | No | - | Filter by type: `reverse_proxy`, `redirect`, `static` |
-| `status` | string | No | - | Filter by status: `active`, `inactive` |
-| `sort` | string | No | `created_at` | Sort field |
-| `order` | string | No | `desc` | Sort order: `asc`, `desc` |
-
+...
 #### Response (200 OK)
-
-```json
-{
-  "success": true,
-  "data": {
-    "proxies": [
-      {
-        "id": 1,
-        "type": "reverse_proxy",
-        "name": "My Application",
-        "hostname": "app.caddy.e412.in",
-        "upstreams": [
-          {
-            "host": "192.168.100.5",
-            "port": 8080,
-            "scheme": "http"
-          }
-        ],
-        "ssl_enabled": true,
-        "is_active": true,
-        "created_at": "2024-11-08T10:30:00Z"
-      },
-      {
-        "id": 2,
-        "type": "redirect",
-        "name": "Old Domain Redirect",
-        "hostname": "old.caddy.e412.in",
-        "redirect": {
-          "target": "https://new.caddy.e412.in",
-          "status_code": 301,
-          "preserve_path": true
-        },
-        "ssl_enabled": true,
-        "is_active": true,
-        "created_at": "2024-11-08T11:00:00Z"
-      }
-    ],
-    "pagination": {
-      "current_page": 1,
-      "total_pages": 1,
-      "total_items": 2,
-      "items_per_page": 20,
-      "has_next": false,
-      "has_prev": false
-    }
-  }
-}
-```
+...
+#### Error Responses
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **500 Internal Server Error**: If there is a problem fetching the data from the database.
 
 ---
 
@@ -376,9 +324,36 @@ CREATE INDEX idx_proxies_created_at ON proxies(created_at);
 
 **GET** `/api/proxies/:id`
 
-#### Response (200 OK)
+Retrieves the full details of a single proxy configuration.
 
-Returns full proxy details based on type.
+#### Response (200 OK)
+Returns the full proxy object.
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "type": "reverse_proxy",
+    "name": "My Application",
+    "hostname": "app.caddy.e412.in",
+    ...
+  }
+}
+```
+
+#### Error Responses
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **404 Not Found**: If no proxy with the specified ID exists.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "NOT_FOUND",
+      "message": "Proxy not found"
+    }
+  }
+  ```
+- **500 Internal Server Error**: For any other server-side errors.
 
 ---
 
@@ -386,255 +361,39 @@ Returns full proxy details based on type.
 
 **POST** `/api/proxies`
 
-#### Request Body Examples
+Creates a new proxy configuration.
 
-**Example 1: Simple Reverse Proxy**
-
-```json
-{
-  "type": "reverse_proxy",
-  "name": "My Application",
-  "hostname": "app.caddy.e412.in",
-  "upstreams": [
-    {
-      "host": "192.168.100.5",
-      "port": 8080,
-      "scheme": "http"
-    }
-  ],
-  "ssl_enabled": true,
-  "ssl_forced": true,
-  "block_exploits": true,
-  "custom_headers": {
-    "X-App-Version": "1.0"
-  },
-  "description": "Production application"
-}
-```
-
-**Example 2: Load Balanced Reverse Proxy**
-
-```json
-{
-  "type": "reverse_proxy",
-  "name": "Load Balanced API",
-  "hostname": "api.caddy.e412.in",
-  "upstreams": [
-    {
-      "host": "192.168.100.10",
-      "port": 3000,
-      "scheme": "http"
-    },
-    {
-      "host": "192.168.100.11",
-      "port": 3000,
-      "scheme": "http"
-    },
-    {
-      "host": "192.168.100.12",
-      "port": 3000,
-      "scheme": "http"
-    }
-  ],
-  "load_balancing": {
-    "strategy": "least_conn",
-    "health_checks": {
-      "enabled": true,
-      "path": "/health",
-      "interval": "30s",
-      "timeout": "5s",
-      "unhealthy_threshold": 2,
-      "healthy_threshold": 2
-    }
-  },
-  "ssl_enabled": true,
-  "ssl_forced": true,
-  "description": "API with 3 backend servers"
-}
-```
-
-**Example 3: Redirect**
-
-```json
-{
-  "type": "redirect",
-  "name": "Old Domain Redirect",
-  "hostname": "old.caddy.e412.in",
-  "redirect": {
-    "target": "https://new.caddy.e412.in",
-    "status_code": 301,
-    "preserve_path": true,
-    "preserve_query": true
-  },
-  "ssl_enabled": true,
-  "description": "Permanent redirect to new domain"
-}
-```
-
-**Example 4: Static HTML Site**
-
-```json
-{
-  "type": "static",
-  "name": "Landing Page",
-  "hostname": "landing.caddy.e412.in",
-  "static": {
-    "root_path": "/var/www/landing",
-    "index_file": "index.html",
-    "browse": false,
-    "try_files": ["index.html"],
-    "template_rendering": false
-  },
-  "ssl_enabled": true,
-  "description": "Static landing page"
-}
-```
-
-**Example 5: Template-Based Site**
-
-```json
-{
-  "type": "static",
-  "name": "Maintenance Page",
-  "hostname": "maintenance.caddy.e412.in",
-  "static": {
-    "root_path": "/etc/caddy/templates",
-    "index_file": "maintenance.html",
-    "browse": false,
-    "template_rendering": true
-  },
-  "ssl_enabled": true,
-  "description": "Maintenance page with Caddy templates"
-}
-```
-
-#### Field Validation
-
-**Common Fields (All Types):**
-
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `type` | string | Yes | `reverse_proxy`, `redirect`, `static` |
-| `name` | string | Yes | 1-255 chars |
-| `hostname` | string | Yes | Valid domain, unique |
-| `ssl_enabled` | boolean | No | Default: `true` |
-| `ssl_forced` | boolean | No | Default: `true` |
-| `description` | string | No | Max 500 chars |
-
-**Reverse Proxy Fields:**
-
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `upstreams` | array | Yes | Min 1, max 20 upstreams |
-| `upstreams[].host` | string | Yes | Valid IP or hostname |
-| `upstreams[].port` | integer | Yes | 1-65535 |
-| `upstreams[].scheme` | string | No | `http` or `https`, default: `http` |
-| `load_balancing.strategy` | string | No* | `round_robin`, `least_conn`, `ip_hash`, `random` |
-| `load_balancing.health_checks.enabled` | boolean | No | Default: `false` |
-| `load_balancing.health_checks.path` | string | No** | Valid URL path |
-| `load_balancing.health_checks.interval` | string | No | Duration (e.g., `30s`) |
-| `block_exploits` | boolean | No | Default: `true` |
-| `custom_headers` | object | No | Max 20 headers |
-
-\* Required if `upstreams.length > 1`
-\** Required if `health_checks.enabled = true`
-
-**Redirect Fields:**
-
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `redirect.target` | string | Yes | Valid URL |
-| `redirect.status_code` | integer | No | 301, 302, 307, 308 (default: 302) |
-| `redirect.preserve_path` | boolean | No | Default: `true` |
-| `redirect.preserve_query` | boolean | No | Default: `true` |
-
-**Static Fields:**
-
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `static.root_path` | string | Yes | Valid absolute path |
-| `static.index_file` | string | No | Filename (default: `index.html`) |
-| `static.browse` | boolean | No | Default: `false` |
-| `static.try_files` | array | No | Array of filenames |
-| `static.template_rendering` | boolean | No | Default: `false` |
+#### Request Body
+See the "Data Models" section for request body examples.
 
 #### Response (201 Created)
-
+Returns the newly created proxy object.
 ```json
 {
   "success": true,
   "message": "Proxy created successfully",
   "data": {
-    "id": 5,
-    "type": "reverse_proxy",
-    "name": "Load Balanced API",
-    "hostname": "api.caddy.e412.in",
-    "upstreams": [
-      {
-        "host": "192.168.100.10",
-        "port": 3000,
-        "scheme": "http"
-      },
-      {
-        "host": "192.168.100.11",
-        "port": 3000,
-        "scheme": "http"
-      }
-    ],
-    "load_balancing": {
-      "strategy": "least_conn",
-      "health_checks": {
-        "enabled": true,
-        "path": "/health",
-        "interval": "30s",
-        "timeout": "5s",
-        "unhealthy_threshold": 2,
-        "healthy_threshold": 2
-      }
-    },
-    "ssl_enabled": true,
-    "ssl_forced": true,
-    "is_active": true,
-    "created_by": {
-      "id": 1,
-      "name": "Admin User",
-      "email": "admin@example.com"
-    },
-    "created_at": "2024-11-08T13:00:00Z",
-    "updated_at": "2024-11-08T13:00:00Z"
+    "id": 6,
+    ...
   }
 }
 ```
 
 #### Error Responses
-
-**400 Bad Request - Validation Error**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Request validation failed",
-    "details": {
-      "load_balancing": "load_balancing configuration required when multiple upstreams provided",
-      "upstreams": "minimum 1 upstream required for reverse_proxy type"
+- **400 Bad Request**: If the request body is invalid or fails validation.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **409 Conflict**: If a proxy with the same hostname already exists.
+- **500 Internal Server Error**: For database errors.
+- **502 Bad Gateway**: If the configuration could not be applied to the Caddy server.
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "EXTERNAL_SERVICE_ERROR",
+      "message": "caddy API error (status 400): ..."
     }
   }
-}
-```
-
-**409 Conflict**
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "HOSTNAME_CONFLICT",
-    "message": "A proxy with hostname 'app.caddy.e412.in' already exists"
-  }
-}
-```
+  ```
 
 ---
 
@@ -642,7 +401,28 @@ Returns full proxy details based on type.
 
 **PUT** `/api/proxies/:id`
 
-All fields are optional. Can change type if needed.
+Updates an existing proxy configuration.
+
+#### Response (200 OK)
+Returns the updated proxy object.
+```json
+{
+  "success": true,
+  "message": "Proxy updated successfully",
+  "data": {
+    "id": 1,
+    ...
+  }
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: If the request body is invalid.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **404 Not Found**: If the proxy does not exist.
+- **409 Conflict**: If the new hostname conflicts with an existing proxy.
+- **500 Internal Server Error**: For database errors.
+- **502 Bad Gateway**: If the configuration could not be applied to the Caddy server.
 
 ---
 
@@ -650,17 +430,68 @@ All fields are optional. Can change type if needed.
 
 **DELETE** `/api/proxies/:id`
 
+Deletes a proxy configuration from the database and the Caddy server.
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Proxy deleted successfully",
+  "data": null
+}
+```
+
+#### Error Responses
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **404 Not Found**: If the proxy does not exist.
+- **500 Internal Server Error**: For any server-side errors.
+
 ---
 
 ### 6. Enable Proxy
 
 **POST** `/api/proxies/:id/enable`
 
+Enables a disabled proxy, applying its configuration to the Caddy server.
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Proxy enabled successfully",
+  "data": null
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: If the proxy is already enabled.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **404 Not Found**: If the proxy does not exist.
+- **500 Internal Server Error**: For database errors.
+- **502 Bad Gateway**: If the configuration could not be applied to the Caddy server.
+
 ---
 
 ### 7. Disable Proxy
 
 **POST** `/api/proxies/:id/disable`
+
+Disables an active proxy, removing its configuration from the Caddy server.
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Proxy disabled successfully",
+  "data": null
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: If the proxy is already disabled.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **404 Not Found**: If the proxy does not exist.
+- **500 Internal Server Error**: For any server-side errors.
 
 ---
 
