@@ -1,6 +1,6 @@
-# Homelab Reverse Proxy
+# Waygates
 
-A Docker-based Caddy reverse proxy setup with automatic wildcard SSL certificates using Cloudflare DNS challenge.
+A Docker-based Caddy reverse proxy manager with automatic wildcard SSL certificates using Cloudflare DNS challenge.
 
 ## Features
 
@@ -24,7 +24,7 @@ A Docker-based Caddy reverse proxy setup with automatic wildcard SSL certificate
 ## Project Structure
 
 ```
-homelab-proxy/
+waygates/
 ├── backend/                   # Go API server
 │   ├── cmd/server/            # Main entry point
 │   ├── internal/              # Internal packages
@@ -57,16 +57,16 @@ homelab-proxy/
 
 The application consists of three Docker containers:
 
-1. **Backend** (`homelab-proxy-backend`): Go API server that serves both the REST API and the React UI static files
-2. **Caddy** (`homelab-proxy-caddy`): Reverse proxy with automatic HTTPS and Cloudflare DNS integration
-3. **PostgreSQL** (`homelab-proxy-db`): Database for storing proxy configurations and users
+1. **Backend** (`waygates-backend`): Go API server that serves both the REST API and the React UI static files
+2. **Caddy** (`waygates-caddy`): Reverse proxy with automatic HTTPS and Cloudflare DNS integration
+3. **PostgreSQL** (`waygates-db`): Database for storing proxy configurations and users
 
 ## Setup Instructions
 
 ### 1. Clone or Create the Project
 
 ```bash
-cd homelab-proxy
+cd waygates
 ```
 
 ### 2. Get Cloudflare API Token
@@ -377,4 +377,4 @@ conf/Caddyfile
 
 ## License
 
-This is a personal homelab setup. Feel free to use and modify as needed.
+This is a personal project. Feel free to use and modify as needed.

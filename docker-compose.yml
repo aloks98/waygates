@@ -1,16 +1,16 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: homelab-proxy-db
+    container_name: waygates-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-homelab_proxy}
+      POSTGRES_DB: ${DB_NAME:-waygates}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-homelab_proxy}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-waygates}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -19,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: homelab-proxy-backend
+    container_name: waygates-backend
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -38,7 +38,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.caddy
-    container_name: homelab-proxy-caddy
+    container_name: waygates-caddy
     restart: unless-stopped
     ports:
       - "80:80"

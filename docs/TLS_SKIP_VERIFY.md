@@ -7,7 +7,7 @@ The `tls_insecure_skip_verify` option allows proxying to HTTPS backends that use
 ## When to Use
 
 Use this option when proxying to:
-- **Homelab services** with self-signed certificates
+- **Internal services** with self-signed certificates
 - **Internal corporate services** with internal CA certificates
 - **Development environments** where certificate validation is not critical
 - **Temporary setups** during testing or migration

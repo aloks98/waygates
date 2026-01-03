@@ -57,8 +57,8 @@ build:
 # Build the UI Docker image
 ui-build:
 	@echo "Building UI Docker image..."
-	docker build -f Dockerfile.ui -t homelab-proxy-ui .
-	@echo "✓ UI Docker image built: homelab-proxy-ui"
+	docker build -f Dockerfile.ui -t waygates-ui .
+	@echo "✓ UI Docker image built: waygates-ui"
 
 # Start containers
 up:
@@ -99,7 +99,7 @@ status:
 clean:
 	@echo "Cleaning up..."
 	docker compose down -v
-	docker rmi homelab-proxy-caddy 2>/dev/null || true
+	docker rmi waygates-caddy 2>/dev/null || true
 	@echo "✓ Cleanup complete"
 
 # Rebuild everything from scratch
@@ -108,14 +108,14 @@ rebuild: clean build up
 # Validate Caddyfile syntax
 validate:
 	@echo "Validating Caddyfile..."
-	@if [ -z "$$(docker images -q homelab-proxy-caddy 2> /dev/null)" ]; then \
+	@if [ -z "$$(docker images -q waygates-caddy 2> /dev/null)" ]; then \
 		echo "Custom Caddy image not found. Building first..."; \
 		$(MAKE) build; \
 	fi
 	@docker run --rm \
 		--env-file .env \
 		-v $(PWD)/conf:/etc/caddy \
-		homelab-proxy-caddy \
+		waygates-caddy \
 		caddy validate --config /etc/caddy/Caddyfile
 	@echo "✓ Caddyfile is valid"
 
