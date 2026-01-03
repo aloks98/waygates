@@ -34,7 +34,7 @@ func EnsureDatabase(databaseURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to postgres database: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Check if database exists
 	var exists bool
@@ -69,7 +69,7 @@ func RunMigrations(databaseURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	// Run migrations
 	if err := m.Up(); err != nil {
@@ -94,7 +94,7 @@ func RollbackMigrations(databaseURL string, steps int) error {
 	if err != nil {
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	// Rollback migrations
 	if err := m.Steps(-steps); err != nil {
@@ -118,7 +118,7 @@ func GetMigrationVersion(databaseURL string) (version uint, dirty bool, err erro
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to create migrate instance: %w", err)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	version, dirty, err = m.Version()
 	if err != nil {

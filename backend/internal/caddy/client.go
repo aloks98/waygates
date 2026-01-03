@@ -61,7 +61,7 @@ func (c *Client) HealthCheckWithContext(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to reach Caddy Admin API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Caddy Admin API returned status %d", resp.StatusCode)
@@ -86,7 +86,7 @@ func (c *Client) GetConfigWithContext(ctx context.Context) (map[string]interface
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get config: status %d", resp.StatusCode)
@@ -122,7 +122,7 @@ func (c *Client) POSTWithContext(ctx context.Context, path string, body interfac
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
@@ -157,7 +157,7 @@ func (c *Client) PATCHWithContext(ctx context.Context, path string, body interfa
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
@@ -192,7 +192,7 @@ func (c *Client) PUTWithContext(ctx context.Context, path string, body interface
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
@@ -221,7 +221,7 @@ func (c *Client) DELETEWithContext(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)

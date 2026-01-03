@@ -60,7 +60,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer database.Close()
+	defer func() {
+		if err := database.Close(); err != nil {
+			logger.Error("Failed to close database connection", zap.Error(err))
+		}
+	}()
 	logger.Info("Database connection established")
 
 	// Get the underlying *sql.DB for goauth
@@ -75,7 +79,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to initialize goauth", zap.Error(err))
 	}
-	defer goauthInstance.Close()
+	defer func() {
+		if err := goauthInstance.Close(); err != nil {
+			logger.Error("Failed to close auth instance", zap.Error(err))
+		}
+	}()
 	logger.Info("Authentication system initialized")
 
 	// Create default user if needed

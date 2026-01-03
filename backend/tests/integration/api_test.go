@@ -212,7 +212,7 @@ role_templates:
 	if _, err := tmpFile.WriteString(rbacConfig); err != nil {
 		return nil, err
 	}
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	// Use goauth with SQL store
 	store, err := sqlstore.New(&sqlstore.Config{
@@ -329,7 +329,7 @@ func (env *TestEnvironment) GetCaddyConfig(t *testing.T) map[string]interface{} 
 	if err != nil {
 		t.Fatalf("Failed to get Caddy config: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var config map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
@@ -356,7 +356,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Caddy admin API not accessible: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	t.Log("Caddy admin API is accessible")
 
 	// Test 1: Create a proxy
@@ -497,7 +497,9 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 				Hostname string `json:"hostname"`
 			} `json:"data"`
 		}
-		json.Unmarshal(rec.Body.Bytes(), &resp)
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v", err)
+		}
 
 		if resp.Data.Name != "Updated Backend" {
 			t.Errorf("Expected name 'Updated Backend', got '%s'", resp.Data.Name)
