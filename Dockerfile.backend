@@ -50,6 +50,13 @@ FROM alpine:3.19
 
 WORKDIR /app
 
+# OCI Image Labels
+LABEL org.opencontainers.image.title="Waygates"
+LABEL org.opencontainers.image.description="A modern reverse proxy manager with React UI and Go backend"
+LABEL org.opencontainers.image.vendor="aloks98"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/aloks98/waygates"
+
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
 
