@@ -124,8 +124,8 @@ func parseReverseProxyHandler(handler *HandlerConfig, proxy *models.Proxy) error
 				"path":                hc.Path,
 				"interval":            hc.Interval,
 				"timeout":             hc.Timeout,
-				"unhealthy_threshold": hc.Fails,   // Map Caddy's "fails" to our "unhealthy_threshold"
-				"healthy_threshold":   hc.Passes,  // Map Caddy's "passes" to our "healthy_threshold"
+				"unhealthy_threshold": hc.Fails,  // Map Caddy's "fails" to our "unhealthy_threshold"
+				"healthy_threshold":   hc.Passes, // Map Caddy's "passes" to our "healthy_threshold"
 			}
 		}
 

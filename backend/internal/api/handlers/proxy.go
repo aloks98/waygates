@@ -2,14 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
+	"github.com/go-chi/chi/v5"
+
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
-	"github.com/go-chi/chi/v5"
 )
 
 // ProxyHandler handles proxy-related HTTP requests
@@ -95,7 +97,7 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 	// Get proxy from service
 	proxy, err := h.service.GetProxyByID(id)
 	if err != nil {
-		if err == service.ErrProxyNotFound {
+		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
@@ -136,7 +138,7 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Create proxy via service
 	if err := h.service.CreateProxy(&proxy, userID); err != nil {
-		if err == service.ErrHostnameConflict {
+		if errors.Is(err, service.ErrHostnameConflict) {
 			utils.Conflict(w, "Hostname already exists")
 			return
 		}
@@ -173,11 +175,11 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Update proxy via service
 	if err := h.service.UpdateProxy(id, &proxy); err != nil {
-		if err == service.ErrProxyNotFound {
+		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
-		if err == service.ErrHostnameConflict {
+		if errors.Is(err, service.ErrHostnameConflict) {
 			utils.Conflict(w, "Hostname already exists")
 			return
 		}
@@ -207,7 +209,7 @@ func (h *ProxyHandler) DeleteProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Delete proxy via service
 	if err := h.service.DeleteProxy(id); err != nil {
-		if err == service.ErrProxyNotFound {
+		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
@@ -231,11 +233,11 @@ func (h *ProxyHandler) EnableProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Enable proxy via service
 	if err := h.service.EnableProxy(id); err != nil {
-		if err == service.ErrProxyNotFound {
+		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
-		if err == service.ErrProxyAlreadyEnabled {
+		if errors.Is(err, service.ErrProxyAlreadyEnabled) {
 			utils.BadRequest(w, "Proxy is already enabled", nil)
 			return
 		}
@@ -264,11 +266,11 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Disable proxy via service
 	if err := h.service.DisableProxy(id); err != nil {
-		if err == service.ErrProxyNotFound {
+		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
-		if err == service.ErrProxyAlreadyDisabled {
+		if errors.Is(err, service.ErrProxyAlreadyDisabled) {
 			utils.BadRequest(w, "Proxy is already disabled", nil)
 			return
 		}

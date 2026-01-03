@@ -9,67 +9,67 @@ import (
 func TestListProxies_SQLInjectionPrevented(t *testing.T) {
 	// Test that malicious sort values are rejected/sanitized
 	testCases := []struct {
-		name           string
-		sortInput      string
-		expectedField  string
-		orderInput     string
-		expectedOrder  string
+		name          string
+		sortInput     string
+		expectedField string
+		orderInput    string
+		expectedOrder string
 	}{
 		{
-			name:           "Valid sort field",
-			sortInput:      "name",
-			expectedField:  "name",
-			orderInput:     "asc",
-			expectedOrder:  "ASC",
+			name:          "Valid sort field",
+			sortInput:     "name",
+			expectedField: "name",
+			orderInput:    "asc",
+			expectedOrder: "ASC",
 		},
 		{
-			name:           "SQL injection in sort - DROP TABLE",
-			sortInput:      "name; DROP TABLE proxies;--",
-			expectedField:  "created_at", // Should fallback to default
-			orderInput:     "asc",
-			expectedOrder:  "ASC",
+			name:          "SQL injection in sort - DROP TABLE",
+			sortInput:     "name; DROP TABLE proxies;--",
+			expectedField: "created_at", // Should fallback to default
+			orderInput:    "asc",
+			expectedOrder: "ASC",
 		},
 		{
-			name:           "SQL injection in sort - UNION SELECT",
-			sortInput:      "name UNION SELECT * FROM users--",
-			expectedField:  "created_at", // Should fallback to default
-			orderInput:     "asc",
-			expectedOrder:  "ASC",
+			name:          "SQL injection in sort - UNION SELECT",
+			sortInput:     "name UNION SELECT * FROM users--",
+			expectedField: "created_at", // Should fallback to default
+			orderInput:    "asc",
+			expectedOrder: "ASC",
 		},
 		{
-			name:           "SQL injection in order - malicious order",
-			sortInput:      "name",
-			expectedField:  "name",
-			orderInput:     "ASC; DELETE FROM proxies;--",
-			expectedOrder:  "DESC", // Should fallback to default
+			name:          "SQL injection in order - malicious order",
+			sortInput:     "name",
+			expectedField: "name",
+			orderInput:    "ASC; DELETE FROM proxies;--",
+			expectedOrder: "DESC", // Should fallback to default
 		},
 		{
-			name:           "Case insensitive sort field",
-			sortInput:      "NAME",
-			expectedField:  "name",
-			orderInput:     "DESC",
-			expectedOrder:  "DESC",
+			name:          "Case insensitive sort field",
+			sortInput:     "NAME",
+			expectedField: "name",
+			orderInput:    "DESC",
+			expectedOrder: "DESC",
 		},
 		{
-			name:           "Case insensitive order",
-			sortInput:      "hostname",
-			expectedField:  "hostname",
-			orderInput:     "ASC",
-			expectedOrder:  "ASC",
+			name:          "Case insensitive order",
+			sortInput:     "hostname",
+			expectedField: "hostname",
+			orderInput:    "ASC",
+			expectedOrder: "ASC",
 		},
 		{
-			name:           "Invalid sort field - fallback to default",
-			sortInput:      "password", // Not in whitelist
-			expectedField:  "created_at",
-			orderInput:     "asc",
-			expectedOrder:  "ASC",
+			name:          "Invalid sort field - fallback to default",
+			sortInput:     "password", // Not in whitelist
+			expectedField: "created_at",
+			orderInput:    "asc",
+			expectedOrder: "ASC",
 		},
 		{
-			name:           "Empty sort - use default",
-			sortInput:      "",
-			expectedField:  "created_at",
-			orderInput:     "",
-			expectedOrder:  "DESC",
+			name:          "Empty sort - use default",
+			sortInput:     "",
+			expectedField: "created_at",
+			orderInput:    "",
+			expectedOrder: "DESC",
 		},
 	}
 

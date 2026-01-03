@@ -9,9 +9,9 @@ import (
 
 // RouteConfig represents a Caddy route configuration
 type RouteConfig struct {
-	Match  []MatchConfig    `json:"match,omitempty"`
-	Handle []HandlerConfig  `json:"handle"`
-	ID     string           `json:"@id,omitempty"`
+	Match  []MatchConfig   `json:"match,omitempty"`
+	Handle []HandlerConfig `json:"handle"`
+	ID     string          `json:"@id,omitempty"`
 }
 
 // FileMatcherConfig represents a Caddy file matcher configuration.
@@ -30,20 +30,20 @@ type MatchConfig struct {
 
 // HandlerConfig represents a Caddy handler configuration
 type HandlerConfig struct {
-	Handler          string                  `json:"handler"`
-	ID               string                  `json:"@id,omitempty"`
-	Upstreams        []UpstreamConfig        `json:"upstreams,omitempty"`
-	Headers          *HeadersConfig          `json:"headers,omitempty"`         // For reverse_proxy/headers handler
-	StaticHeaders    map[string][]string     `json:"-"`                          // For static_response handler (handled in MarshalJSON)
-	LoadBalancing    *LoadBalancingConfig    `json:"load_balancing,omitempty"`
-	HealthChecks     *HealthChecksConfig     `json:"health_checks,omitempty"`
-	Transport        *TransportConfig        `json:"transport,omitempty"`    // For reverse_proxy TLS
-	URI              string                  `json:"uri,omitempty"`          // For rewrites
-	StatusCode       int                     `json:"status_code,omitempty"`  // For redirects
-	Root             string                  `json:"root,omitempty"`         // For file server
-	IndexNames       []string                `json:"index_names,omitempty"`  // For file server
-	FileRoot         string                  `json:"file_root,omitempty"`    // For templates handler
-	Routes           []RouteConfig           `json:"routes,omitempty"`       // For subroute handler
+	Handler       string               `json:"handler"`
+	ID            string               `json:"@id,omitempty"`
+	Upstreams     []UpstreamConfig     `json:"upstreams,omitempty"`
+	Headers       *HeadersConfig       `json:"headers,omitempty"` // For reverse_proxy/headers handler
+	StaticHeaders map[string][]string  `json:"-"`                 // For static_response handler (handled in MarshalJSON)
+	LoadBalancing *LoadBalancingConfig `json:"load_balancing,omitempty"`
+	HealthChecks  *HealthChecksConfig  `json:"health_checks,omitempty"`
+	Transport     *TransportConfig     `json:"transport,omitempty"`   // For reverse_proxy TLS
+	URI           string               `json:"uri,omitempty"`         // For rewrites
+	StatusCode    int                  `json:"status_code,omitempty"` // For redirects
+	Root          string               `json:"root,omitempty"`        // For file server
+	IndexNames    []string             `json:"index_names,omitempty"` // For file server
+	FileRoot      string               `json:"file_root,omitempty"`   // For templates handler
+	Routes        []RouteConfig        `json:"routes,omitempty"`      // For subroute handler
 }
 
 // MarshalJSON implements custom JSON marshaling for HandlerConfig
@@ -54,7 +54,7 @@ func (h HandlerConfig) MarshalJSON() ([]byte, error) {
 	temp := make(map[string]interface{})
 
 	// Marshal to temp struct first
-	aliasBytes, err := json.Marshal((Alias)(h))
+	aliasBytes, err := json.Marshal(Alias(h))
 	if err != nil {
 		return nil, err
 	}
@@ -106,12 +106,11 @@ type ActiveHealthChecks struct {
 	Interval     string `json:"interval,omitempty"`
 	Timeout      string `json:"timeout,omitempty"`
 	MaxSize      int64  `json:"max_size,omitempty"`
-	Fails        int    `json:"fails,omitempty"`        // Number of consecutive failed checks before marking unhealthy
-	Passes       int    `json:"passes,omitempty"`       // Number of consecutive successful checks before marking healthy
+	Fails        int    `json:"fails,omitempty"`         // Number of consecutive failed checks before marking unhealthy
+	Passes       int    `json:"passes,omitempty"`        // Number of consecutive successful checks before marking healthy
 	ExpectStatus int    `json:"expect_status,omitempty"` // Expected HTTP status code
 	ExpectBody   string `json:"expect_body,omitempty"`   // Expected body content (regex)
 }
-
 
 // TransportConfig represents transport configuration for reverse_proxy
 type TransportConfig struct {
@@ -337,7 +336,7 @@ func buildRedirectHandlers(proxy *models.Proxy) ([]HandlerConfig, error) {
 	if preservePath {
 		redirectTo += "{http.request.uri.path}"
 	}
-	if preserveQuery && len(redirectTo) > 0 && redirectTo[len(redirectTo)-1] != '?' {
+	if preserveQuery && redirectTo != "" && redirectTo[len(redirectTo)-1] != '?' {
 		// Only add query separator if target doesn't already have one
 		redirectTo += "?"
 	}

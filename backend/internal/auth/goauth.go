@@ -10,6 +10,7 @@ import (
 	"github.com/aloks98/goauth"
 	"github.com/aloks98/goauth/middleware"
 	sqlstore "github.com/aloks98/goauth/store/sql"
+
 	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/aloks98/waygates/backend/internal/utils"
 )
@@ -98,7 +99,7 @@ func (a *Adapter) ExtractPermissions(claims interface{}) []string {
 }
 
 // HasPermission implements middleware.PermissionChecker
-func (a *Adapter) HasPermission(ctx context.Context, userID string, permission string) (bool, error) {
+func (a *Adapter) HasPermission(ctx context.Context, userID, permission string) (bool, error) {
 	return a.auth.HasPermission(ctx, userID, permission)
 }
 

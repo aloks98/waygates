@@ -15,10 +15,6 @@ import (
 
 	"github.com/aloks98/goauth"
 	sqlstore "github.com/aloks98/goauth/store/sql"
-	"github.com/aloks98/waygates/backend/internal/api/routes"
-	"github.com/aloks98/waygates/backend/internal/auth"
-	"github.com/aloks98/waygates/backend/internal/config"
-	"github.com/aloks98/waygates/backend/internal/models"
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -26,6 +22,11 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/aloks98/waygates/backend/internal/api/routes"
+	"github.com/aloks98/waygates/backend/internal/auth"
+	"github.com/aloks98/waygates/backend/internal/config"
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // TestEnvironment holds the test infrastructure
@@ -898,9 +899,9 @@ func TestIntegration_ReverseProxy_HTTPSUpstream(t *testing.T) {
 
 	// Create proxy with HTTPS upstream and TLS skip verify
 	proxy := map[string]interface{}{
-		"type":                    "reverse_proxy",
-		"name":                    "HTTPS Backend",
-		"hostname":                "secure.example.com",
+		"type":                     "reverse_proxy",
+		"name":                     "HTTPS Backend",
+		"hostname":                 "secure.example.com",
 		"tls_insecure_skip_verify": true,
 		"upstreams": []map[string]interface{}{
 			{"host": "secure-backend.internal", "port": 443, "scheme": "https"},

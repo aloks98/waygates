@@ -7,12 +7,13 @@ import (
 	"net/http"
 
 	"github.com/aloks98/goauth"
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/utils"
 	"github.com/aloks98/waygates/backend/internal/validation"
-	"gorm.io/gorm"
 )
 
 // AuthHandler handles authentication-related HTTP requests
@@ -106,7 +107,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err := h.auth.AssignRole(ctx, userIDStr, role); err != nil {
 		// Rollback user creation if role assignment fails
 		// This is critical - especially for the first user who needs admin role
-		if delErr := h.userRepo.Delete(int(user.ID)); delErr != nil {
+		if delErr := h.userRepo.Delete(user.ID); delErr != nil {
 			utils.InternalError(w, "Failed to assign role and rollback failed")
 			return
 		}
@@ -236,10 +237,8 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Revoke access token
-	if err := h.auth.RevokeAccessToken(ctx, accessToken); err != nil {
-		// Log error but continue (token might already be revoked or expired)
-	}
+	// Revoke access token (ignore errors - token might already be revoked or expired)
+	_ = h.auth.RevokeAccessToken(ctx, accessToken)
 
 	// Try to parse request body for refresh token (optional)
 	var req LogoutRequest
@@ -248,11 +247,9 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
 
-	// Revoke refresh token if provided
+	// Revoke refresh token if provided (ignore errors - token might already be revoked or expired)
 	if req.RefreshToken != "" {
-		if err := h.auth.RevokeRefreshToken(ctx, req.RefreshToken); err != nil {
-			// Log error but continue (token might already be revoked or expired)
-		}
+		_ = h.auth.RevokeRefreshToken(ctx, req.RefreshToken)
 	}
 
 	utils.Success(w, nil, "Logged out successfully")
@@ -284,14 +281,15 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		"email":    user.Email,
 	}
 
-	if permErr != nil {
+	switch {
+	case permErr != nil:
 		// Permissions could not be retrieved - user might not have a role assigned
 		response["role"] = nil
 		response["permissions"] = []string{}
-	} else if perms != nil {
+	case perms != nil:
 		response["role"] = perms.RoleLabel
 		response["permissions"] = perms.Permissions
-	} else {
+	default:
 		// No permissions found but no error - explicitly indicate no role
 		response["role"] = nil
 		response["permissions"] = []string{}
@@ -299,4 +297,3 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	utils.Success(w, response, "")
 }
-

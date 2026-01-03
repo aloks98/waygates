@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +10,12 @@ import (
 
 	"github.com/aloks98/goauth"
 	chimw "github.com/aloks98/goauth/middleware/chi"
+	"github.com/go-chi/chi/v5"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/api/handlers"
 	"github.com/aloks98/waygates/backend/internal/api/middleware"
 	"github.com/aloks98/waygates/backend/internal/auth"
@@ -18,11 +23,6 @@ import (
 	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
-	"github.com/go-chi/chi/v5"
-	chiMiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // SetupRoutes configures all application routes
@@ -181,23 +181,4 @@ func setupStaticFileServer(r *chi.Mux, uiPath string, logger *zap.Logger) {
 		// Serve the file
 		fileServer.ServeHTTP(w, req)
 	})
-}
-
-// spaFileSystem wraps http.FileSystem to serve index.html for missing files
-type spaFileSystem struct {
-	fs       http.FileSystem
-	fallback string
-}
-
-func (s spaFileSystem) Open(name string) (http.File, error) {
-	f, err := s.fs.Open(name)
-	if os.IsNotExist(err) {
-		return s.fs.Open(s.fallback)
-	}
-	return f, err
-}
-
-// Readdir implements fs.ReadDirFile for directory listing (disabled for security)
-func (s spaFileSystem) Readdir(count int) ([]fs.FileInfo, error) {
-	return nil, nil
 }

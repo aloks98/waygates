@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/lib/pq"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres" // postgres driver for migrations
+	_ "github.com/golang-migrate/migrate/v4/source/file"       // file source for migrations
+	_ "github.com/lib/pq"                                      // postgres driver for database
 )
 
 // EnsureDatabase creates the database if it doesn't exist
@@ -108,7 +108,7 @@ func RollbackMigrations(databaseURL string, steps int) error {
 }
 
 // GetMigrationVersion returns the current migration version
-func GetMigrationVersion(databaseURL string) (uint, bool, error) {
+func GetMigrationVersion(databaseURL string) (version uint, dirty bool, err error) {
 
 	// Create migrate instance
 	m, err := migrate.New(
@@ -120,7 +120,7 @@ func GetMigrationVersion(databaseURL string) (uint, bool, error) {
 	}
 	defer m.Close()
 
-	version, dirty, err := m.Version()
+	version, dirty, err = m.Version()
 	if err != nil {
 		if errors.Is(err, migrate.ErrNilVersion) {
 			return 0, false, nil

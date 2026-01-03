@@ -1,15 +1,17 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // ProxyService handles business logic for proxies
@@ -92,10 +94,11 @@ func (s *ProxyService) syncProxiesToCaddy() {
 	}
 
 	// Build all routes
-	var routes []interface{}
+	routes := make([]interface{}, 0, len(proxies))
 	var failedCount int
-	for _, proxy := range proxies {
-		route, err := caddy.BuildRouteConfig(&proxy)
+	for i := range proxies {
+		proxy := &proxies[i]
+		route, err := caddy.BuildRouteConfig(proxy)
 		if err != nil {
 			s.logger.Warn("Failed to build route for proxy",
 				zap.Int("proxy_id", proxy.ID),
@@ -181,7 +184,7 @@ func (s *ProxyService) ListProxies(req ListProxiesRequest) (*models.ProxyListRes
 func (s *ProxyService) GetProxyByID(id int) (*models.Proxy, error) {
 	proxy, err := s.repo.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
@@ -218,7 +221,7 @@ func (s *ProxyService) CreateProxy(proxy *models.Proxy, userID int) error {
 		if err := s.applyCaddyConfig(proxy); err != nil {
 			// Rollback database entry if Caddy config fails
 			if delErr := s.repo.Delete(proxy.ID); delErr != nil {
-				return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %v", err, delErr)
+				return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %w", err, delErr)
 			}
 			return fmt.Errorf("failed to apply Caddy configuration: %w", err)
 		}
@@ -232,7 +235,7 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	// Get existing proxy
 	existing, err := s.repo.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProxyNotFound
 		}
 		return fmt.Errorf("failed to get proxy: %w", err)
@@ -284,8 +287,7 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	// Remove old config if hostname changed or was active
 	if existing.IsActive {
 		if err := s.removeCaddyConfig(existing.ID); err != nil {
-			// Log but don't fail - config might not exist in Caddy
-			// TODO: Add proper logging
+			s.logger.Warn("Failed to remove old Caddy config", zap.Int("proxy_id", existing.ID), zap.Error(err))
 		}
 	}
 
@@ -304,7 +306,7 @@ func (s *ProxyService) DeleteProxy(id int) error {
 	// Check if proxy exists
 	proxy, err := s.repo.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProxyNotFound
 		}
 		return fmt.Errorf("failed to get proxy: %w", err)
@@ -313,8 +315,7 @@ func (s *ProxyService) DeleteProxy(id int) error {
 	// Remove configuration from Caddy if it was active
 	if proxy.IsActive {
 		if err := s.removeCaddyConfig(id); err != nil {
-			// Log but don't fail - config might not exist
-			// TODO: Add proper logging
+			s.logger.Warn("Failed to remove Caddy config during delete", zap.Int("proxy_id", id), zap.Error(err))
 		}
 	}
 
@@ -330,7 +331,7 @@ func (s *ProxyService) DeleteProxy(id int) error {
 func (s *ProxyService) EnableProxy(id int) error {
 	proxy, err := s.repo.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProxyNotFound
 		}
 		return fmt.Errorf("failed to get proxy: %w", err)
@@ -352,7 +353,7 @@ func (s *ProxyService) EnableProxy(id int) error {
 	if err := s.applyCaddyConfig(proxy); err != nil {
 		// Rollback status update
 		if rollbackErr := s.repo.UpdateStatus(id, false); rollbackErr != nil {
-			return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %v", err, rollbackErr)
+			return fmt.Errorf("failed to apply Caddy config and rollback failed: caddy: %w, rollback: %w", err, rollbackErr)
 		}
 		return fmt.Errorf("failed to apply Caddy configuration: %w", err)
 	}
@@ -364,7 +365,7 @@ func (s *ProxyService) EnableProxy(id int) error {
 func (s *ProxyService) DisableProxy(id int) error {
 	proxy, err := s.repo.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProxyNotFound
 		}
 		return fmt.Errorf("failed to get proxy: %w", err)
@@ -381,8 +382,7 @@ func (s *ProxyService) DisableProxy(id int) error {
 
 	// Remove configuration from Caddy
 	if err := s.removeCaddyConfig(id); err != nil {
-		// Log but don't fail - config might not exist
-		// TODO: Add proper logging
+		s.logger.Warn("Failed to remove Caddy config during disable", zap.Int("proxy_id", id), zap.Error(err))
 	}
 
 	return nil
@@ -513,7 +513,8 @@ func (s *ProxyService) removeCaddyConfig(proxyID int) error {
 	config, err := s.caddyClient.GetConfig()
 	if err != nil {
 		// If we can't get config, route might not exist, which is okay
-		return nil
+		s.logger.Debug("Could not get Caddy config for removal", zap.Int("proxy_id", proxyID), zap.Error(err))
+		return nil //nolint:nilerr // intentional: config might not exist
 	}
 
 	// Extract current routes
@@ -575,6 +576,6 @@ func NewCaddyError(message string) error {
 
 // IsCaddyError checks if an error is a CaddyError
 func IsCaddyError(err error) bool {
-	_, ok := err.(*CaddyError)
-	return ok
+	var caddyErr *CaddyError
+	return errors.As(err, &caddyErr)
 }

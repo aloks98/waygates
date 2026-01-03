@@ -14,7 +14,7 @@ type SuccessResponse struct {
 
 // ErrorResponse represents an error API response
 type ErrorResponse struct {
-	Success bool       `json:"success"`
+	Success bool        `json:"success"`
 	Error   ErrorDetail `json:"error"`
 }
 
@@ -36,13 +36,13 @@ func JSON(w http.ResponseWriter, statusCode int, data interface{}) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		// Write a hardcoded error that we know will succeed
-		w.Write([]byte(`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"Failed to encode response"}}`))
+		_, _ = w.Write([]byte(`{"success":false,"error":{"code":"INTERNAL_ERROR","message":"Failed to encode response"}}`))
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	w.Write(jsonData)
+	_, _ = w.Write(jsonData)
 }
 
 // Success sends a success response
@@ -64,7 +64,7 @@ func Created(w http.ResponseWriter, data interface{}, message string) {
 }
 
 // Error sends an error response
-func Error(w http.ResponseWriter, statusCode int, code string, message string, details interface{}) {
+func Error(w http.ResponseWriter, statusCode int, code, message string, details interface{}) {
 	JSON(w, statusCode, ErrorResponse{
 		Success: false,
 		Error: ErrorDetail{

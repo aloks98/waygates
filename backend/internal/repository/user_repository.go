@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"github.com/aloks98/waygates/backend/internal/models"
 	"gorm.io/gorm"
+
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // UserRepository handles database operations for users

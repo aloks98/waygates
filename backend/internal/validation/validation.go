@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -63,7 +64,7 @@ func validateHostname(fl validator.FieldLevel) bool {
 	// Basic DNS label validation
 	labels := strings.Split(hostname, ".")
 	for _, label := range labels {
-		if len(label) == 0 || len(label) > 63 {
+		if label == "" || len(label) > 63 {
 			return false
 		}
 	}
@@ -99,7 +100,7 @@ type ProxyRequest struct {
 }
 
 // ValidationError represents a validation error
-type ValidationError struct {
+type ValidationError struct { //nolint:revive // name is intentional for clarity
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
@@ -117,7 +118,8 @@ func ValidateStruct(s interface{}) error {
 	}
 
 	// Get the first validation error and return a user-friendly message
-	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
 		for _, e := range validationErrors {
 			return &ValidationError{
 				Field:   toSnakeCase(e.Field()),
@@ -137,17 +139,18 @@ func ValidateStructAll(s interface{}) []ValidationError {
 		return nil
 	}
 
-	var errors []ValidationError
-	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+	var errs []ValidationError
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
 		for _, e := range validationErrors {
-			errors = append(errors, ValidationError{
+			errs = append(errs, ValidationError{
 				Field:   toSnakeCase(e.Field()),
 				Message: getErrorMessage(e),
 			})
 		}
 	}
 
-	return errors
+	return errs
 }
 
 // getErrorMessage returns a user-friendly error message for a validation error

@@ -4,9 +4,10 @@ import (
 	"net/http"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/database"
 	"github.com/aloks98/waygates/backend/internal/utils"
-	"gorm.io/gorm"
 )
 
 // HealthHandler handles health check requests

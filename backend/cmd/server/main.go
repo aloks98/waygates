@@ -11,14 +11,15 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/api/routes"
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/aloks98/waygates/backend/internal/database"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 
 	// PostgreSQL driver
 	_ "github.com/lib/pq"
@@ -38,7 +39,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting Caddy Manager Backend",
 		zap.String("version", "1.0.0"),

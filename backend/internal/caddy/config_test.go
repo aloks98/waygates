@@ -819,9 +819,9 @@ func TestBuildStatic_CatchAllPage(t *testing.T) {
 // TestGetSecuritySnippetPath tests security snippet path generation
 func TestGetSecuritySnippetPath(t *testing.T) {
 	testCases := []struct {
-		name          string
-		proxy         *models.Proxy
-		expectedPath  string
+		name         string
+		proxy        *models.Proxy
+		expectedPath string
 	}{
 		{
 			name: "Reverse proxy with block exploits",

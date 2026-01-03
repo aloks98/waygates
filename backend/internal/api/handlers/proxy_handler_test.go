@@ -8,10 +8,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/utils"
-	"github.com/go-chi/chi/v5"
 )
+
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const userIDKey contextKey = "user_id"
 
 // TestListProxies_InvalidPage tests ListProxies with invalid page parameter
 func TestListProxies_InvalidPage(t *testing.T) {
@@ -255,7 +261,7 @@ func TestCreateProxy_MissingUserID(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Simulate checking for user ID (normally done by middleware)
-		userID := r.Context().Value("user_id")
+		userID := r.Context().Value(userIDKey)
 		if userID == nil {
 			utils.Unauthorized(w, "User not found in context")
 			return
@@ -276,12 +282,12 @@ func TestCreateProxy_WithUserID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/proxies", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	// Add user ID to context
-	ctx := context.WithValue(req.Context(), "user_id", "123")
+	ctx := context.WithValue(req.Context(), userIDKey, "123")
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id")
+		userID := r.Context().Value(userIDKey)
 		if userID == nil {
 			utils.Unauthorized(w, "User not found in context")
 			return

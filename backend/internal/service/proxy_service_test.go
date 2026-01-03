@@ -212,7 +212,7 @@ func TestPaginationCalculation(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Simulate the pagination calculation from the service
-			import_math := func(a float64) int {
+			ceil := func(a float64) int {
 				if a <= 0 {
 					return 0
 				}
@@ -221,7 +221,7 @@ func TestPaginationCalculation(t *testing.T) {
 
 			totalPages := 0
 			if tc.limit > 0 {
-				totalPages = import_math(float64(tc.total) / float64(tc.limit))
+				totalPages = ceil(float64(tc.total) / float64(tc.limit))
 			}
 			hasNext := tc.page < totalPages
 			hasPrev := tc.page > 1
@@ -242,14 +242,14 @@ func TestPaginationCalculation(t *testing.T) {
 // TestListProxiesRequest_Validation tests request struct validation
 func TestListProxiesRequest_Validation(t *testing.T) {
 	testCases := []struct {
-		name   string
-		req    ListProxiesRequest
-		valid  bool
+		name  string
+		req   ListProxiesRequest
+		valid bool
 	}{
 		{
-			name:   "Empty request is valid",
-			req:    ListProxiesRequest{},
-			valid:  true,
+			name:  "Empty request is valid",
+			req:   ListProxiesRequest{},
+			valid: true,
 		},
 		{
 			name: "Full request is valid",
@@ -278,9 +278,7 @@ func TestListProxiesRequest_Validation(t *testing.T) {
 			// ListProxiesRequest doesn't have built-in validation
 			// The service normalizes the values instead
 			// This test documents the expected behavior
-			if tc.valid {
-				// No error expected
-			}
+			_ = tc.valid // Suppress unused variable warning - test documents expected behavior
 		})
 	}
 }

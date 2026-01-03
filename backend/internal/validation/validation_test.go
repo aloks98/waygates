@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -95,8 +96,9 @@ func TestValidateRegisterRequest(t *testing.T) {
 			if tc.expectErr {
 				if err == nil {
 					t.Errorf("Expected error for field '%s', got nil", tc.errField)
-				} else if validErr, ok := err.(*ValidationError); ok {
-					if validErr.Field != tc.errField {
+				} else {
+					var validErr *ValidationError
+					if errors.As(err, &validErr) && validErr.Field != tc.errField {
 						t.Errorf("Expected error field '%s', got '%s'", tc.errField, validErr.Field)
 					}
 				}

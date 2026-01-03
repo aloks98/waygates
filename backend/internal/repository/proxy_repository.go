@@ -3,8 +3,9 @@ package repository
 import (
 	"strings"
 
-	"github.com/aloks98/waygates/backend/internal/models"
 	"gorm.io/gorm"
+
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // Allowed sort fields for proxy listing (whitelist to prevent SQL injection)

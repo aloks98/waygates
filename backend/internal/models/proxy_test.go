@@ -331,9 +331,9 @@ func TestJSONField_MarshalUnmarshal(t *testing.T) {
 // TestJSONField_Value tests database value conversion
 func TestJSONField_Value(t *testing.T) {
 	testCases := []struct {
-		name        string
-		input       JSONField
-		expectNil   bool
+		name      string
+		input     JSONField
+		expectNil bool
 	}{
 		{"Nil field", nil, true},
 		{"Empty map", JSONField{}, false},

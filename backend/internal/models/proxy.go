@@ -95,8 +95,6 @@ func (j *JSONField) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-
-
 // ProxyListResponse is the response for listing proxies
 type ProxyListResponse struct {
 	Proxies    []Proxy    `json:"proxies"`
@@ -105,12 +103,12 @@ type ProxyListResponse struct {
 
 // Pagination contains pagination metadata
 type Pagination struct {
-	CurrentPage  int  `json:"current_page"`
-	TotalPages   int  `json:"total_pages"`
+	CurrentPage  int   `json:"current_page"`
+	TotalPages   int   `json:"total_pages"`
 	TotalItems   int64 `json:"total_items"`
-	ItemsPerPage int  `json:"items_per_page"`
-	HasNext      bool `json:"has_next"`
-	HasPrev      bool `json:"has_prev"`
+	ItemsPerPage int   `json:"items_per_page"`
+	HasNext      bool  `json:"has_next"`
+	HasPrev      bool  `json:"has_prev"`
 }
 
 // ProxyType constants
@@ -195,7 +193,7 @@ func validateHostname(hostname string) error {
 	// Basic DNS label validation
 	labels := strings.Split(hostname, ".")
 	for _, label := range labels {
-		if len(label) == 0 {
+		if label == "" {
 			return ErrHostnameEmptyLabel
 		}
 		if len(label) > 63 {

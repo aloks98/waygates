@@ -52,7 +52,7 @@ func (c *Client) HealthCheck() error {
 
 // HealthCheckWithContext checks if Caddy Admin API is reachable with context
 func (c *Client) HealthCheckWithContext(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/config/", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/config/", http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -77,7 +77,7 @@ func (c *Client) GetConfig() (map[string]interface{}, error) {
 
 // GetConfigWithContext retrieves the current Caddy configuration with context
 func (c *Client) GetConfigWithContext(ctx context.Context) (map[string]interface{}, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/config/", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/config/", http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -127,7 +127,7 @@ func (c *Client) POSTWithContext(ctx context.Context, path string, body interfac
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return fmt.Errorf("caddy API error (status %d): failed to read response body: %v", resp.StatusCode, readErr)
+			return fmt.Errorf("caddy API error (status %d): failed to read response body: %w", resp.StatusCode, readErr)
 		}
 		return fmt.Errorf("caddy API error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -162,7 +162,7 @@ func (c *Client) PATCHWithContext(ctx context.Context, path string, body interfa
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return fmt.Errorf("caddy API error (status %d): failed to read response body: %v", resp.StatusCode, readErr)
+			return fmt.Errorf("caddy API error (status %d): failed to read response body: %w", resp.StatusCode, readErr)
 		}
 		return fmt.Errorf("caddy API error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -197,7 +197,7 @@ func (c *Client) PUTWithContext(ctx context.Context, path string, body interface
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return fmt.Errorf("caddy API error (status %d): failed to read response body: %v", resp.StatusCode, readErr)
+			return fmt.Errorf("caddy API error (status %d): failed to read response body: %w", resp.StatusCode, readErr)
 		}
 		return fmt.Errorf("caddy API error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
@@ -212,7 +212,7 @@ func (c *Client) DELETE(path string) error {
 
 // DELETEWithContext sends a DELETE request to Caddy Admin API with context
 func (c *Client) DELETEWithContext(ctx context.Context, path string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+path, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (c *Client) DELETEWithContext(ctx context.Context, path string) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
-			return fmt.Errorf("caddy API error (status %d): failed to read response body: %v", resp.StatusCode, readErr)
+			return fmt.Errorf("caddy API error (status %d): failed to read response body: %w", resp.StatusCode, readErr)
 		}
 		return fmt.Errorf("caddy API error (status %d): %s", resp.StatusCode, string(bodyBytes))
 	}
