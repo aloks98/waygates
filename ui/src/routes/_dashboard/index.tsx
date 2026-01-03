@@ -16,34 +16,32 @@ import { useMemo } from 'react';
 import { ProxyStatusBadge, ProxyTargetCell, ProxyTypeBadge } from '@/components/proxy';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
-import type { ApiResponse, PaginatedResponse } from '@/types/api';
-import type { ProxyConfig, ProxyType } from '@/types/proxy';
+import type { ApiResponse, PaginatedResponse, ProxyStats } from '@/types/api';
+import type { ProxyConfig } from '@/types/proxy';
 
 export function DashboardIndex() {
   const { user } = useAuthStore();
 
-  const { data: proxiesData, isLoading } = useQuery({
-    queryKey: ['proxies', 'summary'],
+  const { data: statsData, isLoading: isStatsLoading } = useQuery({
+    queryKey: ['proxies', 'stats'],
+    queryFn: async () => {
+      const response = await api.get('proxies/stats').json<ApiResponse<ProxyStats>>();
+      return response.data;
+    },
+  });
+
+  const { data: recentData, isLoading: isRecentLoading } = useQuery({
+    queryKey: ['proxies', 'recent'],
     queryFn: async () => {
       const response = await api
-        .get('proxies', { searchParams: { limit: '1000' } })
+        .get('proxies', { searchParams: { limit: '5', sort: 'created_at', order: 'desc' } })
         .json<ApiResponse<PaginatedResponse<ProxyConfig>>>();
       return response.data;
     },
   });
 
-  const proxies = proxiesData?.items || [];
-  const recentProxies = proxies.slice(0, 5);
-  const activeProxies = proxies.filter((p) => p.is_active).length;
-  const inactiveProxies = proxies.filter((p) => !p.is_active).length;
-
-  const proxyTypeCounts = proxies.reduce(
-    (acc, proxy) => {
-      acc[proxy.type] = (acc[proxy.type] || 0) + 1;
-      return acc;
-    },
-    {} as Record<ProxyType, number>,
-  );
+  const isLoading = isStatsLoading || isRecentLoading;
+  const recentProxies = recentData?.items || [];
 
   const columns = useMemo<ColumnDef<ProxyConfig>[]>(
     () => [
@@ -88,27 +86,32 @@ export function DashboardIndex() {
   });
 
   const stats = [
-    { label: 'Total Proxies', value: proxies.length, icon: Globe, color: 'text-primary' },
-    { label: 'Active', value: activeProxies, icon: Activity, color: 'text-green-500' },
-    { label: 'Inactive', value: inactiveProxies, icon: Pause, color: 'text-muted-foreground' },
+    { label: 'Total Proxies', value: statsData?.total ?? 0, icon: Globe, color: 'text-primary' },
+    { label: 'Active', value: statsData?.active ?? 0, icon: Activity, color: 'text-green-500' },
+    {
+      label: 'Inactive',
+      value: statsData?.inactive ?? 0,
+      icon: Pause,
+      color: 'text-muted-foreground',
+    },
   ];
 
   const typeStats = [
     {
       label: 'Reverse Proxies',
-      value: proxyTypeCounts.reverse_proxy || 0,
+      value: statsData?.by_type?.reverse_proxy ?? 0,
       icon: Globe,
       color: 'text-blue-500',
     },
     {
       label: 'Redirects',
-      value: proxyTypeCounts.redirect || 0,
+      value: statsData?.by_type?.redirect ?? 0,
       icon: ArrowRight,
       color: 'text-amber-500',
     },
     {
       label: 'Static Sites',
-      value: proxyTypeCounts.static || 0,
+      value: statsData?.by_type?.static ?? 0,
       icon: FolderOpen,
       color: 'text-purple-500',
     },
@@ -191,7 +194,7 @@ export function DashboardIndex() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Proxies</CardTitle>
-          {proxies.length > 5 && (
+          {(statsData?.total ?? 0) > 5 && (
             <Button variant="ghost" size="sm" asChild>
               <Link to="/dashboard/proxies">
                 View all
@@ -201,7 +204,7 @@ export function DashboardIndex() {
           )}
         </CardHeader>
         <CardContent className="p-0">
-          {!isLoading && proxies.length === 0 ? (
+          {!isLoading && (statsData?.total ?? 0) === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Globe className="size-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-medium">No proxies configured</h3>

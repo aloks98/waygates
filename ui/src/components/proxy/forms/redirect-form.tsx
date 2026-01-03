@@ -54,7 +54,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       preserve_query: true,
     } as RedirectFormValues,
     validators: {
-      onChange: redirectSchema,
+      onSubmit: redirectSchema,
     },
     onSubmit: async ({ value }) => {
       const data: CreateRedirectRequest = {

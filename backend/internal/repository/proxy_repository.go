@@ -157,3 +157,50 @@ func (r *ProxyRepository) HostnameExists(hostname string, excludeID int) (bool, 
 
 	return count > 0, nil
 }
+
+// ProxyStats holds statistics about proxies
+type ProxyStats struct {
+	Total         int64            `json:"total"`
+	Active        int64            `json:"active"`
+	Inactive      int64            `json:"inactive"`
+	ByType        map[string]int64 `json:"by_type"`
+}
+
+// GetStats returns statistics about proxies
+func (r *ProxyRepository) GetStats() (*ProxyStats, error) {
+	stats := &ProxyStats{
+		ByType: make(map[string]int64),
+	}
+
+	// Get total count
+	if err := r.db.Model(&models.Proxy{}).Count(&stats.Total).Error; err != nil {
+		return nil, err
+	}
+
+	// Get active count
+	if err := r.db.Model(&models.Proxy{}).Where("is_active = ?", true).Count(&stats.Active).Error; err != nil {
+		return nil, err
+	}
+
+	// Calculate inactive
+	stats.Inactive = stats.Total - stats.Active
+
+	// Get counts by type
+	type TypeCount struct {
+		Type  string
+		Count int64
+	}
+	var typeCounts []TypeCount
+	if err := r.db.Model(&models.Proxy{}).
+		Select("type, count(*) as count").
+		Group("type").
+		Scan(&typeCounts).Error; err != nil {
+		return nil, err
+	}
+
+	for _, tc := range typeCounts {
+		stats.ByType[tc.Type] = tc.Count
+	}
+
+	return stats, nil
+}

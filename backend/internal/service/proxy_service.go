@@ -388,6 +388,11 @@ func (s *ProxyService) DisableProxy(id int) error {
 	return nil
 }
 
+// GetStats returns statistics about proxies
+func (s *ProxyService) GetStats() (*repository.ProxyStats, error) {
+	return s.repo.GetStats()
+}
+
 // applyCaddyConfig applies a proxy configuration to Caddy
 func (s *ProxyService) applyCaddyConfig(proxy *models.Proxy) error {
 	// Ensure HTTP server structure exists

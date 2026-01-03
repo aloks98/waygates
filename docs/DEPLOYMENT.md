@@ -333,6 +333,36 @@ CADDY_ADMIN_URL=http://192.168.1.100:2019
 
 Ensure the Caddy Admin API is accessible from the Waygates container.
 
+### Default 404 Page
+
+Waygates includes a branded 404 page for unconfigured routes. To enable it, you need a wildcard domain with DNS challenge for SSL certificates.
+
+**Enable in Caddyfile:**
+
+Edit `conf/Caddyfile` and uncomment the wildcard block, replacing with your domain:
+
+```caddyfile
+*.example.com {
+    tls {
+        dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    }
+
+    root * /etc/caddy/templates
+    templates
+    rewrite * /404.html
+    file_server
+}
+```
+
+This serves the branded 404 page for any `*.example.com` subdomain that doesn't have a configured proxy route.
+
+**Why a wildcard domain is required:**
+- SSL certificates require a fully qualified domain name
+- A catch-all like `:443` can't obtain certificates
+- The wildcard certificate covers all subdomains under your domain
+
+The template is located at `conf/templates/404.html` and can be customized.
+
 ---
 
 ## Production Considerations

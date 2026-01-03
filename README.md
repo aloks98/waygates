@@ -9,6 +9,7 @@ A modern reverse proxy manager with a React UI and Go backend. Manage your Caddy
 - JWT-based authentication with RBAC
 - Automatic sync with Caddy Admin API
 - Support for reverse proxy, redirect, and static file serving
+- Branded 404 page for unconfigured routes
 - PostgreSQL for persistent storage
 - Single Docker image (backend + UI)
 

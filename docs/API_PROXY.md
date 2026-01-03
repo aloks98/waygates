@@ -581,6 +581,65 @@ https://new.example.com/page
 
 ## Static Site Details
 
+### Mounting Static Files to Caddy
+
+Before using the static proxy type, you need to mount your static files into the Caddy container so they're accessible at `root_path`.
+
+**1. Update docker-compose.yml:**
+
+```yaml
+caddy:
+  image: caddy:2-alpine
+  volumes:
+    - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    - caddy-data:/data
+    - caddy-config:/config
+    # Mount your static files
+    - ./sites/my-app:/srv/my-app:ro
+    - ./sites/docs:/srv/docs:ro
+```
+
+**2. Directory structure:**
+
+```
+waygates/
+├── docker-compose.yml
+└── sites/
+    ├── my-app/           # React/Vue/Angular SPA build output
+    │   ├── index.html
+    │   ├── assets/
+    │   └── ...
+    └── docs/             # Static documentation
+        ├── index.html
+        └── ...
+```
+
+**3. Create proxy via API:**
+
+```bash
+curl -X POST http://localhost:8080/api/proxies \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "static",
+    "name": "My SPA",
+    "hostname": "app.example.com",
+    "static": {
+      "root_path": "/srv/my-app",
+      "index_file": "index.html",
+      "try_files": ["index.html"]
+    }
+  }'
+```
+
+**4. Restart Caddy to pick up new volume mounts:**
+
+```bash
+docker compose restart caddy
+```
+
+**Updating files:** After copying new files to `./sites/my-app/`, no restart is needed - Caddy serves files directly from disk.
+
 ### File Serving
 
 Caddy serves files from `root_path` directory.

@@ -1,9 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { HTTPError } from 'ky';
+import { toast } from 'sonner';
 import { api } from '../lib/api';
 import type { ApiResponse, PaginatedResponse } from '../types/api';
 import type { CreateProxyRequest, ProxyConfig, UpdateProxyRequest } from '../types/proxy';
 
 const QUERY_KEY = ['proxies'] as const;
+
+async function handleApiError(error: unknown): Promise<string> {
+  if (error instanceof HTTPError) {
+    try {
+      const body = (await error.response.json()) as { error?: { message?: string } };
+      return body?.error?.message || error.message;
+    } catch {
+      return error.message;
+    }
+  }
+  return error instanceof Error ? error.message : 'An unknown error occurred';
+}
 
 export function useProxies() {
   const queryClient = useQueryClient();
@@ -12,7 +26,7 @@ export function useProxies() {
     queryKey: QUERY_KEY,
     queryFn: async () => {
       const response = await api
-        .get('proxies', { searchParams: { limit: '100' } })
+        .get('proxies', { searchParams: { limit: '50' } })
         .json<ApiResponse<PaginatedResponse<ProxyConfig>>>();
       return response.data;
     },
@@ -22,8 +36,13 @@ export function useProxies() {
     mutationFn: async (data: CreateProxyRequest) => {
       return await api.post('proxies', { json: data }).json<ApiResponse<ProxyConfig>>();
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success(`Proxy "${response.data?.name}" created successfully`);
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to create proxy', { description: message });
     },
   });
 
@@ -31,8 +50,13 @@ export function useProxies() {
     mutationFn: async ({ id, data }: { id: number; data: UpdateProxyRequest }) => {
       return await api.put(`proxies/${id}`, { json: data }).json<ApiResponse<ProxyConfig>>();
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success(`Proxy "${response.data?.name}" updated successfully`);
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to update proxy', { description: message });
     },
   });
 
@@ -42,6 +66,11 @@ export function useProxies() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success('Proxy deleted successfully');
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to delete proxy', { description: message });
     },
   });
 
@@ -49,8 +78,15 @@ export function useProxies() {
     mutationFn: async ({ id, enable }: { id: number; enable: boolean }) => {
       await api.post(`proxies/${id}/${enable ? 'enable' : 'disable'}`);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success(`Proxy ${variables.enable ? 'enabled' : 'disabled'} successfully`);
+    },
+    onError: async (error, variables) => {
+      const message = await handleApiError(error);
+      toast.error(`Failed to ${variables.enable ? 'enable' : 'disable'} proxy`, {
+        description: message,
+      });
     },
   });
 

@@ -281,3 +281,14 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 	// Return success response
 	utils.Success(w, nil, "Proxy disabled successfully")
 }
+
+// GetStats handles GET /api/proxies/stats
+func (h *ProxyHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.service.GetStats()
+	if err != nil {
+		utils.InternalError(w, "Failed to get proxy stats")
+		return
+	}
+
+	utils.Success(w, stats, "")
+}

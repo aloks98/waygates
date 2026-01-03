@@ -57,7 +57,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       template_rendering: false,
     } as StaticFormValues,
     validators: {
-      onChange: staticSchema,
+      onSubmit: staticSchema,
     },
     onSubmit: async ({ value }) => {
       const data: CreateStaticRequest = {

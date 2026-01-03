@@ -105,6 +105,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Route("/api/proxies", func(r chi.Router) {
 			// Read operations - require proxies:read
 			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/", proxyHandler.ListProxies)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/stats", proxyHandler.GetStats)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/{id}", proxyHandler.GetProxy)
 
 			// Create operations - require proxies:create

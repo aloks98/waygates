@@ -83,7 +83,7 @@ export function ReverseProxyForm({
       health_check_timeout: '5s',
     } as ReverseProxyFormValues,
     validators: {
-      onChange: reverseProxySchema,
+      onSubmit: reverseProxySchema,
     },
     onSubmit: async ({ value }) => {
       const data: CreateReverseProxyRequest = {

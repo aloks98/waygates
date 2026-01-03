@@ -14,6 +14,13 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
+export interface ProxyStats {
+  total: number;
+  active: number;
+  inactive: number;
+  by_type: Record<string, number>;
+}
+
 export interface TokenPair {
   access_token: string;
   refresh_token: string;
