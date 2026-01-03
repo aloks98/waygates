@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { useMemo } from 'react';
-import type { Proxy } from '@/types/proxy';
+import type { ProxyConfig } from '@/types/proxy';
 import {
   ProxyActionsCell,
   ProxySslCell,
@@ -16,12 +16,12 @@ import {
 } from './cells';
 
 interface ProxyDataGridProps {
-  data: Proxy[];
+  data: ProxyConfig[];
   isLoading: boolean;
   canUpdateProxies: boolean;
   canDeleteProxies: boolean;
-  onEdit: (proxy: Proxy) => void;
-  onDelete: (proxy: Proxy) => void;
+  onEdit: (proxy: ProxyConfig) => void;
+  onDelete: (proxy: ProxyConfig) => void;
   onToggleStatus: (id: number, enable: boolean) => void;
   isToggling: boolean;
 }
@@ -36,7 +36,7 @@ export function ProxyDataGrid({
   onToggleStatus,
   isToggling,
 }: ProxyDataGridProps) {
-  const columns = useMemo<ColumnDef<Proxy>[]>(
+  const columns = useMemo<ColumnDef<ProxyConfig>[]>(
     () => [
       {
         accessorKey: 'name',
@@ -101,7 +101,7 @@ export function ProxyDataGrid({
             {
               id: 'actions',
               header: '',
-              cell: ({ row }: { row: { original: Proxy } }) => (
+              cell: ({ row }: { row: { original: ProxyConfig } }) => (
                 <ProxyActionsCell
                   proxy={row.original}
                   canEdit={canUpdateProxies}

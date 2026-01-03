@@ -1,6 +1,6 @@
 import { Badge } from '@e412/titanium';
 import { ArrowRight, FolderOpen, Globe } from 'lucide-react';
-import type { ProxyType } from '@/../types/proxy';
+import type { ProxyType } from '@/types/proxy';
 
 const proxyTypeConfig: Record<ProxyType, { label: string; icon: React.ReactNode }> = {
   reverse_proxy: {

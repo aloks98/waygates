@@ -21,7 +21,7 @@ import { useState } from 'react';
 import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
-import type { Proxy, ProxyType } from '@/types/proxy';
+import type { ProxyConfig, ProxyType } from '@/types/proxy';
 
 export function ProxiesPage() {
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
@@ -40,8 +40,8 @@ export function ProxiesPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
-  const [editingProxy, setEditingProxy] = useState<Proxy | null>(null);
-  const [deletingProxy, setDeletingProxy] = useState<Proxy | null>(null);
+  const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
+  const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
   const [search, setSearch] = useState('');
 
   const handleCreateProxy = (type: ProxyType) => {

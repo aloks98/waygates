@@ -1,13 +1,13 @@
 import { Button } from '@e412/titanium';
 import { Pencil, Trash2 } from 'lucide-react';
-import type { Proxy } from '@/types/proxy';
+import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyActionsCellProps {
-  proxy: Proxy;
+  proxy: ProxyConfig;
   canEdit?: boolean;
   canDelete?: boolean;
-  onEdit?: (proxy: Proxy) => void;
-  onDelete?: (proxy: Proxy) => void;
+  onEdit?: (proxy: ProxyConfig) => void;
+  onDelete?: (proxy: ProxyConfig) => void;
 }
 
 export function ProxyActionsCell({

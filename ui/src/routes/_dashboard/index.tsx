@@ -17,7 +17,7 @@ import { ProxyStatusBadge, ProxyTargetCell, ProxyTypeBadge } from '@/components/
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
-import type { Proxy, ProxyType } from '@/types/proxy';
+import type { ProxyConfig, ProxyType } from '@/types/proxy';
 
 export function DashboardIndex() {
   const { user } = useAuthStore();
@@ -27,7 +27,7 @@ export function DashboardIndex() {
     queryFn: async () => {
       const response = await api
         .get('proxies', { searchParams: { limit: '1000' } })
-        .json<ApiResponse<PaginatedResponse<Proxy>>>();
+        .json<ApiResponse<PaginatedResponse<ProxyConfig>>>();
       return response.data;
     },
   });
@@ -45,7 +45,7 @@ export function DashboardIndex() {
     {} as Record<ProxyType, number>,
   );
 
-  const columns = useMemo<ColumnDef<Proxy>[]>(
+  const columns = useMemo<ColumnDef<ProxyConfig>[]>(
     () => [
       {
         accessorKey: 'name',

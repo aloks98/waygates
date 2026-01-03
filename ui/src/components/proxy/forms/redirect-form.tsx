@@ -16,7 +16,7 @@ import {
 import { useForm } from '@tanstack/react-form';
 import { useEffect } from 'react';
 import { z } from 'zod';
-import type { CreateRedirectRequest, Proxy } from '@/types/proxy';
+import type { CreateRedirectRequest, ProxyConfig } from '@/types/proxy';
 
 const redirectSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
@@ -36,7 +36,7 @@ const redirectSchema = z.object({
 type RedirectFormValues = z.infer<typeof redirectSchema>;
 
 interface RedirectFormProps {
-  initialData?: Proxy | null;
+  initialData?: ProxyConfig | null;
   onSubmit: (data: CreateRedirectRequest) => void;
   loading: boolean;
   onCancel: () => void;
@@ -84,7 +84,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       form.setFieldValue('preserve_path', initialData.redirect?.preserve_path ?? true);
       form.setFieldValue('preserve_query', initialData.redirect?.preserve_query ?? true);
     }
-  }, [initialData]);
+  }, [initialData, form.setFieldValue]);
 
   return (
     <form
@@ -186,7 +186,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
               <FieldLabel>Redirect Type</FieldLabel>
               <Select
                 value={String(field.state.value)}
-                onValueChange={(val) => field.handleChange(parseInt(val))}
+                onValueChange={(val) => field.handleChange(parseInt(val, 10))}
               >
                 <SelectTrigger>
                   <SelectValue />

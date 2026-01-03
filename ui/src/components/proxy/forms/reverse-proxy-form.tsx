@@ -24,14 +24,11 @@ import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import type { CreateReverseProxyRequest, Proxy } from '@/types/proxy';
+import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
 
 const upstreamSchema = z.object({
   host: z.string().min(1, 'Host is required'),
-  port: z.coerce
-    .number()
-    .min(1, 'Port must be at least 1')
-    .max(65535, 'Port must be at most 65535'),
+  port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
   scheme: z.enum(['http', 'https']),
 });
 
@@ -55,7 +52,7 @@ const reverseProxySchema = z.object({
 type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
 
 interface ReverseProxyFormProps {
-  initialData?: Proxy | null;
+  initialData?: ProxyConfig | null;
   onSubmit: (data: CreateReverseProxyRequest) => void;
   loading: boolean;
   onCancel: () => void;
@@ -151,7 +148,7 @@ export function ReverseProxyForm({
         initialData.load_balancing?.health_checks?.timeout || '5s',
       );
     }
-  }, [initialData]);
+  }, [initialData, form.setFieldValue]);
 
   const addUpstream = () => {
     const newUpstreams = [...upstreams, { host: '', port: 8080, scheme: 'http' as const }];
@@ -289,7 +286,7 @@ export function ReverseProxyForm({
                   type="number"
                   placeholder="8080"
                   value={upstream.port}
-                  onChange={(e) => updateUpstream(index, 'port', parseInt(e.target.value) || 0)}
+                  onChange={(e) => updateUpstream(index, 'port', parseInt(e.target.value, 10) || 0)}
                 />
               </div>
               {upstreams.length > 1 && (

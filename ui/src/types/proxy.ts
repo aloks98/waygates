@@ -37,7 +37,7 @@ export interface StaticConfig {
   try_files?: string[];
 }
 
-export interface Proxy {
+export interface ProxyConfig {
   id: number;
   type: ProxyType;
   name: string;

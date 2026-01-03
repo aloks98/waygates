@@ -19,7 +19,7 @@ import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import type { CreateStaticRequest, Proxy } from '@/types/proxy';
+import type { CreateStaticRequest, ProxyConfig } from '@/types/proxy';
 
 const staticSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
@@ -37,7 +37,7 @@ const staticSchema = z.object({
 type StaticFormValues = z.infer<typeof staticSchema>;
 
 interface StaticFormProps {
-  initialData?: Proxy | null;
+  initialData?: ProxyConfig | null;
   onSubmit: (data: CreateStaticRequest) => void;
   loading: boolean;
   onCancel: () => void;
@@ -89,7 +89,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       form.setFieldValue('template_rendering', initialData.static?.template_rendering ?? false);
       setTryFiles(initialData.static?.try_files || []);
     }
-  }, [initialData]);
+  }, [initialData, form.setFieldValue]);
 
   const addTryFile = () => {
     setTryFiles([...tryFiles, '']);

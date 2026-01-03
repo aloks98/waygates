@@ -1,5 +1,5 @@
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@e412/titanium';
-import type { CreateProxyRequest, Proxy, ProxyType } from '@/types/proxy';
+import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 import { getProxyTypeIcon } from './cells';
 import { RedirectForm, ReverseProxyForm, StaticForm } from './forms';
 
@@ -7,7 +7,7 @@ interface ProxyFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: CreateProxyRequest) => void;
-  initialData?: Proxy | null;
+  initialData?: ProxyConfig | null;
   proxyType: ProxyType;
   title: string;
   loading: boolean;

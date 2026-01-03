@@ -1,7 +1,7 @@
-import type { Proxy } from '@/types/proxy';
+import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyTargetCellProps {
-  proxy: Proxy;
+  proxy: ProxyConfig;
 }
 
 export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
@@ -10,7 +10,7 @@ export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
   return <span className="text-muted-foreground max-w-[200px] truncate block">{target}</span>;
 }
 
-export function getProxyTarget(proxy: Proxy): string {
+export function getProxyTarget(proxy: ProxyConfig): string {
   if (proxy.type === 'reverse_proxy' && proxy.upstreams?.length) {
     const upstream = proxy.upstreams[0];
     const count = proxy.upstreams.length;
