@@ -1,10 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import {
   Button,
-  Input,
-  Switch,
   Card,
   CardContent,
   CardDescription,
@@ -14,16 +9,24 @@ import {
   CardToolbar,
   Field,
   FieldContent,
-  FieldLabel,
-  FieldError,
   FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  Switch,
 } from '@e412/titanium';
+import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import type { CreateStaticRequest, Proxy } from '@/types/proxy';
 
 const staticSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
-  hostname: z.string().min(1, 'Hostname is required').max(253, 'Hostname must be at most 253 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   root_path: z.string().min(1, 'Root path is required'),
   index_file: z.string().min(1, 'Index file is required'),
@@ -195,9 +198,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
                     onBlur={field.handleBlur}
                     aria-invalid={hasError}
                   />
-                  <FieldDescription>
-                    The directory path to serve files from
-                  </FieldDescription>
+                  <FieldDescription>The directory path to serve files from</FieldDescription>
                   {hasError && <FieldError errors={field.state.meta.errors} />}
                 </Field>
               );
@@ -218,9 +219,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
                     onBlur={field.handleBlur}
                     aria-invalid={hasError}
                   />
-                  <FieldDescription>
-                    Default file to serve for directory requests
-                  </FieldDescription>
+                  <FieldDescription>Default file to serve for directory requests</FieldDescription>
                   {hasError && <FieldError errors={field.state.meta.errors} />}
                 </Field>
               );
@@ -232,9 +231,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldLabel>Directory Browsing</FieldLabel>
-                  <FieldDescription>
-                    Allow visitors to browse directory contents
-                  </FieldDescription>
+                  <FieldDescription>Allow visitors to browse directory contents</FieldDescription>
                 </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>
@@ -261,7 +258,9 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
         <CardHeader>
           <CardHeading>
             <CardTitle>Try Files (Optional)</CardTitle>
-            <CardDescription>Specify fallback files when the requested path is not found</CardDescription>
+            <CardDescription>
+              Specify fallback files when the requested path is not found
+            </CardDescription>
           </CardHeading>
           <CardToolbar>
             <Button type="button" variant="outline" size="sm" onClick={addTryFile}>
@@ -285,7 +284,12 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
                     onChange={(e) => updateTryFile(index, e.target.value)}
                     className="flex-1"
                   />
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeTryFile(index)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeTryFile(index)}
+                  >
                     <Trash2 className="size-4 text-destructive" />
                   </Button>
                 </div>

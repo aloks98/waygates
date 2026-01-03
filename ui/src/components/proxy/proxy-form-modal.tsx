@@ -1,13 +1,7 @@
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogBody,
-} from '@e412/titanium';
-import type { Proxy, CreateProxyRequest, ProxyType } from '@/types/proxy';
-import { ReverseProxyForm, RedirectForm, StaticForm } from './forms';
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@e412/titanium';
+import type { CreateProxyRequest, Proxy, ProxyType } from '@/types/proxy';
 import { getProxyTypeIcon } from './cells';
+import { RedirectForm, ReverseProxyForm, StaticForm } from './forms';
 
 interface ProxyFormModalProps {
   open: boolean;

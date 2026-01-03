@@ -1,37 +1,39 @@
-import { useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import {
-  Button,
-  Input,
-  Card,
-  CardHeader,
-  CardContent,
-  CardTitle,
-  CardDescription,
-  Field,
-  FieldLabel,
-  FieldError,
-  FieldGroup,
   Alert,
   AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  Input,
 } from '@e412/titanium';
+import { useForm } from '@tanstack/react-form';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { XCircle } from 'lucide-react';
+import { useState } from 'react';
+import { z } from 'zod';
 import { publicApi } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type { User } from '../types/auth';
 
-const signupSchema = z.object({
-  name: z.string().min(1, 'Full name is required'),
-  username: z.string().min(3, 'Username must be at least 3 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-});
+const signupSchema = z
+  .object({
+    name: z.string().min(1, 'Full name is required'),
+    username: z.string().min(3, 'Username must be at least 3 characters'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
 
 export function SignupPage() {
   const navigate = useNavigate();

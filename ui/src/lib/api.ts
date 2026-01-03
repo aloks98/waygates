@@ -16,9 +16,11 @@ async function refreshTokens(): Promise<TokenPair | null> {
   }
 
   try {
-    const response = await ky.post(`${API_BASE_URL}/auth/refresh`, {
-      json: { refresh_token: refreshToken },
-    }).json<ApiResponse<TokenPair>>();
+    const response = await ky
+      .post(`${API_BASE_URL}/auth/refresh`, {
+        json: { refresh_token: refreshToken },
+      })
+      .json<ApiResponse<TokenPair>>();
 
     if (response.success && response.data) {
       setTokens(response.data);

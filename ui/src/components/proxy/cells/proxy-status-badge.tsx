@@ -1,4 +1,4 @@
-import { Button, Badge } from '@e412/titanium';
+import { Badge, Button } from '@e412/titanium';
 
 interface ProxyStatusBadgeProps {
   isActive: boolean;
@@ -14,19 +14,12 @@ export function ProxyStatusBadge({
   isToggling = false,
 }: ProxyStatusBadgeProps) {
   const badge = (
-    <Badge variant={isActive ? 'primary' : 'secondary'}>
-      {isActive ? 'Active' : 'Inactive'}
-    </Badge>
+    <Badge variant={isActive ? 'primary' : 'secondary'}>{isActive ? 'Active' : 'Inactive'}</Badge>
   );
 
   if (canToggle && onToggle) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onToggle}
-        disabled={isToggling}
-      >
+      <Button variant="ghost" size="sm" onClick={onToggle} disabled={isToggling}>
         {badge}
       </Button>
     );

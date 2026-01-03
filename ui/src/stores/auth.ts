@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User } from '../types/auth';
 import type { TokenPair } from '../types/api';
+import type { User } from '../types/auth';
 
 interface AuthState {
   accessToken: string | null;
@@ -50,6 +50,6 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
+    },
+  ),
 );

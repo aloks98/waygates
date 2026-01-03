@@ -1,10 +1,10 @@
+import { ThemeProvider } from '@e412/titanium';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { RouterProvider } from '@tanstack/react-router';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '@e412/titanium';
-import { router } from './lib/router';
 import { queryClient } from './lib/query-client';
+import { router } from './lib/router';
 import './app.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -14,5 +14,5 @@ createRoot(document.getElementById('root')!).render(
         <RouterProvider router={router} />
       </QueryClientProvider>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

@@ -1,12 +1,5 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
 import {
-  useReactTable,
-  getCoreRowModel,
-  type ColumnDef,
-} from '@tanstack/react-table';
-import {
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -14,18 +7,17 @@ import {
   DataGrid,
   DataGridTable,
   Skeleton,
-  Button,
 } from '@e412/titanium';
-import { Globe, Activity, Pause, ArrowRight, FolderOpen, ExternalLink, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { Activity, ArrowRight, ExternalLink, FolderOpen, Globe, Pause, Plus } from 'lucide-react';
+import { useMemo } from 'react';
+import { ProxyStatusBadge, ProxyTargetCell, ProxyTypeBadge } from '@/components/proxy';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import type { ApiResponse, PaginatedResponse } from '@/types/api';
 import type { Proxy, ProxyType } from '@/types/proxy';
-import {
-  ProxyTypeBadge,
-  ProxyStatusBadge,
-  ProxyTargetCell,
-} from '@/components/proxy';
 
 export function DashboardIndex() {
   const { user } = useAuthStore();
@@ -50,7 +42,7 @@ export function DashboardIndex() {
       acc[proxy.type] = (acc[proxy.type] || 0) + 1;
       return acc;
     },
-    {} as Record<ProxyType, number>
+    {} as Record<ProxyType, number>,
   );
 
   const columns = useMemo<ColumnDef<Proxy>[]>(
@@ -86,7 +78,7 @@ export function DashboardIndex() {
         meta: { skeleton: <Skeleton className="h-6 w-16 rounded-full" /> },
       },
     ],
-    []
+    [],
   );
 
   const table = useReactTable({
@@ -102,18 +94,31 @@ export function DashboardIndex() {
   ];
 
   const typeStats = [
-    { label: 'Reverse Proxies', value: proxyTypeCounts.reverse_proxy || 0, icon: Globe, color: 'text-blue-500' },
-    { label: 'Redirects', value: proxyTypeCounts.redirect || 0, icon: ArrowRight, color: 'text-amber-500' },
-    { label: 'Static Sites', value: proxyTypeCounts.static || 0, icon: FolderOpen, color: 'text-purple-500' },
+    {
+      label: 'Reverse Proxies',
+      value: proxyTypeCounts.reverse_proxy || 0,
+      icon: Globe,
+      color: 'text-blue-500',
+    },
+    {
+      label: 'Redirects',
+      value: proxyTypeCounts.redirect || 0,
+      icon: ArrowRight,
+      color: 'text-amber-500',
+    },
+    {
+      label: 'Static Sites',
+      value: proxyTypeCounts.static || 0,
+      icon: FolderOpen,
+      color: 'text-purple-500',
+    },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
-            Welcome back, {user?.name || 'User'}
-          </h1>
+          <h1 className="text-2xl font-bold">Welcome back, {user?.name || 'User'}</h1>
           <p className="mt-1 text-muted-foreground">
             Here&apos;s an overview of your proxy configuration.
           </p>

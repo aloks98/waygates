@@ -1,5 +1,6 @@
 .PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check ui-build
 .PHONY: backend-run backend-build backend-test migrate-create
+.PHONY: lint lint-backend lint-ui format format-backend format-ui check setup-tools
 
 # Default target
 help:
@@ -23,8 +24,17 @@ help:
 	@echo "  make backend-build - Build the Go backend binary"
 	@echo "  make backend-test  - Run backend tests"
 	@echo ""
-	@echo "UI (Next.js):"
+	@echo "UI (React):"
 	@echo "  make ui-build      - Build the UI Docker image"
+	@echo ""
+	@echo "Linting & Formatting:"
+	@echo "  make lint          - Run linters on both backend and UI"
+	@echo "  make lint-backend  - Run golangci-lint on backend"
+	@echo "  make lint-ui       - Run Biome linter on UI"
+	@echo "  make format        - Format both backend and UI code"
+	@echo "  make format-backend - Format Go code with gofmt/goimports"
+	@echo "  make format-ui     - Format UI code with Biome"
+	@echo "  make check         - Run all checks (lint + format check)"
 	@echo ""
 	@echo "Database Migrations:"
 	@echo "  make migrate-create NAME=name - Create new migration files"
@@ -32,6 +42,7 @@ help:
 	@echo ""
 	@echo "Other:"
 	@echo "  make env-check     - Check if .env file exists and is configured"
+	@echo "  make setup-tools   - Install development tools (golangci-lint, goimports)"
 
 # Check if .env file exists and is configured
 env-check:
@@ -172,3 +183,55 @@ migrate-create:
 		echo "✓ Created:"; \
 		echo "  backend/migrations/$${NUM}_$(NAME).up.sql"; \
 		echo "  backend/migrations/$${NUM}_$(NAME).down.sql"'
+
+# ============================================
+# Linting & Formatting Commands
+# ============================================
+
+# Run all linters
+lint: lint-backend lint-ui
+
+# Lint backend with golangci-lint
+lint-backend:
+	@echo "Linting Go backend..."
+	@golangci-lint run ./backend/...
+	@echo "✓ Backend lint complete"
+
+# Lint UI with Biome
+lint-ui:
+	@echo "Linting UI..."
+	@cd ui && pnpm lint
+	@echo "✓ UI lint complete"
+
+# Format all code
+format: format-backend format-ui
+
+# Format backend with gofmt and goimports
+format-backend:
+	@echo "Formatting Go backend..."
+	@gofmt -w -s backend/
+	@goimports -w -local github.com/aloks98/waygates backend/
+	@echo "✓ Backend formatted"
+
+# Format UI with Biome
+format-ui:
+	@echo "Formatting UI..."
+	@cd ui && pnpm format
+	@echo "✓ UI formatted"
+
+# Run all checks (lint + tests)
+check: lint backend-test
+	@echo "✓ All checks passed"
+
+# Install development tools
+setup-tools:
+	@echo "Installing development tools..."
+	@echo "Installing golangci-lint..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "Installing goimports..."
+	@go install golang.org/x/tools/cmd/goimports@latest
+	@echo "Installing UI dependencies..."
+	@cd ui && pnpm install
+	@echo "✓ Development tools installed"
+	@echo ""
+	@echo "Make sure $$GOPATH/bin is in your PATH"

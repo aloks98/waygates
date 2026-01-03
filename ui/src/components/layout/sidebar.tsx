@@ -1,8 +1,3 @@
-import {ReactNode, useState} from 'react';
-import {Link, useLocation, useRouter} from '@tanstack/react-router';
-import {useForm} from '@tanstack/react-form';
-import {z} from 'zod';
-import {useMutation} from '@tanstack/react-query';
 import {
   Alert,
   AlertDescription,
@@ -39,9 +34,23 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@e412/titanium';
-import {CheckCircle2, ChevronUp, Globe, Home, KeyRound, LogOut, User, XCircle} from 'lucide-react';
-import {useAuthStore} from '@/stores/auth';
-import {api} from '@/lib/api';
+import { useForm } from '@tanstack/react-form';
+import { useMutation } from '@tanstack/react-query';
+import { Link, useLocation, useRouter } from '@tanstack/react-router';
+import {
+  CheckCircle2,
+  ChevronUp,
+  Globe,
+  Home,
+  KeyRound,
+  LogOut,
+  User,
+  XCircle,
+} from 'lucide-react';
+import { type ReactNode, useState } from 'react';
+import { z } from 'zod';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
 
 interface NavItem {
   label: string;
@@ -62,14 +71,16 @@ const navItems: NavItem[] = [
   },
 ];
 
-const passwordSchema = z.object({
-  current_password: z.string().min(1, 'Current password is required'),
-  new_password: z.string().min(8, 'Password must be at least 8 characters'),
-  confirm_password: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.new_password === data.confirm_password, {
-  message: "Passwords don't match",
-  path: ['confirm_password'],
-});
+const passwordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Current password is required'),
+    new_password: z.string().min(8, 'Password must be at least 8 characters'),
+    confirm_password: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.new_password === data.confirm_password, {
+    message: "Passwords don't match",
+    path: ['confirm_password'],
+  });
 
 function ChangePasswordDialog({
   open,
@@ -100,9 +111,7 @@ function ChangePasswordDialog({
 
   const mutation = useMutation({
     mutationFn: async (data: { current_password: string; new_password: string }) => {
-      return await api
-          .post('auth/change-password', {json: data})
-          .json();
+      return await api.post('auth/change-password', { json: data }).json();
     },
     onSuccess: () => {
       setStatus({ type: 'success', message: 'Password changed successfully!' });
@@ -130,9 +139,7 @@ function ChangePasswordDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Change Password</DialogTitle>
-          <DialogDescription>
-            Enter your current password and choose a new one.
-          </DialogDescription>
+          <DialogDescription>Enter your current password and choose a new one.</DialogDescription>
         </DialogHeader>
         <form
           onSubmit={(e) => {
@@ -361,7 +368,10 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
                 Change Password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-destructive focus:text-destructive"
+              >
                 <LogOut className=" size-4" />
                 Sign out
               </DropdownMenuItem>
@@ -374,9 +384,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         <header className="flex h-14 items-center gap-4 border-b border-border px-4">
           <SidebarTrigger />
         </header>
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto p-6">{children}</main>
       </SidebarInset>
 
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />

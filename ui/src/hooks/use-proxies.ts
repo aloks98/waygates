@@ -1,7 +1,7 @@
-import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
-import {api} from '../lib/api';
-import type {ApiResponse, PaginatedResponse} from '../types/api';
-import type {CreateProxyRequest, Proxy, UpdateProxyRequest} from '../types/proxy';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { api } from '../lib/api';
+import type { ApiResponse, PaginatedResponse } from '../types/api';
+import type { CreateProxyRequest, Proxy, UpdateProxyRequest } from '../types/proxy';
 
 const QUERY_KEY = ['proxies'] as const;
 
@@ -20,9 +20,7 @@ export function useProxies() {
 
   const createMutation = useMutation({
     mutationFn: async (data: CreateProxyRequest) => {
-      return await api
-          .post('proxies', {json: data})
-          .json<ApiResponse<Proxy>>();
+      return await api.post('proxies', { json: data }).json<ApiResponse<Proxy>>();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -31,9 +29,7 @@ export function useProxies() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: UpdateProxyRequest }) => {
-      return await api
-          .put(`proxies/${id}`, {json: data})
-          .json<ApiResponse<Proxy>>();
+      return await api.put(`proxies/${id}`, { json: data }).json<ApiResponse<Proxy>>();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });

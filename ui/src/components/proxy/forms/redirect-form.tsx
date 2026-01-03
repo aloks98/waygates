@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
-import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import {
   Button,
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
   Input,
   Select,
   SelectContent,
@@ -10,17 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-  Field,
-  FieldContent,
-  FieldLabel,
-  FieldError,
-  FieldDescription,
 } from '@e412/titanium';
+import { useForm } from '@tanstack/react-form';
+import { useEffect } from 'react';
+import { z } from 'zod';
 import type { CreateRedirectRequest, Proxy } from '@/types/proxy';
 
 const redirectSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
-  hostname: z.string().min(1, 'Hostname is required').max(253, 'Hostname must be at most 253 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   target: z.string().min(1, 'Target URL is required').url('Target must be a valid URL'),
   status_code: z.number().refine((val) => [301, 302, 307, 308].includes(val), {
@@ -210,9 +213,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldLabel>Preserve Path</FieldLabel>
-                <FieldDescription>
-                  Append the original path to the target URL
-                </FieldDescription>
+                <FieldDescription>Append the original path to the target URL</FieldDescription>
               </FieldContent>
               <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
             </Field>

@@ -7,11 +7,7 @@ interface ProxyTargetCellProps {
 export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
   const target = getProxyTarget(proxy);
 
-  return (
-    <span className="text-muted-foreground max-w-[200px] truncate block">
-      {target}
-    </span>
-  );
+  return <span className="text-muted-foreground max-w-[200px] truncate block">{target}</span>;
 }
 
 export function getProxyTarget(proxy: Proxy): string {

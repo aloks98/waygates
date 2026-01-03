@@ -1,10 +1,10 @@
-import { createRouter, createRootRoute, createRoute, redirect } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import { RootLayout } from '@/routes/__root';
-import { LoginPage } from '@/routes/login';
-import { SignupPage } from '@/routes/signup';
-import { DashboardLayout } from '@/routes/_dashboard/route';
 import { DashboardIndex } from '@/routes/_dashboard';
 import { ProxiesPage } from '@/routes/_dashboard/proxies';
+import { DashboardLayout } from '@/routes/_dashboard/route';
+import { LoginPage } from '@/routes/login';
+import { SignupPage } from '@/routes/signup';
 import { useAuthStore } from '@/stores/auth';
 
 const rootRoute = createRootRoute({

@@ -1,23 +1,18 @@
-import { useMemo } from 'react';
+import { DataGrid, DataGridColumnHeader, DataGridTable, Skeleton } from '@e412/titanium';
 import {
-  useReactTable,
+  type ColumnDef,
   getCoreRowModel,
   getSortedRowModel,
-  type ColumnDef,
+  useReactTable,
 } from '@tanstack/react-table';
-import {
-  DataGrid,
-  DataGridTable,
-  DataGridColumnHeader,
-  Skeleton,
-} from '@e412/titanium';
+import { useMemo } from 'react';
 import type { Proxy } from '@/types/proxy';
 import {
-  ProxyTypeBadge,
+  ProxyActionsCell,
+  ProxySslCell,
   ProxyStatusBadge,
   ProxyTargetCell,
-  ProxySslCell,
-  ProxyActionsCell,
+  ProxyTypeBadge,
 } from './cells';
 
 interface ProxyDataGridProps {
@@ -45,21 +40,15 @@ export function ProxyDataGrid({
     () => [
       {
         accessorKey: 'name',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Name" />
-        ),
-        cell: ({ row }) => (
-          <span className="font-medium">{row.getValue('name')}</span>
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
+        cell: ({ row }) => <span className="font-medium">{row.getValue('name')}</span>,
         meta: {
           skeleton: <Skeleton className="h-5 w-32" />,
         },
       },
       {
         accessorKey: 'hostname',
-        header: ({ column }) => (
-          <DataGridColumnHeader column={column} title="Hostname" />
-        ),
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Hostname" />,
         meta: {
           skeleton: <Skeleton className="h-5 w-40" />,
         },
@@ -98,9 +87,7 @@ export function ProxyDataGrid({
           <ProxyStatusBadge
             isActive={row.original.is_active}
             canToggle={canUpdateProxies}
-            onToggle={() =>
-              onToggleStatus(row.original.id, !row.original.is_active)
-            }
+            onToggle={() => onToggleStatus(row.original.id, !row.original.is_active)}
             isToggling={isToggling}
           />
         ),
@@ -136,7 +123,7 @@ export function ProxyDataGrid({
           ]
         : []),
     ],
-    [canUpdateProxies, canDeleteProxies, onEdit, onDelete, onToggleStatus, isToggling]
+    [canUpdateProxies, canDeleteProxies, onEdit, onDelete, onToggleStatus, isToggling],
   );
 
   const table = useReactTable({

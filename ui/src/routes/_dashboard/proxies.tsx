@@ -1,13 +1,4 @@
-import { useState } from 'react';
 import {
-  Button,
-  Input,
-  Card,
-  CardContent,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -16,12 +7,21 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  Button,
+  Card,
+  CardContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Input,
 } from '@e412/titanium';
-import { Plus, ChevronDown, Globe, ArrowRight, FolderOpen } from 'lucide-react';
-import type { Proxy, ProxyType } from '@/types/proxy';
-import { useProxies } from '@/hooks/use-proxies';
+import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
-import { ProxyFormModal, ProxyDataGrid, getProxyTypeLabel } from '@/components/proxy';
+import { useProxies } from '@/hooks/use-proxies';
+import type { Proxy, ProxyType } from '@/types/proxy';
 
 export function ProxiesPage() {
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
@@ -70,7 +70,7 @@ export function ProxiesPage() {
     ? proxies.filter(
         (proxy) =>
           proxy.name.toLowerCase().includes(search.toLowerCase()) ||
-          proxy.hostname.toLowerCase().includes(search.toLowerCase())
+          proxy.hostname.toLowerCase().includes(search.toLowerCase()),
       )
     : proxies;
 
@@ -156,8 +156,8 @@ export function ProxiesPage() {
             <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete{' '}
-              <strong>{deletingProxy?.name || deletingProxy?.hostname}</strong>?
-              This action cannot be undone.
+              <strong>{deletingProxy?.name || deletingProxy?.hostname}</strong>? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

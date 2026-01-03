@@ -1,3 +1,3 @@
-export { ReverseProxyForm } from './reverse-proxy-form';
 export { RedirectForm } from './redirect-form';
+export { ReverseProxyForm } from './reverse-proxy-form';
 export { StaticForm } from './static-form';

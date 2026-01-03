@@ -1,15 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import {
   Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
   Card,
   CardContent,
   CardDescription,
@@ -19,22 +9,38 @@ import {
   CardToolbar,
   Field,
   FieldContent,
-  FieldLabel,
-  FieldError,
   FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
 } from '@e412/titanium';
+import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 import type { CreateReverseProxyRequest, Proxy } from '@/types/proxy';
 
 const upstreamSchema = z.object({
   host: z.string().min(1, 'Host is required'),
-  port: z.coerce.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
+  port: z.coerce
+    .number()
+    .min(1, 'Port must be at least 1')
+    .max(65535, 'Port must be at most 65535'),
   scheme: z.enum(['http', 'https']),
 });
 
 const reverseProxySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
-  hostname: z.string().min(1, 'Hostname is required').max(253, 'Hostname must be at most 253 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   upstreams: z.array(upstreamSchema).min(1, 'At least one upstream is required'),
   block_exploits: z.boolean(),
@@ -55,10 +61,15 @@ interface ReverseProxyFormProps {
   onCancel: () => void;
 }
 
-export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: ReverseProxyFormProps) {
-  const [upstreams, setUpstreams] = useState<Array<{ host: string; port: number; scheme: 'http' | 'https' }>>([
-    { host: '', port: 8080, scheme: 'http' }
-  ]);
+export function ReverseProxyForm({
+  initialData,
+  onSubmit,
+  loading,
+  onCancel,
+}: ReverseProxyFormProps) {
+  const [upstreams, setUpstreams] = useState<
+    Array<{ host: string; port: number; scheme: 'http' | 'https' }>
+  >([{ host: '', port: 8080, scheme: 'http' }]);
 
   const form = useForm({
     defaultValues: {
@@ -91,14 +102,16 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
       if (value.upstreams.length > 1) {
         data.load_balancing = {
           strategy: value.lb_strategy,
-          health_checks: value.health_check_enabled ? {
-            enabled: true,
-            path: value.health_check_path,
-            interval: value.health_check_interval,
-            timeout: value.health_check_timeout,
-            unhealthy_threshold: 3,
-            healthy_threshold: 2,
-          } : undefined,
+          health_checks: value.health_check_enabled
+            ? {
+                enabled: true,
+                path: value.health_check_path,
+                interval: value.health_check_interval,
+                timeout: value.health_check_timeout,
+                unhealthy_threshold: 3,
+                healthy_threshold: 2,
+              }
+            : undefined,
         };
       }
 
@@ -121,10 +134,22 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
       form.setFieldValue('block_exploits', initialData.block_exploits ?? true);
       form.setFieldValue('tls_insecure_skip_verify', initialData.tls_insecure_skip_verify ?? false);
       form.setFieldValue('lb_strategy', initialData.load_balancing?.strategy || 'round_robin');
-      form.setFieldValue('health_check_enabled', initialData.load_balancing?.health_checks?.enabled ?? false);
-      form.setFieldValue('health_check_path', initialData.load_balancing?.health_checks?.path || '/health');
-      form.setFieldValue('health_check_interval', initialData.load_balancing?.health_checks?.interval || '30s');
-      form.setFieldValue('health_check_timeout', initialData.load_balancing?.health_checks?.timeout || '5s');
+      form.setFieldValue(
+        'health_check_enabled',
+        initialData.load_balancing?.health_checks?.enabled ?? false,
+      );
+      form.setFieldValue(
+        'health_check_path',
+        initialData.load_balancing?.health_checks?.path || '/health',
+      );
+      form.setFieldValue(
+        'health_check_interval',
+        initialData.load_balancing?.health_checks?.interval || '30s',
+      );
+      form.setFieldValue(
+        'health_check_timeout',
+        initialData.load_balancing?.health_checks?.timeout || '5s',
+      );
     }
   }, [initialData]);
 
@@ -140,7 +165,11 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
     form.setFieldValue('upstreams', newUpstreams);
   };
 
-  const updateUpstream = (index: number, key: keyof typeof upstreams[0], value: string | number) => {
+  const updateUpstream = (
+    index: number,
+    key: keyof (typeof upstreams)[0],
+    value: string | number,
+  ) => {
     const newUpstreams = [...upstreams];
     newUpstreams[index] = { ...newUpstreams[index], [key]: value };
     setUpstreams(newUpstreams);
@@ -264,7 +293,12 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
                 />
               </div>
               {upstreams.length > 1 && (
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeUpstream(index)}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeUpstream(index)}
+                >
                   <Trash2 className="size-4 text-destructive" />
                 </Button>
               )}
@@ -317,46 +351,48 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
             </form.Field>
 
             <form.Subscribe selector={(state) => state.values.health_check_enabled}>
-              {(healthCheckEnabled) => healthCheckEnabled && (
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <form.Field name="health_check_path">
-                    {(field) => (
-                      <Field>
-                        <FieldLabel>Path</FieldLabel>
-                        <Input
-                          placeholder="/health"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                        />
-                      </Field>
-                    )}
-                  </form.Field>
-                  <form.Field name="health_check_interval">
-                    {(field) => (
-                      <Field>
-                        <FieldLabel>Interval</FieldLabel>
-                        <Input
-                          placeholder="30s"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                        />
-                      </Field>
-                    )}
-                  </form.Field>
-                  <form.Field name="health_check_timeout">
-                    {(field) => (
-                      <Field>
-                        <FieldLabel>Timeout</FieldLabel>
-                        <Input
-                          placeholder="5s"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                        />
-                      </Field>
-                    )}
-                  </form.Field>
-                </div>
-              )}
+              {(healthCheckEnabled) =>
+                healthCheckEnabled && (
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <form.Field name="health_check_path">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel>Path</FieldLabel>
+                          <Input
+                            placeholder="/health"
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="health_check_interval">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel>Interval</FieldLabel>
+                          <Input
+                            placeholder="30s"
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="health_check_timeout">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel>Timeout</FieldLabel>
+                          <Input
+                            placeholder="5s"
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                  </div>
+                )
+              }
             </form.Subscribe>
           </CardContent>
         </Card>
@@ -375,7 +411,9 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
               <Field orientation="horizontal">
                 <FieldContent>
                   <FieldLabel>Block Common Exploits</FieldLabel>
-                  <FieldDescription>Block SQL injection, XSS, and other common attacks</FieldDescription>
+                  <FieldDescription>
+                    Block SQL injection, XSS, and other common attacks
+                  </FieldDescription>
                 </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>

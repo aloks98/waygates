@@ -89,7 +89,10 @@ export interface CreateStaticRequest {
   static: StaticConfig;
 }
 
-export type CreateProxyRequest = CreateReverseProxyRequest | CreateRedirectRequest | CreateStaticRequest;
+export type CreateProxyRequest =
+  | CreateReverseProxyRequest
+  | CreateRedirectRequest
+  | CreateStaticRequest;
 
 export interface UpdateProxyRequest {
   name?: string;
