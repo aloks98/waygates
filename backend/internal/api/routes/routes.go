@@ -1,7 +1,12 @@
 package routes
 
 import (
+	"io/fs"
 	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aloks98/goauth"
@@ -115,5 +120,84 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		})
 	})
 
+	// Serve UI static files if enabled
+	if cfg.UI.Enabled && cfg.UI.Path != "" {
+		setupStaticFileServer(r, cfg.UI.Path, logger)
+	}
+
 	return r
+}
+
+// setupStaticFileServer configures static file serving for the SPA
+func setupStaticFileServer(r *chi.Mux, uiPath string, logger *zap.Logger) {
+	// Check if UI directory exists
+	if _, err := os.Stat(uiPath); os.IsNotExist(err) {
+		logger.Warn("UI directory not found, static file serving disabled", zap.String("path", uiPath))
+		return
+	}
+
+	// Get absolute path
+	absPath, err := filepath.Abs(uiPath)
+	if err != nil {
+		logger.Error("Failed to get absolute path for UI", zap.Error(err))
+		return
+	}
+
+	logger.Info("Serving UI static files", zap.String("path", absPath))
+
+	// Create file server
+	fileServer := http.FileServer(http.Dir(absPath))
+
+	// Serve static files with SPA fallback
+	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+		// Don't serve API routes
+		if strings.HasPrefix(req.URL.Path, "/api") {
+			http.NotFound(w, req)
+			return
+		}
+
+		// Try to serve the file
+		path := filepath.Join(absPath, req.URL.Path)
+
+		// Check if file exists
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			// File doesn't exist, serve index.html for SPA routing
+			http.ServeFile(w, req, filepath.Join(absPath, "index.html"))
+			return
+		}
+
+		// Check if it's a directory
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			// Check for index.html in directory
+			indexPath := filepath.Join(path, "index.html")
+			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+				// No index.html, serve root index.html
+				http.ServeFile(w, req, filepath.Join(absPath, "index.html"))
+				return
+			}
+		}
+
+		// Serve the file
+		fileServer.ServeHTTP(w, req)
+	})
+}
+
+// spaFileSystem wraps http.FileSystem to serve index.html for missing files
+type spaFileSystem struct {
+	fs       http.FileSystem
+	fallback string
+}
+
+func (s spaFileSystem) Open(name string) (http.File, error) {
+	f, err := s.fs.Open(name)
+	if os.IsNotExist(err) {
+		return s.fs.Open(s.fallback)
+	}
+	return f, err
+}
+
+// Readdir implements fs.ReadDirFile for directory listing (disabled for security)
+func (s spaFileSystem) Readdir(count int) ([]fs.FileInfo, error) {
+	return nil, nil
 }

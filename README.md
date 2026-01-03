@@ -10,6 +10,8 @@ A Docker-based Caddy reverse proxy setup with automatic wildcard SSL certificate
 - 🔧 Admin API for runtime configuration
 - 🐳 Docker Compose for easy deployment
 - 📝 Makefile for simplified operations
+- 🖥️ Integrated Go backend with React UI (single container)
+- 🔐 JWT-based authentication with RBAC
 
 ## Prerequisites
 
@@ -23,20 +25,41 @@ A Docker-based Caddy reverse proxy setup with automatic wildcard SSL certificate
 
 ```
 homelab-proxy/
+├── backend/                   # Go API server
+│   ├── cmd/server/            # Main entry point
+│   ├── internal/              # Internal packages
+│   │   ├── api/               # HTTP handlers and routes
+│   │   ├── caddy/             # Caddy Admin API client
+│   │   ├── config/            # Configuration
+│   │   ├── models/            # Data models
+│   │   ├── repository/        # Database layer
+│   │   └── service/           # Business logic
+│   ├── migrations/            # Database migrations
+│   └── rbac.yaml              # Role-based access control config
+├── ui/                        # React frontend (Rsbuild)
+│   ├── src/                   # Source code
+│   └── dist/                  # Built static files (generated)
 ├── conf/
 │   ├── Caddyfile              # Main Caddy configuration
 │   └── templates/
 │       └── 404.html           # Custom 404 error page
-├── caddy-data/                # SSL certificates (auto-generated)
-├── caddy_config/              # Runtime config (auto-generated)
-├── docker-compose.yml         # Docker services definition
+├── docs/                      # API documentation
+├── docker-compose.yml         # Docker services (postgres, backend, caddy)
+├── Dockerfile.backend         # Backend + UI combined image
 ├── Dockerfile.caddy           # Custom Caddy image with Cloudflare plugin
 ├── Makefile                   # Build and deployment commands
 ├── .env                       # Your actual credentials (not in git)
 ├── .env.example               # Template for environment variables
-├── .gitignore                 # Git ignore rules
 └── README.md                  # This file
 ```
+
+## Architecture
+
+The application consists of three Docker containers:
+
+1. **Backend** (`homelab-proxy-backend`): Go API server that serves both the REST API and the React UI static files
+2. **Caddy** (`homelab-proxy-caddy`): Reverse proxy with automatic HTTPS and Cloudflare DNS integration
+3. **PostgreSQL** (`homelab-proxy-db`): Database for storing proxy configurations and users
 
 ## Setup Instructions
 

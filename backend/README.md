@@ -77,6 +77,11 @@ DEFAULT_USER_NAME=Admin
 DEFAULT_USER_USERNAME=admin
 DEFAULT_USER_EMAIL=admin@example.com
 DEFAULT_USER_PASSWORD=password
+
+# UI Static File Serving
+# The backend serves the React UI static files directly
+UI_ENABLED=true         # Enable/disable UI serving
+UI_PATH=/app/ui         # Path to the UI dist folder
 ```
 
 ...

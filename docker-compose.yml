@@ -25,6 +25,9 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      - UI_ENABLED=true
+      - UI_PATH=/app/ui
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,17 +54,6 @@ services:
       - ./conf:/etc/caddy
       - caddy-data:/data
       - caddy-config:/config
-
-  ui:
-    build:
-      context: .
-      dockerfile: Dockerfile.ui
-    container_name: homelab-proxy-ui
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
 
 volumes:
   postgres-data:

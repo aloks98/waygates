@@ -16,6 +16,13 @@ type Config struct {
 	Security    SecurityConfig
 	Logging     LoggingConfig
 	DefaultUser DefaultUserConfig
+	UI          UIConfig
+}
+
+// UIConfig holds UI static file serving configuration
+type UIConfig struct {
+	Enabled bool   // Whether to serve UI static files
+	Path    string // Path to the UI dist folder
 }
 
 // ServerConfig holds HTTP server configuration
@@ -114,6 +121,10 @@ func Load() (*Config, error) {
 			Email:    viper.GetString("DEFAULT_USER_EMAIL"),
 			Password: viper.GetString("DEFAULT_USER_PASSWORD"),
 		},
+		UI: UIConfig{
+			Enabled: viper.GetBool("UI_ENABLED"),
+			Path:    viper.GetString("UI_PATH"),
+		},
 	}
 
 	// Validate critical configuration
@@ -154,6 +165,10 @@ func setDefaults() {
 	// Logging
 	viper.SetDefault("LOG_LEVEL", "info")
 	viper.SetDefault("LOG_FORMAT", "json")
+
+	// UI static file serving
+	viper.SetDefault("UI_ENABLED", true)
+	viper.SetDefault("UI_PATH", "./ui")
 }
 
 // MinJWTSecretLength is the minimum required length for JWT secret
