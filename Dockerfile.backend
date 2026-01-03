@@ -23,24 +23,25 @@ RUN pnpm run build
 # =============================================================================
 # Stage 2: Build Backend
 # =============================================================================
-FROM golang:1.23-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend-builder
 
 WORKDIR /app
 
 # Install build dependencies
 RUN apk add --no-cache git
 
-# Copy go mod files
-COPY backend/go.mod backend/go.sum ./
+# Copy go mod files (at project root level)
+COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download
 
-# Copy source code
-COPY backend/ .
+# Copy backend source code
+COPY backend/ ./backend/
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
+# Build the application (cross-compile for target platform)
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o /app/server ./backend/cmd/server
 
 # =============================================================================
 # Stage 3: Runtime
