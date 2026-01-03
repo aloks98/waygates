@@ -97,18 +97,11 @@ func (j *JSONField) UnmarshalJSON(data []byte) error {
 
 // ProxyListResponse is the response for listing proxies
 type ProxyListResponse struct {
-	Proxies    []Proxy    `json:"proxies"`
-	Pagination Pagination `json:"pagination"`
-}
-
-// Pagination contains pagination metadata
-type Pagination struct {
-	CurrentPage  int   `json:"current_page"`
-	TotalPages   int   `json:"total_pages"`
-	TotalItems   int64 `json:"total_items"`
-	ItemsPerPage int   `json:"items_per_page"`
-	HasNext      bool  `json:"has_next"`
-	HasPrev      bool  `json:"has_prev"`
+	Items      []Proxy `json:"items"`
+	Total      int64   `json:"total"`
+	Page       int     `json:"page"`
+	Limit      int     `json:"limit"`
+	TotalPages int     `json:"total_pages"`
 }
 
 // ProxyType constants

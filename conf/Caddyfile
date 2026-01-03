@@ -15,7 +15,8 @@
 # Base HTTP server for dynamic routes via Admin API
 # Routes are added/removed dynamically by the backend
 :443 {
-    # Placeholder - routes added via Admin API
+    # Default response for unmatched requests
+    respond "Not Found" 404
 }
 
 # HTTP to HTTPS redirect

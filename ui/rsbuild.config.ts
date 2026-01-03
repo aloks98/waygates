@@ -6,11 +6,14 @@ export default defineConfig({
   html: {
     template: './index.html',
   },
+  output: {
+    copy: [{ from: './public' }],
+  },
   server: {
     port: 8008,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://192.168.150.28:8080',
         changeOrigin: true,
       },
     },

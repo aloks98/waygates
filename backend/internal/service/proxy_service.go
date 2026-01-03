@@ -165,18 +165,12 @@ func (s *ProxyService) ListProxies(req ListProxiesRequest) (*models.ProxyListRes
 	// Calculate pagination
 	totalPages := int(math.Ceil(float64(total) / float64(req.Limit)))
 
-	pagination := models.Pagination{
-		CurrentPage:  req.Page,
-		TotalPages:   totalPages,
-		TotalItems:   total,
-		ItemsPerPage: req.Limit,
-		HasNext:      req.Page < totalPages,
-		HasPrev:      req.Page > 1,
-	}
-
 	return &models.ProxyListResponse{
-		Proxies:    proxies,
-		Pagination: pagination,
+		Items:      proxies,
+		Total:      total,
+		Page:       req.Page,
+		Limit:      req.Limit,
+		TotalPages: totalPages,
 	}, nil
 }
 

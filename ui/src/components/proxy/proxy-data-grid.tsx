@@ -1,8 +1,17 @@
-import { DataGrid, DataGridColumnHeader, DataGridTable, Skeleton } from '@e412/titanium';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+  Skeleton,
+} from '@e412/titanium';
 import {
   type ColumnDef,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
+  type PaginationState,
   useReactTable,
 } from '@tanstack/react-table';
 import { useMemo } from 'react';
@@ -24,6 +33,11 @@ interface ProxyDataGridProps {
   onDelete: (proxy: ProxyConfig) => void;
   onToggleStatus: (id: number, enable: boolean) => void;
   isToggling: boolean;
+  // Pagination props
+  pageCount: number;
+  pagination: PaginationState;
+  onPaginationChange: (pagination: PaginationState) => void;
+  total: number;
 }
 
 export function ProxyDataGrid({
@@ -35,6 +49,10 @@ export function ProxyDataGrid({
   onDelete,
   onToggleStatus,
   isToggling,
+  pageCount,
+  pagination,
+  onPaginationChange,
+  total,
 }: ProxyDataGridProps) {
   const columns = useMemo<ColumnDef<ProxyConfig>[]>(
     () => [
@@ -129,19 +147,34 @@ export function ProxyDataGrid({
   const table = useReactTable({
     data,
     columns,
+    pageCount,
+    state: {
+      pagination,
+    },
+    onPaginationChange: (updater) => {
+      const newPagination = typeof updater === 'function' ? updater(pagination) : updater;
+      onPaginationChange(newPagination);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true,
   });
 
   return (
     <DataGrid
       table={table}
-      recordCount={data.length}
+      recordCount={total}
       isLoading={isLoading}
       loadingMode="skeleton"
       emptyMessage="No proxies found. Create your first proxy to get started."
     >
-      <DataGridTable />
+      <DataGridContainer>
+        <DataGridTable />
+        <div className="border-t px-4 py-2">
+          <DataGridPagination sizes={[10, 20, 50]} />
+        </div>
+      </DataGridContainer>
     </DataGrid>
   );
 }

@@ -19,14 +19,28 @@ async function handleApiError(error: unknown): Promise<string> {
   return error instanceof Error ? error.message : 'An unknown error occurred';
 }
 
-export function useProxies() {
+interface UseProxiesOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+export function useProxies(options: UseProxiesOptions = {}) {
+  const { page = 1, limit = 20, search } = options;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: QUERY_KEY,
+    queryKey: [...QUERY_KEY, { page, limit, search }],
     queryFn: async () => {
+      const searchParams: Record<string, string> = {
+        page: String(page),
+        limit: String(limit),
+      };
+      if (search) {
+        searchParams.search = search;
+      }
       const response = await api
-        .get('proxies', { searchParams: { limit: '50' } })
+        .get('proxies', { searchParams })
         .json<ApiResponse<PaginatedResponse<ProxyConfig>>>();
       return response.data;
     },
@@ -94,6 +108,9 @@ export function useProxies() {
     // Query
     proxies: query.data?.items ?? [],
     total: query.data?.total ?? 0,
+    page: query.data?.page ?? 1,
+    limit: query.data?.limit ?? limit,
+    totalPages: query.data?.total_pages ?? 1,
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,

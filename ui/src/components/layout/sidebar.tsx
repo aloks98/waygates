@@ -309,9 +309,11 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader className="flex h-14 items-center border-b border-border px-4">
-          <div className="flex items-center gap-2">
-            <Globe className="size-5 text-primary" />
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-2 py-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Globe className="size-5" />
+            </div>
             <span className="font-semibold">Waygates</span>
           </div>
         </SidebarHeader>

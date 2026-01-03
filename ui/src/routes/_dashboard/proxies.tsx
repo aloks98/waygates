@@ -8,14 +8,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  Card,
-  CardContent,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   Input,
 } from '@e412/titanium';
+import type { PaginationState } from '@tanstack/react-table';
 import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
@@ -25,8 +24,18 @@ import type { ProxyConfig, ProxyType } from '@/types/proxy';
 
 export function ProxiesPage() {
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
+
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
   const {
     proxies,
+    total,
+    totalPages,
     isLoading,
     create,
     update,
@@ -36,13 +45,16 @@ export function ProxiesPage() {
     isUpdating,
     isDeleting,
     isToggling,
-  } = useProxies();
+  } = useProxies({
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+    search: debouncedSearch || undefined,
+  });
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
-  const [search, setSearch] = useState('');
 
   const handleCreateProxy = (type: ProxyType) => {
     setCreateProxyType(type);
@@ -66,13 +78,16 @@ export function ProxiesPage() {
     setDeletingProxy(null);
   };
 
-  const filteredProxies = search
-    ? proxies.filter(
-        (proxy) =>
-          proxy.name.toLowerCase().includes(search.toLowerCase()) ||
-          proxy.hostname.toLowerCase().includes(search.toLowerCase()),
-      )
-    : proxies;
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    // Debounce search
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearch(value);
+      // Reset to first page on search
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  };
 
   return (
     <div className="space-y-6">
@@ -108,26 +123,26 @@ export function ProxiesPage() {
       <div>
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search proxies..."
           className="max-w-sm"
         />
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <ProxyDataGrid
-            data={filteredProxies}
-            isLoading={isLoading}
-            canUpdateProxies={canUpdateProxies}
-            canDeleteProxies={canDeleteProxies}
-            onEdit={setEditingProxy}
-            onDelete={setDeletingProxy}
-            onToggleStatus={(id, enable) => toggle({ id, enable })}
-            isToggling={isToggling}
-          />
-        </CardContent>
-      </Card>
+      <ProxyDataGrid
+          data={proxies}
+          isLoading={isLoading}
+          canUpdateProxies={canUpdateProxies}
+          canDeleteProxies={canDeleteProxies}
+          onEdit={setEditingProxy}
+          onDelete={setDeletingProxy}
+          onToggleStatus={(id, enable) => toggle({ id, enable })}
+          isToggling={isToggling}
+          pageCount={totalPages}
+          pagination={pagination}
+          onPaginationChange={setPagination}
+          total={total}
+      />
 
       <ProxyFormModal
         open={createModalOpen}
