@@ -14,23 +14,7 @@ export interface PaginatedResponse<T> {
   total_pages: number;
 }
 
-export interface LoginRequest {
-  identifier: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  name: string;
-  username: string;
-  email: string;
-  password: string;
-}
-
 export interface TokenPair {
   access_token: string;
-  refresh_token: string;
-}
-
-export interface RefreshTokenRequest {
   refresh_token: string;
 }

@@ -115,15 +115,3 @@
 html {
     scroll-behavior: smooth;
 }
-
-/** Shiki class-based dark mode **/
-.dark .shiki,
-.dark .shiki span {
-    /* biome-ignore-start lint/complexity/noImportantStyles: [Block start] Shiki highlighter needs these styles, without important it does not work */
-    color: var(--shiki-dark) !important;
-    background-color: var(--shiki-dark-bg) !important;
-    font-style: var(--shiki-dark-font-style) !important;
-    font-weight: var(--shiki-dark-font-weight) !important;
-    text-decoration: var(--shiki-dark-text-decoration) !important;
-    /* biome-ignore-end lint/complexity/noImportantStyles: [Block end] */
-}

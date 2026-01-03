@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
   Button,
   Input,
@@ -8,51 +10,54 @@ import {
   CardContent,
   CardTitle,
   CardDescription,
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldGroup,
+  Alert,
+  AlertDescription,
 } from '@e412/titanium';
+import { XCircle } from 'lucide-react';
 import { publicApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
 import type { ApiResponse, TokenPair } from '../types/api';
 
-interface LoginFormValues {
-  identifier: string;
-  password: string;
-}
+const loginSchema = z.object({
+  identifier: z.string().min(1, 'Username or email is required'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export function LoginPage() {
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
+  const [error, setError] = useState<string | null>(null);
 
-  const form = useForm<LoginFormValues>({
+  const form = useForm({
     defaultValues: {
       identifier: '',
       password: '',
     },
-  });
+    validators: {
+      onChange: loginSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      try {
+        const response = await publicApi
+          .post('auth/login', { json: value })
+          .json<ApiResponse<TokenPair>>();
 
-  const onSubmit = async (values: LoginFormValues) => {
-    try {
-      const response = await publicApi
-        .post('auth/login', {
-          json: values,
-        })
-        .json<ApiResponse<TokenPair>>();
-
-      if (response.success && response.data) {
-        setTokens(response.data);
-        navigate({ to: '/dashboard' });
-      } else {
-        form.setError('root', { message: response.message || 'Login failed' });
+        if (response.success && response.data) {
+          setTokens(response.data);
+          navigate({ to: '/dashboard' });
+        } else {
+          setError(response.message || 'Login failed');
+        }
+      } catch {
+        setError('Invalid credentials');
       }
-    } catch {
-      form.setError('root', { message: 'Invalid credentials' });
-    }
-  };
+    },
+  });
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
@@ -62,58 +67,69 @@ export function LoginPage() {
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {form.formState.errors.root && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  {form.formState.errors.root.message}
-                </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+          >
+            <FieldGroup>
+              {error && (
+                <Alert variant="destructive">
+                  <XCircle className="size-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
 
-              <FormField
-                control={form.control}
-                name="identifier"
-                rules={{ required: 'Username or email is required' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username or Email</FormLabel>
-                    <FormControl>
+              <form.Field name="identifier">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Username or Email</FieldLabel>
                       <Input
+                        id={field.name}
                         placeholder="Enter your username or email"
-                        {...field}
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
 
-              <FormField
-                control={form.control}
-                name="password"
-                rules={{ required: 'Password is required' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
+              <form.Field name="password">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Password</FieldLabel>
                       <Input
+                        id={field.name}
                         type="password"
                         placeholder="Enter your password"
-                        {...field}
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
 
-              <Button
-                type="submit"
-                disabled={form.formState.isSubmitting}
-                className="w-full"
-              >
-                {form.formState.isSubmitting ? 'Signing in...' : 'Sign in'}
-              </Button>
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button type="submit" disabled={isSubmitting} className="w-full">
+                    {isSubmitting ? 'Signing in...' : 'Sign in'}
+                  </Button>
+                )}
+              </form.Subscribe>
 
               <p className="text-center text-sm text-muted-foreground">
                 Don&apos;t have an account?{' '}
@@ -121,8 +137,8 @@ export function LoginPage() {
                   Sign up
                 </Link>
               </p>
-            </form>
-          </Form>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>

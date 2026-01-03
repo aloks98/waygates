@@ -1,11 +1,11 @@
 import { createRouter, createRootRoute, createRoute, redirect } from '@tanstack/react-router';
-import { RootLayout } from '../routes/__root';
-import { LoginPage } from '../routes/login';
-import { SignupPage } from '../routes/signup';
-import { DashboardLayout } from '../routes/_dashboard/route';
-import { DashboardIndex } from '../routes/_dashboard/index';
-import { ProxiesPage } from '../routes/_dashboard/proxies';
-import { useAuthStore } from '../stores/auth';
+import { RootLayout } from '@/routes/__root';
+import { LoginPage } from '@/routes/login';
+import { SignupPage } from '@/routes/signup';
+import { DashboardLayout } from '@/routes/_dashboard/route';
+import { DashboardIndex } from '@/routes/_dashboard';
+import { ProxiesPage } from '@/routes/_dashboard/proxies';
+import { useAuthStore } from '@/stores/auth';
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -79,9 +79,3 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export const router = createRouter({ routeTree });
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router;
-  }
-}

@@ -1,10 +1,10 @@
 import { Outlet } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { AppSidebar } from '../../components/sidebar';
-import { api } from '../../lib/api';
-import { useAuthStore } from '../../stores/auth';
-import type { ApiResponse } from '../../types/api';
-import type { User } from '../../types/auth';
+import { AppSidebar } from '@/components/layout';
+import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/auth';
+import type { ApiResponse } from '@/types/api';
+import type { User } from '@/types/auth';
 
 export function DashboardLayout() {
   const { setUser, user } = useAuthStore();

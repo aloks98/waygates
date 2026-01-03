@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useForm } from 'react-hook-form';
+import { useForm } from '@tanstack/react-form';
+import { z } from 'zod';
 import {
   Button,
   Input,
@@ -8,29 +10,34 @@ import {
   CardContent,
   CardTitle,
   CardDescription,
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
+  Field,
+  FieldLabel,
+  FieldError,
+  FieldGroup,
+  Alert,
+  AlertDescription,
 } from '@e412/titanium';
+import { XCircle } from 'lucide-react';
 import { publicApi } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type { User } from '../types/auth';
 
-interface SignupFormValues {
-  name: string;
-  username: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
+const signupSchema = z.object({
+  name: z.string().min(1, 'Full name is required'),
+  username: z.string().min(3, 'Username must be at least 3 characters'),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(1, 'Please confirm your password'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ['confirmPassword'],
+});
 
 export function SignupPage() {
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
 
-  const form = useForm<SignupFormValues>({
+  const form = useForm({
     defaultValues: {
       name: '',
       username: '',
@@ -38,35 +45,33 @@ export function SignupPage() {
       password: '',
       confirmPassword: '',
     },
-  });
+    validators: {
+      onChange: signupSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setError(null);
+      try {
+        const response = await publicApi
+          .post('auth/register', {
+            json: {
+              name: value.name,
+              username: value.username,
+              email: value.email,
+              password: value.password,
+            },
+          })
+          .json<ApiResponse<User>>();
 
-  const onSubmit = async (values: SignupFormValues) => {
-    if (values.password !== values.confirmPassword) {
-      form.setError('confirmPassword', { message: 'Passwords do not match' });
-      return;
-    }
-
-    try {
-      const response = await publicApi
-        .post('auth/register', {
-          json: {
-            name: values.name,
-            username: values.username,
-            email: values.email,
-            password: values.password,
-          },
-        })
-        .json<ApiResponse<User>>();
-
-      if (response.success) {
-        navigate({ to: '/login' });
-      } else {
-        form.setError('root', { message: response.message || 'Registration failed' });
+        if (response.success) {
+          navigate({ to: '/login' });
+        } else {
+          setError(response.message || 'Registration failed');
+        }
+      } catch {
+        setError('Registration failed. Please try again.');
       }
-    } catch {
-      form.setError('root', { message: 'Registration failed. Please try again.' });
-    }
-  };
+    },
+  });
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
@@ -76,108 +81,131 @@ export function SignupPage() {
           <CardDescription>Create a new account</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {form.formState.errors.root && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  {form.formState.errors.root.message}
-                </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              form.handleSubmit();
+            }}
+          >
+            <FieldGroup>
+              {error && (
+                <Alert variant="destructive">
+                  <XCircle className="size-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
 
-              <FormField
-                control={form.control}
-                name="name"
-                rules={{ required: 'Full name is required' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter your full name" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="username"
-                rules={{ required: 'Username is required' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Choose a username" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="email"
-                rules={{
-                  required: 'Email is required',
-                  pattern: {
-                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: 'Invalid email address',
-                  },
+              <form.Field name="name">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Full Name</FieldLabel>
+                      <Input
+                        id={field.name}
+                        placeholder="Enter your full name"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
+                      />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
                 }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="Enter your email" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              </form.Field>
 
-              <FormField
-                control={form.control}
-                name="password"
-                rules={{
-                  required: 'Password is required',
-                  minLength: {
-                    value: 6,
-                    message: 'Password must be at least 6 characters',
-                  },
+              <form.Field name="username">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Username</FieldLabel>
+                      <Input
+                        id={field.name}
+                        placeholder="Choose a username"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
+                      />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
                 }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Create a password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              </form.Field>
 
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                rules={{ required: 'Please confirm your password' }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Confirm your password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <form.Field name="email">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                      <Input
+                        id={field.name}
+                        type="email"
+                        placeholder="Enter your email"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
+                      />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
 
-              <Button
-                type="submit"
-                disabled={form.formState.isSubmitting}
-                className="w-full"
-              >
-                {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
-              </Button>
+              <form.Field name="password">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                      <Input
+                        id={field.name}
+                        type="password"
+                        placeholder="Create a password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
+                      />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+
+              <form.Field name="confirmPassword">
+                {(field) => {
+                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                  return (
+                    <Field data-invalid={hasError}>
+                      <FieldLabel htmlFor={field.name}>Confirm Password</FieldLabel>
+                      <Input
+                        id={field.name}
+                        type="password"
+                        placeholder="Confirm your password"
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        onBlur={field.handleBlur}
+                        aria-invalid={hasError}
+                      />
+                      {hasError && <FieldError errors={field.state.meta.errors} />}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+
+              <form.Subscribe selector={(state) => state.isSubmitting}>
+                {(isSubmitting) => (
+                  <Button type="submit" disabled={isSubmitting} className="w-full">
+                    {isSubmitting ? 'Creating account...' : 'Create account'}
+                  </Button>
+                )}
+              </form.Subscribe>
 
               <p className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
@@ -185,8 +213,8 @@ export function SignupPage() {
                   Sign in
                 </Link>
               </p>
-            </form>
-          </Form>
+            </FieldGroup>
+          </form>
         </CardContent>
       </Card>
     </div>
