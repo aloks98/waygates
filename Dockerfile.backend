@@ -63,9 +63,10 @@ RUN apk add --no-cache ca-certificates tzdata
 # Copy binary from backend builder
 COPY --from=backend-builder /app/server /app/server
 
-# Copy migrations and RBAC config
+# Copy migrations, RBAC config, and templates
 COPY backend/migrations /app/backend/migrations
 COPY backend/rbac.yaml /app/backend/rbac.yaml
+COPY backend/templates /app/templates
 
 # Copy UI dist from ui builder
 COPY --from=ui-builder /app/dist /app/ui

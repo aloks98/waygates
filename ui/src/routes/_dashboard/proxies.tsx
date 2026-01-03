@@ -130,18 +130,18 @@ export function ProxiesPage() {
       </div>
 
       <ProxyDataGrid
-          data={proxies}
-          isLoading={isLoading}
-          canUpdateProxies={canUpdateProxies}
-          canDeleteProxies={canDeleteProxies}
-          onEdit={setEditingProxy}
-          onDelete={setDeletingProxy}
-          onToggleStatus={(id, enable) => toggle({ id, enable })}
-          isToggling={isToggling}
-          pageCount={totalPages}
-          pagination={pagination}
-          onPaginationChange={setPagination}
-          total={total}
+        data={proxies}
+        isLoading={isLoading}
+        canUpdateProxies={canUpdateProxies}
+        canDeleteProxies={canDeleteProxies}
+        onEdit={setEditingProxy}
+        onDelete={setDeletingProxy}
+        onToggleStatus={(id, enable) => toggle({ id, enable })}
+        isToggling={isToggling}
+        pageCount={totalPages}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        total={total}
       />
 
       <ProxyFormModal

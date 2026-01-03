@@ -25,6 +25,24 @@ permission_groups:
         name: "Manage Users"
         description: "Create, update, and delete user accounts"
 
+  - name: "Settings"
+    permissions:
+      - key: "settings:read"
+        name: "View Settings"
+        description: "View application settings"
+      - key: "settings:write"
+        name: "Modify Settings"
+        description: "Modify application settings"
+
+  - name: "Sync"
+    permissions:
+      - key: "sync:read"
+        name: "View Sync Status"
+        description: "View synchronization status"
+      - key: "sync:trigger"
+        name: "Trigger Sync"
+        description: "Manually trigger synchronization"
+
   - name: "System"
     permissions:
       - key: "system:status"
@@ -40,9 +58,13 @@ role_templates:
 
   - key: "operator"
     name: "Operator"
-    description: "Manage proxy configurations"
+    description: "Manage proxy configurations and settings"
     permissions:
       - "proxies:*"
+      - "settings:read"
+      - "settings:write"
+      - "sync:read"
+      - "sync:trigger"
       - "system:status"
 
   - key: "viewer"
@@ -50,4 +72,6 @@ role_templates:
     description: "Read-only access"
     permissions:
       - "proxies:read"
+      - "settings:read"
+      - "sync:read"
       - "system:status"

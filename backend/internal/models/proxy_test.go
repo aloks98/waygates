@@ -416,30 +416,26 @@ func TestValidationError(t *testing.T) {
 	}
 }
 
-// TestPagination tests Pagination struct
-func TestPagination(t *testing.T) {
-	p := Pagination{
-		CurrentPage:  1,
-		TotalPages:   5,
-		TotalItems:   100,
-		ItemsPerPage: 20,
-		HasNext:      true,
-		HasPrev:      false,
+// TestProxyListResponse tests ProxyListResponse struct
+func TestProxyListResponse(t *testing.T) {
+	resp := ProxyListResponse{
+		Items:      []Proxy{},
+		Total:      100,
+		Page:       1,
+		Limit:      20,
+		TotalPages: 5,
 	}
 
-	if p.CurrentPage != 1 {
-		t.Errorf("Expected CurrentPage 1, got %d", p.CurrentPage)
+	if resp.Page != 1 {
+		t.Errorf("Expected Page 1, got %d", resp.Page)
 	}
-	if p.TotalPages != 5 {
-		t.Errorf("Expected TotalPages 5, got %d", p.TotalPages)
+	if resp.TotalPages != 5 {
+		t.Errorf("Expected TotalPages 5, got %d", resp.TotalPages)
 	}
-	if p.TotalItems != 100 {
-		t.Errorf("Expected TotalItems 100, got %d", p.TotalItems)
+	if resp.Total != 100 {
+		t.Errorf("Expected Total 100, got %d", resp.Total)
 	}
-	if !p.HasNext {
-		t.Error("Expected HasNext to be true")
-	}
-	if p.HasPrev {
-		t.Error("Expected HasPrev to be false")
+	if resp.Limit != 20 {
+		t.Errorf("Expected Limit 20, got %d", resp.Limit)
 	}
 }

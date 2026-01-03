@@ -451,3 +451,83 @@ func GetSecuritySnippetPath(proxy *models.Proxy) string {
 	}
 	return ""
 }
+
+// CatchAllRouteID is the identifier for the catch-all 404 route
+const CatchAllRouteID = "catchall_404"
+
+// NotFoundMode represents the 404 page behavior mode
+type NotFoundMode string
+
+const (
+	// NotFoundModeDefault serves a branded 404 HTML page
+	NotFoundModeDefault NotFoundMode = "default"
+	// NotFoundModeRedirect redirects to a configured URL
+	NotFoundModeRedirect NotFoundMode = "redirect"
+)
+
+// BuildCatchAllRoute creates a catch-all route that handles unmatched requests
+// This route should always be the LAST route in the routes array
+// mode: "default" serves /app/templates/404.html, "redirect" redirects to redirectURL
+func BuildCatchAllRoute(mode NotFoundMode, redirectURL string) *RouteConfig {
+	// If redirect mode and URL is provided, redirect to that URL
+	if mode == NotFoundModeRedirect && redirectURL != "" {
+		return &RouteConfig{
+			ID: CatchAllRouteID,
+			Handle: []HandlerConfig{
+				{
+					Handler:    "static_response",
+					StatusCode: 302,
+					StaticHeaders: map[string][]string{
+						"Location": {redirectURL},
+					},
+				},
+			},
+		}
+	}
+
+	// Default: serve branded 404 page from /app/templates/404.html
+	return &RouteConfig{
+		ID: CatchAllRouteID,
+		Handle: []HandlerConfig{
+			{
+				Handler:  "templates",
+				FileRoot: "/app/templates",
+			},
+			{
+				Handler: "rewrite",
+				URI:     "/404.html",
+			},
+			{
+				Handler:    "file_server",
+				Root:       "/app/templates",
+				StatusCode: 404,
+			},
+		},
+	}
+}
+
+// BuildCatchAllRouteSimple creates a simple text 404 response (for backward compatibility)
+func BuildCatchAllRouteSimple() *RouteConfig {
+	return &RouteConfig{
+		ID: CatchAllRouteID,
+		Handle: []HandlerConfig{
+			{
+				Handler:    "static_response",
+				StatusCode: 404,
+				StaticHeaders: map[string][]string{
+					"Content-Type": {"text/plain; charset=utf-8"},
+				},
+			},
+		},
+	}
+}
+
+// IsCatchAllRoute checks if a route is the catch-all 404 route
+func IsCatchAllRoute(route interface{}) bool {
+	if routeMap, ok := route.(map[string]interface{}); ok {
+		if id, ok := routeMap["@id"].(string); ok && id == CatchAllRouteID {
+			return true
+		}
+	}
+	return false
+}

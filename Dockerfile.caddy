@@ -10,6 +10,6 @@ FROM caddy:2.10.2
 
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 
-# Use --resume to load persisted config (from Admin API changes) on restart
-# Falls back to Caddyfile if no persisted config exists
-CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--resume"]
+# Load config from Caddyfile on each start
+# The backend syncs active proxies to Caddy on startup, so --resume is not needed
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

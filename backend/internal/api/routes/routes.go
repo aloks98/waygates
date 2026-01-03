@@ -65,9 +65,15 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	// Repositories
 	proxyRepo := repository.NewProxyRepository(db)
 	userRepo := repository.NewUserRepository(db)
+	settingsRepo := repository.NewSettingsRepository(db)
 
 	// Services
 	proxyService := service.NewProxyService(proxyRepo, caddyClient, logger)
+	settingsService := service.NewSettingsService(settingsRepo, logger)
+	syncService := service.NewSyncService(proxyRepo, settingsRepo, caddyClient, logger)
+
+	// Start sync service (periodic sync every 1 minute)
+	syncService.Start(60 * time.Second)
 
 	// Create auth adapter for middleware
 	authAdapter := &auth.Adapter{}
@@ -82,6 +88,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, cfg.Security.BcryptCost)
 	proxyHandler := handlers.NewProxyHandler(proxyService)
 	statusHandler := handlers.NewStatusHandler(caddyClient, userRepo)
+	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	syncHandler := handlers.NewSyncHandler(syncService)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -118,6 +126,21 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 			// Delete operations - require proxies:delete
 			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Delete("/{id}", proxyHandler.DeleteProxy)
+		})
+
+		// Settings routes - require settings:read or settings:write
+		r.Route("/api/settings", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/", settingsHandler.GetAll)
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/404", settingsHandler.GetNotFound)
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/{key}", settingsHandler.Get)
+			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/404", settingsHandler.UpdateNotFound)
+			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/{key}", settingsHandler.Update)
+		})
+
+		// Sync routes - require sync:read or sync:trigger
+		r.Route("/api/sync", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "sync:read", mwConfig)).Get("/status", syncHandler.GetStatus)
+			r.With(chimw.RequirePermission(authAdapter, "sync:trigger", mwConfig)).Post("/trigger", syncHandler.Trigger)
 		})
 	})
 

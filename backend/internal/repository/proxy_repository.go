@@ -160,10 +160,10 @@ func (r *ProxyRepository) HostnameExists(hostname string, excludeID int) (bool, 
 
 // ProxyStats holds statistics about proxies
 type ProxyStats struct {
-	Total         int64            `json:"total"`
-	Active        int64            `json:"active"`
-	Inactive      int64            `json:"inactive"`
-	ByType        map[string]int64 `json:"by_type"`
+	Total    int64            `json:"total"`
+	Active   int64            `json:"active"`
+	Inactive int64            `json:"inactive"`
+	ByType   map[string]int64 `json:"by_type"`
 }
 
 // GetStats returns statistics about proxies

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -22,109 +21,21 @@ type ProxyService struct {
 }
 
 // NewProxyService creates a new proxy service
-func NewProxyService(repo *repository.ProxyRepository, caddyClient *caddy.Client, logger *zap.Logger) *ProxyService {
-	// Use a no-op logger if none provided
+// Note: Startup sync is handled by SyncService, not here
+func NewProxyService(
+	repo *repository.ProxyRepository,
+	caddyClient *caddy.Client,
+	logger *zap.Logger,
+) *ProxyService {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 
-	service := &ProxyService{
+	return &ProxyService{
 		repo:        repo,
 		caddyClient: caddyClient,
 		logger:      logger.Named("proxy-service"),
 	}
-
-	// Sync active proxies to Caddy on startup
-	go service.syncProxiesToCaddy()
-
-	return service
-}
-
-// syncProxiesToCaddy syncs all active proxies from database to Caddy
-// This is called on startup to restore configurations after Caddy restart
-func (s *ProxyService) syncProxiesToCaddy() {
-	s.logger.Info("Starting Caddy sync")
-
-	// Wait for Caddy to be ready with retries
-	maxRetries := 10
-	retryDelay := 2 * time.Second
-	var caddyReady bool
-
-	for i := 0; i < maxRetries; i++ {
-		if err := s.caddyClient.HealthCheck(); err != nil {
-			s.logger.Warn("Waiting for Caddy to be ready",
-				zap.Int("attempt", i+1),
-				zap.Int("max_retries", maxRetries),
-				zap.Error(err))
-			time.Sleep(retryDelay)
-			continue
-		}
-		caddyReady = true
-		break
-	}
-
-	if !caddyReady {
-		s.logger.Error("Caddy not reachable after max retries, skipping sync")
-		return
-	}
-
-	s.logger.Info("Caddy is ready, proceeding with sync")
-
-	// Get all active proxies
-	proxies, _, err := s.repo.List(repository.ProxyListParams{
-		Status: "active",
-		Limit:  1000, // Get all active proxies
-	})
-	if err != nil {
-		s.logger.Error("Failed to list active proxies", zap.Error(err))
-		return
-	}
-
-	if len(proxies) == 0 {
-		s.logger.Info("No active proxies to sync")
-		return
-	}
-
-	s.logger.Info("Found active proxies to sync", zap.Int("count", len(proxies)))
-
-	// Ensure HTTP server exists
-	if err := s.ensureHTTPServerExists(); err != nil {
-		s.logger.Error("Failed to ensure HTTP server exists", zap.Error(err))
-		return
-	}
-
-	// Build all routes
-	routes := make([]interface{}, 0, len(proxies))
-	var failedCount int
-	for i := range proxies {
-		proxy := &proxies[i]
-		route, err := caddy.BuildRouteConfig(proxy)
-		if err != nil {
-			s.logger.Warn("Failed to build route for proxy",
-				zap.Int("proxy_id", proxy.ID),
-				zap.String("proxy_name", proxy.Name),
-				zap.Error(err))
-			failedCount++
-			continue
-		}
-		routes = append(routes, route)
-	}
-
-	// Apply all routes at once
-	if len(routes) > 0 {
-		path := caddy.RoutesPath
-		if err := s.caddyClient.PATCH(path, routes); err != nil {
-			s.logger.Error("Failed to apply routes to Caddy", zap.Error(err))
-			return
-		}
-		s.logger.Info("Successfully synced routes to Caddy", zap.Int("count", len(routes)))
-	}
-
-	if failedCount > 0 {
-		s.logger.Warn("Some proxies failed to sync", zap.Int("failed_count", failedCount))
-	}
-
-	s.logger.Info("Caddy sync completed")
 }
 
 // ListProxiesRequest holds parameters for listing proxies
@@ -409,13 +320,15 @@ func (s *ProxyService) applyCaddyConfig(proxy *models.Proxy) error {
 	// Extract current routes
 	routes := s.extractRoutes(config)
 
-	// Remove existing route with same ID if it exists
+	// Remove existing route with same ID and catch-all route (we'll re-add catch-all at end)
 	targetID := fmt.Sprintf("proxy_%d", proxy.ID)
 	filteredRoutes := make([]interface{}, 0)
 	for _, r := range routes {
 		if routeMap, ok := r.(map[string]interface{}); ok {
-			if id, ok := routeMap["@id"].(string); ok && id == targetID {
-				continue // Skip existing route
+			if id, ok := routeMap["@id"].(string); ok {
+				if id == targetID || id == caddy.CatchAllRouteID {
+					continue // Skip existing route and catch-all
+				}
 			}
 		}
 		filteredRoutes = append(filteredRoutes, r)
@@ -423,6 +336,11 @@ func (s *ProxyService) applyCaddyConfig(proxy *models.Proxy) error {
 
 	// Add new route
 	filteredRoutes = append(filteredRoutes, newRoute)
+
+	// Add catch-all route at the end (always last)
+	// Note: SyncService will apply proper 404 settings during periodic sync
+	catchAllRoute := caddy.BuildCatchAllRouteSimple()
+	filteredRoutes = append(filteredRoutes, catchAllRoute)
 
 	// Update all routes at once
 	path := caddy.RoutesPath
@@ -523,15 +441,20 @@ func (s *ProxyService) removeCaddyConfig(proxyID int) error {
 		return nil
 	}
 
-	// Filter out the route with matching ID
+	// Filter out the route with matching ID and catch-all (we'll re-add catch-all at end)
 	targetID := fmt.Sprintf("proxy_%d", proxyID)
 	filteredRoutes := make([]interface{}, 0)
 	found := false
 	for _, r := range routes {
 		if routeMap, ok := r.(map[string]interface{}); ok {
-			if id, ok := routeMap["@id"].(string); ok && id == targetID {
-				found = true
-				continue // Skip this route
+			if id, ok := routeMap["@id"].(string); ok {
+				if id == targetID {
+					found = true
+					continue // Skip this route
+				}
+				if id == caddy.CatchAllRouteID {
+					continue // Skip catch-all, we'll re-add at end
+				}
 			}
 		}
 		filteredRoutes = append(filteredRoutes, r)
@@ -541,6 +464,11 @@ func (s *ProxyService) removeCaddyConfig(proxyID int) error {
 		// Route doesn't exist, nothing to remove
 		return nil
 	}
+
+	// Re-add catch-all route at the end (always last)
+	// Note: SyncService will apply proper 404 settings during periodic sync
+	catchAllRoute := caddy.BuildCatchAllRouteSimple()
+	filteredRoutes = append(filteredRoutes, catchAllRoute)
 
 	// Update routes array
 	path := caddy.RoutesPath

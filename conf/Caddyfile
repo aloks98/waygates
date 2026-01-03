@@ -1,4 +1,10 @@
 {
+    # ==========================================================
+    # DO NOT MODIFY THIS FILE
+    # All configuration is managed dynamically via the Admin API
+    # by the Waygates backend service.
+    # ==========================================================
+
     # Global options
     admin 0.0.0.0:2019
     email {$CLOUDFLARE_EMAIL}
@@ -8,33 +14,16 @@
     # Staging: https://acme-staging-v02.api.letsencrypt.org/directory
     acme_ca {$ACME_CA_URL:https://acme-v02.api.letsencrypt.org/directory}
 
-    # Use public DNS resolvers for DNS propagation checks
+    # Use Cloudflare DNS for ACME challenges (wildcard certs)
     acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
 }
 
-# Base HTTP server for dynamic routes via Admin API
-# Routes are added/removed dynamically by the backend
+# Base HTTPS server - routes are managed via Admin API
+# The backend syncs all proxy configurations on startup and every minute
 :443 {
-    # Default response for unmatched requests
-    respond "Not Found" 404
 }
 
 # HTTP to HTTPS redirect
 :80 {
     redir https://{host}{uri} permanent
 }
-
-# Wildcard catch-all for unconfigured subdomains (optional)
-# Uncomment and set your wildcard domain to show branded 404 page
-# for any subdomain that doesn't have a configured route.
-#
-# *.example.com {
-#     tls {
-#         dns cloudflare {$CLOUDFLARE_API_TOKEN}
-#     }
-#
-#     root * /etc/caddy/templates
-#     templates
-#     rewrite * /404.html
-#     file_server
-# }

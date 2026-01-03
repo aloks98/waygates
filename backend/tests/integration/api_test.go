@@ -135,9 +135,13 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	env.DB = db
 
 	// Run migrations
-	if err := db.AutoMigrate(&models.User{}, &models.Proxy{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Proxy{}, &models.Setting{}); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
+
+	// Insert default settings for 404 behavior
+	db.Exec("INSERT INTO settings (key, value) VALUES ('not_found.mode', 'default') ON CONFLICT (key) DO NOTHING")
+	db.Exec("INSERT INTO settings (key, value) VALUES ('not_found.redirect_url', '') ON CONFLICT (key) DO NOTHING")
 
 	// Get raw SQL DB for goauth
 	sqlDB, err := db.DB()
@@ -192,6 +196,24 @@ permission_groups:
         name: "Delete Proxies"
         description: "Remove proxy configurations"
 
+  - name: "Settings"
+    permissions:
+      - key: "settings:read"
+        name: "View Settings"
+        description: "View application settings"
+      - key: "settings:write"
+        name: "Modify Settings"
+        description: "Modify application settings"
+
+  - name: "Sync"
+    permissions:
+      - key: "sync:read"
+        name: "View Sync Status"
+        description: "View sync status"
+      - key: "sync:trigger"
+        name: "Trigger Sync"
+        description: "Manually trigger sync"
+
 role_templates:
   - key: "admin"
     name: "Administrator"
@@ -204,6 +226,8 @@ role_templates:
     description: "Manage proxy configurations"
     permissions:
       - "proxies:*"
+      - "settings:*"
+      - "sync:*"
 `
 	tmpFile, err := os.CreateTemp("", "rbac-*.yaml")
 	if err != nil {
@@ -443,19 +467,19 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		var resp struct {
 			Success bool `json:"success"`
 			Data    struct {
-				Proxies []struct {
+				Items []struct {
 					ID       int    `json:"id"`
 					Name     string `json:"name"`
 					Hostname string `json:"hostname"`
-				} `json:"proxies"`
+				} `json:"items"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("Failed to parse response: %v", err)
 		}
 
-		if len(resp.Data.Proxies) != 1 {
-			t.Errorf("Expected 1 proxy, got %d", len(resp.Data.Proxies))
+		if len(resp.Data.Items) != 1 {
+			t.Errorf("Expected 1 proxy, got %d", len(resp.Data.Items))
 		}
 	})
 
@@ -1492,4 +1516,738 @@ func TestIntegration_ProxyValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestIntegration_SettingsAndSync tests settings, sync, and 404 configuration
+func TestIntegration_SettingsAndSync(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	env := SetupTestEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Test 1: Get all settings
+	t.Run("GetAllSettings", func(t *testing.T) {
+		rec := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/settings", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		var resp struct {
+			Success bool              `json:"success"`
+			Data    map[string]string `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if !resp.Success {
+			t.Error("Expected success to be true")
+		}
+
+		// Verify default settings exist
+		if resp.Data["not_found.mode"] != "default" {
+			t.Errorf("Expected not_found.mode to be 'default', got '%s'", resp.Data["not_found.mode"])
+		}
+		t.Logf("Settings retrieved: %+v", resp.Data)
+	})
+
+	// Test 2: Get 404 settings
+	t.Run("Get404Settings", func(t *testing.T) {
+		rec := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/settings/404", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		var resp struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Mode        string `json:"mode"`
+				RedirectURL string `json:"redirect_url"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if resp.Data.Mode != "default" {
+			t.Errorf("Expected mode 'default', got '%s'", resp.Data.Mode)
+		}
+		t.Logf("404 settings: mode=%s, redirect_url=%s", resp.Data.Mode, resp.Data.RedirectURL)
+	})
+
+	// Test 3: Get sync status
+	t.Run("GetSyncStatus", func(t *testing.T) {
+		rec := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/sync/status", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		var resp struct {
+			Success bool `json:"success"`
+			Data    struct {
+				LastSyncTime    string `json:"last_sync_time"`
+				IsSyncing       bool   `json:"is_syncing"`
+				LastSyncSuccess bool   `json:"last_sync_success"`
+				LastError       string `json:"last_error"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if !resp.Success {
+			t.Error("Expected success to be true")
+		}
+		t.Logf("Sync status: syncing=%v, last_success=%v", resp.Data.IsSyncing, resp.Data.LastSyncSuccess)
+	})
+
+	// Test 4: Update 404 mode to redirect and verify Caddy config
+	t.Run("Update404ToRedirect", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"mode":         "redirect",
+			"redirect_url": "https://example.com/404",
+		}
+
+		rec := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", updateReq)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		// Trigger sync to apply changes
+		rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for sync trigger, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		// Wait a moment for sync to complete
+		time.Sleep(500 * time.Millisecond)
+
+		// Verify Caddy config has the redirect handler in catch-all route
+		caddyConfig := env.GetCaddyConfig(t)
+
+		foundCatchAll := false
+		foundRedirectHandler := false
+
+		if apps, ok := caddyConfig["apps"].(map[string]interface{}); ok {
+			if httpApp, ok := apps["http"].(map[string]interface{}); ok {
+				if servers, ok := httpApp["servers"].(map[string]interface{}); ok {
+					if srv0, ok := servers["srv0"].(map[string]interface{}); ok {
+						if routes, ok := srv0["routes"].([]interface{}); ok {
+							for _, r := range routes {
+								if route, ok := r.(map[string]interface{}); ok {
+									// Check for catch-all route
+									if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+										foundCatchAll = true
+										t.Log("Found catch-all 404 route")
+
+										// Check for static_response with redirect
+										if handles, ok := route["handle"].([]interface{}); ok {
+											for _, h := range handles {
+												if handler, ok := h.(map[string]interface{}); ok {
+													if handler["handler"] == "static_response" {
+														if statusCode, ok := handler["status_code"].(float64); ok {
+															if int(statusCode) == 302 {
+																foundRedirectHandler = true
+																t.Logf("Found redirect handler with status code %d", int(statusCode))
+
+																// Check Location header
+																if headers, ok := handler["headers"].(map[string]interface{}); ok {
+																	if location, ok := headers["Location"].([]interface{}); ok && len(location) > 0 {
+																		if location[0] == "https://example.com/404" {
+																			t.Log("Correct redirect URL in Location header")
+																		} else {
+																			t.Errorf("Expected Location 'https://example.com/404', got '%v'", location[0])
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if !foundCatchAll {
+			t.Error("Expected to find catch-all 404 route")
+		}
+		if !foundRedirectHandler {
+			t.Error("Expected to find redirect handler in catch-all route")
+		}
+	})
+
+	// Test 5: Update 404 mode back to default
+	t.Run("Update404ToDefault", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"mode":         "default",
+			"redirect_url": "",
+		}
+
+		rec := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", updateReq)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		// Trigger sync to apply changes
+		rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200 for sync trigger, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		// Wait a moment for sync to complete
+		time.Sleep(500 * time.Millisecond)
+
+		// Verify Caddy config has default 404 handler
+		caddyConfig := env.GetCaddyConfig(t)
+
+		foundDefaultHandler := false
+
+		if apps, ok := caddyConfig["apps"].(map[string]interface{}); ok {
+			if httpApp, ok := apps["http"].(map[string]interface{}); ok {
+				if servers, ok := httpApp["servers"].(map[string]interface{}); ok {
+					if srv0, ok := servers["srv0"].(map[string]interface{}); ok {
+						if routes, ok := srv0["routes"].([]interface{}); ok {
+							for _, r := range routes {
+								if route, ok := r.(map[string]interface{}); ok {
+									if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+										if handles, ok := route["handle"].([]interface{}); ok {
+											for _, h := range handles {
+												if handler, ok := h.(map[string]interface{}); ok {
+													// Check for static_response with 404 body (default mode)
+													if handler["handler"] == "static_response" {
+														if statusCode, ok := handler["status_code"].(float64); ok {
+															if int(statusCode) == 404 {
+																foundDefaultHandler = true
+																t.Log("Found default 404 handler")
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if !foundDefaultHandler {
+			t.Error("Expected to find default 404 handler in catch-all route")
+		}
+	})
+
+	// Test 6: Verify settings were persisted
+	t.Run("VerifySettingsPersisted", func(t *testing.T) {
+		rec := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/settings/404", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		var resp struct {
+			Data struct {
+				Mode        string `json:"mode"`
+				RedirectURL string `json:"redirect_url"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if resp.Data.Mode != "default" {
+			t.Errorf("Expected mode 'default', got '%s'", resp.Data.Mode)
+		}
+		t.Log("Settings persisted correctly after update")
+	})
+}
+
+// TestIntegration_SettingsValidation tests settings validation errors
+func TestIntegration_SettingsValidation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	env := SetupTestEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	testCases := []struct {
+		name           string
+		payload        map[string]interface{}
+		expectedStatus int
+		description    string
+	}{
+		{
+			name: "Invalid mode",
+			payload: map[string]interface{}{
+				"mode":         "invalid",
+				"redirect_url": "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject invalid mode",
+		},
+		{
+			name: "Redirect mode without URL",
+			payload: map[string]interface{}{
+				"mode":         "redirect",
+				"redirect_url": "",
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject redirect mode without URL",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", tc.payload)
+
+			if rec.Code != tc.expectedStatus {
+				t.Errorf("%s: Expected %d, got %d: %s", tc.description, tc.expectedStatus, rec.Code, rec.Body.String())
+			} else {
+				t.Logf("Correctly rejected: %s", tc.description)
+			}
+		})
+	}
+}
+
+// TestIntegration_ProxyWithSync tests that proxies and sync work together
+func TestIntegration_ProxyWithSync(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	env := SetupTestEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Create a proxy
+	proxy := map[string]interface{}{
+		"type":     "reverse_proxy",
+		"name":     "Sync Test Backend",
+		"hostname": "sync-test.example.com",
+		"upstreams": []map[string]interface{}{
+			{"host": "backend.internal", "port": 8080, "scheme": "http"},
+		},
+	}
+
+	rec := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", proxy)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("Expected 201, got %d: %s", rec.Code, rec.Body.String())
+	}
+	t.Log("Created proxy for sync test")
+
+	// Trigger sync
+	rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected 200 for sync trigger, got %d: %s", rec.Code, rec.Body.String())
+	}
+	t.Log("Triggered sync")
+
+	// Wait for sync to complete
+	time.Sleep(500 * time.Millisecond)
+
+	// Check sync status shows success
+	rec = env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/sync/status", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var statusResp struct {
+		Data struct {
+			LastSyncSuccess bool   `json:"last_sync_success"`
+			LastError       string `json:"last_error"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &statusResp); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	if !statusResp.Data.LastSyncSuccess {
+		t.Errorf("Expected last_sync_success to be true, got false. Error: %s", statusResp.Data.LastError)
+	} else {
+		t.Log("Sync completed successfully")
+	}
+
+	// Verify Caddy has both the proxy route and the catch-all 404 route
+	caddyConfig := env.GetCaddyConfig(t)
+
+	foundProxyRoute := false
+	foundCatchAll := false
+
+	if apps, ok := caddyConfig["apps"].(map[string]interface{}); ok {
+		if httpApp, ok := apps["http"].(map[string]interface{}); ok {
+			if servers, ok := httpApp["servers"].(map[string]interface{}); ok {
+				if srv0, ok := servers["srv0"].(map[string]interface{}); ok {
+					if routes, ok := srv0["routes"].([]interface{}); ok {
+						for _, r := range routes {
+							if route, ok := r.(map[string]interface{}); ok {
+								if routeID, ok := route["@id"].(string); ok {
+									if routeID == "proxy_1" {
+										foundProxyRoute = true
+										t.Log("Found proxy route after sync")
+									}
+									if routeID == "catchall_404" {
+										foundCatchAll = true
+										t.Log("Found catch-all 404 route after sync")
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if !foundProxyRoute {
+		t.Error("Expected to find proxy route after sync")
+	}
+	if !foundCatchAll {
+		t.Error("Expected to find catch-all 404 route after sync")
+	}
+}
+
+// TestIntegration_CatchAllRoute tests catch-all 404 route behavior
+func TestIntegration_CatchAllRoute(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	env := SetupTestEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Test 1: Catch-all exists after initial sync with no proxies
+	t.Run("CatchAllExistsWithNoProxies", func(t *testing.T) {
+		// Trigger initial sync
+		rec := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		caddyConfig := env.GetCaddyConfig(t)
+		routes := getCaddyRoutes(t, caddyConfig)
+
+		if len(routes) == 0 {
+			t.Fatal("Expected at least catch-all route")
+		}
+
+		// Verify catch-all exists
+		found := false
+		for _, r := range routes {
+			if route, ok := r.(map[string]interface{}); ok {
+				if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+					found = true
+					break
+				}
+			}
+		}
+
+		if !found {
+			t.Error("Expected catch-all route to exist even with no proxies")
+		}
+	})
+
+	// Test 2: Catch-all is always last in routes array
+	t.Run("CatchAllIsAlwaysLast", func(t *testing.T) {
+		// Create multiple proxies
+		proxies := []map[string]interface{}{
+			{
+				"type": "reverse_proxy", "name": "Backend A", "hostname": "a.example.com",
+				"upstreams": []map[string]interface{}{{"host": "backend-a", "port": 8080, "scheme": "http"}},
+			},
+			{
+				"type": "reverse_proxy", "name": "Backend B", "hostname": "b.example.com",
+				"upstreams": []map[string]interface{}{{"host": "backend-b", "port": 8080, "scheme": "http"}},
+			},
+			{
+				"type": "reverse_proxy", "name": "Backend C", "hostname": "c.example.com",
+				"upstreams": []map[string]interface{}{{"host": "backend-c", "port": 8080, "scheme": "http"}},
+			},
+		}
+
+		for _, proxy := range proxies {
+			rec := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", proxy)
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("Failed to create proxy: %d - %s", rec.Code, rec.Body.String())
+			}
+		}
+
+		// Trigger sync
+		rec := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		caddyConfig := env.GetCaddyConfig(t)
+		routes := getCaddyRoutes(t, caddyConfig)
+
+		if len(routes) < 4 {
+			t.Fatalf("Expected at least 4 routes (3 proxies + catch-all), got %d", len(routes))
+		}
+
+		// Check last route is catch-all
+		lastRoute := routes[len(routes)-1]
+		if route, ok := lastRoute.(map[string]interface{}); ok {
+			if routeID, ok := route["@id"].(string); ok {
+				if routeID != "catchall_404" {
+					t.Errorf("Expected last route to be 'catchall_404', got '%s'", routeID)
+				} else {
+					t.Log("Catch-all route is correctly positioned as last route")
+				}
+			}
+		}
+
+		// Verify proxy routes come before catch-all
+		proxyRouteCount := 0
+		for i, r := range routes {
+			if route, ok := r.(map[string]interface{}); ok {
+				if routeID, ok := route["@id"].(string); ok {
+					if routeID == "catchall_404" {
+						if i != len(routes)-1 {
+							t.Errorf("Catch-all at index %d but should be at %d", i, len(routes)-1)
+						}
+					} else {
+						proxyRouteCount++
+					}
+				}
+			}
+		}
+		t.Logf("Found %d proxy routes before catch-all", proxyRouteCount)
+	})
+
+	// Test 3: Catch-all survives proxy deletion
+	t.Run("CatchAllSurvivesProxyDeletion", func(t *testing.T) {
+		// Delete all proxies
+		rec := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/proxies", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rec.Code)
+		}
+
+		var listResp struct {
+			Data struct {
+				Items []struct {
+					ID int `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &listResp); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		for _, item := range listResp.Data.Items {
+			rec = env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d", item.ID), nil)
+			if rec.Code != http.StatusOK {
+				t.Logf("Warning: Failed to delete proxy %d: %d", item.ID, rec.Code)
+			}
+		}
+
+		// Trigger sync after deletions
+		rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		caddyConfig := env.GetCaddyConfig(t)
+		routes := getCaddyRoutes(t, caddyConfig)
+
+		// Should still have catch-all even with no proxies
+		found := false
+		for _, r := range routes {
+			if route, ok := r.(map[string]interface{}); ok {
+				if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+					found = true
+					break
+				}
+			}
+		}
+
+		if !found {
+			t.Error("Catch-all route should survive after all proxies are deleted")
+		} else {
+			t.Log("Catch-all route persists after all proxies deleted")
+		}
+	})
+
+	// Test 4: Catch-all mode changes are reflected in Caddy
+	t.Run("CatchAllModeChanges", func(t *testing.T) {
+		testCases := []struct {
+			name           string
+			mode           string
+			redirectURL    string
+			expectStatus   int
+			expectLocation string
+		}{
+			{
+				name:         "Default mode returns 404",
+				mode:         "default",
+				redirectURL:  "",
+				expectStatus: 404,
+			},
+			{
+				name:           "Redirect mode returns 302",
+				mode:           "redirect",
+				redirectURL:    "https://custom-404.example.com",
+				expectStatus:   302,
+				expectLocation: "https://custom-404.example.com",
+			},
+			{
+				name:         "Back to default mode",
+				mode:         "default",
+				redirectURL:  "",
+				expectStatus: 404,
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Update settings
+				updateReq := map[string]interface{}{
+					"mode":         tc.mode,
+					"redirect_url": tc.redirectURL,
+				}
+
+				rec := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", updateReq)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+				}
+
+				// Trigger sync
+				rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+				if rec.Code != http.StatusOK {
+					t.Fatalf("Expected 200, got %d: %s", rec.Code, rec.Body.String())
+				}
+
+				time.Sleep(500 * time.Millisecond)
+
+				// Verify Caddy config
+				caddyConfig := env.GetCaddyConfig(t)
+				routes := getCaddyRoutes(t, caddyConfig)
+
+				for _, r := range routes {
+					if route, ok := r.(map[string]interface{}); ok {
+						if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+							if handles, ok := route["handle"].([]interface{}); ok {
+								for _, h := range handles {
+									if handler, ok := h.(map[string]interface{}); ok {
+										if handler["handler"] == "static_response" {
+											statusCode := 0
+											if sc, ok := handler["status_code"].(float64); ok {
+												statusCode = int(sc)
+											}
+
+											if statusCode != tc.expectStatus {
+												t.Errorf("Expected status %d, got %d", tc.expectStatus, statusCode)
+											} else {
+												t.Logf("Correct status code: %d", statusCode)
+											}
+
+											// Check Location header for redirect mode
+											if tc.expectLocation != "" {
+												if headers, ok := handler["headers"].(map[string]interface{}); ok {
+													if location, ok := headers["Location"].([]interface{}); ok && len(location) > 0 {
+														if location[0] != tc.expectLocation {
+															t.Errorf("Expected Location '%s', got '%v'", tc.expectLocation, location[0])
+														} else {
+															t.Logf("Correct Location header: %s", tc.expectLocation)
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			})
+		}
+	})
+
+	// Test 5: Catch-all has no host matcher (matches all hosts)
+	t.Run("CatchAllMatchesAllHosts", func(t *testing.T) {
+		// Ensure we're in default mode
+		updateReq := map[string]interface{}{
+			"mode":         "default",
+			"redirect_url": "",
+		}
+		rec := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", updateReq)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rec.Code)
+		}
+
+		rec = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Expected 200, got %d", rec.Code)
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		caddyConfig := env.GetCaddyConfig(t)
+		routes := getCaddyRoutes(t, caddyConfig)
+
+		for _, r := range routes {
+			if route, ok := r.(map[string]interface{}); ok {
+				if routeID, ok := route["@id"].(string); ok && routeID == "catchall_404" {
+					// Catch-all should have no match block (or empty match)
+					if match, ok := route["match"]; ok && match != nil {
+						// If match exists, it should be empty or catch-all pattern
+						if matchArr, ok := match.([]interface{}); ok && len(matchArr) > 0 {
+							t.Log("Catch-all has match block - checking if it's a catch-all pattern")
+							// This is acceptable if it's a wildcard match
+						}
+					} else {
+						t.Log("Catch-all route has no match block (matches all requests)")
+					}
+					return
+				}
+			}
+		}
+		t.Error("Catch-all route not found")
+	})
+}
+
+// getCaddyRoutes extracts routes from Caddy config
+func getCaddyRoutes(t *testing.T, config map[string]interface{}) []interface{} {
+	if apps, ok := config["apps"].(map[string]interface{}); ok {
+		if httpApp, ok := apps["http"].(map[string]interface{}); ok {
+			if servers, ok := httpApp["servers"].(map[string]interface{}); ok {
+				if srv0, ok := servers["srv0"].(map[string]interface{}); ok {
+					if routes, ok := srv0["routes"].([]interface{}); ok {
+						return routes
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

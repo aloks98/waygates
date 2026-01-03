@@ -866,3 +866,248 @@ func TestRoutesPathConstant(t *testing.T) {
 		t.Errorf("Expected RoutesPath '%s', got '%s'", expected, caddy.RoutesPath)
 	}
 }
+
+// =============================================================================
+// Catch-All 404 Route Tests
+// =============================================================================
+
+// TestBuildCatchAllRoute_DefaultMode tests catch-all route in default mode
+func TestBuildCatchAllRoute_DefaultMode(t *testing.T) {
+	route := caddy.BuildCatchAllRoute(caddy.NotFoundModeDefault, "")
+
+	if route.ID != caddy.CatchAllRouteID {
+		t.Errorf("Expected route ID '%s', got '%s'", caddy.CatchAllRouteID, route.ID)
+	}
+
+	if len(route.Handle) != 3 {
+		t.Errorf("Expected 3 handlers for default mode, got %d", len(route.Handle))
+	}
+
+	// First handler should be templates
+	if route.Handle[0].Handler != "templates" {
+		t.Errorf("Expected first handler 'templates', got '%s'", route.Handle[0].Handler)
+	}
+	if route.Handle[0].FileRoot != "/app/templates" {
+		t.Errorf("Expected FileRoot '/app/templates', got '%s'", route.Handle[0].FileRoot)
+	}
+
+	// Second handler should be rewrite
+	if route.Handle[1].Handler != "rewrite" {
+		t.Errorf("Expected second handler 'rewrite', got '%s'", route.Handle[1].Handler)
+	}
+	if route.Handle[1].URI != "/404.html" {
+		t.Errorf("Expected URI '/404.html', got '%s'", route.Handle[1].URI)
+	}
+
+	// Third handler should be file_server
+	if route.Handle[2].Handler != "file_server" {
+		t.Errorf("Expected third handler 'file_server', got '%s'", route.Handle[2].Handler)
+	}
+	if route.Handle[2].StatusCode != 404 {
+		t.Errorf("Expected status code 404, got %d", route.Handle[2].StatusCode)
+	}
+}
+
+// TestBuildCatchAllRoute_RedirectMode tests catch-all route in redirect mode
+func TestBuildCatchAllRoute_RedirectMode(t *testing.T) {
+	redirectURL := "https://example.com/not-found"
+	route := caddy.BuildCatchAllRoute(caddy.NotFoundModeRedirect, redirectURL)
+
+	if route.ID != caddy.CatchAllRouteID {
+		t.Errorf("Expected route ID '%s', got '%s'", caddy.CatchAllRouteID, route.ID)
+	}
+
+	if len(route.Handle) != 1 {
+		t.Errorf("Expected 1 handler for redirect mode, got %d", len(route.Handle))
+	}
+
+	handler := route.Handle[0]
+	if handler.Handler != "static_response" {
+		t.Errorf("Expected handler 'static_response', got '%s'", handler.Handler)
+	}
+
+	if handler.StatusCode != 302 {
+		t.Errorf("Expected status code 302, got %d", handler.StatusCode)
+	}
+
+	if handler.StaticHeaders == nil {
+		t.Fatal("StaticHeaders is nil")
+	}
+
+	locations, ok := handler.StaticHeaders["Location"]
+	if !ok || len(locations) == 0 {
+		t.Fatal("No Location header")
+	}
+
+	if locations[0] != redirectURL {
+		t.Errorf("Expected Location '%s', got '%s'", redirectURL, locations[0])
+	}
+}
+
+// TestBuildCatchAllRoute_RedirectModeEmptyURL tests redirect mode with empty URL falls back to default
+func TestBuildCatchAllRoute_RedirectModeEmptyURL(t *testing.T) {
+	route := caddy.BuildCatchAllRoute(caddy.NotFoundModeRedirect, "")
+
+	// Should fall back to default mode when URL is empty
+	if len(route.Handle) != 3 {
+		t.Errorf("Expected 3 handlers (default mode), got %d", len(route.Handle))
+	}
+
+	if route.Handle[0].Handler != "templates" {
+		t.Error("Expected templates handler for default fallback")
+	}
+}
+
+// TestBuildCatchAllRouteSimple tests the simple catch-all route builder
+func TestBuildCatchAllRouteSimple(t *testing.T) {
+	route := caddy.BuildCatchAllRouteSimple()
+
+	if route.ID != caddy.CatchAllRouteID {
+		t.Errorf("Expected route ID '%s', got '%s'", caddy.CatchAllRouteID, route.ID)
+	}
+
+	if len(route.Handle) != 1 {
+		t.Errorf("Expected 1 handler, got %d", len(route.Handle))
+	}
+
+	handler := route.Handle[0]
+	if handler.Handler != "static_response" {
+		t.Errorf("Expected handler 'static_response', got '%s'", handler.Handler)
+	}
+
+	if handler.StatusCode != 404 {
+		t.Errorf("Expected status code 404, got %d", handler.StatusCode)
+	}
+
+	// Should have Content-Type header
+	contentTypes, ok := handler.StaticHeaders["Content-Type"]
+	if !ok || len(contentTypes) == 0 {
+		t.Fatal("No Content-Type header")
+	}
+
+	if contentTypes[0] != "text/plain; charset=utf-8" {
+		t.Errorf("Expected Content-Type 'text/plain; charset=utf-8', got '%s'", contentTypes[0])
+	}
+}
+
+// TestCatchAllRouteID tests the CatchAllRouteID constant
+func TestCatchAllRouteID(t *testing.T) {
+	if caddy.CatchAllRouteID != "catchall_404" {
+		t.Errorf("Expected CatchAllRouteID 'catchall_404', got '%s'", caddy.CatchAllRouteID)
+	}
+}
+
+// TestNotFoundModeConstants tests the NotFoundMode constants
+func TestNotFoundModeConstants(t *testing.T) {
+	if caddy.NotFoundModeDefault != "default" {
+		t.Errorf("Expected NotFoundModeDefault 'default', got '%s'", caddy.NotFoundModeDefault)
+	}
+
+	if caddy.NotFoundModeRedirect != "redirect" {
+		t.Errorf("Expected NotFoundModeRedirect 'redirect', got '%s'", caddy.NotFoundModeRedirect)
+	}
+}
+
+// TestIsCatchAllRoute tests the IsCatchAllRoute helper function
+func TestIsCatchAllRoute(t *testing.T) {
+	testCases := []struct {
+		name     string
+		route    interface{}
+		expected bool
+	}{
+		{
+			name: "Catch-all route",
+			route: map[string]interface{}{
+				"@id": caddy.CatchAllRouteID,
+			},
+			expected: true,
+		},
+		{
+			name: "Regular proxy route",
+			route: map[string]interface{}{
+				"@id": "proxy_1",
+			},
+			expected: false,
+		},
+		{
+			name: "Route without ID",
+			route: map[string]interface{}{
+				"handler": "reverse_proxy",
+			},
+			expected: false,
+		},
+		{
+			name:     "Nil route",
+			route:    nil,
+			expected: false,
+		},
+		{
+			name:     "Non-map route",
+			route:    "invalid",
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := caddy.IsCatchAllRoute(tc.route)
+			if result != tc.expected {
+				t.Errorf("Expected %v, got %v", tc.expected, result)
+			}
+		})
+	}
+}
+
+// TestBuildCatchAllRoute_JSONSerialization tests that catch-all routes serialize correctly
+func TestBuildCatchAllRoute_JSONSerialization(t *testing.T) {
+	testCases := []struct {
+		name string
+		mode caddy.NotFoundMode
+		url  string
+	}{
+		{"Default mode", caddy.NotFoundModeDefault, ""},
+		{"Redirect mode", caddy.NotFoundModeRedirect, "https://example.com/404"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			route := caddy.BuildCatchAllRoute(tc.mode, tc.url)
+
+			_, err := json.Marshal(route)
+			if err != nil {
+				t.Fatalf("Failed to marshal route to JSON: %v", err)
+			}
+		})
+	}
+}
+
+// TestBuildCatchAllRoute_RedirectURLVariations tests various redirect URL formats
+func TestBuildCatchAllRoute_RedirectURLVariations(t *testing.T) {
+	testCases := []struct {
+		name        string
+		redirectURL string
+	}{
+		{"HTTPS URL", "https://example.com/404"},
+		{"HTTP URL", "http://example.com/not-found"},
+		{"URL with query", "https://example.com/error?code=404"},
+		{"URL with fragment", "https://example.com/error#not-found"},
+		{"Relative URL", "/error"},
+		{"Root URL", "/"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			route := caddy.BuildCatchAllRoute(caddy.NotFoundModeRedirect, tc.redirectURL)
+
+			if len(route.Handle) != 1 {
+				t.Fatalf("Expected 1 handler, got %d", len(route.Handle))
+			}
+
+			handler := route.Handle[0]
+			locations := handler.StaticHeaders["Location"]
+			if len(locations) == 0 || locations[0] != tc.redirectURL {
+				t.Errorf("Expected Location '%s', got '%v'", tc.redirectURL, locations)
+			}
+		})
+	}
+}
