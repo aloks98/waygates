@@ -1,25 +1,34 @@
 # Waygates
 
-A Docker-based Caddy reverse proxy manager with automatic wildcard SSL certificates using Cloudflare DNS challenge.
+A modern reverse proxy manager with a React UI and Go backend. Manage your Caddy reverse proxy configurations through a clean web interface.
 
 ## Features
 
-- 🔒 Automatic wildcard SSL certificates via Let's Encrypt
-- ☁️ Cloudflare DNS-01 challenge for `*.caddy.e412.in`
-- 🎨 Custom 404 error page with templates
-- 🔧 Admin API for runtime configuration
-- 🐳 Docker Compose for easy deployment
-- 📝 Makefile for simplified operations
-- 🖥️ Integrated Go backend with React UI (single container)
-- 🔐 JWT-based authentication with RBAC
+- Web UI for managing reverse proxy configurations
+- REST API for automation
+- JWT-based authentication with RBAC
+- Automatic sync with Caddy Admin API
+- Support for reverse proxy, redirect, and static file serving
+- PostgreSQL for persistent storage
+- Single Docker image (backend + UI)
+
+## Quick Start
+
+```bash
+# Pull the image
+docker pull ghcr.io/aloks98/waygates:latest
+
+# Run with Docker Compose (recommended)
+# See docs/DEPLOYMENT.md for full setup
+```
+
+**[Full Deployment Guide](docs/DEPLOYMENT.md)** - Comprehensive instructions for all deployment scenarios.
 
 ## Prerequisites
 
-- Docker (with Docker Compose V2 integrated)
-- A domain managed by Cloudflare (e.g., `e412.in`)
-- Cloudflare API token with DNS edit permissions
-
-> **Note:** This project uses `docker compose` (V2) instead of the deprecated `docker-compose` (V1).
+- Docker with Docker Compose V2
+- PostgreSQL 14+
+- Caddy 2.x (or use official caddy image)
 
 ## Project Structure
 
@@ -368,13 +377,18 @@ conf/Caddyfile
 .env
 ```
 
+## Documentation
+
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Full deployment instructions
+- **[API Authentication](docs/API_AUTH.md)** - Authentication endpoints
+- **[API Proxy](docs/API_PROXY.md)** - Proxy management endpoints
+- **[OpenAPI Spec](docs/openapi.yaml)** - API specification
+
 ## Resources
 
 - [Caddy Documentation](https://caddyserver.com/docs/)
 - [Caddy Cloudflare DNS Plugin](https://github.com/caddy-dns/cloudflare)
-- [Caddyfile Syntax](https://caddyserver.com/docs/caddyfile)
-- [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
 
 ## License
 
-This is a personal project. Feel free to use and modify as needed.
+MIT License

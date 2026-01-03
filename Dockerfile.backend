@@ -1,7 +1,7 @@
 # =============================================================================
-# Stage 1: Build UI
+# Stage 1: Build UI (only once on build platform - output is static files)
 # =============================================================================
-FROM node:22-alpine AS ui-builder
+FROM --platform=$BUILDPLATFORM node:22-alpine AS ui-builder
 
 WORKDIR /app
 
