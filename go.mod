@@ -1,4 +1,4 @@
-module github.com/aloks98/homelab-proxy
+module github.com/aloks98/waygates
 
 go 1.25
 

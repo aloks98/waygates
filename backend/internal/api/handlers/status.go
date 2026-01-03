@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/caddy"
-	"github.com/aloks98/homelab-proxy/backend/internal/repository"
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/caddy"
+	"github.com/aloks98/waygates/backend/internal/repository"
+	"github.com/aloks98/waygates/backend/internal/utils"
 )
 
 // StatusHandler handles status-related HTTP requests

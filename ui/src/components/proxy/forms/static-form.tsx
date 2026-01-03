@@ -7,9 +7,13 @@ import {
   Switch,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
+  CardHeading,
   CardTitle,
+  CardToolbar,
   Field,
+  FieldContent,
   FieldLabel,
   FieldError,
   FieldDescription,
@@ -170,8 +174,11 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       </form.Field>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">File Server Configuration</CardTitle>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>File Server Configuration</CardTitle>
+            <CardDescription>Configure how static files are served to visitors</CardDescription>
+          </CardHeading>
         </CardHeader>
         <CardContent className="space-y-4">
           <form.Field name="root_path">
@@ -223,12 +230,12 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
           <form.Field name="browse">
             {(field) => (
               <Field orientation="horizontal">
-                <div>
+                <FieldContent>
                   <FieldLabel>Directory Browsing</FieldLabel>
                   <FieldDescription>
                     Allow visitors to browse directory contents
                   </FieldDescription>
-                </div>
+                </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>
             )}
@@ -237,12 +244,12 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
           <form.Field name="template_rendering">
             {(field) => (
               <Field orientation="horizontal">
-                <div>
+                <FieldContent>
                   <FieldLabel>Template Rendering</FieldLabel>
                   <FieldDescription>
                     Enable Caddy template rendering for HTML files
                   </FieldDescription>
-                </div>
+                </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>
             )}
@@ -251,14 +258,17 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       </Card>
 
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Try Files (Optional)</CardTitle>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Try Files (Optional)</CardTitle>
+            <CardDescription>Specify fallback files when the requested path is not found</CardDescription>
+          </CardHeading>
+          <CardToolbar>
             <Button type="button" variant="outline" size="sm" onClick={addTryFile}>
               <Plus className="mr-1 size-4" />
               Add File
             </Button>
-          </div>
+          </CardToolbar>
         </CardHeader>
         <CardContent className="space-y-3">
           {tryFiles.length === 0 ? (

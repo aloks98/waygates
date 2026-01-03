@@ -144,9 +144,9 @@ func setDefaults() {
 	// Database (PostgreSQL)
 	viper.SetDefault("DB_HOST", "postgres")
 	viper.SetDefault("DB_PORT", 5432)
-	viper.SetDefault("DB_USER", "homelab")
-	viper.SetDefault("DB_PASSWORD", "homelab")
-	viper.SetDefault("DB_NAME", "homelab_proxy")
+	viper.SetDefault("DB_USER", "waygates")
+	viper.SetDefault("DB_PASSWORD", "waygates")
+	viper.SetDefault("DB_NAME", "waygates")
 
 	// Caddy
 	viper.SetDefault("CADDY_ADMIN_URL", "http://localhost:2019")

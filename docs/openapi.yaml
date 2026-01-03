@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Homelab Proxy API
+  title: Waygates API
   description: API for managing Caddy as a reverse proxy, redirect, and static file server.
   version: "1.0.0"
 servers:

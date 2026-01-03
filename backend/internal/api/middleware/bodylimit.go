@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/utils"
 )
 
 // BodyLimit returns a middleware that limits the request body size

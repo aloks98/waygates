@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/caddy"
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/caddy"
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 func TestBuildReverseProxyConfig(t *testing.T) {

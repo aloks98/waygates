@@ -207,7 +207,7 @@ This configuration is useful when:
 - Proxying to internal services with self-signed certificates
 - Development environments
 - Internal corporate services
-- Homelab services that don't need public CA certificates
+- Internal services that don't need public CA certificates
 
 **Security Warning**: Only use `tls_insecure_skip_verify: true` for trusted internal services. This disables certificate validation and should never be used for untrusted or public services.
 
@@ -543,8 +543,8 @@ package main
 import (
     "encoding/json"
     "fmt"
-    "github.com/aloks98/homelab-proxy/backend/internal/caddy"
-    "github.com/aloks98/homelab-proxy/backend/internal/models"
+    "github.com/aloks98/waygates/backend/internal/caddy"
+    "github.com/aloks98/waygates/backend/internal/models"
 )
 
 func main() {

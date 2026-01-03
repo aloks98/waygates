@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/utils"
 	"github.com/go-chi/chi/v5"
 )
 

@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/api/routes"
-	"github.com/aloks98/homelab-proxy/backend/internal/auth"
-	"github.com/aloks98/homelab-proxy/backend/internal/config"
-	"github.com/aloks98/homelab-proxy/backend/internal/database"
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
-	"github.com/aloks98/homelab-proxy/backend/internal/repository"
+	"github.com/aloks98/waygates/backend/internal/api/routes"
+	"github.com/aloks98/waygates/backend/internal/auth"
+	"github.com/aloks98/waygates/backend/internal/config"
+	"github.com/aloks98/waygates/backend/internal/database"
+	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/repository"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 

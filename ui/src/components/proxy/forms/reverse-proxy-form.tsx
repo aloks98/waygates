@@ -12,9 +12,13 @@ import {
   Switch,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
+  CardHeading,
   CardTitle,
+  CardToolbar,
   Field,
+  FieldContent,
   FieldLabel,
   FieldError,
   FieldDescription,
@@ -35,7 +39,6 @@ const reverseProxySchema = z.object({
   upstreams: z.array(upstreamSchema).min(1, 'At least one upstream is required'),
   block_exploits: z.boolean(),
   tls_insecure_skip_verify: z.boolean(),
-  enable_load_balancing: z.boolean(),
   lb_strategy: z.enum(['round_robin', 'least_conn', 'ip_hash', 'random']),
   health_check_enabled: z.boolean(),
   health_check_path: z.string(),
@@ -65,7 +68,6 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
       upstreams: [{ host: '', port: 8080, scheme: 'http' as const }],
       block_exploits: true,
       tls_insecure_skip_verify: false,
-      enable_load_balancing: false,
       lb_strategy: 'round_robin' as const,
       health_check_enabled: false,
       health_check_path: '/health',
@@ -86,7 +88,7 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
         tls_insecure_skip_verify: value.tls_insecure_skip_verify,
       };
 
-      if (value.upstreams.length > 1 && value.enable_load_balancing) {
+      if (value.upstreams.length > 1) {
         data.load_balancing = {
           strategy: value.lb_strategy,
           health_checks: value.health_check_enabled ? {
@@ -118,7 +120,6 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
       form.setFieldValue('upstreams', upstreamData);
       form.setFieldValue('block_exploits', initialData.block_exploits ?? true);
       form.setFieldValue('tls_insecure_skip_verify', initialData.tls_insecure_skip_verify ?? false);
-      form.setFieldValue('enable_load_balancing', !!initialData.load_balancing);
       form.setFieldValue('lb_strategy', initialData.load_balancing?.strategy || 'round_robin');
       form.setFieldValue('health_check_enabled', initialData.load_balancing?.health_checks?.enabled ?? false);
       form.setFieldValue('health_check_path', initialData.load_balancing?.health_checks?.path || '/health');
@@ -218,14 +219,17 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
       </form.Field>
 
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Upstream Servers</CardTitle>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Upstream Servers</CardTitle>
+            <CardDescription>Backend servers that will handle incoming requests</CardDescription>
+          </CardHeading>
+          <CardToolbar>
             <Button type="button" variant="outline" size="sm" onClick={addUpstream}>
               <Plus className="mr-1 size-4" />
               Add Upstream
             </Button>
-          </div>
+          </CardToolbar>
         </CardHeader>
         <CardContent className="space-y-3">
           {upstreams.map((upstream, index) => (
@@ -271,113 +275,108 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
 
       {upstreams.length > 1 && (
         <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Load Balancing</CardTitle>
-              <form.Field name="enable_load_balancing">
-                {(field) => (
-                  <Switch
-                    checked={field.state.value}
-                    onCheckedChange={field.handleChange}
-                  />
-                )}
-              </form.Field>
-            </div>
+          <CardHeader>
+            <CardHeading>
+              <CardTitle>Load Balancing</CardTitle>
+              <CardDescription>Distribute traffic across multiple upstream servers</CardDescription>
+            </CardHeading>
           </CardHeader>
-          <form.Subscribe selector={(state) => state.values.enable_load_balancing}>
-            {(enableLB) => enableLB && (
-              <CardContent className="space-y-4">
-                <form.Field name="lb_strategy">
-                  {(field) => (
-                    <Field>
-                      <FieldLabel>Strategy</FieldLabel>
-                      <Select
-                        value={field.state.value}
-                        onValueChange={(val) => field.handleChange(val as typeof field.state.value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="round_robin">Round Robin</SelectItem>
-                          <SelectItem value="least_conn">Least Connections</SelectItem>
-                          <SelectItem value="ip_hash">IP Hash (Sticky)</SelectItem>
-                          <SelectItem value="random">Random</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  )}
-                </form.Field>
+          <CardContent className="space-y-4">
+            <form.Field name="lb_strategy">
+              {(field) => (
+                <Field>
+                  <FieldLabel>Strategy</FieldLabel>
+                  <Select
+                    value={field.state.value}
+                    onValueChange={(val) => field.handleChange(val as typeof field.state.value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="round_robin">Round Robin</SelectItem>
+                      <SelectItem value="least_conn">Least Connections</SelectItem>
+                      <SelectItem value="ip_hash">IP Hash (Sticky)</SelectItem>
+                      <SelectItem value="random">Random</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            </form.Field>
 
+            <form.Field name="health_check_enabled">
+              {(field) => (
                 <Field orientation="horizontal">
-                  <FieldLabel>Health Checks</FieldLabel>
-                  <form.Field name="health_check_enabled">
+                  <FieldContent>
+                    <FieldLabel>Health Checks</FieldLabel>
+                    <FieldDescription>Monitor upstream server availability</FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
+
+            <form.Subscribe selector={(state) => state.values.health_check_enabled}>
+              {(healthCheckEnabled) => healthCheckEnabled && (
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <form.Field name="health_check_path">
                     {(field) => (
-                      <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                      <Field>
+                        <FieldLabel>Path</FieldLabel>
+                        <Input
+                          placeholder="/health"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </Field>
                     )}
                   </form.Field>
-                </Field>
-
-                <form.Subscribe selector={(state) => state.values.health_check_enabled}>
-                  {(healthCheckEnabled) => healthCheckEnabled && (
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <form.Field name="health_check_path">
-                        {(field) => (
-                          <Field>
-                            <FieldLabel>Path</FieldLabel>
-                            <Input
-                              placeholder="/health"
-                              value={field.state.value}
-                              onChange={(e) => field.handleChange(e.target.value)}
-                            />
-                          </Field>
-                        )}
-                      </form.Field>
-                      <form.Field name="health_check_interval">
-                        {(field) => (
-                          <Field>
-                            <FieldLabel>Interval</FieldLabel>
-                            <Input
-                              placeholder="30s"
-                              value={field.state.value}
-                              onChange={(e) => field.handleChange(e.target.value)}
-                            />
-                          </Field>
-                        )}
-                      </form.Field>
-                      <form.Field name="health_check_timeout">
-                        {(field) => (
-                          <Field>
-                            <FieldLabel>Timeout</FieldLabel>
-                            <Input
-                              placeholder="5s"
-                              value={field.state.value}
-                              onChange={(e) => field.handleChange(e.target.value)}
-                            />
-                          </Field>
-                        )}
-                      </form.Field>
-                    </div>
-                  )}
-                </form.Subscribe>
-              </CardContent>
-            )}
-          </form.Subscribe>
+                  <form.Field name="health_check_interval">
+                    {(field) => (
+                      <Field>
+                        <FieldLabel>Interval</FieldLabel>
+                        <Input
+                          placeholder="30s"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </form.Field>
+                  <form.Field name="health_check_timeout">
+                    {(field) => (
+                      <Field>
+                        <FieldLabel>Timeout</FieldLabel>
+                        <Input
+                          placeholder="5s"
+                          value={field.state.value}
+                          onChange={(e) => field.handleChange(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </form.Field>
+                </div>
+              )}
+            </form.Subscribe>
+          </CardContent>
         </Card>
       )}
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Security Options</CardTitle>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Security Options</CardTitle>
+            <CardDescription>Configure security settings for upstream connections</CardDescription>
+          </CardHeading>
         </CardHeader>
         <CardContent className="space-y-4">
           <form.Field name="block_exploits">
             {(field) => (
               <Field orientation="horizontal">
-                <div>
+                <FieldContent>
                   <FieldLabel>Block Common Exploits</FieldLabel>
                   <FieldDescription>Block SQL injection, XSS, and other common attacks</FieldDescription>
-                </div>
+                </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>
             )}
@@ -386,10 +385,10 @@ export function ReverseProxyForm({ initialData, onSubmit, loading, onCancel }: R
           <form.Field name="tls_insecure_skip_verify">
             {(field) => (
               <Field orientation="horizontal">
-                <div>
+                <FieldContent>
                   <FieldLabel>Skip TLS Verification</FieldLabel>
                   <FieldDescription>Allow self-signed certificates on upstream</FieldDescription>
-                </div>
+                </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
               </Field>
             )}

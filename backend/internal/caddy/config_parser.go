@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // ParseRouteToProxy converts a Caddy route configuration back to a Proxy model

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/database"
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/database"
+	"github.com/aloks98/waygates/backend/internal/utils"
 	"gorm.io/gorm"
 )
 

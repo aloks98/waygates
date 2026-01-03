@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // RouteConfig represents a Caddy route configuration

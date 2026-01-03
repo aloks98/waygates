@@ -11,6 +11,7 @@ import {
   SelectValue,
   Switch,
   Field,
+  FieldContent,
   FieldLabel,
   FieldError,
   FieldDescription,
@@ -207,12 +208,12 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
         <form.Field name="preserve_path">
           {(field) => (
             <Field orientation="horizontal">
-              <div>
+              <FieldContent>
                 <FieldLabel>Preserve Path</FieldLabel>
                 <FieldDescription>
                   Append the original path to the target URL
                 </FieldDescription>
-              </div>
+              </FieldContent>
               <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
             </Field>
           )}
@@ -221,12 +222,12 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
         <form.Field name="preserve_query">
           {(field) => (
             <Field orientation="horizontal">
-              <div>
+              <FieldContent>
                 <FieldLabel>Preserve Query String</FieldLabel>
                 <FieldDescription>
                   Append the original query parameters to the target URL
                 </FieldDescription>
-              </div>
+              </FieldContent>
               <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
             </Field>
           )}

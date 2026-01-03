@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/models"
 	"gorm.io/gorm"
 )
 

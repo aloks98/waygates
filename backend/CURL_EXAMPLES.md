@@ -395,7 +395,7 @@ Here's a recommended testing workflow:
 
 ### 1. Start the server
 ```bash
-cd /Users/aloks98/homelab-proxy
+cd /Users/aloks98/waygates
 go run backend/cmd/server/main.go
 ```
 

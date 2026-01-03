@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
-	"github.com/aloks98/homelab-proxy/backend/internal/validation"
+	"github.com/aloks98/waygates/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/validation"
 )
 
 // TestRegister_InvalidRequestBody tests registration with invalid JSON

@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/aloks98/goauth"
-	"github.com/aloks98/homelab-proxy/backend/internal/auth"
-	"github.com/aloks98/homelab-proxy/backend/internal/models"
-	"github.com/aloks98/homelab-proxy/backend/internal/repository"
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
-	"github.com/aloks98/homelab-proxy/backend/internal/validation"
+	"github.com/aloks98/waygates/backend/internal/auth"
+	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/repository"
+	"github.com/aloks98/waygates/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/validation"
 	"gorm.io/gorm"
 )
 

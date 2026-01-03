@@ -10,8 +10,8 @@ import (
 	"github.com/aloks98/goauth"
 	"github.com/aloks98/goauth/middleware"
 	sqlstore "github.com/aloks98/goauth/store/sql"
-	"github.com/aloks98/homelab-proxy/backend/internal/config"
-	"github.com/aloks98/homelab-proxy/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/config"
+	"github.com/aloks98/waygates/backend/internal/utils"
 )
 
 // CustomClaims extends StandardClaims with application-specific fields

@@ -305,7 +305,7 @@ export function AppSidebar({ children }: { children: React.ReactNode }) {
         <SidebarHeader className="flex h-14 items-center border-b border-border px-4">
           <div className="flex items-center gap-2">
             <Globe className="size-5 text-primary" />
-            <span className="font-semibold">Homelab Proxy</span>
+            <span className="font-semibold">Waygates</span>
           </div>
         </SidebarHeader>
 
