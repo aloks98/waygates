@@ -64,8 +64,5 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
-        run: docker build -f Dockerfile.backend .
-
-      - name: Build caddy image
-        run: docker build -f Dockerfile.caddy .
+      - name: Build combined image
+        run: docker build -f Dockerfile .
