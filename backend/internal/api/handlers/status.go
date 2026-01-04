@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -10,24 +12,26 @@ import (
 
 // StatusHandler handles status-related HTTP requests
 type StatusHandler struct {
-	caddyClient *caddy.Client
-	userRepo    *repository.UserRepository
+	reloader *caddy.Reloader
+	userRepo *repository.UserRepository
 }
 
 // NewStatusHandler creates a new status handler
-func NewStatusHandler(caddyClient *caddy.Client, userRepo *repository.UserRepository) *StatusHandler {
+func NewStatusHandler(reloader *caddy.Reloader, userRepo *repository.UserRepository) *StatusHandler {
 	return &StatusHandler{
-		caddyClient: caddyClient,
-		userRepo:    userRepo,
+		reloader: reloader,
+		userRepo: userRepo,
 	}
 }
 
 // GetStatus returns the status of the application
 func (h *StatusHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
-	// Check Caddy status
-	caddyErr := h.caddyClient.HealthCheck()
+	// Check Caddy status by testing connection
 	caddyStatus := "healthy"
-	if caddyErr != nil {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.reloader.TestConnection(ctx); err != nil {
 		caddyStatus = "unhealthy"
 	}
 

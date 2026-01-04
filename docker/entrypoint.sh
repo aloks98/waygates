@@ -1,0 +1,112 @@
+#!/bin/sh
+set -e
+
+echo "=== Waygates Entrypoint ==="
+echo "Starting Waygates services..."
+
+# Create required directories
+mkdir -p /etc/caddy/sites /etc/caddy/backup
+
+# If no Caddyfile exists, copy the default
+if [ ! -f /etc/caddy/Caddyfile ]; then
+    echo "No Caddyfile found, copying default..."
+    cp /etc/caddy/Caddyfile.default /etc/caddy/Caddyfile
+fi
+
+# If no catchall.conf exists, create a default one
+if [ ! -f /etc/caddy/catchall.conf ]; then
+    echo "No catchall.conf found, creating default..."
+    cat > /etc/caddy/catchall.conf << 'EOF'
+# Catch-all 404 handler
+:80 {
+    respond "Not Found" 404
+}
+EOF
+fi
+
+# Function to handle shutdown
+shutdown() {
+    echo "Received shutdown signal..."
+
+    # Stop backend gracefully
+    if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
+        echo "Stopping backend..."
+        kill -TERM "$BACKEND_PID"
+        wait "$BACKEND_PID" 2>/dev/null || true
+    fi
+
+    # Stop Caddy gracefully
+    if [ -n "$CADDY_PID" ] && kill -0 "$CADDY_PID" 2>/dev/null; then
+        echo "Stopping Caddy..."
+        kill -TERM "$CADDY_PID"
+        wait "$CADDY_PID" 2>/dev/null || true
+    fi
+
+    echo "Shutdown complete."
+    exit 0
+}
+
+# Trap signals
+trap shutdown TERM INT QUIT
+
+# Start the backend service in background
+echo "Starting backend service..."
+/app/server &
+BACKEND_PID=$!
+
+# Wait for backend to be ready (check health endpoint)
+echo "Waiting for backend to be ready..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+until curl -sf http://localhost:8080/api/health > /dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo "Backend failed to start after $MAX_RETRIES attempts"
+        exit 1
+    fi
+    echo "Waiting for backend... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    sleep 1
+done
+echo "Backend is ready!"
+
+# Start Caddy
+echo "Starting Caddy..."
+/usr/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
+CADDY_PID=$!
+
+# Wait for Caddy to be ready
+echo "Waiting for Caddy to be ready..."
+RETRY_COUNT=0
+until /usr/bin/caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null 2>&1; do
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        echo "Caddy failed to start after $MAX_RETRIES attempts"
+        exit 1
+    fi
+    echo "Waiting for Caddy... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+    sleep 1
+done
+echo "Caddy is ready!"
+
+echo "=== Waygates is running ==="
+echo "  Backend API: http://localhost:8080"
+echo "  HTTP:        http://localhost:80"
+echo "  HTTPS:       https://localhost:443"
+echo "==========================="
+
+# Wait for either process to exit
+wait -n $BACKEND_PID $CADDY_PID
+
+# If we get here, one of the processes died
+echo "One of the services exited unexpectedly"
+
+# Check which one died and log it
+if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
+    echo "Backend process died"
+fi
+if ! kill -0 "$CADDY_PID" 2>/dev/null; then
+    echo "Caddy process died"
+fi
+
+# Trigger shutdown
+shutdown

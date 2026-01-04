@@ -19,6 +19,14 @@ bin/
 *.db-shm
 *.db-wal
 
+# Test artifacts
+backend/tests/integration/Caddyfile
+backend/tests/integration/catchall.conf
+backend/tests/integration/sites/
+backend/tests/integration/backup/
+coverage.out
+*.coverprofile
+
 # OS files
 .DS_Store
 Thumbs.db

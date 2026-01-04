@@ -40,10 +40,10 @@ type DatabaseConfig struct {
 	Name     string
 }
 
-// CaddyConfig holds Caddy Admin API configuration
+// CaddyConfig holds Caddy configuration
 type CaddyConfig struct {
-	AdminURL string
-	Timeout  time.Duration
+	Email            string // Email for ACME certificates
+	DisableAutoHTTPS bool   // Disable automatic HTTPS (for testing)
 }
 
 // JWTConfig holds JWT token configuration
@@ -98,8 +98,8 @@ func Load() (*Config, error) {
 			Name:     viper.GetString("DB_NAME"),
 		},
 		Caddy: CaddyConfig{
-			AdminURL: viper.GetString("CADDY_ADMIN_URL"),
-			Timeout:  viper.GetDuration("CADDY_TIMEOUT"),
+			Email:            viper.GetString("CADDY_EMAIL"),
+			DisableAutoHTTPS: viper.GetBool("CADDY_DISABLE_AUTO_HTTPS"),
 		},
 		JWT: JWTConfig{
 			Secret:        viper.GetString("JWT_SECRET"),
@@ -149,8 +149,8 @@ func setDefaults() {
 	viper.SetDefault("DB_NAME", "waygates")
 
 	// Caddy
-	viper.SetDefault("CADDY_ADMIN_URL", "http://localhost:2019")
-	viper.SetDefault("CADDY_TIMEOUT", 10*time.Second)
+	viper.SetDefault("CADDY_EMAIL", "")
+	viper.SetDefault("CADDY_DISABLE_AUTO_HTTPS", false)
 
 	// JWT
 	viper.SetDefault("JWT_ACCESS_EXPIRY", 15*time.Minute)

@@ -3,129 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Not Found | Waygates</title>
+    <title>404 | Waygates</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #e4e4e7;
-        }
-
-        .container {
-            text-align: center;
-            padding: 2rem;
-            max-width: 600px;
-        }
-
-        .error-code {
-            font-size: 8rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .gradient-text {
+            background: linear-gradient(135deg, #38bdf8 0%, #a78bfa 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            line-height: 1;
-            margin-bottom: 1rem;
-        }
-
-        .title {
-            font-size: 1.75rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: #f4f4f5;
-        }
-
-        .message {
-            font-size: 1.125rem;
-            color: #a1a1aa;
-            margin-bottom: 2rem;
-            line-height: 1.6;
-        }
-
-        .host {
-            display: inline-block;
-            background: rgba(102, 126, 234, 0.15);
-            border: 1px solid rgba(102, 126, 234, 0.3);
-            border-radius: 0.5rem;
-            padding: 0.5rem 1rem;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.875rem;
-            color: #a5b4fc;
-            margin-bottom: 2rem;
-        }
-
-        .divider {
-            width: 60px;
-            height: 4px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 2px;
-            margin: 0 auto 1.5rem;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: #71717a;
-        }
-
-        .brand svg {
-            width: 20px;
-            height: 20px;
-            fill: #667eea;
-        }
-
-        .brand a {
-            color: #a5b4fc;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .brand a:hover {
-            color: #c4b5fd;
-        }
-
-        @media (max-width: 480px) {
-            .error-code {
-                font-size: 5rem;
-            }
-            .title {
-                font-size: 1.25rem;
-            }
-            .message {
-                font-size: 1rem;
-            }
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="error-code">404</div>
-        <h1 class="title">Page Not Found</h1>
-        <p class="message">
-            The subdomain you're looking for hasn't been configured yet.
-            If you believe this is an error, please contact the administrator.
+<body class="bg-slate-950 min-h-screen flex items-center justify-center font-sans antialiased">
+    <!-- Background -->
+    <div class="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-sky-500/5 rounded-full blur-3xl"></div>
+
+    <div class="relative z-10 text-center px-6">
+        <!-- Icon -->
+        <div class="mb-8 flex items-center justify-center">
+            <div class="w-20 h-20 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+                <i data-lucide="unplug" class="w-9 h-9 text-sky-400"></i>
+            </div>
+        </div>
+
+        <!-- 404 -->
+        <h1 class="text-8xl md:text-9xl font-black leading-none gradient-text tracking-tight">
+            404
+        </h1>
+
+        <!-- Message -->
+        <p class="text-lg text-slate-400 mt-4 font-medium">
+            This gateway leads nowhere... yet.
         </p>
-        <div class="host">{{.Req.Host}}</div>
-        <div class="divider"></div>
-        <div class="brand">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            <span>Powered by <a href="https://github.com/aloks98/waygates" target="_blank" rel="noopener">Waygates</a></span>
+
+        <!-- Brand -->
+        <div class="mt-16">
+            <div class="inline-flex items-center gap-2 text-slate-600">
+                <span class="text-xs font-semibold tracking-widest uppercase">Waygates</span>
+            </div>
         </div>
     </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>

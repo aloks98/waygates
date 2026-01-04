@@ -20,6 +20,7 @@ import (
 	"github.com/aloks98/waygates/backend/internal/api/middleware"
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/caddy"
+	"github.com/aloks98/waygates/backend/internal/caddy/caddyfile"
 	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
@@ -59,18 +60,48 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	r.Use(chiMiddleware.Timeout(60 * time.Second))
 	r.Use(middleware.BodyLimit(middleware.DefaultBodyLimit)) // 1MB body limit
 
-	// Initialize dependencies
-	caddyClient := caddy.NewClient(cfg.Caddy.AdminURL, cfg.Caddy.Timeout)
+	// Initialize Caddy file-based components
+	// Use environment variables if set (for testing), otherwise use Docker defaults
+	caddyBasePath := getEnvOrDefault("CADDY_BASE_PATH", "/etc/caddy")
+	caddyfilePath := getEnvOrDefault("CADDY_CADDYFILE_PATH", "/etc/caddy/Caddyfile")
+	caddyBinary := getEnvOrDefault("CADDY_BINARY", "caddy")
+
+	caddyBuilder := caddyfile.NewBuilder(logger)
+	caddyFileManager := caddy.NewFileManager(caddyBasePath, logger)
+	caddyReloader := caddy.NewReloader(caddy.ReloaderConfig{
+		CaddyBinary:   caddyBinary,
+		CaddyfilePath: caddyfilePath,
+	}, logger)
 
 	// Repositories
 	proxyRepo := repository.NewProxyRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
 
-	// Services
-	proxyService := service.NewProxyService(proxyRepo, caddyClient, logger)
+	// Services - SyncService must be created first as ProxyService depends on it
+	syncService := service.NewSyncService(service.SyncServiceConfig{
+		ProxyRepo:        proxyRepo,
+		SettingsRepo:     settingsRepo,
+		Builder:          caddyBuilder,
+		FileManager:      caddyFileManager,
+		Reloader:         caddyReloader,
+		Logger:           logger,
+		Email:            cfg.Caddy.Email,
+		DisableAutoHTTPS: cfg.Caddy.DisableAutoHTTPS,
+	})
+
+	proxyService := service.NewProxyService(service.ProxyServiceConfig{
+		Repo:        proxyRepo,
+		SyncService: syncService,
+		Logger:      logger,
+	})
 	settingsService := service.NewSettingsService(settingsRepo, logger)
-	syncService := service.NewSyncService(proxyRepo, settingsRepo, caddyClient, logger)
+	settingsService.SetSyncService(syncService) // Wire up sync service for catchall updates
+
+	// Ensure Caddy directories exist
+	if err := caddyFileManager.EnsureDirectories(); err != nil {
+		logger.Error("Failed to ensure Caddy directories", zap.Error(err))
+	}
 
 	// Start sync service (periodic sync every 1 minute)
 	syncService.Start(60 * time.Second)
@@ -87,7 +118,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
 	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, cfg.Security.BcryptCost)
 	proxyHandler := handlers.NewProxyHandler(proxyService)
-	statusHandler := handlers.NewStatusHandler(caddyClient, userRepo)
+	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsService)
 	syncHandler := handlers.NewSyncHandler(syncService)
 
@@ -150,6 +181,14 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	}
 
 	return r
+}
+
+// getEnvOrDefault returns the environment variable value or a default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // setupStaticFileServer configures static file serving for the SPA

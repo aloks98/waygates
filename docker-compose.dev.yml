@@ -1,0 +1,78 @@
+# =============================================================================
+# Waygates Development Docker Compose Configuration
+# =============================================================================
+# This runs Waygates with separate containers for easier debugging.
+# Use this for development, the main docker-compose.yml for production.
+#
+# Services:
+#   - backend: Backend API server
+#   - caddy: Caddy reverse proxy (separate container)
+#   - postgres: PostgreSQL database
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: waygates-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-waygates}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-waygates}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: waygates-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - UI_ENABLED=true
+      - UI_PATH=/app/ui
+      # For development, still use Admin API
+      - CADDY_ADMIN_URL=http://caddy:2019
+    depends_on:
+      postgres:
+        condition: service_healthy
+      caddy:
+        condition: service_started
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    container_name: waygates-caddy-dev
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "2019:2019"
+    env_file:
+      - .env
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
+      - 8.8.8.8
+    volumes:
+      - ./conf:/etc/caddy
+      - caddy-data-dev:/data
+      - caddy-config-dev:/config
+
+volumes:
+  postgres-data-dev:
+  caddy-data-dev:
+  caddy-config-dev:

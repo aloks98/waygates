@@ -1,0 +1,34 @@
+# =============================================================================
+# Waygates Default Caddyfile
+# =============================================================================
+# This file is managed by Waygates. Manual edits may be overwritten.
+#
+# Structure:
+#   /etc/caddy/Caddyfile     - This file (global config + imports)
+#   /etc/caddy/sites/*.conf  - Individual proxy configurations
+#   /etc/caddy/catchall.conf - 404 catch-all handler
+# =============================================================================
+
+{
+    # Email for ACME certificate notifications
+    email {$CLOUDFLARE_EMAIL:admin@example.com}
+
+    # ACME CA server
+    # Production: https://acme-v02.api.letsencrypt.org/directory (default)
+    # Staging: https://acme-staging-v02.api.letsencrypt.org/directory
+    acme_ca {$ACME_CA_URL:https://acme-v02.api.letsencrypt.org/directory}
+
+    # Use Cloudflare DNS for ACME challenges (required for wildcard certs)
+    acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+
+    # Admin API on localhost for internal reload operations (not exposed)
+    admin localhost:2019
+}
+
+# Import all enabled proxy configurations
+# Files are named: {id}_{name}.conf
+# Disabled proxies have .disabled suffix and are not imported
+import sites/*.conf
+
+# Import catch-all 404 handler (must be last)
+import catchall.conf

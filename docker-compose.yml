@@ -1,3 +1,18 @@
+# =============================================================================
+# Waygates Docker Compose Configuration
+# =============================================================================
+# This runs Waygates with a combined Backend+Caddy container and PostgreSQL.
+#
+# Services:
+#   - waygates: Combined backend API + Caddy reverse proxy
+#   - postgres: PostgreSQL database
+#
+# Ports:
+#   - 80:   HTTP (redirects to HTTPS)
+#   - 443:  HTTPS (proxy traffic)
+#   - 8080: Backend API + UI
+# =============================================================================
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -15,48 +30,49 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
+  waygates:
     build:
       context: .
-      dockerfile: Dockerfile.backend
-    container_name: waygates-backend
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
-    environment:
-      - UI_ENABLED=true
-      - UI_PATH=/app/ui
-    depends_on:
-      postgres:
-        condition: service_healthy
-      caddy:
-        condition: service_started
-
-  caddy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-    container_name: waygates-caddy
+      dockerfile: Dockerfile
+    container_name: waygates
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
-      - "2019:2019"
+      - "8080:8080"
     env_file:
       - .env
+    environment:
+      # Database - override .env for Docker networking
+      - DB_HOST=postgres
+      - DB_NAME=${DB_NAME:-waygates}
+      # UI settings
+      - UI_ENABLED=true
+      - UI_PATH=/app/ui
+      # Caddy file-based configuration
+      - CADDY_BASE_PATH=/etc/caddy
+      - CADDY_CADDYFILE_PATH=/etc/caddy/Caddyfile
+      - CADDY_BINARY=/usr/bin/caddy
     dns:
       - 1.1.1.1
       - 1.0.0.1
-      - 8.8.8.8
     volumes:
-      - ./conf:/etc/caddy
       - caddy-data:/data
       - caddy-config:/config
+      - caddy-etc:/etc/caddy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   postgres-data:
   caddy-data:
   caddy-config:
+  caddy-etc:

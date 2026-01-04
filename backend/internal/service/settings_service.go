@@ -9,8 +9,9 @@ import (
 
 // SettingsService handles business logic for settings
 type SettingsService struct {
-	repo   *repository.SettingsRepository
-	logger *zap.Logger
+	repo        *repository.SettingsRepository
+	syncService *SyncService
+	logger      *zap.Logger
 }
 
 // NewSettingsService creates a new settings service
@@ -22,6 +23,12 @@ func NewSettingsService(repo *repository.SettingsRepository, logger *zap.Logger)
 		repo:   repo,
 		logger: logger.Named("settings-service"),
 	}
+}
+
+// SetSyncService sets the sync service for updating catchall.conf
+// This is called after construction to avoid circular dependencies
+func (s *SettingsService) SetSyncService(syncService *SyncService) {
+	s.syncService = syncService
 }
 
 // Get retrieves a setting by key
@@ -64,5 +71,19 @@ func (s *SettingsService) SetNotFoundSettings(settings *models.NotFoundSettings)
 	s.logger.Info("Updating 404 settings",
 		zap.String("mode", settings.Mode),
 		zap.String("redirect_url", settings.RedirectURL))
-	return s.repo.SetNotFoundSettings(settings)
+
+	// Update in database
+	if err := s.repo.SetNotFoundSettings(settings); err != nil {
+		return err
+	}
+
+	// Update catchall.conf via sync service
+	if s.syncService != nil {
+		if err := s.syncService.UpdateCatchAll(); err != nil {
+			s.logger.Error("Failed to update catchall.conf", zap.Error(err))
+			return err
+		}
+	}
+
+	return nil
 }

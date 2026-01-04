@@ -1,3 +1,9 @@
+// Package caddy provides Caddy configuration management.
+//
+// DEPRECATED: The Client type in this file uses the Caddy Admin API which is
+// being phased out in favor of file-based configuration management.
+// Use the Reloader and FileManager types instead for new code.
+// The Client is kept for backwards compatibility with the development setup.
 package caddy
 
 import (
