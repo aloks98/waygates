@@ -9,10 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"gorm.io/gorm"
+
 	"github.com/aloks98/goauth/middleware"
 	"github.com/aloks98/goauth/store"
 	"github.com/aloks98/goauth/token"
-	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/utils"
@@ -21,12 +22,12 @@ import (
 
 // MockUserRepository is a mock implementation of UserRepositoryInterface
 type MockUserRepository struct {
-	CreateFunc              func(user *models.User) error
-	GetByEmailFunc          func(email string) (*models.User, error)
+	CreateFunc               func(user *models.User) error
+	GetByEmailFunc           func(email string) (*models.User, error)
 	GetByUsernameOrEmailFunc func(identifier string) (*models.User, error)
-	GetByIDFunc             func(id int) (*models.User, error)
-	CountFunc               func() (int64, error)
-	DeleteFunc              func(id int) error
+	GetByIDFunc              func(id int) (*models.User, error)
+	CountFunc                func() (int64, error)
+	DeleteFunc               func(id int) error
 }
 
 func (m *MockUserRepository) Create(user *models.User) error {

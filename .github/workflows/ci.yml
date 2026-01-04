@@ -52,9 +52,28 @@ jobs:
         with:
           go-version: "1.25"
 
-      - name: Run tests
-        run: go test -v ./...
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build test image for integration tests
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: waygates-test:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run tests with coverage
+        run: go test -v -count=1 -coverprofile=coverage.out -coverpkg=./internal/... ./...
         working-directory: backend
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          file: backend/coverage.out
+          format: golang
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   build:
     runs-on: ubuntu-latest

@@ -571,3 +571,280 @@ func TestFileManager_ClearSites(t *testing.T) {
 		t.Error("All files should be cleared")
 	}
 }
+
+func TestFileManager_WriteIfChanged_NewFile(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "new_file.conf")
+	content := "new content"
+
+	changed, err := fm.WriteIfChanged(path, content)
+	if err != nil {
+		t.Fatalf("WriteIfChanged failed: %v", err)
+	}
+
+	if !changed {
+		t.Error("Expected changed=true for new file")
+	}
+
+	// Verify content was written
+	read, _ := os.ReadFile(path)
+	if string(read) != content {
+		t.Error("Content mismatch")
+	}
+}
+
+func TestFileManager_WriteIfChanged_SameContent(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "test_file.conf")
+	content := "test content"
+
+	// Write initial content
+	_ = os.WriteFile(path, []byte(content), 0644)
+
+	// Write same content
+	changed, err := fm.WriteIfChanged(path, content)
+	if err != nil {
+		t.Fatalf("WriteIfChanged failed: %v", err)
+	}
+
+	if changed {
+		t.Error("Expected changed=false for same content")
+	}
+}
+
+func TestFileManager_WriteIfChanged_DifferentContent(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "test_file.conf")
+	_ = os.WriteFile(path, []byte("original"), 0644)
+
+	// Write different content
+	changed, err := fm.WriteIfChanged(path, "modified")
+	if err != nil {
+		t.Fatalf("WriteIfChanged failed: %v", err)
+	}
+
+	if !changed {
+		t.Error("Expected changed=true for different content")
+	}
+
+	// Verify new content was written
+	read, _ := os.ReadFile(path)
+	if string(read) != "modified" {
+		t.Error("Content should be updated")
+	}
+}
+
+func TestFileManager_WriteIfChanged_IgnoreTimestamps(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "test_file.conf")
+
+	// Original with timestamp
+	original := `# Generated: 2023-01-01 00:00:00
+test content`
+
+	// New with different timestamp but same content
+	newContent := `# Generated: 2023-12-31 23:59:59
+test content`
+
+	_ = os.WriteFile(path, []byte(original), 0644)
+
+	// Should detect as unchanged since only timestamp differs
+	changed, err := fm.WriteIfChanged(path, newContent)
+	if err != nil {
+		t.Fatalf("WriteIfChanged failed: %v", err)
+	}
+
+	if changed {
+		t.Error("Expected changed=false when only timestamp differs")
+	}
+}
+
+func TestFileManager_WriteIfChanged_UpdatedTimestamp(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "test_file.conf")
+
+	original := `# Updated: 2023-01-01 00:00:00
+config line`
+
+	newContent := `# Updated: 2023-12-31 23:59:59
+config line`
+
+	_ = os.WriteFile(path, []byte(original), 0644)
+
+	changed, err := fm.WriteIfChanged(path, newContent)
+	if err != nil {
+		t.Fatalf("WriteIfChanged failed: %v", err)
+	}
+
+	if changed {
+		t.Error("Expected changed=false when only Updated timestamp differs")
+	}
+}
+
+func TestFileManager_WriteCatchAllFile(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	content := "catch-all config"
+	err := fm.WriteCatchAllFile(content)
+	if err != nil {
+		t.Fatalf("WriteCatchAllFile failed: %v", err)
+	}
+
+	read, _ := os.ReadFile(fm.GetCatchAllPath())
+	if string(read) != content {
+		t.Error("Content mismatch")
+	}
+}
+
+func TestFileManager_ReadFile(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	content := "test content"
+	path := filepath.Join(tempDir, "test.txt")
+	_ = os.WriteFile(path, []byte(content), 0644)
+
+	read, err := fm.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	if read != content {
+		t.Errorf("Expected '%s', got '%s'", content, read)
+	}
+}
+
+func TestFileManager_ReadFile_NotFound(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+
+	_, err := fm.ReadFile(filepath.Join(tempDir, "nonexistent.txt"))
+	if err == nil {
+		t.Error("ReadFile should fail for nonexistent file")
+	}
+}
+
+func TestFileManager_FileExists(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	path := filepath.Join(tempDir, "test.txt")
+
+	if fm.FileExists(path) {
+		t.Error("FileExists should return false for nonexistent file")
+	}
+
+	_ = os.WriteFile(path, []byte("test"), 0644)
+
+	if !fm.FileExists(path) {
+		t.Error("FileExists should return true for existing file")
+	}
+}
+
+func TestFileManager_GetProxyFilePath(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+
+	filename := "1_api.conf"
+	expected := filepath.Join(tempDir, "sites", filename)
+	result := fm.GetProxyFilePath(filename)
+
+	if result != expected {
+		t.Errorf("Expected '%s', got '%s'", expected, result)
+	}
+}
+
+func TestFileManager_ListProxyFiles_NonexistentDir(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	// Don't call EnsureDirectories - sites dir doesn't exist
+
+	enabled, disabled, err := fm.ListProxyFiles()
+	if err != nil {
+		t.Fatalf("ListProxyFiles should not error for nonexistent dir: %v", err)
+	}
+
+	if enabled != nil || disabled != nil {
+		t.Error("Expected nil slices for nonexistent directory")
+	}
+}
+
+func TestFileManager_ClearSites_NonexistentDir(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	// Don't call EnsureDirectories
+
+	err := fm.ClearSites()
+	if err != nil {
+		t.Errorf("ClearSites should not error for nonexistent dir: %v", err)
+	}
+}
+
+func TestFileManager_GetLatestBackup_NonexistentDir(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	// Don't call EnsureDirectories
+
+	_, err := fm.GetLatestBackup()
+	if err == nil {
+		t.Error("GetLatestBackup should fail for nonexistent backup dir")
+	}
+}
+
+func TestFileManager_CleanOldBackups_NonexistentDir(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	// Don't call EnsureDirectories
+
+	err := fm.CleanOldBackups(24 * time.Hour)
+	if err != nil {
+		t.Errorf("CleanOldBackups should not error for nonexistent dir: %v", err)
+	}
+}

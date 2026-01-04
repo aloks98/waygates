@@ -10,6 +10,7 @@ import (
 
 func resetViper() {
 	viper.Reset()
+	viper.AutomaticEnv() // Re-enable reading from environment variables
 }
 
 // setEnv is a test helper that sets an environment variable
@@ -418,4 +419,340 @@ func TestLoad_CustomValues(t *testing.T) {
 	if cfg.UI.Path != "/app/ui" {
 		t.Errorf("Expected UI_PATH '/app/ui', got %s", cfg.UI.Path)
 	}
+}
+
+// =============================================================================
+// validateACMEProvider Tests
+// =============================================================================
+
+func TestValidateACMEProvider_InvalidProvider(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	err := validateACMEProvider("invalid_provider")
+	if err == nil {
+		t.Error("Expected error for invalid provider")
+	}
+
+	// Check error message contains expected text
+	if err != nil && !containsAll(err.Error(), []string{"invalid", "CADDY_ACME_PROVIDER", "invalid_provider"}) {
+		t.Errorf("Error message should indicate invalid provider: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_ValidProvidersNoEnvVars(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// HTTP and OFF providers don't require any env vars
+	providersNoEnv := []string{"http", "off"}
+
+	for _, provider := range providersNoEnv {
+		t.Run(provider, func(t *testing.T) {
+			err := validateACMEProvider(provider)
+			if err != nil {
+				t.Errorf("Expected no error for provider %s, got: %v", provider, err)
+			}
+		})
+	}
+}
+
+func TestValidateACMEProvider_CloudflareMissingToken(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Don't set CLOUDFLARE_API_TOKEN
+	err := validateACMEProvider("cloudflare")
+	if err == nil {
+		t.Error("Expected error when CLOUDFLARE_API_TOKEN is missing")
+	}
+	if err != nil && !containsAll(err.Error(), []string{"cloudflare", "CLOUDFLARE_API_TOKEN"}) {
+		t.Errorf("Error should mention cloudflare and required env var: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_CloudflareWithToken(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	setEnv(t, "CLOUDFLARE_API_TOKEN", "test-token")
+	defer unsetEnv(t, "CLOUDFLARE_API_TOKEN")
+
+	err := validateACMEProvider("cloudflare")
+	if err != nil {
+		t.Errorf("Expected no error when CLOUDFLARE_API_TOKEN is set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Route53MissingCredentials(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing both AWS credentials
+	err := validateACMEProvider("route53")
+	if err == nil {
+		t.Error("Expected error when AWS credentials are missing")
+	}
+
+	// Set only one credential
+	setEnv(t, "AWS_ACCESS_KEY_ID", "test-key")
+	defer unsetEnv(t, "AWS_ACCESS_KEY_ID")
+
+	err = validateACMEProvider("route53")
+	if err == nil {
+		t.Error("Expected error when AWS_SECRET_ACCESS_KEY is missing")
+	}
+}
+
+func TestValidateACMEProvider_Route53WithCredentials(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	setEnv(t, "AWS_ACCESS_KEY_ID", "test-key")
+	setEnv(t, "AWS_SECRET_ACCESS_KEY", "test-secret")
+	defer func() {
+		unsetEnv(t, "AWS_ACCESS_KEY_ID")
+		unsetEnv(t, "AWS_SECRET_ACCESS_KEY")
+	}()
+
+	err := validateACMEProvider("route53")
+	if err != nil {
+		t.Errorf("Expected no error when AWS credentials are set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_DuckDNS(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing token
+	err := validateACMEProvider("duckdns")
+	if err == nil {
+		t.Error("Expected error when DUCKDNS_API_TOKEN is missing")
+	}
+
+	// With token
+	setEnv(t, "DUCKDNS_API_TOKEN", "test-token")
+	defer unsetEnv(t, "DUCKDNS_API_TOKEN")
+
+	err = validateACMEProvider("duckdns")
+	if err != nil {
+		t.Errorf("Expected no error when DUCKDNS_API_TOKEN is set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_DigitalOcean(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing token
+	err := validateACMEProvider("digitalocean")
+	if err == nil {
+		t.Error("Expected error when DO_AUTH_TOKEN is missing")
+	}
+
+	// With token
+	setEnv(t, "DO_AUTH_TOKEN", "test-token")
+	defer unsetEnv(t, "DO_AUTH_TOKEN")
+
+	err = validateACMEProvider("digitalocean")
+	if err != nil {
+		t.Errorf("Expected no error when DO_AUTH_TOKEN is set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Hetzner(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing token
+	err := validateACMEProvider("hetzner")
+	if err == nil {
+		t.Error("Expected error when HETZNER_API_TOKEN is missing")
+	}
+
+	// With token
+	setEnv(t, "HETZNER_API_TOKEN", "test-token")
+	defer unsetEnv(t, "HETZNER_API_TOKEN")
+
+	err = validateACMEProvider("hetzner")
+	if err != nil {
+		t.Errorf("Expected no error when HETZNER_API_TOKEN is set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Porkbun(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing credentials
+	err := validateACMEProvider("porkbun")
+	if err == nil {
+		t.Error("Expected error when porkbun credentials are missing")
+	}
+
+	// Set only API key
+	setEnv(t, "PORKBUN_API_KEY", "test-key")
+	defer unsetEnv(t, "PORKBUN_API_KEY")
+
+	err = validateACMEProvider("porkbun")
+	if err == nil {
+		t.Error("Expected error when PORKBUN_API_SECRET_KEY is missing")
+	}
+
+	// Set both
+	setEnv(t, "PORKBUN_API_SECRET_KEY", "test-secret")
+	defer unsetEnv(t, "PORKBUN_API_SECRET_KEY")
+
+	err = validateACMEProvider("porkbun")
+	if err != nil {
+		t.Errorf("Expected no error when porkbun credentials are set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Azure(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing all Azure credentials
+	err := validateACMEProvider("azure")
+	if err == nil {
+		t.Error("Expected error when Azure credentials are missing")
+	}
+
+	// Set all required Azure credentials
+	azureVars := []string{
+		"AZURE_TENANT_ID",
+		"AZURE_CLIENT_ID",
+		"AZURE_CLIENT_SECRET",
+		"AZURE_SUBSCRIPTION_ID",
+		"AZURE_RESOURCE_GROUP",
+	}
+	for _, v := range azureVars {
+		setEnv(t, v, "test-value")
+	}
+	defer func() {
+		for _, v := range azureVars {
+			unsetEnv(t, v)
+		}
+	}()
+
+	err = validateACMEProvider("azure")
+	if err != nil {
+		t.Errorf("Expected no error when Azure credentials are set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Vultr(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing token
+	err := validateACMEProvider("vultr")
+	if err == nil {
+		t.Error("Expected error when VULTR_API_KEY is missing")
+	}
+
+	// With token
+	setEnv(t, "VULTR_API_KEY", "test-key")
+	defer unsetEnv(t, "VULTR_API_KEY")
+
+	err = validateACMEProvider("vultr")
+	if err != nil {
+		t.Errorf("Expected no error when VULTR_API_KEY is set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_Namecheap(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing credentials
+	err := validateACMEProvider("namecheap")
+	if err == nil {
+		t.Error("Expected error when Namecheap credentials are missing")
+	}
+
+	// Set both
+	setEnv(t, "NAMECHEAP_API_USER", "test-user")
+	setEnv(t, "NAMECHEAP_API_KEY", "test-key")
+	defer func() {
+		unsetEnv(t, "NAMECHEAP_API_USER")
+		unsetEnv(t, "NAMECHEAP_API_KEY")
+	}()
+
+	err = validateACMEProvider("namecheap")
+	if err != nil {
+		t.Errorf("Expected no error when Namecheap credentials are set, got: %v", err)
+	}
+}
+
+func TestValidateACMEProvider_OVH(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	// Missing credentials
+	err := validateACMEProvider("ovh")
+	if err == nil {
+		t.Error("Expected error when OVH credentials are missing")
+	}
+
+	// Set all required OVH credentials
+	ovhVars := []string{
+		"OVH_ENDPOINT",
+		"OVH_APPLICATION_KEY",
+		"OVH_APPLICATION_SECRET",
+		"OVH_CONSUMER_KEY",
+	}
+	for _, v := range ovhVars {
+		setEnv(t, v, "test-value")
+	}
+	defer func() {
+		for _, v := range ovhVars {
+			unsetEnv(t, v)
+		}
+	}()
+
+	err = validateACMEProvider("ovh")
+	if err != nil {
+		t.Errorf("Expected no error when OVH credentials are set, got: %v", err)
+	}
+}
+
+func TestACMEProviderEnvVars_AllProvidersHaveEntries(t *testing.T) {
+	// Verify the map contains expected providers
+	expectedProviders := []string{
+		"cloudflare", "route53", "duckdns", "digitalocean",
+		"hetzner", "porkbun", "azure", "vultr", "namecheap", "ovh",
+		"http", "off",
+	}
+
+	for _, provider := range expectedProviders {
+		if _, ok := ACMEProviderEnvVars[provider]; !ok {
+			t.Errorf("Expected provider %s to be in ACMEProviderEnvVars map", provider)
+		}
+	}
+}
+
+func TestMinJWTSecretLength_Constant(t *testing.T) {
+	if MinJWTSecretLength != 32 {
+		t.Errorf("Expected MinJWTSecretLength to be 32, got %d", MinJWTSecretLength)
+	}
+}
+
+// Helper function to check if string contains all substrings
+func containsAll(s string, substrings []string) bool {
+	for _, sub := range substrings {
+		found := false
+		for i := 0; i <= len(s)-len(sub); i++ {
+			if s[i:i+len(sub)] == sub {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }

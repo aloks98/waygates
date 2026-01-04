@@ -363,3 +363,94 @@ func TestValidateProxyRequest_NameMaxLength(t *testing.T) {
 		}
 	}
 }
+
+func TestGetErrorMessage_AllTags(t *testing.T) {
+	t.Run("max tag", func(t *testing.T) {
+		// Username too long (max 50)
+		longUsername := ""
+		for i := 0; i < 55; i++ {
+			longUsername += "a"
+		}
+		req := RegisterRequest{
+			Name:     "Test",
+			Username: longUsername,
+			Email:    "test@test.com",
+			Password: "password123",
+		}
+		err := ValidateStruct(&req)
+		if err == nil {
+			t.Fatal("Expected error for max length")
+		}
+		var ve *ValidationError
+		if errors.As(err, &ve) {
+			if ve.Field != "username" {
+				t.Errorf("Expected field 'username', got '%s'", ve.Field)
+			}
+		} else {
+			t.Errorf("Expected ValidationError, got %T", err)
+		}
+	})
+}
+
+func TestUsernameRegex(t *testing.T) {
+	testCases := []struct {
+		input string
+		valid bool
+	}{
+		{"abc123", true},
+		{"ABC123", true},
+		{"test_user", true},
+		{"test-user", true},
+		{"a", true},
+		{"123", true},
+		{"test user", false},
+		{"test.user", false},
+		{"test@user", false},
+		{"", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.input, func(t *testing.T) {
+			result := usernameRegex.MatchString(tc.input)
+			if result != tc.valid {
+				t.Errorf("usernameRegex.MatchString('%s'): expected %v, got %v", tc.input, tc.valid, result)
+			}
+		})
+	}
+}
+
+func TestValidateStruct_ValidInput(t *testing.T) {
+	req := ProxyRequest{
+		Name:     "Test Proxy",
+		Hostname: "test.example.com",
+		Type:     "static",
+	}
+	err := ValidateStruct(&req)
+	if err != nil {
+		t.Errorf("Expected no error for valid input, got: %v", err)
+	}
+}
+
+func TestValidateHostname_SingleLabel(t *testing.T) {
+	req := ProxyRequest{
+		Name:     "Test",
+		Hostname: "localhost",
+		Type:     "reverse_proxy",
+	}
+	err := ValidateStruct(&req)
+	if err != nil {
+		t.Errorf("Expected valid for single label hostname, got: %v", err)
+	}
+}
+
+func TestValidateHostname_DeepSubdomain(t *testing.T) {
+	req := ProxyRequest{
+		Name:     "Test",
+		Hostname: "api.v1.staging.example.com",
+		Type:     "reverse_proxy",
+	}
+	err := ValidateStruct(&req)
+	if err != nil {
+		t.Errorf("Expected valid for deep subdomain, got: %v", err)
+	}
+}

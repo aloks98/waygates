@@ -155,3 +155,121 @@ func TestAdapter_ImplementsInterfaces(t *testing.T) {
 	var _ middleware.PermissionChecker = (*Adapter)(nil)
 	var _ middleware.APIKeyValidator = (*Adapter)(nil)
 }
+
+func TestGetUserIDAsUint_InvalidFormat(t *testing.T) {
+	// Use goauth middleware's context setter to set a non-numeric user ID
+	ctx := middleware.SetUserID(context.Background(), "not-a-number")
+
+	_, err := GetUserIDAsUint(ctx)
+	if err == nil {
+		t.Error("Expected error for invalid user ID format, got nil")
+	}
+	if err != nil && !containsSubstring(err.Error(), "invalid user ID format") {
+		t.Errorf("Expected error message about invalid format, got: %s", err.Error())
+	}
+}
+
+func TestGetUserIDAsUint_ValidUserID(t *testing.T) {
+	ctx := middleware.SetUserID(context.Background(), "12345")
+
+	userID, err := GetUserIDAsUint(ctx)
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+	if userID != 12345 {
+		t.Errorf("Expected userID 12345, got %d", userID)
+	}
+}
+
+func TestGetUserIDFromContext_WithValue(t *testing.T) {
+	ctx := middleware.SetUserID(context.Background(), "789")
+
+	result := GetUserIDFromContext(ctx)
+	if result != "789" {
+		t.Errorf("Expected '789', got '%s'", result)
+	}
+}
+
+func TestErrorHandler_OtherError(t *testing.T) {
+	handler := ErrorHandler()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	// Use a generic error that doesn't map to a specific status
+	handler(w, r, middleware.ErrMissingToken)
+
+	// Should default to unauthorized
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestErrorHandler_RBACNotConfigured(t *testing.T) {
+	handler := ErrorHandler()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	handler(w, r, middleware.ErrRBACNotConfigured)
+
+	// Should default to unauthorized (as it falls through to default)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestAuth_Adapter(t *testing.T) {
+	auth := &Auth{
+		adapter: &Adapter{},
+	}
+
+	adapter := auth.Adapter()
+	if adapter == nil {
+		t.Error("Expected adapter to not be nil")
+	}
+}
+
+func TestExtractUserID_EmptyClaims(t *testing.T) {
+	adapter := &Adapter{}
+
+	// CustomClaims with empty UserID
+	claims := &CustomClaims{}
+	result := adapter.ExtractUserID(claims)
+	if result != "" {
+		t.Errorf("Expected empty string for empty UserID, got '%s'", result)
+	}
+}
+
+func TestExtractPermissions_NilClaims(t *testing.T) {
+	adapter := &Adapter{}
+
+	result := adapter.ExtractPermissions(nil)
+	if result != nil {
+		t.Errorf("Expected nil, got %v", result)
+	}
+}
+
+func TestExtractPermissions_WrongType(t *testing.T) {
+	adapter := &Adapter{}
+
+	result := adapter.ExtractPermissions("not claims")
+	if result != nil {
+		t.Errorf("Expected nil, got %v", result)
+	}
+}
+
+// Helper function to check if string contains substring
+func containsSubstring(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

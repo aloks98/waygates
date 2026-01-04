@@ -276,7 +276,7 @@ func TestStatusHandler_GetStatus_SuccessMessage(t *testing.T) {
 func TestStatusHandler_GetStatus_CaddyTimeout(t *testing.T) {
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
-			// Simulate context being cancelled/timeout
+			// Simulate context being canceled/timeout
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

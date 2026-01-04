@@ -38,7 +38,7 @@ type SettingsRepositoryInterface interface {
 
 // Ensure repositories implement interfaces
 var (
-	_ ProxyRepositoryInterface     = (*ProxyRepository)(nil)
-	_ UserRepositoryInterface      = (*UserRepository)(nil)
-	_ SettingsRepositoryInterface  = (*SettingsRepository)(nil)
+	_ ProxyRepositoryInterface    = (*ProxyRepository)(nil)
+	_ UserRepositoryInterface     = (*UserRepository)(nil)
+	_ SettingsRepositoryInterface = (*SettingsRepository)(nil)
 )

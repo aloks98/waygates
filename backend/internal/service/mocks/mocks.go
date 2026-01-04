@@ -184,12 +184,12 @@ func (m *MockSyncService) FullSync() error {
 
 // MockUserRepository is a mock implementation of UserRepositoryInterface
 type MockUserRepository struct {
-	CreateFunc              func(user *models.User) error
-	GetByEmailFunc          func(email string) (*models.User, error)
+	CreateFunc               func(user *models.User) error
+	GetByEmailFunc           func(email string) (*models.User, error)
 	GetByUsernameOrEmailFunc func(identifier string) (*models.User, error)
-	GetByIDFunc             func(id int) (*models.User, error)
-	CountFunc               func() (int64, error)
-	DeleteFunc              func(id int) error
+	GetByIDFunc              func(id int) (*models.User, error)
+	CountFunc                func() (int64, error)
+	DeleteFunc               func(id int) error
 }
 
 // Create implements UserRepositoryInterface.

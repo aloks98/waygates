@@ -8,8 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aloks98/goauth/middleware"
 	"github.com/go-chi/chi/v5"
+
+	"github.com/aloks98/goauth/middleware"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -32,7 +33,6 @@ func requestWithUserID(method, url string, body []byte, userID string) *http.Req
 	}
 	return req
 }
-
 
 // =============================================================================
 // NewProxyHandler Tests

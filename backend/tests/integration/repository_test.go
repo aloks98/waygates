@@ -497,6 +497,380 @@ func TestSettingsRepository(t *testing.T) {
 	})
 }
 
+// TestUserRepository tests user repository
+func TestUserRepository(t *testing.T) {
+	tc := SetupPostgresContainer(t)
+	defer tc.Cleanup(t)
+
+	repo := repository.NewUserRepository(tc.DB)
+
+	t.Run("Create", func(t *testing.T) {
+		user := &models.User{
+			Name:         "Test User",
+			Username:     "testuser",
+			Email:        "test@example.com",
+			PasswordHash: "$2a$10$fakehashfortest",
+		}
+
+		err := repo.Create(user)
+		if err != nil {
+			t.Fatalf("Failed to create user: %v", err)
+		}
+
+		if user.ID == 0 {
+			t.Error("Expected user ID to be set after create")
+		}
+	})
+
+	t.Run("GetByID", func(t *testing.T) {
+		user := &models.User{
+			Name:         "GetByID User",
+			Username:     "getbyid",
+			Email:        "getbyid@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		fetched, err := repo.GetByID(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to get user: %v", err)
+		}
+
+		if fetched.Name != "GetByID User" {
+			t.Errorf("Expected name 'GetByID User', got '%s'", fetched.Name)
+		}
+		if fetched.Username != "getbyid" {
+			t.Errorf("Expected username 'getbyid', got '%s'", fetched.Username)
+		}
+	})
+
+	t.Run("GetByID_NotFound", func(t *testing.T) {
+		_, err := repo.GetByID(999999)
+		if err == nil {
+			t.Error("Expected error for non-existent user")
+		}
+	})
+
+	t.Run("GetByEmail", func(t *testing.T) {
+		user := &models.User{
+			Name:         "Email User",
+			Username:     "emailuser",
+			Email:        "email@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		fetched, err := repo.GetByEmail("email@example.com")
+		if err != nil {
+			t.Fatalf("Failed to get user by email: %v", err)
+		}
+
+		if fetched.Email != "email@example.com" {
+			t.Errorf("Expected email 'email@example.com', got '%s'", fetched.Email)
+		}
+	})
+
+	t.Run("GetByUsernameOrEmail_ByUsername", func(t *testing.T) {
+		user := &models.User{
+			Name:         "Username User",
+			Username:     "usernameonly",
+			Email:        "usernameonly@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		fetched, err := repo.GetByUsernameOrEmail("usernameonly")
+		if err != nil {
+			t.Fatalf("Failed to get user by username: %v", err)
+		}
+
+		if fetched.Username != "usernameonly" {
+			t.Errorf("Expected username 'usernameonly', got '%s'", fetched.Username)
+		}
+	})
+
+	t.Run("GetByUsernameOrEmail_ByEmail", func(t *testing.T) {
+		user := &models.User{
+			Name:         "Email Only User",
+			Username:     "emailonly",
+			Email:        "onlyemail@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		fetched, err := repo.GetByUsernameOrEmail("onlyemail@example.com")
+		if err != nil {
+			t.Fatalf("Failed to get user by email: %v", err)
+		}
+
+		if fetched.Email != "onlyemail@example.com" {
+			t.Errorf("Expected email 'onlyemail@example.com', got '%s'", fetched.Email)
+		}
+	})
+
+	t.Run("GetByUsernameOrEmail_NotFound", func(t *testing.T) {
+		_, err := repo.GetByUsernameOrEmail("nonexistent")
+		if err == nil {
+			t.Error("Expected error for non-existent user")
+		}
+	})
+
+	t.Run("Count", func(t *testing.T) {
+		// Get initial count
+		initialCount, err := repo.Count()
+		if err != nil {
+			t.Fatalf("Failed to count users: %v", err)
+		}
+
+		// Create a new user
+		user := &models.User{
+			Name:         "Count User",
+			Username:     "countuser",
+			Email:        "count@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		// Count should have increased
+		newCount, err := repo.Count()
+		if err != nil {
+			t.Fatalf("Failed to count users: %v", err)
+		}
+
+		if newCount != initialCount+1 {
+			t.Errorf("Expected count %d, got %d", initialCount+1, newCount)
+		}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		user := &models.User{
+			Name:         "Delete User",
+			Username:     "deleteuser",
+			Email:        "delete@example.com",
+			PasswordHash: "$2a$10$fakehash",
+		}
+		_ = repo.Create(user)
+
+		err := repo.Delete(user.ID)
+		if err != nil {
+			t.Fatalf("Failed to delete user: %v", err)
+		}
+
+		_, err = repo.GetByID(user.ID)
+		if err == nil {
+			t.Error("Expected error when getting deleted user")
+		}
+	})
+}
+
+// TestProxyRepository_Sorting tests proxy list sorting
+func TestProxyRepository_Sorting(t *testing.T) {
+	tc := SetupPostgresContainer(t)
+	defer tc.Cleanup(t)
+
+	userID := createTestUser(t, tc.DB)
+	repo := repository.NewProxyRepository(tc.DB)
+
+	// Create test proxies with different names
+	proxies := []*models.Proxy{
+		{Type: models.ProxyTypeReverseProxy, Name: "Zebra Service", Hostname: "zebra.example.com", CreatedBy: userID},
+		{Type: models.ProxyTypeReverseProxy, Name: "Alpha Service", Hostname: "alpha.example.com", CreatedBy: userID},
+		{Type: models.ProxyTypeReverseProxy, Name: "Middle Service", Hostname: "middle.example.com", CreatedBy: userID},
+	}
+
+	for _, p := range proxies {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("Failed to create proxy: %v", err)
+		}
+	}
+
+	t.Run("SortByNameASC", func(t *testing.T) {
+		result, _, err := repo.List(repository.ProxyListParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "name",
+			Order: "asc",
+		})
+		if err != nil {
+			t.Fatalf("Failed to list: %v", err)
+		}
+
+		if len(result) < 3 {
+			t.Fatalf("Expected at least 3 proxies, got %d", len(result))
+		}
+		if result[0].Name != "Alpha Service" {
+			t.Errorf("Expected first 'Alpha Service', got '%s'", result[0].Name)
+		}
+	})
+
+	t.Run("SortByNameDESC", func(t *testing.T) {
+		result, _, err := repo.List(repository.ProxyListParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "name",
+			Order: "desc",
+		})
+		if err != nil {
+			t.Fatalf("Failed to list: %v", err)
+		}
+
+		if len(result) < 3 {
+			t.Fatalf("Expected at least 3 proxies, got %d", len(result))
+		}
+		if result[0].Name != "Zebra Service" {
+			t.Errorf("Expected first 'Zebra Service', got '%s'", result[0].Name)
+		}
+	})
+
+	t.Run("SortByHostname", func(t *testing.T) {
+		result, _, err := repo.List(repository.ProxyListParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "hostname",
+			Order: "asc",
+		})
+		if err != nil {
+			t.Fatalf("Failed to list: %v", err)
+		}
+
+		if len(result) < 3 {
+			t.Fatalf("Expected at least 3 proxies, got %d", len(result))
+		}
+		if result[0].Hostname != "alpha.example.com" {
+			t.Errorf("Expected first 'alpha.example.com', got '%s'", result[0].Hostname)
+		}
+	})
+
+	t.Run("InvalidSortField_UsesDefault", func(t *testing.T) {
+		// Should use default sort (created_at DESC) when invalid field provided
+		result, _, err := repo.List(repository.ProxyListParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "invalid_field",
+			Order: "asc",
+		})
+		if err != nil {
+			t.Fatalf("Failed to list: %v", err)
+		}
+
+		// Just verify it doesn't error - default sort is created_at DESC
+		if len(result) < 3 {
+			t.Fatalf("Expected at least 3 proxies, got %d", len(result))
+		}
+	})
+
+	t.Run("InvalidSortOrder_UsesDefault", func(t *testing.T) {
+		// Should use default order (DESC) when invalid order provided
+		result, _, err := repo.List(repository.ProxyListParams{
+			Page:  1,
+			Limit: 10,
+			Sort:  "name",
+			Order: "INVALID",
+		})
+		if err != nil {
+			t.Fatalf("Failed to list: %v", err)
+		}
+
+		// Just verify it doesn't error
+		if len(result) < 3 {
+			t.Fatalf("Expected at least 3 proxies, got %d", len(result))
+		}
+	})
+}
+
+// TestProxyRepository_GetByHostname tests getting proxy by hostname
+func TestProxyRepository_GetByHostname(t *testing.T) {
+	tc := SetupPostgresContainer(t)
+	defer tc.Cleanup(t)
+
+	userID := createTestUser(t, tc.DB)
+	repo := repository.NewProxyRepository(tc.DB)
+
+	// Create a test proxy
+	proxy := &models.Proxy{
+		Type:      models.ProxyTypeReverseProxy,
+		Name:      "Hostname Test",
+		Hostname:  "hostname-test.example.com",
+		CreatedBy: userID,
+	}
+	if err := repo.Create(proxy); err != nil {
+		t.Fatalf("Failed to create proxy: %v", err)
+	}
+
+	t.Run("Found", func(t *testing.T) {
+		fetched, err := repo.GetByHostname("hostname-test.example.com")
+		if err != nil {
+			t.Fatalf("Failed to get by hostname: %v", err)
+		}
+
+		if fetched.ID != proxy.ID {
+			t.Errorf("Expected ID %d, got %d", proxy.ID, fetched.ID)
+		}
+		if fetched.Name != "Hostname Test" {
+			t.Errorf("Expected name 'Hostname Test', got '%s'", fetched.Name)
+		}
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		_, err := repo.GetByHostname("nonexistent.example.com")
+		if err == nil {
+			t.Error("Expected error for non-existent hostname")
+		}
+	})
+}
+
+// TestProxyRepository_Stats tests statistics with various proxy states
+func TestProxyRepository_Stats(t *testing.T) {
+	tc := SetupPostgresContainer(t)
+	defer tc.Cleanup(t)
+
+	userID := createTestUser(t, tc.DB)
+	repo := repository.NewProxyRepository(tc.DB)
+
+	// Create proxies of different types and states
+	proxies := []*models.Proxy{
+		{Type: models.ProxyTypeReverseProxy, Name: "Active RP 1", Hostname: "active-rp-1.example.com", CreatedBy: userID, IsActive: true},
+		{Type: models.ProxyTypeReverseProxy, Name: "Active RP 2", Hostname: "active-rp-2.example.com", CreatedBy: userID, IsActive: true},
+		{Type: models.ProxyTypeRedirect, Name: "Active Redirect", Hostname: "active-redirect.example.com", CreatedBy: userID, IsActive: true, RedirectConfig: models.JSONField{"target": "https://target.com"}},
+		{Type: models.ProxyTypeStatic, Name: "Inactive Static", Hostname: "inactive-static.example.com", CreatedBy: userID, IsActive: false, StaticConfig: models.JSONField{"root_path": "/var/www"}},
+	}
+
+	for _, p := range proxies {
+		if err := repo.Create(p); err != nil {
+			t.Fatalf("Failed to create proxy: %v", err)
+		}
+	}
+
+	// Need to explicitly set IsActive=false for the last one as GORM may default it
+	if err := repo.UpdateStatus(proxies[3].ID, false); err != nil {
+		t.Fatalf("Failed to set inactive: %v", err)
+	}
+
+	stats, err := repo.GetStats()
+	if err != nil {
+		t.Fatalf("Failed to get stats: %v", err)
+	}
+
+	if stats.Total != 4 {
+		t.Errorf("Expected total 4, got %d", stats.Total)
+	}
+	if stats.Active != 3 {
+		t.Errorf("Expected active 3, got %d", stats.Active)
+	}
+	if stats.Inactive != 1 {
+		t.Errorf("Expected inactive 1, got %d", stats.Inactive)
+	}
+	if stats.ByType[models.ProxyTypeReverseProxy] != 2 {
+		t.Errorf("Expected 2 reverse_proxy, got %d", stats.ByType[models.ProxyTypeReverseProxy])
+	}
+	if stats.ByType[models.ProxyTypeRedirect] != 1 {
+		t.Errorf("Expected 1 redirect, got %d", stats.ByType[models.ProxyTypeRedirect])
+	}
+	if stats.ByType[models.ProxyTypeStatic] != 1 {
+		t.Errorf("Expected 1 static, got %d", stats.ByType[models.ProxyTypeStatic])
+	}
+}
+
 // TestProxyService_Integration tests proxy service with real database
 func TestProxyService_Integration(t *testing.T) {
 	tc := SetupPostgresContainer(t)
