@@ -16,7 +16,7 @@ import {
 } from '@e412/titanium';
 import type { PaginationState } from '@tanstack/react-table';
 import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
@@ -31,6 +31,25 @@ export function ProxiesPage() {
   });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search input
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+      // Reset to first page on search
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [search]);
 
   const {
     proxies,
@@ -78,17 +97,6 @@ export function ProxiesPage() {
     setDeletingProxy(null);
   };
 
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    // Debounce search
-    const timeoutId = setTimeout(() => {
-      setDebouncedSearch(value);
-      // Reset to first page on search
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -123,7 +131,7 @@ export function ProxiesPage() {
       <div>
         <Input
           value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           placeholder="Search proxies..."
           className="max-w-sm"
         />

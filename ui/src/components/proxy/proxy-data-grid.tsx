@@ -1,4 +1,5 @@
 import {
+  Badge,
   DataGrid,
   DataGridColumnHeader,
   DataGridContainer,
@@ -14,6 +15,7 @@ import {
   type PaginationState,
   useReactTable,
 } from '@tanstack/react-table';
+import { ExternalLink } from 'lucide-react';
 import { useMemo } from 'react';
 import type { ProxyConfig } from '@/types/proxy';
 import {
@@ -67,8 +69,28 @@ export function ProxyDataGrid({
       {
         accessorKey: 'hostname',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Hostname" />,
+        cell: ({ row }) => {
+          const hostname = row.getValue('hostname') as string;
+          const url = `https://${hostname}`;
+          return (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 group"
+            >
+              <Badge
+                variant="secondary"
+                className="font-mono text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+              >
+                {hostname}
+                <ExternalLink className="ml-1 size-3 opacity-50 group-hover:opacity-100" />
+              </Badge>
+            </a>
+          );
+        },
         meta: {
-          skeleton: <Skeleton className="h-5 w-40" />,
+          skeleton: <Skeleton className="h-6 w-40 rounded-full" />,
         },
       },
       {

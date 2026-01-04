@@ -254,6 +254,65 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, nil, "Logged out successfully")
 }
 
+// ChangePasswordRequest is the request body for changing password
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// ChangePassword handles password change for authenticated users
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, err := auth.GetUserIDAsUint(ctx)
+	if err != nil {
+		utils.Unauthorized(w, "Not authenticated")
+		return
+	}
+
+	var req ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body", nil)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		utils.BadRequest(w, "Current password and new password are required", nil)
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		utils.BadRequest(w, "New password must be at least 8 characters", nil)
+		return
+	}
+
+	// Get the current user
+	user, err := h.userRepo.GetByID(int(userID))
+	if err != nil {
+		utils.NotFound(w, "User not found")
+		return
+	}
+
+	// Verify current password
+	if !user.CheckPassword(req.CurrentPassword) {
+		utils.Unauthorized(w, "Current password is incorrect")
+		return
+	}
+
+	// Set new password
+	if err := user.SetPassword(req.NewPassword, h.bcryptCost); err != nil {
+		utils.InternalError(w, "Failed to process new password")
+		return
+	}
+
+	// Update user in database - we need to update the password hash
+	if err := h.userRepo.UpdatePassword(int(userID), user.PasswordHash); err != nil {
+		utils.InternalError(w, "Failed to update password")
+		return
+	}
+
+	utils.Success(w, nil, "Password changed successfully")
+}
+
 // GetMe returns the current user's information
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

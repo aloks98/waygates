@@ -23,6 +23,7 @@ type UserRepositoryInterface interface {
 	GetByID(id int) (*models.User, error)
 	Count() (int64, error)
 	Delete(id int) error
+	UpdatePassword(id int, passwordHash string) error
 }
 
 // SettingsRepositoryInterface defines the interface for settings database operations

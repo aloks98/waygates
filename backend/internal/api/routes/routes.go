@@ -139,6 +139,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		// Auth routes (require authentication)
 		r.Post("/api/auth/logout", authHandler.Logout)
 		r.Get("/api/auth/me", authHandler.GetMe)
+		r.Post("/api/auth/change-password", authHandler.ChangePassword)
 
 		// Proxy routes with permission checks
 		r.Route("/api/proxies", func(r chi.Router) {

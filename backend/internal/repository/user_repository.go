@@ -57,3 +57,8 @@ func (r *UserRepository) Count() (int64, error) {
 func (r *UserRepository) Delete(id int) error {
 	return r.db.Delete(&models.User{}, id).Error
 }
+
+// UpdatePassword updates a user's password hash
+func (r *UserRepository) UpdatePassword(id int, passwordHash string) error {
+	return r.db.Model(&models.User{}).Where("id = ?", id).Update("password_hash", passwordHash).Error
+}

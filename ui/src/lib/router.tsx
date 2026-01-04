@@ -3,6 +3,7 @@ import { RootLayout } from '@/routes/__root';
 import { DashboardIndex } from '@/routes/_dashboard';
 import { ProxiesPage } from '@/routes/_dashboard/proxies';
 import { DashboardLayout } from '@/routes/_dashboard/route';
+import { SettingsPage } from '@/routes/_dashboard/settings';
 import { LoginPage } from '@/routes/login';
 import { SignupPage } from '@/routes/signup';
 import { useAuthStore } from '@/stores/auth';
@@ -71,11 +72,17 @@ const proxiesRoute = createRoute({
   component: ProxiesPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/settings',
+  component: SettingsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
-  dashboardRoute.addChildren([dashboardIndexRoute, proxiesRoute]),
+  dashboardRoute.addChildren([dashboardIndexRoute, proxiesRoute, settingsRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

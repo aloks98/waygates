@@ -28,6 +28,7 @@ type MockUserRepository struct {
 	GetByIDFunc              func(id int) (*models.User, error)
 	CountFunc                func() (int64, error)
 	DeleteFunc               func(id int) error
+	UpdatePasswordFunc       func(id int, passwordHash string) error
 }
 
 func (m *MockUserRepository) Create(user *models.User) error {
@@ -68,6 +69,13 @@ func (m *MockUserRepository) Count() (int64, error) {
 func (m *MockUserRepository) Delete(id int) error {
 	if m.DeleteFunc != nil {
 		return m.DeleteFunc(id)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) UpdatePassword(id int, passwordHash string) error {
+	if m.UpdatePasswordFunc != nil {
+		return m.UpdatePasswordFunc(id, passwordHash)
 	}
 	return nil
 }

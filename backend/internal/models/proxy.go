@@ -57,8 +57,18 @@ func (j *JSONField) Scan(value interface{}) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return nil
+	}
+
+	if len(bytes) == 0 {
+		*j = nil
 		return nil
 	}
 
