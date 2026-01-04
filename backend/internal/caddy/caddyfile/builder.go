@@ -44,6 +44,9 @@ func (b *Builder) BuildMainCaddyfile(opts MainCaddyfileOptions) string {
 	// Global options block
 	sb.WriteString("{\n")
 
+	// Persist certificates and ACME account in /data (Docker volume)
+	sb.WriteString("\tstorage file_system /data\n")
+
 	if opts.Email != "" {
 		sb.WriteString(fmt.Sprintf("\temail %s\n", opts.Email))
 	}
