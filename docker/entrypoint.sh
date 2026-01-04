@@ -5,12 +5,18 @@ echo "=== Waygates Entrypoint ==="
 echo "Starting Waygates services..."
 
 # Create required directories
-mkdir -p /etc/caddy/sites /etc/caddy/backup
+mkdir -p /etc/caddy/sites /etc/caddy/backup /etc/caddy/snippets
 
-# If no Caddyfile exists, copy the default
+# Copy snippets if not present (from /app/defaults which is not a volume)
+if [ -d /app/defaults/snippets ] && [ ! -f /etc/caddy/snippets/security.caddy ]; then
+    echo "Copying default snippets..."
+    cp -r /app/defaults/snippets/* /etc/caddy/snippets/
+fi
+
+# If no Caddyfile exists, copy the default (from /app/defaults which is not a volume)
 if [ ! -f /etc/caddy/Caddyfile ]; then
     echo "No Caddyfile found, copying default..."
-    cp /etc/caddy/Caddyfile.default /etc/caddy/Caddyfile
+    cp /app/defaults/Caddyfile.default /etc/caddy/Caddyfile
 fi
 
 # If no catchall.conf exists, create a default one

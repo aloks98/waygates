@@ -97,9 +97,10 @@ COPY --from=ui-builder /app/dist /app/ui
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy default Caddyfile template and security snippets
-COPY docker/Caddyfile.default /etc/caddy/Caddyfile.default
-COPY conf/snippets /etc/caddy/snippets
+# Copy default Caddyfile template and security snippets to /app/defaults
+# (NOT /etc/caddy which is a volume mount that gets overwritten)
+COPY docker/Caddyfile.default /app/defaults/Caddyfile.default
+COPY conf/snippets /app/defaults/snippets
 
 # Create required directories
 RUN mkdir -p /etc/caddy/sites /etc/caddy/backup /data /config
