@@ -80,14 +80,14 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Services - SyncService must be created first as ProxyService depends on it
 	syncService := service.NewSyncService(service.SyncServiceConfig{
-		ProxyRepo:        proxyRepo,
-		SettingsRepo:     settingsRepo,
-		Builder:          caddyBuilder,
-		FileManager:      caddyFileManager,
-		Reloader:         caddyReloader,
-		Logger:           logger,
-		Email:            cfg.Caddy.Email,
-		DisableAutoHTTPS: cfg.Caddy.DisableAutoHTTPS,
+		ProxyRepo:    proxyRepo,
+		SettingsRepo: settingsRepo,
+		Builder:      caddyBuilder,
+		FileManager:  caddyFileManager,
+		Reloader:     caddyReloader,
+		Logger:       logger,
+		Email:        cfg.Caddy.Email,
+		ACMEProvider: cfg.Caddy.ACMEProvider,
 	})
 
 	proxyService := service.NewProxyService(service.ProxyServiceConfig{

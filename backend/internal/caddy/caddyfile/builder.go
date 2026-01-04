@@ -25,27 +25,43 @@ func NewBuilder(logger *zap.Logger) *Builder {
 
 // MainCaddyfileOptions holds options for building the main Caddyfile
 type MainCaddyfileOptions struct {
-	Email            string
-	DisableAutoHTTPS bool
+	Email        string // Email for ACME certificate notifications
+	ACMEProvider string // DNS provider: off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
 }
 
-// BuildMainCaddyfile generates the main Caddyfile with global options and imports
+// BuildMainCaddyfile generates a Caddyfile with global options based on ACME provider.
+// The ACMEProvider option controls TLS certificate issuance:
+//   - "off": Disable automatic HTTPS (default for development)
+//   - "http": Use HTTP challenge (requires ports 80/443 open to internet)
+//   - DNS providers: Use DNS challenge with the specified provider
 func (b *Builder) BuildMainCaddyfile(opts MainCaddyfileOptions) string {
 	var sb strings.Builder
 
-	sb.WriteString("# Managed by Waygates - Do not edit manually\n")
+	sb.WriteString("# Managed by Waygates - DO NOT EDIT MANUALLY\n")
+	sb.WriteString(fmt.Sprintf("# ACME Provider: %s\n", opts.ACMEProvider))
 	sb.WriteString(fmt.Sprintf("# Generated: %s\n\n", time.Now().Format(time.RFC3339)))
 
 	// Global options block
 	sb.WriteString("{\n")
+
 	if opts.Email != "" {
 		sb.WriteString(fmt.Sprintf("\temail %s\n", opts.Email))
 	}
-	if opts.DisableAutoHTTPS {
+
+	// Configure ACME based on provider
+	switch opts.ACMEProvider {
+	case "off", "":
 		sb.WriteString("\tauto_https off\n")
-	} else {
-		sb.WriteString("\tacme_dns cloudflare {$CLOUDFLARE_API_TOKEN}\n")
+	case "http":
+		// HTTP challenge - no additional config needed, Caddy handles it automatically
+	default:
+		// DNS challenge - add the provider-specific acme_dns directive
+		acmeConfig := buildACMEDNSConfig(opts.ACMEProvider)
+		if acmeConfig != "" {
+			sb.WriteString(acmeConfig)
+		}
 	}
+
 	sb.WriteString("\tadmin localhost:2019\n")
 	sb.WriteString("}\n\n")
 
@@ -56,6 +72,37 @@ func (b *Builder) BuildMainCaddyfile(opts MainCaddyfileOptions) string {
 	sb.WriteString("import catchall.conf\n")
 
 	return sb.String()
+}
+
+// buildACMEDNSConfig returns the acme_dns directive configuration for the given provider.
+// Each DNS provider has a specific configuration format as per caddy-dns plugin documentation.
+// Uses {$VAR} syntax for parse-time environment variable substitution (more reliable than {env.VAR}).
+func buildACMEDNSConfig(provider string) string {
+	switch provider {
+	case "cloudflare":
+		return "\tacme_dns cloudflare {$CLOUDFLARE_API_TOKEN}\n"
+	case "route53":
+		// Route53 uses AWS SDK which reads credentials from environment automatically
+		return "\tacme_dns route53\n"
+	case "duckdns":
+		return "\tacme_dns duckdns {$DUCKDNS_API_TOKEN}\n"
+	case "digitalocean":
+		return "\tacme_dns digitalocean {$DO_AUTH_TOKEN}\n"
+	case "hetzner":
+		return "\tacme_dns hetzner {$HETZNER_API_TOKEN}\n"
+	case "porkbun":
+		return "\tacme_dns porkbun {\n\t\tapi_key {$PORKBUN_API_KEY}\n\t\tapi_secret_key {$PORKBUN_API_SECRET_KEY}\n\t}\n"
+	case "azure":
+		return "\tacme_dns azure {\n\t\ttenant_id {$AZURE_TENANT_ID}\n\t\tclient_id {$AZURE_CLIENT_ID}\n\t\tclient_secret {$AZURE_CLIENT_SECRET}\n\t\tsubscription_id {$AZURE_SUBSCRIPTION_ID}\n\t\tresource_group_name {$AZURE_RESOURCE_GROUP}\n\t}\n"
+	case "vultr":
+		return "\tacme_dns vultr {$VULTR_API_KEY}\n"
+	case "namecheap":
+		return "\tacme_dns namecheap {\n\t\tapi_key {$NAMECHEAP_API_KEY}\n\t\tuser {$NAMECHEAP_API_USER}\n\t}\n"
+	case "ovh":
+		return "\tacme_dns ovh {\n\t\tendpoint {$OVH_ENDPOINT}\n\t\tapplication_key {$OVH_APPLICATION_KEY}\n\t\tapplication_secret {$OVH_APPLICATION_SECRET}\n\t\tconsumer_key {$OVH_CONSUMER_KEY}\n\t}\n"
+	default:
+		return ""
+	}
 }
 
 // BuildProxyFile generates config content for a single proxy

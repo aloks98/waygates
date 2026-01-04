@@ -30,14 +30,14 @@ type SyncStatus struct {
 
 // SyncService handles periodic synchronization between database and Caddy
 type SyncService struct {
-	proxyRepo        *repository.ProxyRepository
-	settingsRepo     *repository.SettingsRepository
-	builder          *caddyfile.Builder
-	fileManager      *caddy.FileManager
-	reloader         *caddy.Reloader
-	logger           *zap.Logger
-	email            string
-	disableAutoHTTPS bool
+	proxyRepo    *repository.ProxyRepository
+	settingsRepo *repository.SettingsRepository
+	builder      *caddyfile.Builder
+	fileManager  *caddy.FileManager
+	reloader     *caddy.Reloader
+	logger       *zap.Logger
+	email        string
+	acmeProvider string
 
 	// Sync state
 	ticker   *time.Ticker
@@ -49,14 +49,14 @@ type SyncService struct {
 
 // SyncServiceConfig holds configuration for the sync service
 type SyncServiceConfig struct {
-	ProxyRepo        *repository.ProxyRepository
-	SettingsRepo     *repository.SettingsRepository
-	Builder          *caddyfile.Builder
-	FileManager      *caddy.FileManager
-	Reloader         *caddy.Reloader
-	Logger           *zap.Logger
-	Email            string // Email for ACME certificates
-	DisableAutoHTTPS bool   // Disable automatic HTTPS (for testing)
+	ProxyRepo    *repository.ProxyRepository
+	SettingsRepo *repository.SettingsRepository
+	Builder      *caddyfile.Builder
+	FileManager  *caddy.FileManager
+	Reloader     *caddy.Reloader
+	Logger       *zap.Logger
+	Email        string // Email for ACME certificates
+	ACMEProvider string // ACME provider: off, http, cloudflare, route53, etc.
 }
 
 // NewSyncService creates a new sync service
@@ -65,15 +65,15 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 		cfg.Logger = zap.NewNop()
 	}
 	return &SyncService{
-		proxyRepo:        cfg.ProxyRepo,
-		settingsRepo:     cfg.SettingsRepo,
-		builder:          cfg.Builder,
-		fileManager:      cfg.FileManager,
-		reloader:         cfg.Reloader,
-		logger:           cfg.Logger.Named("sync-service"),
-		email:            cfg.Email,
-		disableAutoHTTPS: cfg.DisableAutoHTTPS,
-		stopChan:         make(chan struct{}),
+		proxyRepo:    cfg.ProxyRepo,
+		settingsRepo: cfg.SettingsRepo,
+		builder:      cfg.Builder,
+		fileManager:  cfg.FileManager,
+		reloader:     cfg.Reloader,
+		logger:       cfg.Logger.Named("sync-service"),
+		email:        cfg.Email,
+		acmeProvider: cfg.ACMEProvider,
+		stopChan:     make(chan struct{}),
 		status: SyncStatus{
 			LastSyncSuccess: true,
 		},
@@ -134,8 +134,8 @@ func (s *SyncService) ensureInitialConfigs() error {
 	if !s.fileManager.FileExists(caddyfilePath) {
 		s.logger.Info("Creating initial Caddyfile")
 		content := s.builder.BuildMainCaddyfile(caddyfile.MainCaddyfileOptions{
-			Email:            s.email,
-			DisableAutoHTTPS: s.disableAutoHTTPS,
+			Email:        s.email,
+			ACMEProvider: s.acmeProvider,
 		})
 		if err := s.fileManager.WriteMainCaddyfile(content); err != nil {
 			return fmt.Errorf("failed to write initial Caddyfile: %w", err)
@@ -260,8 +260,8 @@ func (s *SyncService) performFullSync() error {
 
 	// 3. Write main Caddyfile (only if changed)
 	mainContent := s.builder.BuildMainCaddyfile(caddyfile.MainCaddyfileOptions{
-		Email:            s.email,
-		DisableAutoHTTPS: s.disableAutoHTTPS,
+		Email:        s.email,
+		ACMEProvider: s.acmeProvider,
 	})
 	if changed, err := s.fileManager.WriteIfChanged(s.fileManager.GetCaddyfilePath(), mainContent); err != nil {
 		return fmt.Errorf("failed to write main Caddyfile: %w", err)

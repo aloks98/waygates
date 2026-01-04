@@ -42,8 +42,24 @@ type DatabaseConfig struct {
 
 // CaddyConfig holds Caddy configuration
 type CaddyConfig struct {
-	Email            string // Email for ACME certificates
-	DisableAutoHTTPS bool   // Disable automatic HTTPS (for testing)
+	Email        string // Email for ACME certificates
+	ACMEProvider string // DNS provider for ACME challenge: cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh, http, off
+}
+
+// ACMEProviderEnvVars maps ACME providers to their required environment variables
+var ACMEProviderEnvVars = map[string][]string{
+	"cloudflare":   {"CLOUDFLARE_API_TOKEN"},
+	"route53":      {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"},
+	"duckdns":      {"DUCKDNS_API_TOKEN"},
+	"digitalocean": {"DO_AUTH_TOKEN"},
+	"hetzner":      {"HETZNER_API_TOKEN"},
+	"porkbun":      {"PORKBUN_API_KEY", "PORKBUN_API_SECRET_KEY"},
+	"azure":        {"AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_SUBSCRIPTION_ID", "AZURE_RESOURCE_GROUP"},
+	"vultr":        {"VULTR_API_KEY"},
+	"namecheap":    {"NAMECHEAP_API_USER", "NAMECHEAP_API_KEY"},
+	"ovh":          {"OVH_ENDPOINT", "OVH_APPLICATION_KEY", "OVH_APPLICATION_SECRET", "OVH_CONSUMER_KEY"},
+	"http":         {},
+	"off":          {},
 }
 
 // JWTConfig holds JWT token configuration
@@ -98,8 +114,8 @@ func Load() (*Config, error) {
 			Name:     viper.GetString("DB_NAME"),
 		},
 		Caddy: CaddyConfig{
-			Email:            viper.GetString("CADDY_EMAIL"),
-			DisableAutoHTTPS: viper.GetBool("CADDY_DISABLE_AUTO_HTTPS"),
+			Email:        viper.GetString("CADDY_EMAIL"),
+			ACMEProvider: viper.GetString("CADDY_ACME_PROVIDER"),
 		},
 		JWT: JWTConfig{
 			Secret:        viper.GetString("JWT_SECRET"),
@@ -148,9 +164,9 @@ func setDefaults() {
 	viper.SetDefault("DB_PASSWORD", "waygates")
 	viper.SetDefault("DB_NAME", "waygates")
 
-	// Caddy
+	// Caddy ACME configuration
 	viper.SetDefault("CADDY_EMAIL", "")
-	viper.SetDefault("CADDY_DISABLE_AUTO_HTTPS", false)
+	viper.SetDefault("CADDY_ACME_PROVIDER", "off") // off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
 
 	// JWT
 	viper.SetDefault("JWT_ACCESS_EXPIRY", 15*time.Minute)
@@ -186,6 +202,32 @@ func validate(cfg *Config) error {
 
 	if cfg.Database.Host == "" || cfg.Database.Name == "" {
 		return fmt.Errorf("DB_HOST and DB_NAME are required")
+	}
+
+	// Validate ACME provider
+	if err := validateACMEProvider(cfg.Caddy.ACMEProvider); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateACMEProvider checks if the ACME provider is valid and required env vars are set
+func validateACMEProvider(provider string) error {
+	requiredVars, ok := ACMEProviderEnvVars[provider]
+	if !ok {
+		validProviders := make([]string, 0, len(ACMEProviderEnvVars))
+		for p := range ACMEProviderEnvVars {
+			validProviders = append(validProviders, p)
+		}
+		return fmt.Errorf("invalid CADDY_ACME_PROVIDER '%s', valid options: %v", provider, validProviders)
+	}
+
+	// Check required environment variables for the provider
+	for _, envVar := range requiredVars {
+		if viper.GetString(envVar) == "" {
+			return fmt.Errorf("CADDY_ACME_PROVIDER '%s' requires %s to be set", provider, envVar)
+		}
 	}
 
 	return nil

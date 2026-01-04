@@ -13,10 +13,13 @@ func newTestBuilder() *Builder {
 	return NewBuilder(zap.NewNop())
 }
 
-func TestBuildMainCaddyfile(t *testing.T) {
+func TestBuildMainCaddyfile_Cloudflare(t *testing.T) {
 	builder := newTestBuilder()
 
-	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{Email: "admin@example.com"})
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{
+		Email:        "admin@example.com",
+		ACMEProvider: "cloudflare",
+	})
 
 	// Check header
 	if !strings.Contains(content, "Managed by Waygates") {
@@ -28,9 +31,9 @@ func TestBuildMainCaddyfile(t *testing.T) {
 		t.Error("Expected email directive")
 	}
 
-	// Check global options
-	if !strings.Contains(content, "acme_dns cloudflare") {
-		t.Error("Expected acme_dns directive")
+	// Check Cloudflare ACME DNS
+	if !strings.Contains(content, "acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}") {
+		t.Error("Expected acme_dns cloudflare directive")
 	}
 
 	if !strings.Contains(content, "admin localhost:2019") {
@@ -50,7 +53,7 @@ func TestBuildMainCaddyfile(t *testing.T) {
 func TestBuildMainCaddyfile_NoEmail(t *testing.T) {
 	builder := newTestBuilder()
 
-	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{})
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{ACMEProvider: "off"})
 
 	// Should not contain email directive
 	if strings.Contains(content, "email ") {
@@ -58,10 +61,10 @@ func TestBuildMainCaddyfile_NoEmail(t *testing.T) {
 	}
 }
 
-func TestBuildMainCaddyfile_DisableAutoHTTPS(t *testing.T) {
+func TestBuildMainCaddyfile_ProviderOff(t *testing.T) {
 	builder := newTestBuilder()
 
-	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{DisableAutoHTTPS: true})
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{ACMEProvider: "off"})
 
 	// Should have auto_https off
 	if !strings.Contains(content, "auto_https off") {
@@ -70,7 +73,60 @@ func TestBuildMainCaddyfile_DisableAutoHTTPS(t *testing.T) {
 
 	// Should not have acme_dns
 	if strings.Contains(content, "acme_dns") {
-		t.Error("Should not have acme_dns when auto_https is disabled")
+		t.Error("Should not have acme_dns when provider is off")
+	}
+}
+
+func TestBuildMainCaddyfile_ProviderHTTP(t *testing.T) {
+	builder := newTestBuilder()
+
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{
+		Email:        "admin@example.com",
+		ACMEProvider: "http",
+	})
+
+	// Should NOT have auto_https off (HTTP challenge uses automatic HTTPS)
+	if strings.Contains(content, "auto_https off") {
+		t.Error("Should not have auto_https off for HTTP challenge")
+	}
+
+	// Should not have acme_dns (HTTP challenge is default)
+	if strings.Contains(content, "acme_dns") {
+		t.Error("Should not have acme_dns for HTTP challenge")
+	}
+}
+
+func TestBuildMainCaddyfile_Route53(t *testing.T) {
+	builder := newTestBuilder()
+
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{
+		Email:        "admin@example.com",
+		ACMEProvider: "route53",
+	})
+
+	// Route53 reads AWS credentials from environment
+	if !strings.Contains(content, "acme_dns route53") {
+		t.Error("Expected acme_dns route53 directive")
+	}
+}
+
+func TestBuildMainCaddyfile_Porkbun(t *testing.T) {
+	builder := newTestBuilder()
+
+	content := builder.BuildMainCaddyfile(MainCaddyfileOptions{
+		Email:        "admin@example.com",
+		ACMEProvider: "porkbun",
+	})
+
+	// Porkbun has block format with api_key and api_secret_key
+	if !strings.Contains(content, "acme_dns porkbun {") {
+		t.Error("Expected acme_dns porkbun block")
+	}
+	if !strings.Contains(content, "api_key {$PORKBUN_API_KEY}") {
+		t.Error("Expected api_key directive")
+	}
+	if !strings.Contains(content, "api_secret_key {$PORKBUN_API_SECRET_KEY}") {
+		t.Error("Expected api_secret_key directive")
 	}
 }
 

@@ -3,6 +3,22 @@
 # =============================================================================
 # This Dockerfile creates a single container running both the Waygates backend
 # and Caddy server. The backend manages Caddy configuration via Caddyfiles.
+#
+# CUSTOMIZATION:
+#
+# 1. TLS/HTTPS Configuration:
+#    Edit docker/Caddyfile.default before building. See options inside.
+#
+# 2. Caddy Plugins:
+#    Modify the "xcaddy build" command in Stage 2 below to add/remove plugins.
+#    Common DNS plugins for ACME:
+#      --with github.com/caddy-dns/cloudflare
+#      --with github.com/caddy-dns/route53
+#      --with github.com/caddy-dns/digitalocean
+#      --with github.com/caddy-dns/duckdns
+#      --with github.com/caddy-dns/godaddy
+#    See all plugins: https://caddyserver.com/docs/modules/
+#
 # =============================================================================
 
 # =============================================================================
@@ -28,15 +44,28 @@ COPY ui/ .
 RUN pnpm run build
 
 # =============================================================================
-# Stage 2: Build Caddy with Cloudflare DNS plugin
+# Stage 2: Build Caddy with DNS challenge plugins
+# =============================================================================
+# Pre-built with common DNS providers for ACME challenges.
+# Configure which provider to use via CADDY_ACME_PROVIDER env var.
 # =============================================================================
 FROM --platform=$BUILDPLATFORM caddy:2.10.2-builder AS caddy-builder
 
 ARG TARGETOS
 ARG TARGETARCH
 
+# Build Caddy with all supported DNS challenge providers
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
-    --with github.com/caddy-dns/cloudflare
+    --with github.com/caddy-dns/cloudflare \
+    --with github.com/caddy-dns/route53 \
+    --with github.com/caddy-dns/duckdns \
+    --with github.com/caddy-dns/digitalocean \
+    --with github.com/caddy-dns/hetzner \
+    --with github.com/caddy-dns/porkbun \
+    --with github.com/caddy-dns/azure \
+    --with github.com/caddy-dns/vultr \
+    --with github.com/caddy-dns/namecheap \
+    --with github.com/caddy-dns/ovh
 
 # =============================================================================
 # Stage 3: Build Backend
@@ -97,9 +126,9 @@ COPY --from=ui-builder /app/dist /app/ui
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy default Caddyfile template and security snippets to /app/defaults
+# Copy security snippets to /app/defaults
 # (NOT /etc/caddy which is a volume mount that gets overwritten)
-COPY docker/Caddyfile.default /app/defaults/Caddyfile.default
+# Note: Caddyfile is generated dynamically by the backend based on CADDY_ACME_PROVIDER
 COPY conf/snippets /app/defaults/snippets
 
 # Create required directories

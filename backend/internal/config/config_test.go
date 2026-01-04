@@ -181,8 +181,8 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 
 	// Check Caddy defaults
-	if cfg.Caddy.DisableAutoHTTPS {
-		t.Error("Expected default CADDY_DISABLE_AUTO_HTTPS false")
+	if cfg.Caddy.ACMEProvider != "off" {
+		t.Errorf("Expected default CADDY_ACME_PROVIDER 'off', got %s", cfg.Caddy.ACMEProvider)
 	}
 }
 
@@ -250,6 +250,9 @@ func TestValidate(t *testing.T) {
 					Host: "localhost",
 					Name: "testdb",
 				},
+				Caddy: CaddyConfig{
+					ACMEProvider: "off",
+				},
 			},
 			wantErr: false,
 		},
@@ -262,6 +265,9 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{
 					Host: "localhost",
 					Name: "testdb",
+				},
+				Caddy: CaddyConfig{
+					ACMEProvider: "off",
 				},
 			},
 			wantErr: true,
@@ -276,6 +282,9 @@ func TestValidate(t *testing.T) {
 					Host: "localhost",
 					Name: "testdb",
 				},
+				Caddy: CaddyConfig{
+					ACMEProvider: "off",
+				},
 			},
 			wantErr: true,
 		},
@@ -289,6 +298,9 @@ func TestValidate(t *testing.T) {
 					Host: "",
 					Name: "testdb",
 				},
+				Caddy: CaddyConfig{
+					ACMEProvider: "off",
+				},
 			},
 			wantErr: true,
 		},
@@ -301,6 +313,9 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{
 					Host: "localhost",
 					Name: "",
+				},
+				Caddy: CaddyConfig{
+					ACMEProvider: "off",
 				},
 			},
 			wantErr: true,
@@ -331,7 +346,8 @@ func TestLoad_CustomValues(t *testing.T) {
 	setEnv(t, "DB_PASSWORD", "secret")
 	setEnv(t, "DB_NAME", "production")
 	setEnv(t, "CADDY_EMAIL", "admin@example.com")
-	setEnv(t, "CADDY_DISABLE_AUTO_HTTPS", "true")
+	setEnv(t, "CADDY_ACME_PROVIDER", "cloudflare")
+	setEnv(t, "CLOUDFLARE_API_TOKEN", "test-token") // Required for cloudflare provider
 	setEnv(t, "BCRYPT_COST", "14")
 	setEnv(t, "LOG_LEVEL", "debug")
 	setEnv(t, "LOG_FORMAT", "console")
@@ -348,7 +364,8 @@ func TestLoad_CustomValues(t *testing.T) {
 		unsetEnv(t, "DB_PASSWORD")
 		unsetEnv(t, "DB_NAME")
 		unsetEnv(t, "CADDY_EMAIL")
-		unsetEnv(t, "CADDY_DISABLE_AUTO_HTTPS")
+		unsetEnv(t, "CADDY_ACME_PROVIDER")
+		unsetEnv(t, "CLOUDFLARE_API_TOKEN")
 		unsetEnv(t, "BCRYPT_COST")
 		unsetEnv(t, "LOG_LEVEL")
 		unsetEnv(t, "LOG_FORMAT")
@@ -383,8 +400,8 @@ func TestLoad_CustomValues(t *testing.T) {
 	if cfg.Caddy.Email != "admin@example.com" {
 		t.Errorf("Expected CADDY_EMAIL 'admin@example.com', got %s", cfg.Caddy.Email)
 	}
-	if !cfg.Caddy.DisableAutoHTTPS {
-		t.Error("Expected CADDY_DISABLE_AUTO_HTTPS true")
+	if cfg.Caddy.ACMEProvider != "cloudflare" {
+		t.Errorf("Expected CADDY_ACME_PROVIDER 'cloudflare', got %s", cfg.Caddy.ACMEProvider)
 	}
 	if cfg.Security.BcryptCost != 14 {
 		t.Errorf("Expected BCRYPT_COST 14, got %d", cfg.Security.BcryptCost)
