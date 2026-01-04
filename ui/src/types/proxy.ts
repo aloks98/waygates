@@ -66,6 +66,7 @@ export interface CreateReverseProxyRequest {
   name: string;
   hostname: string;
   description?: string;
+  ssl_enabled?: boolean;
   upstreams: Upstream[];
   block_exploits?: boolean;
   tls_insecure_skip_verify?: boolean;
@@ -78,6 +79,7 @@ export interface CreateRedirectRequest {
   name: string;
   hostname: string;
   description?: string;
+  ssl_enabled?: boolean;
   redirect: RedirectConfig;
 }
 
@@ -86,6 +88,7 @@ export interface CreateStaticRequest {
   name: string;
   hostname: string;
   description?: string;
+  ssl_enabled?: boolean;
   static: StaticConfig;
 }
 

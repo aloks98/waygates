@@ -178,6 +178,15 @@ func (b *Builder) GetDisabledFilename(proxy *models.Proxy) string {
 	return b.GetProxyFilename(proxy) + ".disabled"
 }
 
+// formatSiteAddress returns the site address for Caddyfile
+// If SSL is disabled, returns http://hostname to prevent auto-HTTPS
+func formatSiteAddress(hostname string, sslEnabled bool) string {
+	if !sslEnabled {
+		return "http://" + hostname
+	}
+	return hostname
+}
+
 // sanitizeFilename removes unsafe characters from filename
 func sanitizeFilename(name string) string {
 	// Replace dots with underscores, remove other unsafe chars

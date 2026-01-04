@@ -40,6 +40,7 @@ const reverseProxySchema = z.object({
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   upstreams: z.array(upstreamSchema).min(1, 'At least one upstream is required'),
+  ssl_enabled: z.boolean(),
   block_exploits: z.boolean(),
   tls_insecure_skip_verify: z.boolean(),
   lb_strategy: z.enum(['round_robin', 'least_conn', 'ip_hash', 'random']),
@@ -74,6 +75,7 @@ export function ReverseProxyForm({
       hostname: '',
       description: '',
       upstreams: [{ host: '', port: 8080, scheme: 'http' as const }],
+      ssl_enabled: true,
       block_exploits: true,
       tls_insecure_skip_verify: false,
       lb_strategy: 'round_robin' as const,
@@ -91,6 +93,7 @@ export function ReverseProxyForm({
         name: value.name,
         hostname: value.hostname,
         description: value.description || undefined,
+        ssl_enabled: value.ssl_enabled,
         upstreams: value.upstreams,
         block_exploits: value.block_exploits,
         tls_insecure_skip_verify: value.tls_insecure_skip_verify,
@@ -128,6 +131,7 @@ export function ReverseProxyForm({
       form.setFieldValue('hostname', initialData.hostname || '');
       form.setFieldValue('description', initialData.description || '');
       form.setFieldValue('upstreams', upstreamData);
+      form.setFieldValue('ssl_enabled', initialData.ssl_enabled ?? true);
       form.setFieldValue('block_exploits', initialData.block_exploits ?? true);
       form.setFieldValue('tls_insecure_skip_verify', initialData.tls_insecure_skip_verify ?? false);
       form.setFieldValue('lb_strategy', initialData.load_balancing?.strategy || 'round_robin');
@@ -403,6 +407,20 @@ export function ReverseProxyForm({
           </CardHeading>
         </CardHeader>
         <CardContent className="space-y-4">
+          <form.Field name="ssl_enabled">
+            {(field) => (
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel>Enable HTTPS</FieldLabel>
+                  <FieldDescription>
+                    Automatically obtain and manage SSL/TLS certificates
+                  </FieldDescription>
+                </FieldContent>
+                <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+              </Field>
+            )}
+          </form.Field>
+
           <form.Field name="block_exploits">
             {(field) => (
               <Field orientation="horizontal">

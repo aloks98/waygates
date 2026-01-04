@@ -704,3 +704,187 @@ func TestBuildProxyFile_NilProxy(t *testing.T) {
 		t.Error("Expected error for nil proxy")
 	}
 }
+
+func TestBuildReverseProxy_SSLEnabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         1,
+		Name:       "SSL Enabled",
+		Hostname:   "ssl.example.com",
+		Type:       models.ProxyTypeReverseProxy,
+		SSLEnabled: true,
+		Upstreams: []interface{}{
+			map[string]interface{}{"host": "backend", "port": float64(8080), "scheme": "http"},
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use hostname directly (Caddy auto-HTTPS)
+	if !strings.Contains(content, "ssl.example.com {") {
+		t.Error("Expected hostname site block without http:// prefix")
+	}
+	if strings.Contains(content, "http://ssl.example.com") {
+		t.Error("Should not have http:// prefix when SSL is enabled")
+	}
+}
+
+func TestBuildReverseProxy_SSLDisabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         1,
+		Name:       "SSL Disabled",
+		Hostname:   "nossl.example.com",
+		Type:       models.ProxyTypeReverseProxy,
+		SSLEnabled: false,
+		Upstreams: []interface{}{
+			map[string]interface{}{"host": "backend", "port": float64(8080), "scheme": "http"},
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use http:// prefix to disable auto-HTTPS
+	if !strings.Contains(content, "http://nossl.example.com {") {
+		t.Error("Expected http:// prefix when SSL is disabled")
+	}
+}
+
+func TestBuildRedirect_SSLEnabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         20,
+		Name:       "SSL Redirect",
+		Hostname:   "ssl-redirect.example.com",
+		Type:       models.ProxyTypeRedirect,
+		SSLEnabled: true,
+		RedirectConfig: models.JSONField{
+			"target":      "https://new.example.com",
+			"status_code": float64(301),
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use hostname directly
+	if !strings.Contains(content, "ssl-redirect.example.com {") {
+		t.Error("Expected hostname site block without http:// prefix")
+	}
+	if strings.Contains(content, "http://ssl-redirect.example.com") {
+		t.Error("Should not have http:// prefix when SSL is enabled")
+	}
+}
+
+func TestBuildRedirect_SSLDisabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         21,
+		Name:       "No SSL Redirect",
+		Hostname:   "nossl-redirect.example.com",
+		Type:       models.ProxyTypeRedirect,
+		SSLEnabled: false,
+		RedirectConfig: models.JSONField{
+			"target":      "https://new.example.com",
+			"status_code": float64(301),
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use http:// prefix
+	if !strings.Contains(content, "http://nossl-redirect.example.com {") {
+		t.Error("Expected http:// prefix when SSL is disabled")
+	}
+}
+
+func TestBuildStatic_SSLEnabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         10,
+		Name:       "SSL Static",
+		Hostname:   "ssl-static.example.com",
+		Type:       models.ProxyTypeStatic,
+		SSLEnabled: true,
+		StaticConfig: models.JSONField{
+			"root_path":  "/var/www/static",
+			"index_file": "index.html",
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use hostname directly
+	if !strings.Contains(content, "ssl-static.example.com {") {
+		t.Error("Expected hostname site block without http:// prefix")
+	}
+	if strings.Contains(content, "http://ssl-static.example.com") {
+		t.Error("Should not have http:// prefix when SSL is enabled")
+	}
+}
+
+func TestBuildStatic_SSLDisabled(t *testing.T) {
+	builder := newTestBuilder()
+
+	proxy := &models.Proxy{
+		ID:         11,
+		Name:       "No SSL Static",
+		Hostname:   "nossl-static.example.com",
+		Type:       models.ProxyTypeStatic,
+		SSLEnabled: false,
+		StaticConfig: models.JSONField{
+			"root_path":  "/var/www/static",
+			"index_file": "index.html",
+		},
+	}
+
+	content, err := builder.BuildProxyFile(proxy)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should use http:// prefix
+	if !strings.Contains(content, "http://nossl-static.example.com {") {
+		t.Error("Expected http:// prefix when SSL is disabled")
+	}
+}
+
+func TestFormatSiteAddress(t *testing.T) {
+	testCases := []struct {
+		hostname   string
+		sslEnabled bool
+		expected   string
+	}{
+		{"example.com", true, "example.com"},
+		{"example.com", false, "http://example.com"},
+		{"api.example.com", true, "api.example.com"},
+		{"api.example.com", false, "http://api.example.com"},
+	}
+
+	for _, tc := range testCases {
+		result := formatSiteAddress(tc.hostname, tc.sslEnabled)
+		if result != tc.expected {
+			t.Errorf("formatSiteAddress(%s, %v) = %s, expected %s",
+				tc.hostname, tc.sslEnabled, result, tc.expected)
+		}
+	}
+}

@@ -28,6 +28,7 @@ const staticSchema = z.object({
     .min(1, 'Hostname is required')
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
+  ssl_enabled: z.boolean(),
   root_path: z.string().min(1, 'Root path is required'),
   index_file: z.string().min(1, 'Index file is required'),
   browse: z.boolean(),
@@ -51,6 +52,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       name: '',
       hostname: '',
       description: '',
+      ssl_enabled: true,
       root_path: '/var/www/html',
       index_file: 'index.html',
       browse: false,
@@ -65,6 +67,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
         name: value.name,
         hostname: value.hostname,
         description: value.description || undefined,
+        ssl_enabled: value.ssl_enabled,
         static: {
           root_path: value.root_path,
           index_file: value.index_file,
@@ -83,6 +86,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       form.setFieldValue('name', initialData.name || '');
       form.setFieldValue('hostname', initialData.hostname || '');
       form.setFieldValue('description', initialData.description || '');
+      form.setFieldValue('ssl_enabled', initialData.ssl_enabled ?? true);
       form.setFieldValue('root_path', initialData.static?.root_path || '/var/www/html');
       form.setFieldValue('index_file', initialData.static?.index_file || 'index.html');
       form.setFieldValue('browse', initialData.static?.browse ?? false);
@@ -224,6 +228,20 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
                 </Field>
               );
             }}
+          </form.Field>
+
+          <form.Field name="ssl_enabled">
+            {(field) => (
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel>Enable HTTPS</FieldLabel>
+                  <FieldDescription>
+                    Automatically obtain and manage SSL/TLS certificates
+                  </FieldDescription>
+                </FieldContent>
+                <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+              </Field>
+            )}
           </form.Field>
 
           <form.Field name="browse">

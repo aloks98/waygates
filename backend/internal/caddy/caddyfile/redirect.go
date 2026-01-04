@@ -20,8 +20,9 @@ func (b *Builder) buildRedirectBlock(proxy *models.Proxy) (string, error) {
 
 	var sb strings.Builder
 
-	// Site block with hostname
-	sb.WriteString(fmt.Sprintf("%s {\n", proxy.Hostname))
+	// Site block with hostname (use http:// prefix if SSL disabled)
+	siteAddr := formatSiteAddress(proxy.Hostname, proxy.SSLEnabled)
+	sb.WriteString(fmt.Sprintf("%s {\n", siteAddr))
 
 	// Build redirect target with optional path/query preservation
 	redirectTarget := b.buildRedirectTarget(proxy.RedirectConfig)

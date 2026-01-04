@@ -109,6 +109,12 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, proxy, "")
 }
 
+// createProxyRequest wraps proxy with optional fields for proper default handling
+type createProxyRequest struct {
+	models.Proxy
+	SSLEnabled *bool `json:"ssl_enabled"`
+}
+
 // CreateProxy handles POST /api/proxies
 func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from context (set by goauth middleware)
@@ -125,14 +131,20 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse request body
-	var proxy models.Proxy
-	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
+	var req createProxyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid request body format", nil)
 		return
 	}
 
-	// Set defaults
-	proxy.SSLEnabled = true
+	proxy := req.Proxy
+
+	// Set defaults - SSLEnabled defaults to true unless explicitly set to false
+	if req.SSLEnabled != nil {
+		proxy.SSLEnabled = *req.SSLEnabled
+	} else {
+		proxy.SSLEnabled = true
+	}
 	proxy.SSLForced = true
 	proxy.IsActive = true
 
@@ -156,6 +168,12 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 	utils.Created(w, proxy, "Proxy created successfully")
 }
 
+// updateProxyRequest wraps proxy with optional fields for proper handling
+type updateProxyRequest struct {
+	models.Proxy
+	SSLEnabled *bool `json:"ssl_enabled"`
+}
+
 // UpdateProxy handles PUT /api/proxies/:id
 func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 	// Get ID from URL
@@ -167,10 +185,29 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse request body
-	var proxy models.Proxy
-	if err := json.NewDecoder(r.Body).Decode(&proxy); err != nil {
+	var req updateProxyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid request body format", nil)
 		return
+	}
+
+	proxy := req.Proxy
+
+	// Handle ssl_enabled - if explicitly provided, use it; otherwise keep existing value
+	if req.SSLEnabled != nil {
+		proxy.SSLEnabled = *req.SSLEnabled
+	} else {
+		// Fetch existing proxy to preserve ssl_enabled
+		existing, err := h.service.GetProxyByID(id)
+		if err != nil {
+			if errors.Is(err, service.ErrProxyNotFound) {
+				utils.NotFound(w, "Proxy not found")
+				return
+			}
+			utils.InternalError(w, "Failed to get proxy")
+			return
+		}
+		proxy.SSLEnabled = existing.SSLEnabled
 	}
 
 	// Update proxy via service

@@ -25,6 +25,7 @@ const redirectSchema = z.object({
     .min(1, 'Hostname is required')
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
+  ssl_enabled: z.boolean(),
   target: z.string().min(1, 'Target URL is required').url('Target must be a valid URL'),
   status_code: z.number().refine((val) => [301, 302, 307, 308].includes(val), {
     message: 'Status code must be 301, 302, 307, or 308',
@@ -48,6 +49,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       name: '',
       hostname: '',
       description: '',
+      ssl_enabled: true,
       target: '',
       status_code: 301,
       preserve_path: true,
@@ -62,6 +64,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
         name: value.name,
         hostname: value.hostname,
         description: value.description || undefined,
+        ssl_enabled: value.ssl_enabled,
         redirect: {
           target: value.target,
           status_code: value.status_code as 301 | 302 | 307 | 308,
@@ -79,6 +82,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       form.setFieldValue('name', initialData.name || '');
       form.setFieldValue('hostname', initialData.hostname || '');
       form.setFieldValue('description', initialData.description || '');
+      form.setFieldValue('ssl_enabled', initialData.ssl_enabled ?? true);
       form.setFieldValue('target', initialData.redirect?.target || '');
       form.setFieldValue('status_code', initialData.redirect?.status_code || 301);
       form.setFieldValue('preserve_path', initialData.redirect?.preserve_path ?? true);
@@ -208,6 +212,20 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       </form.Field>
 
       <div className="space-y-4">
+        <form.Field name="ssl_enabled">
+          {(field) => (
+            <Field orientation="horizontal">
+              <FieldContent>
+                <FieldLabel>Enable HTTPS</FieldLabel>
+                <FieldDescription>
+                  Automatically obtain and manage SSL/TLS certificates
+                </FieldDescription>
+              </FieldContent>
+              <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+            </Field>
+          )}
+        </form.Field>
+
         <form.Field name="preserve_path">
           {(field) => (
             <Field orientation="horizontal">

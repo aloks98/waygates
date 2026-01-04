@@ -164,7 +164,7 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	// Preserve fields that shouldn't be changed via update
 	proxy.ID = id
 	proxy.IsActive = existing.IsActive
-	proxy.SSLEnabled = existing.SSLEnabled
+	// Note: SSLEnabled is intentionally NOT preserved - it can be updated
 	proxy.SSLForced = existing.SSLForced
 	proxy.CreatedBy = existing.CreatedBy
 	proxy.CreatedAt = existing.CreatedAt

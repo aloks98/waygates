@@ -20,8 +20,9 @@ func (b *Builder) buildStaticBlock(proxy *models.Proxy) (string, error) {
 
 	var sb strings.Builder
 
-	// Site block with hostname
-	sb.WriteString(fmt.Sprintf("%s {\n", proxy.Hostname))
+	// Site block with hostname (use http:// prefix if SSL disabled)
+	siteAddr := formatSiteAddress(proxy.Hostname, proxy.SSLEnabled)
+	sb.WriteString(fmt.Sprintf("%s {\n", siteAddr))
 
 	// Import security snippet if block exploits is enabled
 	if proxy.BlockExploits {
