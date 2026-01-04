@@ -185,3 +185,175 @@ func TestSyncStatus_TimeTracking(t *testing.T) {
 		t.Error("LastSyncTime should be before 'after'")
 	}
 }
+
+// TestSanitizeFilename tests the sanitizeFilename function
+func TestSanitizeFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Simple hostname",
+			input:    "example.com",
+			expected: "example_com",
+		},
+		{
+			name:     "Subdomain",
+			input:    "api.example.com",
+			expected: "api_example_com",
+		},
+		{
+			name:     "Multiple subdomains",
+			input:    "www.api.example.com",
+			expected: "www_api_example_com",
+		},
+		{
+			name:     "Already safe",
+			input:    "example-site",
+			expected: "example-site",
+		},
+		{
+			name:     "With underscores",
+			input:    "my_site_name",
+			expected: "my_site_name",
+		},
+		{
+			name:     "Mixed characters",
+			input:    "test.site-123_name",
+			expected: "test_site-123_name",
+		},
+		{
+			name:     "Special characters",
+			input:    "test@site!name#123",
+			expected: "test_site_name_123",
+		},
+		{
+			name:     "Consecutive dots",
+			input:    "test..example...com",
+			expected: "test_example_com",
+		},
+		{
+			name:     "Leading/trailing dots",
+			input:    ".example.com.",
+			expected: "example_com",
+		},
+		{
+			name:     "Only dots",
+			input:    "...",
+			expected: "",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Uppercase preserved",
+			input:    "MyApp.Example.COM",
+			expected: "MyApp_Example_COM",
+		},
+		{
+			name:     "Numbers",
+			input:    "app123.site456.com",
+			expected: "app123_site456_com",
+		},
+		{
+			name:     "Hyphen and underscore mix",
+			input:    "my-app_v2.example.com",
+			expected: "my-app_v2_example_com",
+		},
+		{
+			name:     "Spaces become underscores",
+			input:    "my site name",
+			expected: "my_site_name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeFilename(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestGetProxyFilename tests the GetProxyFilename function
+func TestGetProxyFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		proxyID  int
+		hostname string
+		expected string
+	}{
+		{
+			name:     "Simple case",
+			proxyID:  1,
+			hostname: "example.com",
+			expected: "1_example_com.conf",
+		},
+		{
+			name:     "With subdomain",
+			proxyID:  42,
+			hostname: "api.example.com",
+			expected: "42_api_example_com.conf",
+		},
+		{
+			name:     "Large ID",
+			proxyID:  99999,
+			hostname: "test.site.com",
+			expected: "99999_test_site_com.conf",
+		},
+		{
+			name:     "Zero ID",
+			proxyID:  0,
+			hostname: "example.com",
+			expected: "0_example_com.conf",
+		},
+		{
+			name:     "Complex hostname",
+			proxyID:  5,
+			hostname: "my-app.sub.domain.co.uk",
+			expected: "5_my-app_sub_domain_co_uk.conf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetProxyFilename(tt.proxyID, tt.hostname)
+			if result != tt.expected {
+				t.Errorf("GetProxyFilename(%d, %q) = %q, want %q", tt.proxyID, tt.hostname, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestSyncStatus_AllFields tests all SyncStatus fields
+func TestSyncStatus_AllFields(t *testing.T) {
+	now := time.Now()
+	status := SyncStatus{
+		LastSyncTime:    now,
+		IsSyncing:       true,
+		LastSyncSuccess: true,
+		LastError:       "",
+		SyncCount:       5,
+		LastReloadTime:  now,
+		ReloadCount:     3,
+		ConfigChanged:   true,
+	}
+
+	if status.SyncCount != 5 {
+		t.Errorf("Expected SyncCount 5, got %d", status.SyncCount)
+	}
+	if status.ReloadCount != 3 {
+		t.Errorf("Expected ReloadCount 3, got %d", status.ReloadCount)
+	}
+	if !status.ConfigChanged {
+		t.Error("Expected ConfigChanged to be true")
+	}
+	if status.LastReloadTime != now {
+		t.Error("LastReloadTime mismatch")
+	}
+}
