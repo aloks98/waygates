@@ -1,5 +1,5 @@
 .PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
-.PHONY: backend-run backend-build backend-test migrate-create
+.PHONY: backend-run backend-build backend-test backend-test-coverage migrate-create
 .PHONY: lint lint-backend lint-ui format format-backend format-ui check setup-tools
 
 # Default target
@@ -23,6 +23,7 @@ help:
 	@echo "  make backend-run   - Run the Go backend server locally"
 	@echo "  make backend-build - Build the Go backend binary"
 	@echo "  make backend-test  - Run backend tests"
+	@echo "  make backend-test-coverage - Run tests with coverage report"
 	@echo ""
 	@echo "Linting & Formatting:"
 	@echo "  make lint          - Run linters on both backend and UI"
@@ -138,6 +139,14 @@ backend-build:
 backend-test:
 	@echo "Running backend tests..."
 	@go test -v ./backend/...
+
+# Run backend tests with coverage (includes cross-package coverage from integration tests)
+backend-test-coverage:
+	@echo "Running backend tests with coverage..."
+	@cd backend && go test -count=1 -coverprofile=coverage.out -covermode=atomic -coverpkg=./... ./...
+	@cd backend && go tool cover -func=coverage.out | grep total
+	@echo "✓ Coverage report generated at backend/coverage.out"
+	@echo "Run 'go tool cover -html=backend/coverage.out' to view in browser"
 
 # ============================================
 # Database Migration Commands

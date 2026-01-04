@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aloks98/goauth"
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/auth"
@@ -18,13 +17,13 @@ import (
 
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
-	auth       *goauth.Auth[*auth.CustomClaims]
-	userRepo   *repository.UserRepository
+	auth       AuthProvider
+	userRepo   repository.UserRepositoryInterface
 	bcryptCost int
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authInstance *goauth.Auth[*auth.CustomClaims], userRepo *repository.UserRepository, bcryptCost int) *AuthHandler {
+func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, bcryptCost int) *AuthHandler {
 	return &AuthHandler{
 		auth:       authInstance,
 		userRepo:   userRepo,

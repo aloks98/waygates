@@ -16,12 +16,7 @@ export function ProxyStatusBadge({
   if (canToggle && onToggle) {
     return (
       <div className="flex items-center gap-2">
-        <Switch
-          checked={isActive}
-          onCheckedChange={onToggle}
-          disabled={isToggling}
-          size="sm"
-        />
+        <Switch checked={isActive} onCheckedChange={onToggle} disabled={isToggling} size="sm" />
         <span className="text-sm text-muted-foreground">{isActive ? 'Active' : 'Inactive'}</span>
       </div>
     );

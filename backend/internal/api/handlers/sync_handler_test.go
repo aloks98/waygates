@@ -2,38 +2,54 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/aloks98/waygates/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/service"
+	"github.com/aloks98/waygates/backend/internal/service/mocks"
 )
 
-// mockSyncStatus represents the sync status for testing
-type mockSyncStatus struct {
-	LastSyncTime    time.Time `json:"last_sync_time"`
-	IsSyncing       bool      `json:"is_syncing"`
-	LastSyncSuccess bool      `json:"last_sync_success"`
-	LastError       string    `json:"last_error,omitempty"`
+// =============================================================================
+// NewSyncHandler Tests
+// =============================================================================
+
+func TestNewSyncHandler(t *testing.T) {
+	mockService := &mocks.MockSyncService{}
+	handler := NewSyncHandler(mockService)
+
+	if handler == nil {
+		t.Fatal("Expected handler to be created")
+	}
+	if handler.syncService != mockService {
+		t.Error("Expected sync service to be set")
+	}
 }
 
-// TestGetSyncStatus_Success tests successful retrieval of sync status
-func TestGetSyncStatus_Success(t *testing.T) {
+// =============================================================================
+// GetStatus Tests
+// =============================================================================
+
+func TestSyncHandler_Unit_GetStatus_Success(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now(),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       10,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := mockSyncStatus{
-			LastSyncTime:    time.Now(),
-			IsSyncing:       false,
-			LastSyncSuccess: true,
-			LastError:       "",
-		}
-		utils.Success(w, status, "Sync status retrieved successfully")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.GetStatus(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
@@ -57,22 +73,24 @@ func TestGetSyncStatus_Success(t *testing.T) {
 	}
 }
 
-// TestGetSyncStatus_WhileSyncing tests status while sync is in progress
-func TestGetSyncStatus_WhileSyncing(t *testing.T) {
+func TestSyncHandler_Unit_GetStatus_WhileSyncing(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       true,
+				LastSyncTime:    time.Now().Add(-30 * time.Second),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       5,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := mockSyncStatus{
-			LastSyncTime:    time.Now().Add(-30 * time.Second),
-			IsSyncing:       true,
-			LastSyncSuccess: true,
-			LastError:       "",
-		}
-		utils.Success(w, status, "Sync status retrieved successfully")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.GetStatus(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
@@ -89,22 +107,24 @@ func TestGetSyncStatus_WhileSyncing(t *testing.T) {
 	}
 }
 
-// TestGetSyncStatus_AfterError tests status after a sync error
-func TestGetSyncStatus_AfterError(t *testing.T) {
+func TestSyncHandler_GetStatus_AfterError(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now().Add(-1 * time.Minute),
+				LastSyncSuccess: false,
+				LastError:       "Caddy not reachable: connection refused",
+				SyncCount:       3,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := mockSyncStatus{
-			LastSyncTime:    time.Now().Add(-1 * time.Minute),
-			IsSyncing:       false,
-			LastSyncSuccess: false,
-			LastError:       "Caddy not reachable: connection refused",
-		}
-		utils.Success(w, status, "Sync status retrieved successfully")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.GetStatus(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
@@ -119,31 +139,79 @@ func TestGetSyncStatus_AfterError(t *testing.T) {
 	if data["last_sync_success"].(bool) {
 		t.Error("Expected last_sync_success to be false")
 	}
-	if data["last_error"] == "" {
-		t.Error("Expected last_error to contain error message")
+	if data["last_error"] != "Caddy not reachable: connection refused" {
+		t.Errorf("Expected last_error to be 'Caddy not reachable: connection refused', got '%v'", data["last_error"])
 	}
 }
 
-// TestTriggerSync_Success tests successful manual sync trigger
-func TestTriggerSync_Success(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+func TestSyncHandler_GetStatus_ZeroSyncCount(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Time{},
+				LastSyncSuccess: false,
+				LastError:       "",
+				SyncCount:       0,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate successful sync
-		status := mockSyncStatus{
-			LastSyncTime:    time.Now(),
-			IsSyncing:       false,
-			LastSyncSuccess: true,
-			LastError:       "",
-		}
-		utils.Success(w, status, "Sync completed successfully")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.GetStatus(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	data := response["data"].(map[string]interface{})
+	if data["sync_count"].(float64) != 0 {
+		t.Errorf("Expected sync_count to be 0, got %v", data["sync_count"])
+	}
+}
+
+// =============================================================================
+// Trigger Tests
+// =============================================================================
+
+func TestSyncHandler_Unit_Trigger_Success(t *testing.T) {
+	syncCalled := false
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			syncCalled = true
+			return nil
+		},
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now(),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       1,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if !syncCalled {
+		t.Error("Expected FullSync to be called")
 	}
 
 	var response map[string]interface{}
@@ -159,117 +227,248 @@ func TestTriggerSync_Success(t *testing.T) {
 	}
 }
 
-// TestTriggerSync_AlreadyInProgress tests triggering sync when one is already running
-func TestTriggerSync_AlreadyInProgress(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
-	rec := httptest.NewRecorder()
-
-	isSyncing := true
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSyncing {
-			utils.BadRequest(w, "Sync already in progress", nil)
-			return
-		}
-		utils.Success(w, nil, "Sync completed")
-	})
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+func TestSyncHandler_Trigger_SyncError(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return errors.New("Caddy not reachable: connection refused")
+		},
 	}
-}
+	handler := NewSyncHandler(mockService)
 
-// TestTriggerSync_CaddyUnreachable tests sync failure when Caddy is down
-func TestTriggerSync_CaddyUnreachable(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate Caddy unreachable error
-		utils.InternalError(w, "Sync failed: Caddy not reachable: connection refused")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.Trigger(rec, req)
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
-}
-
-// TestTriggerSync_RouteSyncFailed tests sync failure during route sync
-func TestTriggerSync_RouteSyncFailed(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
-	rec := httptest.NewRecorder()
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		utils.InternalError(w, "Sync failed: Route sync failed: invalid route configuration")
-	})
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
-}
-
-// TestSyncStatusResponseFormat tests the sync status response format
-func TestSyncStatusResponseFormat(t *testing.T) {
-	rec := httptest.NewRecorder()
-	status := mockSyncStatus{
-		LastSyncTime:    time.Now(),
-		IsSyncing:       false,
-		LastSyncSuccess: true,
-	}
-	utils.Success(rec, status, "Sync status retrieved")
 
 	var response map[string]interface{}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
+	if response["success"].(bool) {
+		t.Error("Expected success to be false")
+	}
+}
+
+func TestSyncHandler_Trigger_DatabaseError(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return errors.New("database connection lost")
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+func TestSyncHandler_Trigger_ReturnsUpdatedStatus(t *testing.T) {
+	statusCallCount := 0
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return nil
+		},
+		GetStatusFunc: func() service.SyncStatus {
+			statusCallCount++
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now(),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       statusCallCount,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	// GetStatus should be called once after successful sync
+	if statusCallCount != 1 {
+		t.Errorf("Expected GetStatus to be called once, but was called %d times", statusCallCount)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
 	}
 
 	data := response["data"].(map[string]interface{})
+	if data["sync_count"].(float64) != 1 {
+		t.Errorf("Expected sync_count to be 1, got %v", data["sync_count"])
+	}
+}
 
-	// Verify required fields exist
-	requiredFields := []string{"last_sync_time", "is_syncing", "last_sync_success"}
+func TestSyncHandler_Trigger_RouteConfigError(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return errors.New("invalid route configuration: missing upstream")
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	errorData := response["error"].(map[string]interface{})
+	if errorData["message"] != "Sync failed: invalid route configuration: missing upstream" {
+		t.Errorf("Expected error message to contain sync failure reason, got '%v'", errorData["message"])
+	}
+}
+
+func TestSyncHandler_Trigger_FileSystemError(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return errors.New("failed to write proxy file: permission denied")
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+// =============================================================================
+// Response Format Tests
+// =============================================================================
+
+func TestSyncHandler_StatusResponseFormat(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now(),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       5,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetStatus(rec, req)
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	// Check response structure
+	if _, ok := response["success"]; !ok {
+		t.Error("Expected 'success' field in response")
+	}
+	if _, ok := response["message"]; !ok {
+		t.Error("Expected 'message' field in response")
+	}
+	if _, ok := response["data"]; !ok {
+		t.Error("Expected 'data' field in response")
+	}
+
+	// Check data structure
+	data := response["data"].(map[string]interface{})
+	requiredFields := []string{"is_syncing", "last_sync_time", "last_sync_success", "sync_count"}
 	for _, field := range requiredFields {
 		if _, ok := data[field]; !ok {
-			t.Errorf("Expected field '%s' to be present", field)
+			t.Errorf("Expected field '%s' in data", field)
 		}
 	}
 }
 
-// TestSyncHTTPMethods tests that only correct HTTP methods are allowed
-func TestSyncHTTPMethods(t *testing.T) {
-	testCases := []struct {
-		name     string
-		method   string
-		path     string
-		expected int
-	}{
-		{"GET status", http.MethodGet, "/api/sync/status", http.StatusOK},
-		{"POST trigger", http.MethodPost, "/api/sync/trigger", http.StatusOK},
+func TestSyncHandler_TriggerResponseFormat(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return nil
+		},
+		GetStatusFunc: func() service.SyncStatus {
+			return service.SyncStatus{
+				IsSyncing:       false,
+				LastSyncTime:    time.Now(),
+				LastSyncSuccess: true,
+				LastError:       "",
+				SyncCount:       1,
+			}
+		},
+	}
+	handler := NewSyncHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Trigger(rec, req)
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.path, nil)
-			rec := httptest.NewRecorder()
+	// Successful trigger should include status data
+	if _, ok := response["data"]; !ok {
+		t.Error("Expected 'data' field in response after successful trigger")
+	}
+}
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				utils.Success(w, nil, "")
-			})
+func TestSyncHandler_TriggerErrorResponseFormat(t *testing.T) {
+	mockService := &mocks.MockSyncService{
+		FullSyncFunc: func() error {
+			return errors.New("sync failed")
+		},
+	}
+	handler := NewSyncHandler(mockService)
 
-			handler.ServeHTTP(rec, req)
+	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
+	rec := httptest.NewRecorder()
 
-			if rec.Code != tc.expected {
-				t.Errorf("Expected status %d, got %d", tc.expected, rec.Code)
-			}
-		})
+	handler.Trigger(rec, req)
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	// Error response should have error field
+	if _, ok := response["error"]; !ok {
+		t.Error("Expected 'error' field in error response")
+	}
+
+	errorData := response["error"].(map[string]interface{})
+	if _, ok := errorData["message"]; !ok {
+		t.Error("Expected 'message' field in error data")
 	}
 }

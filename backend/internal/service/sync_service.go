@@ -30,11 +30,11 @@ type SyncStatus struct {
 
 // SyncService handles periodic synchronization between database and Caddy
 type SyncService struct {
-	proxyRepo    *repository.ProxyRepository
-	settingsRepo *repository.SettingsRepository
-	builder      *caddyfile.Builder
-	fileManager  *caddy.FileManager
-	reloader     *caddy.Reloader
+	proxyRepo    repository.ProxyRepositoryInterface
+	settingsRepo repository.SettingsRepositoryInterface
+	builder      caddyfile.BuilderInterface
+	fileManager  caddy.FileManagerInterface
+	reloader     caddy.ReloaderInterface
 	logger       *zap.Logger
 	email        string
 	acmeProvider string
@@ -49,11 +49,11 @@ type SyncService struct {
 
 // SyncServiceConfig holds configuration for the sync service
 type SyncServiceConfig struct {
-	ProxyRepo    *repository.ProxyRepository
-	SettingsRepo *repository.SettingsRepository
-	Builder      *caddyfile.Builder
-	FileManager  *caddy.FileManager
-	Reloader     *caddy.Reloader
+	ProxyRepo    repository.ProxyRepositoryInterface
+	SettingsRepo repository.SettingsRepositoryInterface
+	Builder      caddyfile.BuilderInterface
+	FileManager  caddy.FileManagerInterface
+	Reloader     caddy.ReloaderInterface
 	Logger       *zap.Logger
 	Email        string // Email for ACME certificates
 	ACMEProvider string // ACME provider: off, http, cloudflare, route53, etc.

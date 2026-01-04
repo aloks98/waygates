@@ -3,30 +3,53 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/aloks98/waygates/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/service/mocks"
 )
 
-// TestGetAllSettings_Success tests successful retrieval of all settings
-func TestGetAllSettings_Success(t *testing.T) {
+// =============================================================================
+// NewSettingsHandler Tests
+// =============================================================================
+
+func TestNewSettingsHandler(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
+
+	if handler == nil {
+		t.Fatal("Expected handler to be created")
+	}
+	if handler.settingsService != mockService {
+		t.Error("Expected settings service to be set")
+	}
+}
+
+// =============================================================================
+// GetAll Tests
+// =============================================================================
+
+func TestSettingsHandler_Unit_GetAll_Success(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetAllFunc: func() (map[string]string, error) {
+			return map[string]string{
+				"not_found.mode":         "default",
+				"not_found.redirect_url": "",
+				"app.theme":              "dark",
+			}, nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
 	rec := httptest.NewRecorder()
 
-	// Mock handler that returns settings
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		settings := map[string]string{
-			"not_found.mode":         "default",
-			"not_found.redirect_url": "",
-		}
-		utils.Success(w, settings, "Settings retrieved successfully")
-	})
-
-	handler.ServeHTTP(rec, req)
+	handler.GetAll(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
@@ -47,27 +70,59 @@ func TestGetAllSettings_Success(t *testing.T) {
 	}
 }
 
-// TestGetSetting_ValidKey tests retrieving a single setting
-func TestGetSetting_ValidKey(t *testing.T) {
+func TestSettingsHandler_GetAll_ServiceError(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetAllFunc: func() (map[string]string, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetAll(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+func TestSettingsHandler_GetAll_EmptySettings(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetAllFunc: func() (map[string]string, error) {
+			return map[string]string{}, nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetAll(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+// =============================================================================
+// Get Tests
+// =============================================================================
+
+func TestSettingsHandler_Unit_Get_Success(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetFunc: func(key string) (string, error) {
+			if key == "not_found.mode" {
+				return "default", nil
+			}
+			return "", errors.New("not found")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
 	r := chi.NewRouter()
-	r.Get("/api/settings/{key}", func(w http.ResponseWriter, req *http.Request) {
-		key := chi.URLParam(req, "key")
-		if key == "" {
-			utils.BadRequest(w, "Setting key is required", nil)
-			return
-		}
-
-		// Mock: return value for known keys
-		mockSettings := map[string]string{
-			"not_found.mode": "default",
-		}
-
-		if value, ok := mockSettings[key]; ok {
-			utils.Success(w, map[string]string{"key": key, "value": value}, "Setting retrieved")
-		} else {
-			utils.NotFound(w, "Setting not found")
-		}
-	})
+	r.Get("/api/settings/{key}", handler.Get)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings/not_found.mode", nil)
 	rec := httptest.NewRecorder()
@@ -77,21 +132,31 @@ func TestGetSetting_ValidKey(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	data := response["data"].(map[string]interface{})
+	if data["key"] != "not_found.mode" {
+		t.Errorf("Expected key 'not_found.mode', got '%v'", data["key"])
+	}
+	if data["value"] != "default" {
+		t.Errorf("Expected value 'default', got '%v'", data["value"])
+	}
 }
 
-// TestGetSetting_NotFound tests retrieving a non-existent setting
-func TestGetSetting_NotFound(t *testing.T) {
-	r := chi.NewRouter()
-	r.Get("/api/settings/{key}", func(w http.ResponseWriter, req *http.Request) {
-		key := chi.URLParam(req, "key")
-		mockSettings := map[string]string{}
+func TestSettingsHandler_Unit_Get_NotFound(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetFunc: func(key string) (string, error) {
+			return "", errors.New("setting not found")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
 
-		if _, ok := mockSettings[key]; ok {
-			utils.Success(w, nil, "")
-		} else {
-			utils.NotFound(w, "Setting not found")
-		}
-	})
+	r := chi.NewRouter()
+	r.Get("/api/settings/{key}", handler.Get)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings/nonexistent", nil)
 	rec := httptest.NewRecorder()
@@ -103,29 +168,41 @@ func TestGetSetting_NotFound(t *testing.T) {
 	}
 }
 
-// TestUpdateSetting_ValidRequest tests updating a setting
-func TestUpdateSetting_ValidRequest(t *testing.T) {
+func TestSettingsHandler_Get_EmptyKey(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
+
+	// Test with empty key by calling handler directly without chi context
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/", nil)
+	rec := httptest.NewRecorder()
+
+	handler.Get(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+// =============================================================================
+// Update Tests
+// =============================================================================
+
+func TestSettingsHandler_Unit_Update_Success(t *testing.T) {
+	var capturedKey, capturedValue string
+	mockService := &mocks.MockSettingsService{
+		SetFunc: func(key, value string) error {
+			capturedKey = key
+			capturedValue = value
+			return nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
 	r := chi.NewRouter()
-	r.Put("/api/settings/{key}", func(w http.ResponseWriter, req *http.Request) {
-		key := chi.URLParam(req, "key")
-		if key == "" {
-			utils.BadRequest(w, "Setting key is required", nil)
-			return
-		}
+	r.Put("/api/settings/{key}", handler.Update)
 
-		var body struct {
-			Value string `json:"value"`
-		}
-		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
-
-		utils.Success(w, map[string]string{"key": key, "value": body.Value}, "Setting updated")
-	})
-
-	body, _ := json.Marshal(map[string]string{"value": "new_value"})
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/test.key", bytes.NewBuffer(body))
+	body, _ := json.Marshal(map[string]string{"value": "dark"})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/app.theme", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -134,23 +211,39 @@ func TestUpdateSetting_ValidRequest(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
+
+	if capturedKey != "app.theme" {
+		t.Errorf("Expected key 'app.theme', got '%s'", capturedKey)
+	}
+	if capturedValue != "dark" {
+		t.Errorf("Expected value 'dark', got '%s'", capturedValue)
+	}
 }
 
-// TestUpdateSetting_InvalidJSON tests updating with invalid JSON
-func TestUpdateSetting_InvalidJSON(t *testing.T) {
-	r := chi.NewRouter()
-	r.Put("/api/settings/{key}", func(w http.ResponseWriter, req *http.Request) {
-		var body struct {
-			Value string `json:"value"`
-		}
-		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
-		utils.Success(w, nil, "")
-	})
+func TestSettingsHandler_Update_EmptyKey(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/test.key", bytes.NewBufferString("{invalid}"))
+	body, _ := json.Marshal(map[string]string{"value": "test"})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Update(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestSettingsHandler_Update_InvalidJSON(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
+
+	r := chi.NewRouter()
+	r.Put("/api/settings/{key}", handler.Update)
+
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/app.theme", bytes.NewBufferString("{invalid}"))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -161,89 +254,184 @@ func TestUpdateSetting_InvalidJSON(t *testing.T) {
 	}
 }
 
-// TestGetNotFound_Success tests retrieving 404 settings
-func TestGetNotFound_Success(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
+func TestSettingsHandler_Update_ServiceError(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		SetFunc: func(key, value string) error {
+			return errors.New("database error")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	r := chi.NewRouter()
+	r.Put("/api/settings/{key}", handler.Update)
+
+	body, _ := json.Marshal(map[string]string{"value": "test"})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/app.theme", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		settings := map[string]string{
-			"mode":         "default",
-			"redirect_url": "",
-		}
-		utils.Success(w, settings, "404 settings retrieved successfully")
-	})
+	r.ServeHTTP(rec, req)
 
-	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+func TestSettingsHandler_Update_EmptyValue(t *testing.T) {
+	var capturedValue string
+	mockService := &mocks.MockSettingsService{
+		SetFunc: func(key, value string) error {
+			capturedValue = value
+			return nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	r := chi.NewRouter()
+	r.Put("/api/settings/{key}", handler.Update)
+
+	body, _ := json.Marshal(map[string]string{"value": ""})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/app.theme", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
+
+	if capturedValue != "" {
+		t.Errorf("Expected empty value, got '%s'", capturedValue)
+	}
 }
 
-// TestUpdateNotFound_ValidDefault tests updating to default mode
-func TestUpdateNotFound_ValidDefault(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Mode        string `json:"mode"`
-			RedirectURL string `json:"redirect_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
+// =============================================================================
+// GetNotFound Tests
+// =============================================================================
 
-		// Validate mode
-		if req.Mode != "default" && req.Mode != "redirect" {
-			utils.BadRequest(w, "Mode must be 'default' or 'redirect'", nil)
-			return
-		}
+func TestSettingsHandler_Unit_GetNotFound_Success(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{
+				Mode:        "default",
+				RedirectURL: "",
+			}, nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
 
-		// Validate redirect URL if mode is redirect
-		if req.Mode == "redirect" && req.RedirectURL == "" {
-			utils.BadRequest(w, "Redirect URL is required when mode is 'redirect'", nil)
-			return
-		}
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
+	rec := httptest.NewRecorder()
 
-		utils.Success(w, req, "404 settings updated")
-	})
+	handler.GetNotFound(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	data := response["data"].(map[string]interface{})
+	if data["mode"] != "default" {
+		t.Errorf("Expected mode 'default', got '%v'", data["mode"])
+	}
+}
+
+func TestSettingsHandler_GetNotFound_RedirectMode(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{
+				Mode:        "redirect",
+				RedirectURL: "https://example.com/404",
+			}, nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetNotFound(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	data := response["data"].(map[string]interface{})
+	if data["mode"] != "redirect" {
+		t.Errorf("Expected mode 'redirect', got '%v'", data["mode"])
+	}
+	if data["redirect_url"] != "https://example.com/404" {
+		t.Errorf("Expected redirect_url 'https://example.com/404', got '%v'", data["redirect_url"])
+	}
+}
+
+func TestSettingsHandler_GetNotFound_ServiceError(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetNotFound(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+// =============================================================================
+// UpdateNotFound Tests
+// =============================================================================
+
+func TestSettingsHandler_UpdateNotFound_DefaultMode(t *testing.T) {
+	var capturedSettings *models.NotFoundSettings
+	mockService := &mocks.MockSettingsService{
+		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+			capturedSettings = settings
+			return nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
 
 	body, _ := json.Marshal(map[string]string{"mode": "default", "redirect_url": ""})
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	handler.UpdateNotFound(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
+
+	if capturedSettings.Mode != "default" {
+		t.Errorf("Expected mode 'default', got '%s'", capturedSettings.Mode)
+	}
 }
 
-// TestUpdateNotFound_ValidRedirect tests updating to redirect mode
-func TestUpdateNotFound_ValidRedirect(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Mode        string `json:"mode"`
-			RedirectURL string `json:"redirect_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
-
-		if req.Mode != "default" && req.Mode != "redirect" {
-			utils.BadRequest(w, "Mode must be 'default' or 'redirect'", nil)
-			return
-		}
-
-		if req.Mode == "redirect" && req.RedirectURL == "" {
-			utils.BadRequest(w, "Redirect URL is required when mode is 'redirect'", nil)
-			return
-		}
-
-		utils.Success(w, req, "404 settings updated")
-	})
+func TestSettingsHandler_UpdateNotFound_RedirectMode(t *testing.T) {
+	var capturedSettings *models.NotFoundSettings
+	mockService := &mocks.MockSettingsService{
+		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+			capturedSettings = settings
+			return nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
 
 	body, _ := json.Marshal(map[string]string{
 		"mode":         "redirect",
@@ -253,124 +441,132 @@ func TestUpdateNotFound_ValidRedirect(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	handler.UpdateNotFound(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
+
+	if capturedSettings.Mode != "redirect" {
+		t.Errorf("Expected mode 'redirect', got '%s'", capturedSettings.Mode)
+	}
+	if capturedSettings.RedirectURL != "https://example.com/404" {
+		t.Errorf("Expected redirect_url 'https://example.com/404', got '%s'", capturedSettings.RedirectURL)
+	}
 }
 
-// TestUpdateNotFound_InvalidMode tests updating with invalid mode
-func TestUpdateNotFound_InvalidMode(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Mode        string `json:"mode"`
-			RedirectURL string `json:"redirect_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
+func TestSettingsHandler_UpdateNotFound_InvalidJSON(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
 
-		if req.Mode != "default" && req.Mode != "redirect" {
-			utils.BadRequest(w, "Mode must be 'default' or 'redirect'", nil)
-			return
-		}
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString("{invalid}"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
 
-		utils.Success(w, req, "")
-	})
+	handler.UpdateNotFound(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestSettingsHandler_Unit_UpdateNotFound_InvalidMode(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
 
 	body, _ := json.Marshal(map[string]string{"mode": "invalid", "redirect_url": ""})
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	handler.UpdateNotFound(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 
-// TestUpdateNotFound_RedirectWithoutURL tests redirect mode without URL
-func TestUpdateNotFound_RedirectWithoutURL(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Mode        string `json:"mode"`
-			RedirectURL string `json:"redirect_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
-
-		if req.Mode != "default" && req.Mode != "redirect" {
-			utils.BadRequest(w, "Mode must be 'default' or 'redirect'", nil)
-			return
-		}
-
-		if req.Mode == "redirect" && req.RedirectURL == "" {
-			utils.BadRequest(w, "Redirect URL is required when mode is 'redirect'", nil)
-			return
-		}
-
-		utils.Success(w, req, "")
-	})
+func TestSettingsHandler_Unit_UpdateNotFound_RedirectWithoutURL(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
 
 	body, _ := json.Marshal(map[string]string{"mode": "redirect", "redirect_url": ""})
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	handler.UpdateNotFound(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 
-// TestUpdateNotFound_InvalidJSON tests updating with invalid JSON
-func TestUpdateNotFound_InvalidJSON(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Mode        string `json:"mode"`
-			RedirectURL string `json:"redirect_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			utils.BadRequest(w, "Invalid request body", nil)
-			return
-		}
-		utils.Success(w, nil, "")
-	})
+func TestSettingsHandler_UpdateNotFound_ServiceError(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+			return errors.New("database error")
+		},
+	}
+	handler := NewSettingsHandler(mockService)
 
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString("{invalid}"))
+	body, _ := json.Marshal(map[string]string{"mode": "default", "redirect_url": ""})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.ServeHTTP(rec, req)
+	handler.UpdateNotFound(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+func TestSettingsHandler_UpdateNotFound_EmptyMode(t *testing.T) {
+	mockService := &mocks.MockSettingsService{}
+	handler := NewSettingsHandler(mockService)
+
+	body, _ := json.Marshal(map[string]string{"mode": "", "redirect_url": ""})
+	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.UpdateNotFound(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 
-// TestSettingsResponseFormat verifies the response format
-func TestSettingsResponseFormat(t *testing.T) {
+// =============================================================================
+// Response Format Tests
+// =============================================================================
+
+func TestSettingsHandler_ResponseFormat(t *testing.T) {
+	mockService := &mocks.MockSettingsService{
+		GetAllFunc: func() (map[string]string, error) {
+			return map[string]string{"key": "value"}, nil
+		},
+	}
+	handler := NewSettingsHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
 	rec := httptest.NewRecorder()
-	utils.Success(rec, map[string]string{"key": "test", "value": "value"}, "Success")
+
+	handler.GetAll(rec, req)
 
 	var response map[string]interface{}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
+	if _, ok := response["success"]; !ok {
+		t.Error("Expected 'success' field in response")
 	}
-	if response["message"] != "Success" {
-		t.Errorf("Expected message 'Success', got '%v'", response["message"])
+	if _, ok := response["message"]; !ok {
+		t.Error("Expected 'message' field in response")
 	}
-	if response["data"] == nil {
-		t.Error("Expected data to be present")
+	if _, ok := response["data"]; !ok {
+		t.Error("Expected 'data' field in response")
 	}
 }

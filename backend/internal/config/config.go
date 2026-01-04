@@ -205,11 +205,7 @@ func validate(cfg *Config) error {
 	}
 
 	// Validate ACME provider
-	if err := validateACMEProvider(cfg.Caddy.ACMEProvider); err != nil {
-		return err
-	}
-
-	return nil
+	return validateACMEProvider(cfg.Caddy.ACMEProvider)
 }
 
 // validateACMEProvider checks if the ACME provider is valid and required env vars are set

@@ -9,11 +9,11 @@ import (
 
 // SyncHandler handles sync-related HTTP requests
 type SyncHandler struct {
-	syncService *service.SyncService
+	syncService service.SyncServiceInterface
 }
 
 // NewSyncHandler creates a new sync handler
-func NewSyncHandler(syncService *service.SyncService) *SyncHandler {
+func NewSyncHandler(syncService service.SyncServiceInterface) *SyncHandler {
 	return &SyncHandler{
 		syncService: syncService,
 	}

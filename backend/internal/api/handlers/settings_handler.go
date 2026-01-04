@@ -13,11 +13,11 @@ import (
 
 // SettingsHandler handles settings-related HTTP requests
 type SettingsHandler struct {
-	settingsService *service.SettingsService
+	settingsService service.SettingsServiceInterface
 }
 
 // NewSettingsHandler creates a new settings handler
-func NewSettingsHandler(settingsService *service.SettingsService) *SettingsHandler {
+func NewSettingsHandler(settingsService service.SettingsServiceInterface) *SettingsHandler {
 	return &SettingsHandler{
 		settingsService: settingsService,
 	}

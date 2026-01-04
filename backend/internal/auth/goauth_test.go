@@ -1,0 +1,157 @@
+package auth
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/aloks98/goauth/middleware"
+)
+
+func TestExtractUserID_CustomClaims(t *testing.T) {
+	adapter := &Adapter{}
+
+	claims := &CustomClaims{}
+	claims.UserID = "123"
+
+	result := adapter.ExtractUserID(claims)
+	if result != "123" {
+		t.Errorf("Expected '123', got '%s'", result)
+	}
+}
+
+func TestExtractUserID_NilClaims(t *testing.T) {
+	adapter := &Adapter{}
+
+	result := adapter.ExtractUserID(nil)
+	if result != "" {
+		t.Errorf("Expected empty string, got '%s'", result)
+	}
+}
+
+func TestExtractUserID_WrongType(t *testing.T) {
+	adapter := &Adapter{}
+
+	result := adapter.ExtractUserID("not a claims object")
+	if result != "" {
+		t.Errorf("Expected empty string, got '%s'", result)
+	}
+}
+
+// mockGetUserID is a helper interface for testing
+type mockClaimsWithGetUserID struct {
+	userID string
+}
+
+func (m *mockClaimsWithGetUserID) GetUserID() string {
+	return m.userID
+}
+
+func TestExtractUserID_GetUserIDInterface(t *testing.T) {
+	adapter := &Adapter{}
+
+	mock := &mockClaimsWithGetUserID{userID: "456"}
+	result := adapter.ExtractUserID(mock)
+	if result != "456" {
+		t.Errorf("Expected '456', got '%s'", result)
+	}
+}
+
+func TestExtractPermissions(t *testing.T) {
+	adapter := &Adapter{}
+
+	// ExtractPermissions always returns nil (permissions checked via RBAC)
+	result := adapter.ExtractPermissions(&CustomClaims{})
+	if result != nil {
+		t.Errorf("Expected nil, got %v", result)
+	}
+}
+
+func TestGetUserIDAsUint_EmptyContext(t *testing.T) {
+	ctx := context.Background()
+
+	_, err := GetUserIDAsUint(ctx)
+	if err == nil {
+		t.Error("Expected error for empty context, got nil")
+	}
+	if err.Error() != "user ID not found in context" {
+		t.Errorf("Expected 'user ID not found in context', got '%s'", err.Error())
+	}
+}
+
+func TestGetUserIDFromContext_Empty(t *testing.T) {
+	ctx := context.Background()
+
+	result := GetUserIDFromContext(ctx)
+	if result != "" {
+		t.Errorf("Expected empty string, got '%s'", result)
+	}
+}
+
+func TestErrorHandler_Unauthorized(t *testing.T) {
+	handler := ErrorHandler()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	handler(w, r, middleware.ErrInvalidToken)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestErrorHandler_Forbidden(t *testing.T) {
+	handler := ErrorHandler()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/test", nil)
+
+	handler(w, r, middleware.ErrPermissionDenied)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestCustomClaims(t *testing.T) {
+	claims := &CustomClaims{
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	claims.UserID = "123"
+
+	if claims.Username != "testuser" {
+		t.Errorf("Expected 'testuser', got '%s'", claims.Username)
+	}
+	if claims.Email != "test@example.com" {
+		t.Errorf("Expected 'test@example.com', got '%s'", claims.Email)
+	}
+	if claims.UserID != "123" {
+		t.Errorf("Expected '123', got '%s'", claims.UserID)
+	}
+}
+
+func TestSetAuth(t *testing.T) {
+	adapter := &Adapter{}
+
+	if adapter.auth != nil {
+		t.Error("Expected auth to be nil initially")
+	}
+
+	// SetAuth with nil (just verifies it doesn't panic)
+	adapter.SetAuth(nil)
+
+	if adapter.auth != nil {
+		t.Error("Expected auth to still be nil")
+	}
+}
+
+func TestAdapter_ImplementsInterfaces(t *testing.T) {
+	// Compile-time check that Adapter implements required interfaces
+	var _ middleware.TokenValidator = (*Adapter)(nil)
+	var _ middleware.ClaimsExtractor = (*Adapter)(nil)
+	var _ middleware.PermissionChecker = (*Adapter)(nil)
+	var _ middleware.APIKeyValidator = (*Adapter)(nil)
+}

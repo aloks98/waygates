@@ -12,12 +12,12 @@ import (
 
 // StatusHandler handles status-related HTTP requests
 type StatusHandler struct {
-	reloader *caddy.Reloader
-	userRepo *repository.UserRepository
+	reloader caddy.ReloaderInterface
+	userRepo repository.UserRepositoryInterface
 }
 
 // NewStatusHandler creates a new status handler
-func NewStatusHandler(reloader *caddy.Reloader, userRepo *repository.UserRepository) *StatusHandler {
+func NewStatusHandler(reloader caddy.ReloaderInterface, userRepo repository.UserRepositoryInterface) *StatusHandler {
 	return &StatusHandler{
 		reloader: reloader,
 		userRepo: userRepo,

@@ -14,15 +14,15 @@ import (
 
 // ProxyService handles business logic for proxies
 type ProxyService struct {
-	repo        *repository.ProxyRepository
-	syncService *SyncService
+	repo        repository.ProxyRepositoryInterface
+	syncService ProxySyncer
 	logger      *zap.Logger
 }
 
 // ProxyServiceConfig holds configuration for ProxyService
 type ProxyServiceConfig struct {
-	Repo        *repository.ProxyRepository
-	SyncService *SyncService
+	Repo        repository.ProxyRepositoryInterface
+	SyncService ProxySyncer
 	Logger      *zap.Logger
 }
 

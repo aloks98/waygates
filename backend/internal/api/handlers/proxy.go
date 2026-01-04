@@ -16,13 +16,13 @@ import (
 
 // ProxyHandler handles proxy-related HTTP requests
 type ProxyHandler struct {
-	service *service.ProxyService
+	service service.ProxyServiceInterface
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(service *service.ProxyService) *ProxyHandler {
+func NewProxyHandler(svc service.ProxyServiceInterface) *ProxyHandler {
 	return &ProxyHandler{
-		service: service,
+		service: svc,
 	}
 }
 
