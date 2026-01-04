@@ -54,7 +54,7 @@ Authorization: Bearer <jwt_token>
   "resource_name": "My Application",
   "details": {
     "proxy": {
-      "hostname": "app.caddy.e412.in",
+      "hostname": "app.example.com",
       "type": "reverse_proxy",
       "upstreams": ["192.168.100.5:8080"]
     }
@@ -75,7 +75,7 @@ Authorization: Bearer <jwt_token>
 
 ```sql
 CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
 
     -- User information
     user_id INTEGER,  -- NULL for system actions or failed login attempts
@@ -253,7 +253,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         "resource_name": "Production API",
         "details": {
           "proxy": {
-            "hostname": "api.caddy.e412.in",
+            "hostname": "api.example.com",
             "type": "reverse_proxy",
             "upstreams": [
               {"host": "192.168.100.10", "port": 3000},
@@ -397,7 +397,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "resource_name": "Production API",
     "details": {
       "proxy": {
-        "hostname": "api.caddy.e412.in",
+        "hostname": "api.example.com",
         "type": "reverse_proxy",
         "upstreams": [
           {"host": "192.168.100.10", "port": 3000},
@@ -410,7 +410,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
       },
       "request_body": {
         "name": "Production API",
-        "hostname": "api.caddy.e412.in"
+        "hostname": "api.example.com"
       }
     },
     "ip_address": "192.168.1.100",
@@ -797,7 +797,7 @@ The `details` field contains action-specific information in JSON format. Below a
 {
   "proxy": {
     "type": "reverse_proxy",
-    "hostname": "api.caddy.e412.in",
+    "hostname": "api.example.com",
     "upstreams": [
       {
         "host": "192.168.100.10",
@@ -821,7 +821,7 @@ For load-balanced proxy:
 {
   "proxy": {
     "type": "reverse_proxy",
-    "hostname": "api.caddy.e412.in",
+    "hostname": "api.example.com",
     "upstreams": [
       {"host": "192.168.100.10", "port": 3000, "scheme": "http"},
       {"host": "192.168.100.11", "port": 3000, "scheme": "http"}
@@ -843,9 +843,9 @@ For redirect:
 {
   "proxy": {
     "type": "redirect",
-    "hostname": "old.caddy.e412.in",
+    "hostname": "old.example.com",
     "redirect": {
-      "target": "https://new.caddy.e412.in",
+      "target": "https://new.example.com",
       "status_code": 301,
       "preserve_path": true,
       "preserve_query": true
@@ -859,7 +859,7 @@ For static site:
 {
   "proxy": {
     "type": "static",
-    "hostname": "landing.caddy.e412.in",
+    "hostname": "landing.example.com",
     "static": {
       "root_path": "/var/www/landing",
       "index_file": "index.html",
@@ -878,7 +878,7 @@ For static site:
 ```json
 {
   "proxy_id": 5,
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "changes": {
     "upstreams": {
       "old": [
@@ -900,7 +900,7 @@ Multiple field changes:
 ```json
 {
   "proxy_id": 5,
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "changes": {
     "name": {
       "old": "Old Name",
@@ -936,7 +936,7 @@ Type change (e.g., reverse_proxy to redirect):
 ```json
 {
   "proxy_id": 5,
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "changes": {
     "type": {
       "old": "reverse_proxy",
@@ -965,7 +965,7 @@ Type change (e.g., reverse_proxy to redirect):
 {
   "deleted_proxy": {
     "id": 5,
-    "hostname": "api.caddy.e412.in",
+    "hostname": "api.example.com",
     "type": "reverse_proxy",
     "name": "Production API",
     "was_active": true,
@@ -981,11 +981,11 @@ For redirect type:
 {
   "deleted_proxy": {
     "id": 7,
-    "hostname": "old.caddy.e412.in",
+    "hostname": "old.example.com",
     "type": "redirect",
     "name": "Old Domain Redirect",
     "was_active": true,
-    "redirect_target": "https://new.caddy.e412.in"
+    "redirect_target": "https://new.example.com"
   }
 }
 ```
@@ -997,7 +997,7 @@ For redirect type:
 ```json
 {
   "proxy_id": 5,
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "name": "Production API",
   "previous_status": "inactive",
   "new_status": "active"
@@ -1011,7 +1011,7 @@ For redirect type:
 ```json
 {
   "proxy_id": 5,
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "name": "Production API",
   "previous_status": "active",
   "new_status": "inactive",

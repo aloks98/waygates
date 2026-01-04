@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check ui-build
+.PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
 .PHONY: backend-run backend-build backend-test migrate-create
 .PHONY: lint lint-backend lint-ui format format-backend format-ui check setup-tools
 
@@ -6,8 +6,8 @@
 help:
 	@echo "Available commands:"
 	@echo ""
-	@echo "Caddy (Docker):"
-	@echo "  make build         - Build the Caddy Docker image"
+	@echo "Docker:"
+	@echo "  make build         - Build the Waygates Docker image"
 	@echo "  make up            - Start containers in detached mode"
 	@echo "  make down          - Stop and remove containers"
 	@echo "  make restart       - Restart containers"
@@ -20,12 +20,9 @@ help:
 	@echo "  make deploy        - Full deployment (env-check, build, up)"
 	@echo ""
 	@echo "Backend (Go):"
-	@echo "  make backend-run   - Run the Go backend server"
+	@echo "  make backend-run   - Run the Go backend server locally"
 	@echo "  make backend-build - Build the Go backend binary"
 	@echo "  make backend-test  - Run backend tests"
-	@echo ""
-	@echo "UI (React):"
-	@echo "  make ui-build      - Build the UI Docker image"
 	@echo ""
 	@echo "Linting & Formatting:"
 	@echo "  make lint          - Run linters on both backend and UI"
@@ -41,10 +38,10 @@ help:
 	@echo "  Note: Migrations run automatically when backend starts"
 	@echo ""
 	@echo "Other:"
-	@echo "  make env-check     - Check if .env file exists and is configured"
+	@echo "  make env-check     - Check if .env file exists"
 	@echo "  make setup-tools   - Install development tools (golangci-lint, goimports)"
 
-# Check if .env file exists and is configured
+# Check if .env file exists
 env-check:
 	@if [ ! -f .env ]; then \
 		echo "❌ Error: .env file not found!"; \
@@ -52,24 +49,12 @@ env-check:
 		echo "  cp .env.example .env"; \
 		exit 1; \
 	fi
-	@if grep -q "your_cloudflare_api_token_here" .env; then \
-		echo "⚠️  Warning: .env file contains placeholder values!"; \
-		echo "Please update CLOUDFLARE_API_TOKEN in .env file"; \
-		exit 1; \
-	fi
-	@echo "✓ Environment file configured"
+	@echo "✓ Environment file exists"
 
-# Build the Docker images
+# Build the Docker image
 build:
-	@echo "Building Caddy with Cloudflare DNS plugin..."
+	@echo "Building Waygates Docker image..."
 	docker compose build
-	$(MAKE) ui-build
-
-# Build the UI Docker image
-ui-build:
-	@echo "Building UI Docker image..."
-	docker build -f Dockerfile.ui -t waygates-ui .
-	@echo "✓ UI Docker image built: waygates-ui"
 
 # Start containers
 up:
@@ -103,31 +88,23 @@ status:
 	@echo "Container status:"
 	@docker compose ps
 	@echo ""
-	@echo "Caddy admin API:"
-	@echo "  http://localhost:2019/config/"
+	@echo "Backend API: http://localhost:8080"
+	@echo "Caddy Admin: http://localhost:2019/config/"
 
 # Clean everything (containers, volumes, images)
 clean:
 	@echo "Cleaning up..."
 	docker compose down -v
-	docker rmi waygates-caddy 2>/dev/null || true
+	docker rmi waygates 2>/dev/null || true
 	@echo "✓ Cleanup complete"
 
 # Rebuild everything from scratch
 rebuild: clean build up
 
-# Validate Caddyfile syntax
+# Validate Caddyfile syntax (requires running container)
 validate:
 	@echo "Validating Caddyfile..."
-	@if [ -z "$$(docker images -q waygates-caddy 2> /dev/null)" ]; then \
-		echo "Custom Caddy image not found. Building first..."; \
-		$(MAKE) build; \
-	fi
-	@docker run --rm \
-		--env-file .env \
-		-v $(PWD)/conf:/etc/caddy \
-		waygates-caddy \
-		caddy validate --config /etc/caddy/Caddyfile
+	docker compose exec waygates caddy validate --config /etc/caddy/Caddyfile
 	@echo "✓ Caddyfile is valid"
 
 # Full deployment pipeline
@@ -136,9 +113,9 @@ deploy: env-check build up
 	@echo "✓ Deployment complete!"
 	@echo ""
 	@echo "Services:"
-	@echo "  Admin API: http://localhost:2019"
-	@echo "  HTTP:      http://localhost:80"
-	@echo "  HTTPS:     https://localhost:443"
+	@echo "  Backend API: http://localhost:8080"
+	@echo "  HTTP:        http://localhost:80"
+	@echo "  HTTPS:       https://localhost:443"
 	@echo ""
 	@echo "View logs with: make logs-follow"
 
@@ -146,7 +123,7 @@ deploy: env-check build up
 # Backend Commands
 # ============================================
 
-# Run the Go backend server
+# Run the Go backend server locally
 backend-run: env-check
 	@echo "Starting Go backend server..."
 	@go run backend/cmd/server/main.go
@@ -154,8 +131,8 @@ backend-run: env-check
 # Build the Go backend binary
 backend-build:
 	@echo "Building Go backend..."
-	@go build -o bin/caddy-manager backend/cmd/server/main.go
-	@echo "✓ Binary created at: bin/caddy-manager"
+	@go build -o bin/waygates backend/cmd/server/main.go
+	@echo "✓ Binary created at: bin/waygates"
 
 # Run backend tests
 backend-test:

@@ -6,30 +6,30 @@ This guide covers deploying Waygates in various environments.
 
 - [Quick Start](#quick-start)
 - [Docker Compose (Recommended)](#docker-compose-recommended)
-- [Manual Docker Setup](#manual-docker-setup)
-- [Building from Source](#building-from-source)
-- [Configuration](#configuration)
-- [Caddy Setup](#caddy-setup)
+- [TLS Configuration](#tls-configuration)
+- [Configuration Reference](#configuration-reference)
 - [Production Considerations](#production-considerations)
 - [Upgrading](#upgrading)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Quick Start
 
-The fastest way to get Waygates running:
-
 ```bash
 # Pull the image
 docker pull ghcr.io/aloks98/waygates:latest
 
-# Run with minimal config
-docker run -d \
-  --name waygates \
-  -p 8080:8080 \
-  -e DATABASE_URL=postgres://user:pass@host:5432/waygates \
-  -e JWT_SECRET=your-secret-key-min-32-chars \
-  ghcr.io/aloks98/waygates:latest
+# Run with Docker Compose
+curl -O https://raw.githubusercontent.com/aloks98/waygates/main/docker-compose.yml
+curl -O https://raw.githubusercontent.com/aloks98/waygates/main/.env.example
+cp .env.example .env
+
+# Edit .env with your settings
+nano .env
+
+# Start
+docker compose up -d
 ```
 
 Access the UI at `http://localhost:8080`
@@ -38,13 +38,7 @@ Access the UI at `http://localhost:8080`
 
 ## Docker Compose (Recommended)
 
-### 1. Create Project Directory
-
-```bash
-mkdir waygates && cd waygates
-```
-
-### 2. Create docker-compose.yml
+### 1. Create docker-compose.yml
 
 ```yaml
 services:
@@ -53,180 +47,124 @@ services:
     container_name: waygates-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${DB_USER:-waygates}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME:-waygates}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-waygates}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-waygates}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  backend:
+  waygates:
     image: ghcr.io/aloks98/waygates:latest
-    container_name: waygates-backend
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      # Database
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
-      DB_NAME: ${DB_NAME:-waygates}
-
-      # Caddy Admin API
-      CADDY_ADMIN_URL: http://caddy:2019
-
-      # Authentication
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ACCESS_EXPIRY: 15m
-      JWT_REFRESH_EXPIRY: 168h
-
-      # First user credentials (created on startup)
-      DEFAULT_USER_EMAIL: ${DEFAULT_USER_EMAIL:-admin@example.com}
-      DEFAULT_USER_PASSWORD: ${DEFAULT_USER_PASSWORD:-changeme}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      caddy:
-        condition: service_started
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: waygates-caddy
+    container_name: waygates
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"
-      - "2019:2019"
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      # Override DB_HOST for Docker networking
+      DB_HOST: postgres
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - caddy-etc:/etc/caddy
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres-data:
   caddy-data:
   caddy-config:
+  caddy-etc:
 ```
 
-### 3. Create Caddyfile
-
-```caddyfile
-{
-    admin 0.0.0.0:2019
-}
-
-# Default response for unmatched hosts
-:80, :443 {
-    respond "Not Found" 404
-}
-```
-
-### 4. Create .env File
+### 2. Create .env File
 
 ```bash
-# Database
-DB_USER=postgres
-DB_PASSWORD=your-secure-password
-DB_NAME=waygates
-
-# Authentication (REQUIRED - min 32 characters)
-JWT_SECRET=your-very-long-secret-key-at-least-32-characters
-
-# Default admin user
-DEFAULT_USER_EMAIL=admin@example.com
-DEFAULT_USER_PASSWORD=your-admin-password
+cp .env.example .env
+nano .env  # Edit with your settings
 ```
 
-### 5. Start Services
+Required variables:
+- `DB_PASSWORD` - Database password
+- `JWT_SECRET` - Min 32 characters for JWT signing
+
+See `.env.example` for all available options including TLS/ACME providers.
+
+### 3. Start Services
 
 ```bash
 docker compose up -d
 ```
 
-### 6. Access
+---
 
-- **UI**: http://localhost:8080
-- **API**: http://localhost:8080/api
-- **Caddy Admin**: http://localhost:2019
+## TLS Configuration
+
+Waygates supports automatic TLS certificates via multiple ACME providers. Set `CADDY_ACME_PROVIDER` to enable.
+
+### Option 1: No HTTPS (Development)
+
+```env
+CADDY_ACME_PROVIDER=off
+```
+
+### Option 2: HTTP Challenge
+
+Requires ports 80 and 443 to be publicly accessible:
+
+```env
+CADDY_ACME_PROVIDER=http
+CADDY_EMAIL=admin@example.com
+```
+
+### Option 3: DNS Challenge
+
+For wildcard certificates or when ports 80/443 are not publicly accessible.
+
+#### Cloudflare
+
+```env
+CADDY_ACME_PROVIDER=cloudflare
+CADDY_EMAIL=admin@example.com
+CLOUDFLARE_API_TOKEN=your-api-token
+```
+
+Get token from: https://dash.cloudflare.com/profile/api-tokens
+Required permissions: Zone:DNS:Edit, Zone:Zone:Read
+
+#### AWS Route53
+
+```env
+CADDY_ACME_PROVIDER=route53
+CADDY_EMAIL=admin@example.com
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+```
+
+#### DigitalOcean
+
+```env
+CADDY_ACME_PROVIDER=digitalocean
+CADDY_EMAIL=admin@example.com
+DO_AUTH_TOKEN=your-token
+```
+
+#### Other Providers
+
+See `.env.example` for full list: Hetzner, Porkbun, Vultr, Namecheap, OVH, Azure, DuckDNS.
 
 ---
 
-## Manual Docker Setup
-
-### Prerequisites
-
-- PostgreSQL 14+ database
-- Caddy 2.x server (or compatible reverse proxy)
-
-### Run Waygates
-
-```bash
-docker run -d \
-  --name waygates \
-  -p 8080:8080 \
-  -e DB_HOST=your-postgres-host \
-  -e DB_PORT=5432 \
-  -e DB_USER=postgres \
-  -e DB_PASSWORD=your-password \
-  -e DB_NAME=waygates \
-  -e CADDY_ADMIN_URL=http://your-caddy-host:2019 \
-  -e JWT_SECRET=your-secret-key-min-32-chars \
-  -e DEFAULT_USER_EMAIL=admin@example.com \
-  -e DEFAULT_USER_PASSWORD=changeme \
-  ghcr.io/aloks98/waygates:latest
-```
-
----
-
-## Building from Source
-
-### Prerequisites
-
-- Go 1.25+
-- Node.js 22+ with pnpm
-- Docker (optional, for containerized build)
-
-### Option 1: Docker Build
-
-```bash
-# Clone repository
-git clone https://github.com/aloks98/waygates.git
-cd waygates
-
-# Build image
-docker build -f Dockerfile.backend -t waygates:local .
-```
-
-### Option 2: Local Build
-
-```bash
-# Clone repository
-git clone https://github.com/aloks98/waygates.git
-cd waygates
-
-# Build UI
-cd ui
-pnpm install
-pnpm build
-cd ..
-
-# Build backend
-go build -o bin/waygates ./backend/cmd/server
-
-# Run
-./bin/waygates
-```
-
----
-
-## Configuration
+## Configuration Reference
 
 ### Environment Variables
 
@@ -234,134 +172,37 @@ go build -o bin/waygates ./backend/cmd/server
 |----------|----------|---------|-------------|
 | `DB_HOST` | Yes | - | PostgreSQL host |
 | `DB_PORT` | No | `5432` | PostgreSQL port |
-| `DB_USER` | Yes | - | Database user |
+| `DB_USER` | No | `waygates` | Database user |
 | `DB_PASSWORD` | Yes | - | Database password |
 | `DB_NAME` | No | `waygates` | Database name |
 | `JWT_SECRET` | Yes | - | JWT signing key (min 32 chars) |
 | `JWT_ACCESS_EXPIRY` | No | `15m` | Access token expiry |
-| `JWT_REFRESH_EXPIRY` | No | `168h` | Refresh token expiry (7 days) |
-| `CADDY_ADMIN_URL` | Yes | - | Caddy Admin API URL |
-| `CADDY_TIMEOUT` | No | `10s` | Caddy API timeout |
-| `SERVER_HOST` | No | `0.0.0.0` | Server bind address |
-| `SERVER_PORT` | No | `8080` | Server port |
-| `DEFAULT_USER_EMAIL` | No | - | Auto-create admin user email |
-| `DEFAULT_USER_PASSWORD` | No | - | Auto-create admin user password |
-| `DEFAULT_USER_NAME` | No | `Admin` | Auto-create admin user name |
+| `JWT_REFRESH_EXPIRY` | No | `168h` | Refresh token expiry |
+| `CADDY_ACME_PROVIDER` | No | `off` | ACME provider |
+| `CADDY_EMAIL` | No | - | Email for ACME certs |
+| `SERVER_HOST` | No | `0.0.0.0` | Backend bind address |
+| `SERVER_PORT` | No | `8080` | Backend port |
+| `DEFAULT_USER_EMAIL` | No | - | Auto-create admin email |
+| `DEFAULT_USER_PASSWORD` | No | - | Auto-create admin password |
 | `BCRYPT_COST` | No | `12` | Password hashing cost |
-| `CORS_ORIGINS` | No | `*` | Allowed CORS origins |
-| `LOG_LEVEL` | No | `info` | Log level (debug/info/warn/error) |
+| `LOG_LEVEL` | No | `info` | Log level |
 | `LOG_FORMAT` | No | `json` | Log format (json/console) |
-| `UI_ENABLED` | No | `true` | Serve UI static files |
-| `UI_PATH` | No | `/app/ui` | Path to UI static files |
 
-### Database Connection
+### Ports
 
-You can use either individual variables or a connection URL:
+| Port | Protocol | Description |
+|------|----------|-------------|
+| 80 | TCP | HTTP (redirect to HTTPS when TLS enabled) |
+| 443 | TCP/UDP | HTTPS + HTTP/3 |
+| 8080 | TCP | Backend API + UI |
 
-```bash
-# Individual variables
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=secret
-DB_NAME=waygates
+### Volumes
 
-# Or connection URL
-DATABASE_URL=postgres://postgres:secret@localhost:5432/waygates?sslmode=disable
-```
-
----
-
-## Caddy Setup
-
-Waygates manages Caddy reverse proxy configurations via the Caddy Admin API. You have several options:
-
-### Option 1: Official Caddy Image (Simple)
-
-Use the official Caddy image if you don't need custom plugins:
-
-```yaml
-caddy:
-  image: caddy:2-alpine
-  ports:
-    - "80:80"
-    - "443:443"
-    - "2019:2019"
-  volumes:
-    - ./Caddyfile:/etc/caddy/Caddyfile:ro
-    - caddy-data:/data
-```
-
-### Option 2: Custom Caddy with Plugins
-
-Build a custom Caddy image with plugins (e.g., Cloudflare DNS for wildcard certs):
-
-**Dockerfile.caddy:**
-```dockerfile
-FROM caddy:2-builder AS builder
-
-RUN xcaddy build \
-    --with github.com/caddy-dns/cloudflare
-
-FROM caddy:2
-
-COPY --from=builder /usr/bin/caddy /usr/bin/caddy
-```
-
-**Build and use:**
-```bash
-docker build -f Dockerfile.caddy -t caddy-custom .
-```
-
-**docker-compose.yml:**
-```yaml
-caddy:
-  build:
-    context: .
-    dockerfile: Dockerfile.caddy
-  environment:
-    - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
-```
-
-### Option 3: Existing Caddy Server
-
-If you have an existing Caddy server, just point Waygates to its Admin API:
-
-```bash
-CADDY_ADMIN_URL=http://192.168.1.100:2019
-```
-
-Ensure the Caddy Admin API is accessible from the Waygates container.
-
-### Default 404 Page
-
-Waygates includes a branded 404 page for unconfigured routes. To enable it, you need a wildcard domain with DNS challenge for SSL certificates.
-
-**Enable in Caddyfile:**
-
-Edit `conf/Caddyfile` and uncomment the wildcard block, replacing with your domain:
-
-```caddyfile
-*.example.com {
-    tls {
-        dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    }
-
-    root * /etc/caddy/templates
-    templates
-    rewrite * /404.html
-    file_server
-}
-```
-
-This serves the branded 404 page for any `*.example.com` subdomain that doesn't have a configured proxy route.
-
-**Why a wildcard domain is required:**
-- SSL certificates require a fully qualified domain name
-- A catch-all like `:443` can't obtain certificates
-- The wildcard certificate covers all subdomains under your domain
-
-The template is located at `conf/templates/404.html` and can be customized.
+| Path | Description |
+|------|-------------|
+| `/data` | Caddy data (certificates, etc.) |
+| `/config` | Caddy config |
+| `/etc/caddy` | Caddyfile and site configs |
 
 ---
 
@@ -371,27 +212,14 @@ The template is located at `conf/templates/404.html` and can be customized.
 
 1. **Use strong secrets:**
    ```bash
-   # Generate a secure JWT secret
    openssl rand -base64 48
    ```
 
-2. **Restrict Caddy Admin API:**
-   ```caddyfile
-   {
-       admin 127.0.0.1:2019  # Only localhost
-   }
-   ```
-   Or use network policies to restrict access.
+2. **Change default credentials** after first login.
 
-3. **Use HTTPS for Waygates UI:**
-   Put Waygates behind Caddy with TLS:
-   ```caddyfile
-   waygates.example.com {
-       reverse_proxy waygates:8080
-   }
-   ```
+3. **Use HTTPS** - Set `CADDY_ACME_PROVIDER` to `http` or a DNS provider.
 
-4. **Change default credentials** after first login.
+4. **Firewall rules** - Restrict access to port 8080 if needed.
 
 ### Database
 
@@ -399,38 +227,32 @@ The template is located at `conf/templates/404.html` and can be customized.
 
 2. **Enable SSL:**
    ```bash
-   DATABASE_URL=postgres://user:pass@host:5432/waygates?sslmode=require
+   # Add to DB connection (future enhancement)
    ```
 
-3. **Regular backups** - Waygates stores all proxy configurations in PostgreSQL.
+3. **Regular backups** - Waygates stores all configurations in PostgreSQL.
 
 ### High Availability
 
 For HA deployments:
 
-1. **Database:** Use PostgreSQL with replication or managed service
+1. **Database:** Use PostgreSQL with replication
 2. **Waygates:** Run multiple replicas behind a load balancer
-3. **Caddy:** Each Caddy instance syncs from Waygates on startup
-
-### Monitoring
-
-1. **Health endpoint:** `GET /health`
-2. **Logs:** JSON format by default, compatible with log aggregators
-3. **Metrics:** Caddy exposes Prometheus metrics at `/metrics`
+3. **Shared storage:** Use shared volume for `/etc/caddy` and `/data`
 
 ### Resource Limits
 
 ```yaml
-backend:
+waygates:
   image: ghcr.io/aloks98/waygates:latest
   deploy:
     resources:
       limits:
-        cpus: '1'
-        memory: 512M
+        cpus: '2'
+        memory: 1G
       reservations:
-        cpus: '0.25'
-        memory: 128M
+        cpus: '0.5'
+        memory: 256M
 ```
 
 ---
@@ -447,28 +269,19 @@ docker compose pull
 docker compose up -d
 
 # Check logs
-docker compose logs -f backend
+docker compose logs -f waygates
 ```
 
 ### Specific Version
 
 ```yaml
-backend:
-  image: ghcr.io/aloks98/waygates:1.2.3  # Pin to version
+waygates:
+  image: ghcr.io/aloks98/waygates:1.2.3
 ```
 
 ### Database Migrations
 
-Migrations run automatically on startup. The backend will:
-
-1. Check current migration version
-2. Apply any pending migrations
-3. Start the server
-
-To check migration status:
-```bash
-docker compose exec backend /app/server migrate status
-```
+Migrations run automatically on startup.
 
 ---
 
@@ -478,32 +291,43 @@ docker compose exec backend /app/server migrate status
 
 ```bash
 # Check logs
-docker compose logs backend
+docker compose logs waygates
 
 # Common issues:
 # - Database not ready: Check postgres health
 # - Invalid JWT_SECRET: Must be at least 32 characters
-# - Caddy unreachable: Check CADDY_ADMIN_URL
+# - Invalid CADDY_ACME_PROVIDER: Check spelling
 ```
 
 ### Database connection errors
 
 ```bash
 # Test connection
-docker compose exec backend sh -c 'nc -zv $DB_HOST $DB_PORT'
+docker compose exec waygates sh -c 'nc -zv $DB_HOST $DB_PORT'
 
-# Check credentials
-docker compose exec postgres psql -U postgres -c '\l'
+# Check PostgreSQL is running
+docker compose ps postgres
 ```
 
-### Caddy sync issues
+### TLS certificate issues
 
 ```bash
-# Check Caddy Admin API
-curl http://localhost:2019/config/
+# Check Caddy logs
+docker compose logs waygates | grep -i caddy
 
-# Check Waygates logs for sync errors
-docker compose logs backend | grep -i caddy
+# Verify DNS provider credentials are set
+docker compose exec waygates env | grep -E 'CADDY|CLOUDFLARE|AWS'
+```
+
+### Sync issues
+
+```bash
+# Check sync status via API
+curl http://localhost:8080/api/sync/status
+
+# Trigger manual sync
+curl -X POST http://localhost:8080/api/sync/trigger \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Reset everything
@@ -521,4 +345,3 @@ docker compose up -d
 ## Support
 
 - **Issues:** [GitHub Issues](https://github.com/aloks98/waygates/issues)
-- **Documentation:** [docs/](./docs/)

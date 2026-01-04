@@ -11,7 +11,7 @@ proxy := &models.Proxy{
     ID:       1,
     Type:     models.ProxyTypeReverseProxy,
     Name:     "My Application",
-    Hostname: "app.caddy.e412.in",
+    Hostname: "app.example.com",
     Upstreams: []interface{}{
         map[string]interface{}{
             "host":   "192.168.100.5",
@@ -35,7 +35,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
     "@id": "proxy_1",
     "match": [
         {
-            "host": ["app.caddy.e412.in"]
+            "host": ["app.example.com"]
         }
     ],
     "handle": [
@@ -68,7 +68,7 @@ snippet := caddy.BuildCaddyfileSnippet(proxy)
 ```
 
 ```caddyfile
-app.caddy.e412.in {
+app.example.com {
     import snippets/security
 
     reverse_proxy 192.168.100.5:8080 {
@@ -90,7 +90,7 @@ proxy := &models.Proxy{
     ID:       2,
     Type:     models.ProxyTypeReverseProxy,
     Name:     "Load Balanced API",
-    Hostname: "api.caddy.e412.in",
+    Hostname: "api.example.com",
     Upstreams: []interface{}{
         map[string]interface{}{"host": "192.168.100.10", "port": 3000, "scheme": "http"},
         map[string]interface{}{"host": "192.168.100.11", "port": 3000, "scheme": "http"},
@@ -149,7 +149,7 @@ proxy := &models.Proxy{
     ID:       3,
     Type:     models.ProxyTypeReverseProxy,
     Name:     "Internal HTTPS Service",
-    Hostname: "internal.caddy.e412.in",
+    Hostname: "internal.example.com",
     Upstreams: []interface{}{
         map[string]interface{}{
             "host":   "192.168.100.50",
@@ -171,7 +171,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
     "@id": "proxy_3",
     "match": [
         {
-            "host": ["internal.caddy.e412.in"]
+            "host": ["internal.example.com"]
         }
     ],
     "handle": [
@@ -222,9 +222,9 @@ proxy := &models.Proxy{
     ID:       3,
     Type:     models.ProxyTypeRedirect,
     Name:     "Old Domain Redirect",
-    Hostname: "old.caddy.e412.in",
+    Hostname: "old.example.com",
     RedirectConfig: map[string]interface{}{
-        "target":         "https://new.caddy.e412.in",
+        "target":         "https://new.example.com",
         "status_code":    301,
         "preserve_path":  true,
         "preserve_query": true,
@@ -239,7 +239,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
 // Result:
 {
     "@id": "proxy_3",
-    "match": [{"host": ["old.caddy.e412.in"]}],
+    "match": [{"host": ["old.example.com"]}],
     "handle": [
         {
             "handler": "static_response",
@@ -248,7 +248,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
             "headers": {
                 "response": {
                     "set": {
-                        "Location": ["https://new.caddy.e412.in{http.request.uri.path}{http.request.uri.query}"]
+                        "Location": ["https://new.example.com{http.request.uri.path}{http.request.uri.query}"]
                     }
                 }
             }
@@ -260,8 +260,8 @@ route, _ := caddy.BuildRouteConfig(proxy)
 ### Generated Caddyfile Snippet
 
 ```caddyfile
-old.caddy.e412.in {
-    redir https://new.caddy.e412.in 301
+old.example.com {
+    redir https://new.example.com 301
 }
 ```
 
@@ -276,7 +276,7 @@ proxy := &models.Proxy{
     ID:       4,
     Type:     models.ProxyTypeStatic,
     Name:     "Landing Page",
-    Hostname: "landing.caddy.e412.in",
+    Hostname: "landing.example.com",
     StaticConfig: map[string]interface{}{
         "root_path":          "/var/www/landing",
         "index_file":         "index.html",
@@ -294,7 +294,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
 // Result:
 {
     "@id": "proxy_4",
-    "match": [{"host": ["landing.caddy.e412.in"]}],
+    "match": [{"host": ["landing.example.com"]}],
     "handle": [
         {
             "handler": "file_server",
@@ -310,7 +310,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
 ### Generated Caddyfile Snippet
 
 ```caddyfile
-landing.caddy.e412.in {
+landing.example.com {
     root * /var/www/landing
     file_server
 }
@@ -327,7 +327,7 @@ proxy := &models.Proxy{
     ID:       5,
     Type:     models.ProxyTypeStatic,
     Name:     "Maintenance Page",
-    Hostname: "maintenance.caddy.e412.in",
+    Hostname: "maintenance.example.com",
     StaticConfig: map[string]interface{}{
         "root_path":          "/etc/caddy/templates",
         "index_file":         "maintenance.html",
@@ -361,7 +361,7 @@ route, _ := caddy.BuildRouteConfig(proxy)
 ### Generated Caddyfile Snippet
 
 ```caddyfile
-maintenance.caddy.e412.in {
+maintenance.example.com {
     root * /etc/caddy/templates
     templates
     file_server

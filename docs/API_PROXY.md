@@ -70,7 +70,7 @@ Authorization: Bearer <jwt_token>
 
 ```sql
 CREATE TABLE proxies (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
 
     -- Common fields
     type VARCHAR(50) NOT NULL,  -- 'reverse_proxy', 'redirect', 'static'
@@ -204,7 +204,7 @@ CREATE INDEX idx_proxies_created_at ON proxies(created_at);
   "id": 1,
   "type": "reverse_proxy",  // "reverse_proxy", "redirect", "static"
   "name": "My Proxy",
-  "hostname": "app.caddy.e412.in",
+  "hostname": "app.example.com",
   "description": "Optional description",
   "ssl_enabled": true,
   "ssl_forced": true,
@@ -335,7 +335,7 @@ Returns the full proxy object.
     "id": 1,
     "type": "reverse_proxy",
     "name": "My Application",
-    "hostname": "app.caddy.e412.in",
+    "hostname": "app.example.com",
     ...
   }
 }
@@ -583,17 +583,19 @@ https://new.example.com/page
 
 ### Mounting Static Files to Caddy
 
-Before using the static proxy type, you need to mount your static files into the Caddy container so they're accessible at `root_path`.
+Before using the static proxy type, you need to mount your static files into the Waygates container so they're accessible at `root_path`.
 
 **1. Update docker-compose.yml:**
 
 ```yaml
-caddy:
-  image: caddy:2-alpine
+waygates:
+  build:
+    context: .
+    dockerfile: Dockerfile
   volumes:
-    - ./Caddyfile:/etc/caddy/Caddyfile:ro
     - caddy-data:/data
     - caddy-config:/config
+    - caddy-etc:/etc/caddy
     # Mount your static files
     - ./sites/my-app:/srv/my-app:ro
     - ./sites/docs:/srv/docs:ro
@@ -632,10 +634,10 @@ curl -X POST http://localhost:8080/api/proxies \
   }'
 ```
 
-**4. Restart Caddy to pick up new volume mounts:**
+**4. Restart container to pick up new volume mounts:**
 
 ```bash
-docker compose restart caddy
+docker compose restart waygates
 ```
 
 **Updating files:** After copying new files to `./sites/my-app/`, no restart is needed - Caddy serves files directly from disk.
@@ -778,7 +780,7 @@ The security snippet blocks the following attack patterns:
 {
   "type": "reverse_proxy",
   "name": "Protected API",
-  "hostname": "api.caddy.e412.in",
+  "hostname": "api.example.com",
   "upstreams": [{"host": "192.168.1.100", "port": 8080, "scheme": "http"}],
   "block_exploits": true
 }
@@ -786,7 +788,7 @@ The security snippet blocks the following attack patterns:
 
 **Generated Caddyfile:**
 ```caddyfile
-api.caddy.e412.in {
+api.example.com {
     # Security rules applied first
     import snippets/security
 
@@ -805,19 +807,19 @@ Test that security rules are working:
 
 ```bash
 # SQL injection - should return 403
-curl "https://api.caddy.e412.in/?id=1 union select password from users"
+curl "https://api.example.com/?id=1 union select password from users"
 
 # XSS attempt - should return 403
-curl "https://api.caddy.e412.in/?search=<script>alert(1)</script>"
+curl "https://api.example.com/?search=<script>alert(1)</script>"
 
 # Path traversal - should return 403
-curl "https://api.caddy.e412.in/?file=../../../etc/passwd"
+curl "https://api.example.com/?file=../../../etc/passwd"
 
 # Bad user agent - should return 403
-curl -A "libwww-perl/6.0" "https://api.caddy.e412.in/"
+curl -A "libwww-perl/6.0" "https://api.example.com/"
 
 # Normal request - should work
-curl "https://api.caddy.e412.in/?search=hello"
+curl "https://api.example.com/?search=hello"
 ```
 
 ### Customizing Security Rules
@@ -921,7 +923,7 @@ For advanced protection, consider:
 7. **Templates:** Useful for maintenance pages, error pages
 8. **Timestamps:** All in ISO 8601 format (UTC)
 9. **Hostname Uniqueness:** Must be unique across all proxies
-10. **SSL/TLS:** Uses wildcard certificate `*.caddy.e412.in` when enabled
+10. **SSL/TLS:** Automatic certificates via configured ACME provider (see CADDY_ACME_PROVIDER)
 
 ---
 

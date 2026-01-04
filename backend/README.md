@@ -7,11 +7,10 @@ Go-based backend API for managing reverse proxy configurations with Caddy.
 Waygates uses a **file-based Caddyfile approach** for configuration management:
 
 - **Modular Configuration**: Each proxy gets its own config file in `sites/` directory
-- **Main Caddyfile**: Imports all proxy configs and catchall with `import sites/*.conf`
+- **Main Caddyfile**: Imports all proxy configs with `import sites/*.conf`
 - **Enable/Disable**: Proxies are disabled by renaming to `.conf.disabled`
 - **Atomic Writes**: All file operations use temp-file + rename pattern
-- **Backup/Restore**: Automatic backups before sync with rollback on failure
-- **Combined Container**: Backend + Caddy run in a single container for production
+- **Combined Container**: Backend + Caddy run in a single container
 
 ## Features
 
@@ -21,7 +20,7 @@ Waygates uses a **file-based Caddyfile approach** for configuration management:
 - Automatic Caddyfile generation
 - Periodic sync between database and Caddy (1 minute interval)
 - Configurable 404 behavior (default page or redirect)
-- Health checks and status endpoints
+- Dynamic TLS configuration (10+ ACME providers supported)
 
 ## Available Endpoints
 
@@ -64,25 +63,22 @@ All configuration is loaded from environment variables:
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 
-# Database (PostgreSQL recommended for production)
+# Database (PostgreSQL)
 DB_HOST=postgres
 DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
+DB_USER=waygates
+DB_PASSWORD=waygates
 DB_NAME=waygates
 
-# Caddy Configuration (File-based)
-CADDY_BASE_PATH=/etc/caddy          # Base directory for Caddy configs
-CADDY_CADDYFILE_PATH=/etc/caddy/Caddyfile  # Main Caddyfile path
-CADDY_BINARY=/usr/bin/caddy         # Caddy binary location
-CADDY_EMAIL=admin@example.com       # Email for ACME certificates
+# TLS/ACME Configuration
+CADDY_ACME_PROVIDER=off    # off, http, cloudflare, route53, digitalocean, etc.
+CADDY_EMAIL=               # Email for ACME certificates
 
-# Cloudflare (for wildcard SSL)
-CLOUDFLARE_EMAIL=your-email@example.com
-CLOUDFLARE_API_TOKEN=your_api_token
-
-# ACME Configuration
-ACME_CA_URL=https://acme-v02.api.letsencrypt.org/directory
+# DNS Provider Credentials (set based on CADDY_ACME_PROVIDER)
+# Cloudflare: CLOUDFLARE_API_TOKEN
+# Route53: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+# DigitalOcean: DO_AUTH_TOKEN
+# See .env.example for full list
 
 # JWT
 JWT_SECRET=required-secret-key-min-32-chars
@@ -112,51 +108,54 @@ UI_PATH=/app/ui         # Path to the UI dist folder
 
 ```
 /etc/caddy/
-├── Caddyfile           # Main config (imports sites/*.conf and catchall.conf)
+├── Caddyfile           # Main config (generated based on CADDY_ACME_PROVIDER)
 ├── catchall.conf       # Default 404 handler
 ├── sites/              # Individual proxy configs
 │   ├── 1_myapp.conf
 │   ├── 2_api.conf
 │   └── 3_blog.conf.disabled  # Disabled proxy
+├── snippets/           # Security snippets
+│   └── security.caddy
 └── backup/             # Timestamped backups
-    └── 20240115_120000/
 ```
 
-## Generated Caddyfile Example
+## Generated Caddyfile Examples
 
-Main Caddyfile:
+### With ACME off (development):
 ```caddyfile
+# Managed by Waygates - DO NOT EDIT MANUALLY
+# ACME Provider: off
+
 {
-    email admin@example.com
-    acme_ca https://acme-v02.api.letsencrypt.org/directory
-    acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    admin off
+    auto_https off
+    admin localhost:2019
 }
 
 import sites/*.conf
 import catchall.conf
 ```
 
-Proxy config (`sites/1_myapp.conf`):
+### With Cloudflare DNS challenge:
 ```caddyfile
-# Proxy: My App (ID: 1)
-# Type: reverse_proxy
-myapp.example.com {
-    reverse_proxy http://backend:8080 {
-        header_up Host {upstream_hostport}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
+# Managed by Waygates - DO NOT EDIT MANUALLY
+# ACME Provider: cloudflare
+
+{
+    email admin@example.com
+    acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    admin localhost:2019
 }
+
+import sites/*.conf
+import catchall.conf
 ```
 
 ## Development
 
 ### Prerequisites
 
-- Go 1.21+
-- PostgreSQL (or SQLite for development)
+- Go 1.24+
+- PostgreSQL 14+
 - Caddy 2.10+
 
 ### Running Locally
@@ -197,10 +196,9 @@ docker build -t waygates:latest .
 The sync service runs automatically and:
 
 1. **Periodic Sync**: Every 60 seconds, regenerates all config files from database
-2. **Initial Sync**: On startup, waits 5 seconds then performs full sync
+2. **Initial Sync**: On startup, generates Caddyfile and syncs all proxies
 3. **Orphan Cleanup**: Removes config files that don't match database records
-4. **Backup/Restore**: Creates backup before sync, restores on failure
-5. **Caddy Reload**: Validates config then reloads Caddy after changes
+4. **Caddy Reload**: Validates config then reloads Caddy after changes
 
 ### Manual Sync
 
@@ -218,16 +216,16 @@ curl -X POST http://localhost:8080/api/sync/trigger \
 
 **"Cannot connect to database"**
 - Verify PostgreSQL is running and connection details are correct
-- For SQLite, check `DB_PATH` points to a writable location
+
+**"invalid CADDY_ACME_PROVIDER"**
+- Check spelling. Valid options: off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
+
+**"CADDY_ACME_PROVIDER 'cloudflare' requires CLOUDFLARE_API_TOKEN"**
+- Set the required environment variable for your chosen provider
 
 **"Caddy validation failed"**
 - Check generated Caddyfile syntax: `caddy validate --config /etc/caddy/Caddyfile`
 - Review logs for specific validation errors
-
-**"Sync failed"**
-- Check `/etc/caddy/backup/` for previous working configs
-- Verify `CADDY_BINARY` points to correct caddy executable
-- Ensure `CADDY_BASE_PATH` directory is writable
 
 ## License
 

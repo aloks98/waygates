@@ -7,7 +7,20 @@
 # CUSTOMIZATION:
 #
 # 1. TLS/HTTPS Configuration:
-#    Edit docker/Caddyfile.default before building. See options inside.
+#    Set CADDY_ACME_PROVIDER environment variable. Options:
+#      off          - No HTTPS (development)
+#      http         - HTTP challenge (requires ports 80/443 public)
+#      cloudflare   - Cloudflare DNS challenge
+#      route53      - AWS Route53 DNS challenge
+#      digitalocean - DigitalOcean DNS challenge
+#      duckdns      - DuckDNS challenge
+#      hetzner      - Hetzner DNS challenge
+#      porkbun      - Porkbun DNS challenge
+#      azure        - Azure DNS challenge
+#      vultr        - Vultr DNS challenge
+#      namecheap    - Namecheap DNS challenge
+#      ovh          - OVH DNS challenge
+#    See .env.example for required environment variables per provider.
 #
 # 2. Caddy Plugins:
 #    Modify the "xcaddy build" command in Stage 2 below to add/remove plugins.
