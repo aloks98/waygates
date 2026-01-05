@@ -310,7 +310,7 @@ func TestProxyRepository_List_Filters(t *testing.T) {
 		result, total, err := repo.List(repository.ProxyListParams{
 			Page:  1,
 			Limit: 10,
-			Type:  string(models.ProxyTypeReverseProxy),
+			Types: []string{string(models.ProxyTypeReverseProxy)},
 		})
 		if err != nil {
 			t.Fatalf("Failed to list: %v", err)

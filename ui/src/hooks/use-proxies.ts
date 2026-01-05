@@ -23,14 +23,18 @@ interface UseProxiesOptions {
   page?: number;
   limit?: number;
   search?: string;
+  type?: string;
+  status?: string;
+  ssl_enabled?: string;
+  target?: string;
 }
 
 export function useProxies(options: UseProxiesOptions = {}) {
-  const { page = 1, limit = 20, search } = options;
+  const { page = 1, limit = 20, search, type, status, ssl_enabled, target } = options;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: [...QUERY_KEY, { page, limit, search }],
+    queryKey: [...QUERY_KEY, { page, limit, search, type, status, ssl_enabled, target }],
     queryFn: async () => {
       const searchParams: Record<string, string> = {
         page: String(page),
@@ -38,6 +42,18 @@ export function useProxies(options: UseProxiesOptions = {}) {
       };
       if (search) {
         searchParams.search = search;
+      }
+      if (type) {
+        searchParams.type = type;
+      }
+      if (status) {
+        searchParams.status = status;
+      }
+      if (ssl_enabled) {
+        searchParams.ssl_enabled = ssl_enabled;
+      }
+      if (target) {
+        searchParams.target = target;
       }
       const response = await api
         .get('proxies', { searchParams })
