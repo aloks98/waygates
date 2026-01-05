@@ -93,7 +93,7 @@ export function AuditConfigPanel() {
         </CardHeader>
         <CardContent className="flex justify-center items-center min-h-64">
           <div className="flex items-center gap-2">
-            <Spinner variant={"circle"} />
+            <Spinner variant={'circle'} />
             Loading...
           </div>
         </CardContent>
@@ -153,7 +153,6 @@ export function AuditConfigPanel() {
             </div>
           );
         })}
-
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         <Button variant="outline" onClick={handleReset} disabled={isUpdating || !hasChanges}>
@@ -166,9 +165,7 @@ export function AuditConfigPanel() {
               Saving...
             </>
           ) : (
-            <>
-              Save Changes
-            </>
+            <>Save Changes</>
           )}
         </Button>
       </CardFooter>

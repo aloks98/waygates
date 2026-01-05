@@ -46,61 +46,61 @@ export function AuditLogsPage() {
   // Generate action options from event groups
   const actionOptions = useMemo(() => {
     return eventGroups.flatMap((group) =>
-        group.events.map((event) => ({
-          // Transform key from "proxy_create" to "proxy.create"
-          value: event.key.replace('_', '.'),
-          label: `${group.label.replace(' Events', '')} ${event.label}`,
-        })),
+      group.events.map((event) => ({
+        // Transform key from "proxy_create" to "proxy.create"
+        value: event.key.replace('_', '.'),
+        label: `${group.label.replace(' Events', '')} ${event.label}`,
+      })),
     );
   }, [eventGroups]);
 
   const filterFields = useMemo<FilterFieldsConfig<string>>(
-      () => [
-        {
-          key: 'action',
-          label: 'Action',
-          type: 'multiselect',
-          options: actionOptions,
-          operators: [
-            { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
-            { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
-          ],
-        },
-        {
-          key: 'status',
-          label: 'Status',
-          type: 'select',
-          options: statusOptions,
-          operators: [
-            { value: 'is', label: 'is' },
-            { value: 'is_not', label: 'is not' },
-          ],
-        },
-        {
-          key: 'resource_type',
-          label: 'Resource',
-          type: 'multiselect',
-          options: resourceTypeOptions,
-          operators: [
-            { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
-            { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
-          ],
-        },
-        {
-          key: 'ip_address',
-          label: 'IP Address',
-          type: 'text',
-          placeholder: 'Enter IP address...',
-          defaultOperator: 'contains',
-          operators: [
-            { value: 'contains', label: 'contains' },
-            { value: 'is', label: 'is' },
-            { value: 'starts_with', label: 'starts with' },
-            { value: 'ends_with', label: 'ends with' },
-          ],
-        },
-      ],
-      [actionOptions],
+    () => [
+      {
+        key: 'action',
+        label: 'Action',
+        type: 'multiselect',
+        options: actionOptions,
+        operators: [
+          { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
+          { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
+        ],
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: statusOptions,
+        operators: [
+          { value: 'is', label: 'is' },
+          { value: 'is_not', label: 'is not' },
+        ],
+      },
+      {
+        key: 'resource_type',
+        label: 'Resource',
+        type: 'multiselect',
+        options: resourceTypeOptions,
+        operators: [
+          { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
+          { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
+        ],
+      },
+      {
+        key: 'ip_address',
+        label: 'IP Address',
+        type: 'text',
+        placeholder: 'Enter IP address...',
+        defaultOperator: 'contains',
+        operators: [
+          { value: 'contains', label: 'contains' },
+          { value: 'is', label: 'is' },
+          { value: 'starts_with', label: 'starts with' },
+          { value: 'ends_with', label: 'ends with' },
+        ],
+      },
+    ],
+    [actionOptions],
   );
 
   // Debounce search input
@@ -138,11 +138,11 @@ export function AuditLogsPage() {
   }, [filters]);
 
   // Helper to build filter value with operator prefix
-  const buildFilterValue = (operator: string, values: string[]): string => {
+  const buildFilterValue = useCallback((operator: string, values: string[]): string => {
     const backendOp = operatorMap[operator] || '';
     const value = values.join(',');
     return backendOp ? `${backendOp}:${value}` : value;
-  };
+  }, []);
 
   // Convert filters to API params using new format: field=operator:value
   const apiParams = useMemo<AuditLogListParams>(() => {
@@ -175,7 +175,7 @@ export function AuditLogsPage() {
     }
 
     return params;
-  }, [pagination, debouncedSearch, debouncedFilters]);
+  }, [pagination, debouncedSearch, debouncedFilters, buildFilterValue]);
 
   const { logs, total, totalPages, isLoading } = useAuditLogs(apiParams);
   const { exportLogs, isExporting } = useExportAuditLogs();
@@ -190,44 +190,44 @@ export function AuditLogsPage() {
   }, []);
 
   return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Audit Logs</h1>
-          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
-            <Download className="size-4" />
-            {isExporting ? 'Exporting...' : 'Export CSV'}
-          </Button>
-        </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Audit Logs</h1>
+        <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+          <Download className="size-4" />
+          {isExporting ? 'Exporting...' : 'Export CSV'}
+        </Button>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search logs..."
-                className="pl-9"
-            />
-          </div>
-
-          <Filters
-              filters={filters}
-              fields={filterFields}
-              onChange={handleFiltersChange}
-              addButtonText="Add Filter"
-              variant="outline"
-              size="md"
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search logs..."
+            className="pl-9"
           />
         </div>
 
-        <AuditDataGrid
-            data={logs}
-            isLoading={isLoading}
-            pageCount={totalPages}
-            pagination={pagination}
-            onPaginationChange={setPagination}
-            total={total}
+        <Filters
+          filters={filters}
+          fields={filterFields}
+          onChange={handleFiltersChange}
+          addButtonText="Add Filter"
+          variant="outline"
+          size="md"
         />
       </div>
+
+      <AuditDataGrid
+        data={logs}
+        isLoading={isLoading}
+        pageCount={totalPages}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        total={total}
+      />
+    </div>
   );
 }
