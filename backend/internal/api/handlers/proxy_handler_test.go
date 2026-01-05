@@ -105,8 +105,8 @@ func TestListProxies_WithQueryParams(t *testing.T) {
 	if capturedReq.Search != "test" {
 		t.Errorf("Expected search 'test', got '%s'", capturedReq.Search)
 	}
-	if capturedReq.Type != "reverse" {
-		t.Errorf("Expected type 'reverse', got '%s'", capturedReq.Type)
+	if len(capturedReq.Types) != 1 || capturedReq.Types[0] != "reverse" {
+		t.Errorf("Expected types ['reverse'], got %v", capturedReq.Types)
 	}
 	if capturedReq.Status != "active" {
 		t.Errorf("Expected status 'active', got '%s'", capturedReq.Status)
@@ -943,5 +943,429 @@ func TestGetStats_ServiceError(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+// =============================================================================
+// Filter Parsing Tests
+// =============================================================================
+
+func TestParseProxyFilterParam(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		expectedOperator string
+		expectedValue    string
+		expectedValues   []string
+	}{
+		{
+			name:             "simple value defaults to eq",
+			input:            "reverse_proxy",
+			expectedOperator: "eq",
+			expectedValue:    "reverse_proxy",
+			expectedValues:   nil,
+		},
+		{
+			name:             "explicit eq operator",
+			input:            "eq:reverse_proxy",
+			expectedOperator: "eq",
+			expectedValue:    "reverse_proxy",
+			expectedValues:   nil,
+		},
+		{
+			name:             "not operator",
+			input:            "not:static",
+			expectedOperator: "not",
+			expectedValue:    "static",
+			expectedValues:   nil,
+		},
+		{
+			name:             "in operator with single value",
+			input:            "in:reverse_proxy",
+			expectedOperator: "in",
+			expectedValue:    "reverse_proxy",
+			expectedValues:   []string{"reverse_proxy"},
+		},
+		{
+			name:             "in operator with multiple values",
+			input:            "in:reverse_proxy,redirect,static",
+			expectedOperator: "in",
+			expectedValue:    "reverse_proxy,redirect,static",
+			expectedValues:   []string{"reverse_proxy", "redirect", "static"},
+		},
+		{
+			name:             "not_in operator with multiple values",
+			input:            "not_in:static,redirect",
+			expectedOperator: "not_in",
+			expectedValue:    "static,redirect",
+			expectedValues:   []string{"static", "redirect"},
+		},
+		{
+			name:             "empty string",
+			input:            "",
+			expectedOperator: "",
+			expectedValue:    "",
+			expectedValues:   nil,
+		},
+		{
+			name:             "value with colon but unknown operator defaults to eq",
+			input:            "http://example.com",
+			expectedOperator: "eq",
+			expectedValue:    "http://example.com",
+			expectedValues:   nil,
+		},
+		{
+			name:             "unknown prefix defaults to eq",
+			input:            "unknown:value",
+			expectedOperator: "eq",
+			expectedValue:    "unknown:value",
+			expectedValues:   nil,
+		},
+		{
+			name:             "in operator with spaces around values",
+			input:            "in:reverse_proxy, redirect, static",
+			expectedOperator: "in",
+			expectedValue:    "reverse_proxy, redirect, static",
+			expectedValues:   []string{"reverse_proxy", "redirect", "static"},
+		},
+		{
+			name:             "colon at start (empty operator)",
+			input:            ":value",
+			expectedOperator: "eq",
+			expectedValue:    ":value",
+			expectedValues:   nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseProxyFilterParam(tc.input)
+
+			if result.Operator != tc.expectedOperator {
+				t.Errorf("Expected operator '%s', got '%s'", tc.expectedOperator, result.Operator)
+			}
+			if result.Value != tc.expectedValue {
+				t.Errorf("Expected value '%s', got '%s'", tc.expectedValue, result.Value)
+			}
+			if tc.expectedValues != nil {
+				if len(result.Values) != len(tc.expectedValues) {
+					t.Errorf("Expected %d values, got %d: %v", len(tc.expectedValues), len(result.Values), result.Values)
+				} else {
+					for i, v := range tc.expectedValues {
+						if result.Values[i] != v {
+							t.Errorf("Expected value[%d] '%s', got '%s'", i, v, result.Values[i])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestSplitAndTrimProxy(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "single value",
+			input:    "reverse_proxy",
+			expected: []string{"reverse_proxy"},
+		},
+		{
+			name:     "multiple values",
+			input:    "reverse_proxy,redirect,static",
+			expected: []string{"reverse_proxy", "redirect", "static"},
+		},
+		{
+			name:     "values with spaces",
+			input:    "reverse_proxy, redirect, static",
+			expected: []string{"reverse_proxy", "redirect", "static"},
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "only commas",
+			input:    ",,,",
+			expected: []string{},
+		},
+		{
+			name:     "trailing comma",
+			input:    "reverse_proxy,redirect,",
+			expected: []string{"reverse_proxy", "redirect"},
+		},
+		{
+			name:     "leading comma",
+			input:    ",reverse_proxy,redirect",
+			expected: []string{"reverse_proxy", "redirect"},
+		},
+		{
+			name:     "multiple spaces",
+			input:    "  reverse_proxy  ,  redirect  ",
+			expected: []string{"reverse_proxy", "redirect"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitAndTrimProxy(tc.input)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d results, got %d: %v", len(tc.expected), len(result), result)
+				return
+			}
+			for i, v := range tc.expected {
+				if result[i] != v {
+					t.Errorf("Expected result[%d] '%s', got '%s'", i, v, result[i])
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// ListProxies Filter Tests
+// =============================================================================
+
+func TestListProxies_TypeFilterWithInOperator(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=in:reverse_proxy,redirect", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.Types) != 2 {
+		t.Errorf("Expected 2 types, got %d: %v", len(capturedReq.Types), capturedReq.Types)
+	}
+	if capturedReq.Types[0] != "reverse_proxy" || capturedReq.Types[1] != "redirect" {
+		t.Errorf("Expected types [reverse_proxy, redirect], got %v", capturedReq.Types)
+	}
+}
+
+func TestListProxies_TypeFilterWithNotInOperator(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=not_in:static", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.TypesExclude) != 1 {
+		t.Errorf("Expected 1 excluded type, got %d: %v", len(capturedReq.TypesExclude), capturedReq.TypesExclude)
+	}
+	if capturedReq.TypesExclude[0] != "static" {
+		t.Errorf("Expected excluded type 'static', got '%s'", capturedReq.TypesExclude[0])
+	}
+}
+
+func TestListProxies_TypeFilterWithNotOperator(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=not:redirect", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.TypesExclude) != 1 || capturedReq.TypesExclude[0] != "redirect" {
+		t.Errorf("Expected excluded type ['redirect'], got %v", capturedReq.TypesExclude)
+	}
+}
+
+func TestListProxies_StatusFilterWithNotOperator(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?status=not:active", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if capturedReq.StatusNot != "active" {
+		t.Errorf("Expected statusNot 'active', got '%s'", capturedReq.StatusNot)
+	}
+}
+
+func TestListProxies_StatusFilterWithInvalidNotValue(t *testing.T) {
+	mockService := &mocks.MockProxyService{}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?status=not:invalid", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestListProxies_CombinedFilters(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=in:reverse_proxy,redirect&status=active&search=test&page=2&limit=10", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.Types) != 2 {
+		t.Errorf("Expected 2 types, got %d", len(capturedReq.Types))
+	}
+	if capturedReq.Status != "active" {
+		t.Errorf("Expected status 'active', got '%s'", capturedReq.Status)
+	}
+	if capturedReq.Search != "test" {
+		t.Errorf("Expected search 'test', got '%s'", capturedReq.Search)
+	}
+	if capturedReq.Page != 2 {
+		t.Errorf("Expected page 2, got %d", capturedReq.Page)
+	}
+	if capturedReq.Limit != 10 {
+		t.Errorf("Expected limit 10, got %d", capturedReq.Limit)
+	}
+}
+
+func TestListProxies_TypeFilterWithMultipleExclude(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=not_in:static,redirect", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.TypesExclude) != 2 {
+		t.Errorf("Expected 2 excluded types, got %d: %v", len(capturedReq.TypesExclude), capturedReq.TypesExclude)
+	}
+}
+
+func TestListProxies_EmptyTypeFilter(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?type=", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if len(capturedReq.Types) != 0 {
+		t.Errorf("Expected no types filter, got %v", capturedReq.Types)
+	}
+}
+
+func TestListProxies_StatusInactive(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?status=inactive", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if capturedReq.Status != "inactive" {
+		t.Errorf("Expected status 'inactive', got '%s'", capturedReq.Status)
+	}
+}
+
+func TestListProxies_StatusNotInactive(t *testing.T) {
+	var capturedReq service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+			capturedReq = req
+			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies?status=not:inactive", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ListProxies(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if capturedReq.StatusNot != "inactive" {
+		t.Errorf("Expected statusNot 'inactive', got '%s'", capturedReq.StatusNot)
 	}
 }

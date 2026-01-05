@@ -988,6 +988,393 @@ func TestServiceErrors(t *testing.T) {
 	}
 }
 
+// TestListProxies_FilterPassthrough tests that filter params are passed through to repo
+func TestListProxies_FilterPassthrough(t *testing.T) {
+	testCases := []struct {
+		name             string
+		req              ListProxiesRequest
+		expectTypes      []string
+		expectTypesExcl  []string
+		expectStatus     string
+		expectStatusNot  string
+		expectSearch     string
+	}{
+		{
+			name: "types filter passed through",
+			req: ListProxiesRequest{
+				Page:  1,
+				Limit: 10,
+				Types: []string{"reverse_proxy", "redirect"},
+			},
+			expectTypes: []string{"reverse_proxy", "redirect"},
+		},
+		{
+			name: "types exclude filter passed through",
+			req: ListProxiesRequest{
+				Page:         1,
+				Limit:        10,
+				TypesExclude: []string{"static"},
+			},
+			expectTypesExcl: []string{"static"},
+		},
+		{
+			name: "status filter passed through",
+			req: ListProxiesRequest{
+				Page:   1,
+				Limit:  10,
+				Status: "active",
+			},
+			expectStatus: "active",
+		},
+		{
+			name: "status not filter passed through",
+			req: ListProxiesRequest{
+				Page:      1,
+				Limit:     10,
+				StatusNot: "inactive",
+			},
+			expectStatusNot: "inactive",
+		},
+		{
+			name: "search filter passed through",
+			req: ListProxiesRequest{
+				Page:   1,
+				Limit:  10,
+				Search: "example.com",
+			},
+			expectSearch: "example.com",
+		},
+		{
+			name: "combined filters passed through",
+			req: ListProxiesRequest{
+				Page:         1,
+				Limit:        10,
+				Search:       "test",
+				Types:        []string{"reverse_proxy"},
+				TypesExclude: []string{"static"},
+				Status:       "active",
+				StatusNot:    "inactive",
+			},
+			expectSearch:    "test",
+			expectTypes:     []string{"reverse_proxy"},
+			expectTypesExcl: []string{"static"},
+			expectStatus:    "active",
+			expectStatusNot: "inactive",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedParams repository.ProxyListParams
+			repo := &MockProxyRepository{
+				ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+					capturedParams = params
+					return []models.Proxy{}, 0, nil
+				},
+			}
+			svc := NewProxyService(ProxyServiceConfig{
+				Repo:        repo,
+				SyncService: &MockProxySyncer{},
+			})
+
+			_, err := svc.ListProxies(tc.req)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Verify types
+			if len(tc.expectTypes) > 0 {
+				if len(capturedParams.Types) != len(tc.expectTypes) {
+					t.Errorf("Expected %d types, got %d", len(tc.expectTypes), len(capturedParams.Types))
+				}
+				for i, typ := range tc.expectTypes {
+					if capturedParams.Types[i] != typ {
+						t.Errorf("Expected type[%d] '%s', got '%s'", i, typ, capturedParams.Types[i])
+					}
+				}
+			}
+
+			// Verify types exclude
+			if len(tc.expectTypesExcl) > 0 {
+				if len(capturedParams.TypesExclude) != len(tc.expectTypesExcl) {
+					t.Errorf("Expected %d excluded types, got %d", len(tc.expectTypesExcl), len(capturedParams.TypesExclude))
+				}
+				for i, typ := range tc.expectTypesExcl {
+					if capturedParams.TypesExclude[i] != typ {
+						t.Errorf("Expected excluded type[%d] '%s', got '%s'", i, typ, capturedParams.TypesExclude[i])
+					}
+				}
+			}
+
+			// Verify status
+			if tc.expectStatus != "" && capturedParams.Status != tc.expectStatus {
+				t.Errorf("Expected status '%s', got '%s'", tc.expectStatus, capturedParams.Status)
+			}
+
+			// Verify status not
+			if tc.expectStatusNot != "" && capturedParams.StatusNot != tc.expectStatusNot {
+				t.Errorf("Expected status not '%s', got '%s'", tc.expectStatusNot, capturedParams.StatusNot)
+			}
+
+			// Verify search
+			if tc.expectSearch != "" && capturedParams.Search != tc.expectSearch {
+				t.Errorf("Expected search '%s', got '%s'", tc.expectSearch, capturedParams.Search)
+			}
+		})
+	}
+}
+
+// TestListProxiesRequest_Structure tests ListProxiesRequest struct fields
+func TestListProxiesRequest_Structure(t *testing.T) {
+	req := ListProxiesRequest{
+		Page:         2,
+		Limit:        50,
+		Search:       "test",
+		Types:        []string{"reverse_proxy", "redirect"},
+		TypesExclude: []string{"static"},
+		Status:       "active",
+		StatusNot:    "inactive",
+		Sort:         "name",
+		Order:        "desc",
+	}
+
+	if req.Page != 2 {
+		t.Errorf("Expected Page 2, got %d", req.Page)
+	}
+	if req.Limit != 50 {
+		t.Errorf("Expected Limit 50, got %d", req.Limit)
+	}
+	if req.Search != "test" {
+		t.Errorf("Expected Search 'test', got '%s'", req.Search)
+	}
+	if len(req.Types) != 2 {
+		t.Errorf("Expected 2 types, got %d", len(req.Types))
+	}
+	if req.Types[0] != "reverse_proxy" {
+		t.Errorf("Expected first type 'reverse_proxy', got '%s'", req.Types[0])
+	}
+	if len(req.TypesExclude) != 1 {
+		t.Errorf("Expected 1 excluded type, got %d", len(req.TypesExclude))
+	}
+	if req.TypesExclude[0] != "static" {
+		t.Errorf("Expected excluded type 'static', got '%s'", req.TypesExclude[0])
+	}
+	if req.Status != "active" {
+		t.Errorf("Expected Status 'active', got '%s'", req.Status)
+	}
+	if req.StatusNot != "inactive" {
+		t.Errorf("Expected StatusNot 'inactive', got '%s'", req.StatusNot)
+	}
+	if req.Sort != "name" {
+		t.Errorf("Expected Sort 'name', got '%s'", req.Sort)
+	}
+	if req.Order != "desc" {
+		t.Errorf("Expected Order 'desc', got '%s'", req.Order)
+	}
+}
+
+// TestListProxiesRequest_Defaults tests ListProxiesRequest default values
+func TestListProxiesRequest_Defaults(t *testing.T) {
+	req := ListProxiesRequest{}
+
+	if req.Page != 0 {
+		t.Errorf("Expected default Page 0, got %d", req.Page)
+	}
+	if req.Limit != 0 {
+		t.Errorf("Expected default Limit 0, got %d", req.Limit)
+	}
+	if req.Search != "" {
+		t.Errorf("Expected empty Search, got '%s'", req.Search)
+	}
+	if len(req.Types) != 0 {
+		t.Errorf("Expected empty Types, got %v", req.Types)
+	}
+	if len(req.TypesExclude) != 0 {
+		t.Errorf("Expected empty TypesExclude, got %v", req.TypesExclude)
+	}
+	if req.Status != "" {
+		t.Errorf("Expected empty Status, got '%s'", req.Status)
+	}
+	if req.StatusNot != "" {
+		t.Errorf("Expected empty StatusNot, got '%s'", req.StatusNot)
+	}
+}
+
+// TestListProxies_MultipleTypesFilter tests listing with multiple types
+func TestListProxies_MultipleTypesFilter(t *testing.T) {
+	expectedTypes := []string{"reverse_proxy", "redirect"}
+	var capturedParams repository.ProxyListParams
+
+	repo := &MockProxyRepository{
+		ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			capturedParams = params
+			return []models.Proxy{
+				{ID: 1, Type: models.ProxyTypeReverseProxy},
+				{ID: 2, Type: models.ProxyTypeRedirect},
+			}, 2, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo:        repo,
+		SyncService: &MockProxySyncer{},
+	})
+
+	req := ListProxiesRequest{
+		Page:  1,
+		Limit: 10,
+		Types: expectedTypes,
+	}
+
+	result, err := svc.ListProxies(req)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(capturedParams.Types) != 2 {
+		t.Errorf("Expected 2 types passed to repo, got %d", len(capturedParams.Types))
+	}
+	if capturedParams.Types[0] != "reverse_proxy" {
+		t.Errorf("Expected first type 'reverse_proxy', got '%s'", capturedParams.Types[0])
+	}
+	if capturedParams.Types[1] != "redirect" {
+		t.Errorf("Expected second type 'redirect', got '%s'", capturedParams.Types[1])
+	}
+	if len(result.Items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(result.Items))
+	}
+}
+
+// TestListProxies_TypesExcludeFilter tests listing with excluded types
+func TestListProxies_TypesExcludeFilter(t *testing.T) {
+	excludeTypes := []string{"static"}
+	var capturedParams repository.ProxyListParams
+
+	repo := &MockProxyRepository{
+		ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			capturedParams = params
+			return []models.Proxy{
+				{ID: 1, Type: models.ProxyTypeReverseProxy},
+				{ID: 2, Type: models.ProxyTypeRedirect},
+			}, 2, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo:        repo,
+		SyncService: &MockProxySyncer{},
+	})
+
+	req := ListProxiesRequest{
+		Page:         1,
+		Limit:        10,
+		TypesExclude: excludeTypes,
+	}
+
+	result, err := svc.ListProxies(req)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(capturedParams.TypesExclude) != 1 {
+		t.Errorf("Expected 1 excluded type passed to repo, got %d", len(capturedParams.TypesExclude))
+	}
+	if capturedParams.TypesExclude[0] != "static" {
+		t.Errorf("Expected excluded type 'static', got '%s'", capturedParams.TypesExclude[0])
+	}
+	if len(result.Items) != 2 {
+		t.Errorf("Expected 2 items, got %d", len(result.Items))
+	}
+}
+
+// TestListProxies_StatusNotFilter tests listing with status negation
+func TestListProxies_StatusNotFilter(t *testing.T) {
+	var capturedParams repository.ProxyListParams
+
+	repo := &MockProxyRepository{
+		ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			capturedParams = params
+			return []models.Proxy{
+				{ID: 1, IsActive: false},
+			}, 1, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo:        repo,
+		SyncService: &MockProxySyncer{},
+	})
+
+	req := ListProxiesRequest{
+		Page:      1,
+		Limit:     10,
+		StatusNot: "active",
+	}
+
+	result, err := svc.ListProxies(req)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if capturedParams.StatusNot != "active" {
+		t.Errorf("Expected StatusNot 'active', got '%s'", capturedParams.StatusNot)
+	}
+	if len(result.Items) != 1 {
+		t.Errorf("Expected 1 item, got %d", len(result.Items))
+	}
+}
+
+// TestListProxies_CombinedFilters tests listing with multiple filter types combined
+func TestListProxies_CombinedFilters(t *testing.T) {
+	var capturedParams repository.ProxyListParams
+
+	repo := &MockProxyRepository{
+		ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			capturedParams = params
+			return []models.Proxy{
+				{ID: 1, Name: "Test", Type: models.ProxyTypeReverseProxy, IsActive: true},
+			}, 1, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo:        repo,
+		SyncService: &MockProxySyncer{},
+	})
+
+	req := ListProxiesRequest{
+		Page:         1,
+		Limit:        10,
+		Search:       "Test",
+		Types:        []string{"reverse_proxy", "redirect"},
+		TypesExclude: []string{"static"},
+		Status:       "active",
+		Sort:         "name",
+		Order:        "asc",
+	}
+
+	_, err := svc.ListProxies(req)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Verify all params passed through
+	if capturedParams.Search != "Test" {
+		t.Errorf("Expected Search 'Test', got '%s'", capturedParams.Search)
+	}
+	if len(capturedParams.Types) != 2 {
+		t.Errorf("Expected 2 types, got %d", len(capturedParams.Types))
+	}
+	if len(capturedParams.TypesExclude) != 1 {
+		t.Errorf("Expected 1 excluded type, got %d", len(capturedParams.TypesExclude))
+	}
+	if capturedParams.Status != "active" {
+		t.Errorf("Expected Status 'active', got '%s'", capturedParams.Status)
+	}
+	if capturedParams.Sort != "name" {
+		t.Errorf("Expected Sort 'name', got '%s'", capturedParams.Sort)
+	}
+	if capturedParams.Order != "asc" {
+		t.Errorf("Expected Order 'asc', got '%s'", capturedParams.Order)
+	}
+}
+
 // TestUpdateProxy_TypeChange tests that config is cleaned up when type changes
 func TestUpdateProxy_TypeChange(t *testing.T) {
 	existingProxy := &models.Proxy{

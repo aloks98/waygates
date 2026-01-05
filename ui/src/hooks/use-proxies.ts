@@ -23,14 +23,16 @@ interface UseProxiesOptions {
   page?: number;
   limit?: number;
   search?: string;
+  type?: string;
+  status?: string; // supports operator:value format (e.g., "active", "not:active")
 }
 
 export function useProxies(options: UseProxiesOptions = {}) {
-  const { page = 1, limit = 20, search } = options;
+  const { page = 1, limit = 20, search, type, status } = options;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: [...QUERY_KEY, { page, limit, search }],
+    queryKey: [...QUERY_KEY, { page, limit, search, type, status }],
     queryFn: async () => {
       const searchParams: Record<string, string> = {
         page: String(page),
@@ -38,6 +40,12 @@ export function useProxies(options: UseProxiesOptions = {}) {
       };
       if (search) {
         searchParams.search = search;
+      }
+      if (type) {
+        searchParams.type = type;
+      }
+      if (status) {
+        searchParams.status = status;
       }
       const response = await api
         .get('proxies', { searchParams })

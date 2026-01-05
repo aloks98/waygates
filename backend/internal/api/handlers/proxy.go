@@ -46,6 +46,57 @@ func getClientIP(r *http.Request) string {
 	return addr
 }
 
+// Supported filter operators for proxy listing
+const (
+	proxyOpEq    = "eq"     // equals (default)
+	proxyOpNot   = "not"    // not equals
+	proxyOpIn    = "in"     // in list
+	proxyOpNotIn = "not_in" // not in list
+)
+
+// proxyFilterValue holds parsed operator and value from query param
+type proxyFilterValue struct {
+	Operator string
+	Value    string
+	Values   []string // For in/not_in operators
+}
+
+// parseProxyFilterParam parses a filter parameter in format "operator:value" or just "value"
+func parseProxyFilterParam(param string) proxyFilterValue {
+	if param == "" {
+		return proxyFilterValue{}
+	}
+
+	colonIdx := strings.Index(param, ":")
+	if colonIdx > 0 {
+		possibleOp := param[:colonIdx]
+		switch possibleOp {
+		case proxyOpEq, proxyOpNot, proxyOpIn, proxyOpNotIn:
+			value := param[colonIdx+1:]
+			fv := proxyFilterValue{Operator: possibleOp, Value: value}
+			if possibleOp == proxyOpIn || possibleOp == proxyOpNotIn {
+				fv.Values = splitAndTrimProxy(value)
+			}
+			return fv
+		}
+	}
+
+	return proxyFilterValue{Operator: proxyOpEq, Value: param}
+}
+
+// splitAndTrimProxy splits a comma-separated string and trims whitespace
+func splitAndTrimProxy(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // ListProxies handles GET /api/proxies
 func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate query parameters
@@ -71,26 +122,58 @@ func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := r.URL.Query().Get("search")
-	proxyType := r.URL.Query().Get("type")
-	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
 
-	// Validate status if provided
-	if status != "" && status != "active" && status != "inactive" {
-		utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
-		return
-	}
-
-	// Create request
+	// Create request with defaults
 	req := service.ListProxiesRequest{
 		Page:   page,
 		Limit:  limit,
 		Search: search,
-		Type:   proxyType,
-		Status: status,
 		Sort:   sort,
 		Order:  order,
+	}
+
+	// Parse type filter (supports operator:value format)
+	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
+		fv := parseProxyFilterParam(typeParam)
+		switch fv.Operator {
+		case proxyOpIn, proxyOpEq:
+			if len(fv.Values) > 0 {
+				req.Types = fv.Values
+			} else {
+				req.Types = splitAndTrimProxy(fv.Value)
+			}
+		case proxyOpNotIn, proxyOpNot:
+			if len(fv.Values) > 0 {
+				req.TypesExclude = fv.Values
+			} else {
+				req.TypesExclude = splitAndTrimProxy(fv.Value)
+			}
+		default:
+			utils.BadRequest(w, "Invalid operator for type filter", nil)
+			return
+		}
+	}
+
+	// Parse status filter (supports operator:value format)
+	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
+		fv := parseProxyFilterParam(statusParam)
+		// Validate status value
+		statusVal := fv.Value
+		if statusVal != "active" && statusVal != "inactive" {
+			utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
+			return
+		}
+		switch fv.Operator {
+		case proxyOpEq:
+			req.Status = statusVal
+		case proxyOpNot:
+			req.StatusNot = statusVal
+		default:
+			utils.BadRequest(w, "Invalid operator for status filter", nil)
+			return
+		}
 	}
 
 	// Get proxies from service

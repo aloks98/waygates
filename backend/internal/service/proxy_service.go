@@ -41,13 +41,15 @@ func NewProxyService(cfg ProxyServiceConfig) *ProxyService {
 
 // ListProxiesRequest holds parameters for listing proxies
 type ListProxiesRequest struct {
-	Page   int
-	Limit  int
-	Search string
-	Type   string
-	Status string
-	Sort   string
-	Order  string
+	Page         int
+	Limit        int
+	Search       string
+	Types        []string // Filter by multiple types
+	TypesExclude []string // Exclude types
+	Status       string
+	StatusNot    string // Exclude status
+	Sort         string
+	Order        string
 }
 
 // ListProxies returns a paginated list of proxies
@@ -62,13 +64,15 @@ func (s *ProxyService) ListProxies(req ListProxiesRequest) (*models.ProxyListRes
 
 	// Get proxies from database
 	proxies, total, err := s.repo.List(repository.ProxyListParams{
-		Page:   req.Page,
-		Limit:  req.Limit,
-		Search: req.Search,
-		Type:   req.Type,
-		Status: req.Status,
-		Sort:   req.Sort,
-		Order:  req.Order,
+		Page:         req.Page,
+		Limit:        req.Limit,
+		Search:       req.Search,
+		Types:        req.Types,
+		TypesExclude: req.TypesExclude,
+		Status:       req.Status,
+		StatusNot:    req.StatusNot,
+		Sort:         req.Sort,
+		Order:        req.Order,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list proxies: %w", err)
