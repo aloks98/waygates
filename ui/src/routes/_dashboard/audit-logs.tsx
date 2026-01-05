@@ -9,15 +9,12 @@ import type { AuditLogListParams } from '@/types/audit';
 // Map Titanium filter operators to backend operators
 const operatorMap: Record<string, string> = {
   is: '', // defaults to eq
-  isAnyOf: 'in',
-  isNotAnyOf: 'not_in',
+  is_any_of: 'in',
+  is_not_any_of: 'not_in',
   is_not: 'not',
-  isNot: 'not',
   contains: 'contains',
   starts_with: 'starts_with',
   ends_with: 'ends_with',
-  startsWith: 'starts_with',
-  endsWith: 'ends_with',
 };
 
 const statusOptions = [
@@ -40,7 +37,9 @@ export function AuditLogsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<Filter<string>[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedFilters, setDebouncedFilters] = useState<Filter<string>[]>([]);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filtersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { eventGroups } = useAuditEventGroups();
 
@@ -63,8 +62,8 @@ export function AuditLogsPage() {
           type: 'multiselect',
           options: actionOptions,
           operators: [
-            { value: 'isAnyOf', label: 'is any of', supportsMultiple: true },
-            { value: 'isNotAnyOf', label: 'is not any of', supportsMultiple: true },
+            { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
+            { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
           ],
         },
         {
@@ -83,8 +82,8 @@ export function AuditLogsPage() {
           type: 'multiselect',
           options: resourceTypeOptions,
           operators: [
-            { value: 'isAnyOf', label: 'is any of', supportsMultiple: true },
-            { value: 'isNotAnyOf', label: 'is not any of', supportsMultiple: true },
+            { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
+            { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
           ],
         },
         {
@@ -96,7 +95,6 @@ export function AuditLogsPage() {
           operators: [
             { value: 'contains', label: 'contains' },
             { value: 'is', label: 'is' },
-            { value: 'is_not', label: 'is not' },
             { value: 'starts_with', label: 'starts with' },
             { value: 'ends_with', label: 'ends with' },
           ],
@@ -107,20 +105,37 @@ export function AuditLogsPage() {
 
   // Debounce search input
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
     }
-    debounceRef.current = setTimeout(() => {
+    searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearch(search);
       setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     }, 300);
 
     return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
       }
     };
   }, [search]);
+
+  // Debounce filters
+  useEffect(() => {
+    if (filtersDebounceRef.current) {
+      clearTimeout(filtersDebounceRef.current);
+    }
+    filtersDebounceRef.current = setTimeout(() => {
+      setDebouncedFilters(filters);
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    }, 500);
+
+    return () => {
+      if (filtersDebounceRef.current) {
+        clearTimeout(filtersDebounceRef.current);
+      }
+    };
+  }, [filters]);
 
   // Helper to build filter value with operator prefix
   const buildFilterValue = (operator: string, values: string[]): string => {
@@ -140,7 +155,7 @@ export function AuditLogsPage() {
       params.search = debouncedSearch;
     }
 
-    for (const filter of filters) {
+    for (const filter of debouncedFilters) {
       if (filter.values.length === 0) continue;
 
       switch (filter.field) {
@@ -160,7 +175,7 @@ export function AuditLogsPage() {
     }
 
     return params;
-  }, [pagination, debouncedSearch, filters]);
+  }, [pagination, debouncedSearch, debouncedFilters]);
 
   const { logs, total, totalPages, isLoading } = useAuditLogs(apiParams);
   const { exportLogs, isExporting } = useExportAuditLogs();
@@ -172,7 +187,6 @@ export function AuditLogsPage() {
 
   const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
     setFilters(newFilters);
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   }, []);
 
   return (
