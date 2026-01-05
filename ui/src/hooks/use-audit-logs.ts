@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type {
   AuditConfig,
+  AuditEventGroup,
   AuditLog,
   AuditLogListParams,
   AuditLogListResponse,
@@ -14,6 +15,7 @@ import type {
 const QUERY_KEY = ['audit-logs'] as const;
 const CONFIG_QUERY_KEY = ['audit-config'] as const;
 const STATS_QUERY_KEY = ['audit-stats'] as const;
+const EVENT_GROUPS_QUERY_KEY = ['audit-event-groups'] as const;
 
 async function handleApiError(error: unknown): Promise<string> {
   if (error instanceof HTTPError) {
@@ -38,11 +40,13 @@ export function useAuditLogs(params: AuditLogListParams = {}) {
         limit: String(limit),
       };
 
+      // New simplified format: field=operator:value
       if (filters.search) searchParams.search = filters.search;
       if (filters.action) searchParams.action = filters.action;
       if (filters.resource_type) searchParams.resource_type = filters.resource_type;
       if (filters.user_id) searchParams.user_id = String(filters.user_id);
       if (filters.status) searchParams.status = filters.status;
+      if (filters.ip_address) searchParams.ip_address = filters.ip_address;
       if (filters.date_from) searchParams.date_from = filters.date_from;
       if (filters.date_to) searchParams.date_to = filters.date_to;
       if (filters.sort) searchParams.sort = filters.sort;
@@ -138,16 +142,38 @@ export function useAuditConfig() {
   };
 }
 
+export function useAuditEventGroups() {
+  const query = useQuery({
+    queryKey: EVENT_GROUPS_QUERY_KEY,
+    queryFn: async () => {
+      const response = await api
+        .get('audit-logs/event-groups')
+        .json<ApiResponse<AuditEventGroup[]>>();
+      return response.data;
+    },
+    staleTime: Number.POSITIVE_INFINITY, // Event groups don't change at runtime
+  });
+
+  return {
+    eventGroups: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+  };
+}
+
 export function useExportAuditLogs() {
   const exportMutation = useMutation({
     mutationFn: async (params: AuditLogListParams = {}) => {
       const searchParams: Record<string, string> = {};
 
+      // New simplified format: field=operator:value
       if (params.search) searchParams.search = params.search;
       if (params.action) searchParams.action = params.action;
       if (params.resource_type) searchParams.resource_type = params.resource_type;
       if (params.user_id) searchParams.user_id = String(params.user_id);
       if (params.status) searchParams.status = params.status;
+      if (params.ip_address) searchParams.ip_address = params.ip_address;
       if (params.date_from) searchParams.date_from = params.date_from;
       if (params.date_to) searchParams.date_to = params.date_to;
 

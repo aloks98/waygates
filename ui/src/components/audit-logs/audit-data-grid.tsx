@@ -18,7 +18,7 @@ import {
   type PaginationState,
   useReactTable,
 } from '@tanstack/react-table';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useMemo } from 'react';
 import type { AuditLog } from '@/types/audit';
 import { ActionBadge, StatusBadge } from './cells';
@@ -55,7 +55,7 @@ export function AuditDataGrid({
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{date.toLocaleString()}</p>
+                <p>{format(date, 'dd/MM/yyyy HH:mm:ss xxx')}</p>
               </TooltipContent>
             </Tooltip>
           );

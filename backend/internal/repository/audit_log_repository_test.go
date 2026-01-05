@@ -23,17 +23,25 @@ func TestAuditLogListParams_Structure(t *testing.T) {
 	now := time.Now()
 	userID := 1
 	params := AuditLogListParams{
-		Page:         1,
-		Limit:        20,
-		Search:       "proxy",
-		Action:       "proxy.create",
-		ResourceType: "proxy",
-		UserID:       &userID,
-		Status:       "success",
-		DateFrom:     &now,
-		DateTo:       &now,
-		Sort:         "created_at",
-		Order:        "desc",
+		Page:                 1,
+		Limit:                20,
+		Search:               "proxy",
+		Actions:              []string{"proxy.create", "proxy.update"},
+		ActionsExclude:       []string{"proxy.delete"},
+		ResourceTypes:        []string{"proxy", "user"},
+		ResourceTypesExclude: []string{"system"},
+		UserID:               &userID,
+		Status:               "success",
+		StatusExclude:        "failure",
+		IPAddress:            "192.168.1.1",
+		IPAddressContains:    "168",
+		IPAddressStartsWith:  "192",
+		IPAddressEndsWith:    "1",
+		IPAddressNot:         "10.0.0.1",
+		DateFrom:             &now,
+		DateTo:               &now,
+		Sort:                 "created_at",
+		Order:                "desc",
 	}
 
 	if params.Page != 1 {
@@ -45,17 +53,41 @@ func TestAuditLogListParams_Structure(t *testing.T) {
 	if params.Search != "proxy" {
 		t.Errorf("Expected Search 'proxy', got '%s'", params.Search)
 	}
-	if params.Action != "proxy.create" {
-		t.Errorf("Expected Action 'proxy.create', got '%s'", params.Action)
+	if len(params.Actions) != 2 || params.Actions[0] != "proxy.create" {
+		t.Errorf("Expected Actions ['proxy.create', 'proxy.update'], got %v", params.Actions)
 	}
-	if params.ResourceType != "proxy" {
-		t.Errorf("Expected ResourceType 'proxy', got '%s'", params.ResourceType)
+	if len(params.ActionsExclude) != 1 || params.ActionsExclude[0] != "proxy.delete" {
+		t.Errorf("Expected ActionsExclude ['proxy.delete'], got %v", params.ActionsExclude)
+	}
+	if len(params.ResourceTypes) != 2 || params.ResourceTypes[0] != "proxy" {
+		t.Errorf("Expected ResourceTypes ['proxy', 'user'], got %v", params.ResourceTypes)
+	}
+	if len(params.ResourceTypesExclude) != 1 || params.ResourceTypesExclude[0] != "system" {
+		t.Errorf("Expected ResourceTypesExclude ['system'], got %v", params.ResourceTypesExclude)
 	}
 	if params.UserID == nil || *params.UserID != 1 {
 		t.Error("Expected UserID 1")
 	}
 	if params.Status != "success" {
 		t.Errorf("Expected Status 'success', got '%s'", params.Status)
+	}
+	if params.StatusExclude != "failure" {
+		t.Errorf("Expected StatusExclude 'failure', got '%s'", params.StatusExclude)
+	}
+	if params.IPAddress != "192.168.1.1" {
+		t.Errorf("Expected IPAddress '192.168.1.1', got '%s'", params.IPAddress)
+	}
+	if params.IPAddressContains != "168" {
+		t.Errorf("Expected IPAddressContains '168', got '%s'", params.IPAddressContains)
+	}
+	if params.IPAddressStartsWith != "192" {
+		t.Errorf("Expected IPAddressStartsWith '192', got '%s'", params.IPAddressStartsWith)
+	}
+	if params.IPAddressEndsWith != "1" {
+		t.Errorf("Expected IPAddressEndsWith '1', got '%s'", params.IPAddressEndsWith)
+	}
+	if params.IPAddressNot != "10.0.0.1" {
+		t.Errorf("Expected IPAddressNot '10.0.0.1', got '%s'", params.IPAddressNot)
 	}
 	if params.DateFrom == nil {
 		t.Error("Expected DateFrom to be set")
@@ -84,17 +116,41 @@ func TestAuditLogListParams_Defaults(t *testing.T) {
 	if params.Search != "" {
 		t.Errorf("Expected empty Search, got '%s'", params.Search)
 	}
-	if params.Action != "" {
-		t.Errorf("Expected empty Action, got '%s'", params.Action)
+	if len(params.Actions) != 0 {
+		t.Errorf("Expected empty Actions, got %v", params.Actions)
 	}
-	if params.ResourceType != "" {
-		t.Errorf("Expected empty ResourceType, got '%s'", params.ResourceType)
+	if len(params.ActionsExclude) != 0 {
+		t.Errorf("Expected empty ActionsExclude, got %v", params.ActionsExclude)
+	}
+	if len(params.ResourceTypes) != 0 {
+		t.Errorf("Expected empty ResourceTypes, got %v", params.ResourceTypes)
+	}
+	if len(params.ResourceTypesExclude) != 0 {
+		t.Errorf("Expected empty ResourceTypesExclude, got %v", params.ResourceTypesExclude)
 	}
 	if params.UserID != nil {
 		t.Error("Expected UserID to be nil")
 	}
 	if params.Status != "" {
 		t.Errorf("Expected empty Status, got '%s'", params.Status)
+	}
+	if params.StatusExclude != "" {
+		t.Errorf("Expected empty StatusExclude, got '%s'", params.StatusExclude)
+	}
+	if params.IPAddress != "" {
+		t.Errorf("Expected empty IPAddress, got '%s'", params.IPAddress)
+	}
+	if params.IPAddressContains != "" {
+		t.Errorf("Expected empty IPAddressContains, got '%s'", params.IPAddressContains)
+	}
+	if params.IPAddressStartsWith != "" {
+		t.Errorf("Expected empty IPAddressStartsWith, got '%s'", params.IPAddressStartsWith)
+	}
+	if params.IPAddressEndsWith != "" {
+		t.Errorf("Expected empty IPAddressEndsWith, got '%s'", params.IPAddressEndsWith)
+	}
+	if params.IPAddressNot != "" {
+		t.Errorf("Expected empty IPAddressNot, got '%s'", params.IPAddressNot)
 	}
 	if params.DateFrom != nil {
 		t.Error("Expected DateFrom to be nil")
@@ -568,5 +624,183 @@ func TestAuditLogListResponse(t *testing.T) {
 func TestSettingAuditConfigKey(t *testing.T) {
 	if models.SettingAuditConfig != "audit_config" {
 		t.Errorf("Expected SettingAuditConfig 'audit_config', got '%s'", models.SettingAuditConfig)
+	}
+}
+
+// TestGetAuditEventGroups tests the event groups function
+func TestGetAuditEventGroups(t *testing.T) {
+	groups := models.GetAuditEventGroups()
+
+	if len(groups) == 0 {
+		t.Fatal("Expected non-empty event groups")
+	}
+
+	// Check expected groups exist
+	expectedGroups := []string{"proxy", "auth", "settings", "sync", "system"}
+	groupKeys := make(map[string]bool)
+	for _, g := range groups {
+		groupKeys[g.Key] = true
+	}
+
+	for _, key := range expectedGroups {
+		if !groupKeys[key] {
+			t.Errorf("Expected group '%s' to exist", key)
+		}
+	}
+
+	// Verify structure of each group
+	for _, group := range groups {
+		if group.Key == "" {
+			t.Error("Expected group key to be non-empty")
+		}
+		if group.Label == "" {
+			t.Error("Expected group label to be non-empty")
+		}
+		if group.Description == "" {
+			t.Error("Expected group description to be non-empty")
+		}
+		if len(group.Events) == 0 {
+			t.Errorf("Expected group '%s' to have events", group.Key)
+		}
+
+		// Verify event structure
+		for _, event := range group.Events {
+			if event.Key == "" {
+				t.Errorf("Expected event key to be non-empty in group '%s'", group.Key)
+			}
+			if event.Label == "" {
+				t.Errorf("Expected event label to be non-empty in group '%s'", group.Key)
+			}
+		}
+	}
+}
+
+// TestAuditEventDefinition tests the event definition struct
+func TestAuditEventDefinition(t *testing.T) {
+	event := models.AuditEventDefinition{
+		Key:   "proxy_create",
+		Label: "Create",
+	}
+
+	if event.Key != "proxy_create" {
+		t.Errorf("Expected key 'proxy_create', got '%s'", event.Key)
+	}
+	if event.Label != "Create" {
+		t.Errorf("Expected label 'Create', got '%s'", event.Label)
+	}
+}
+
+// TestAuditEventGroup tests the event group struct
+func TestAuditEventGroup(t *testing.T) {
+	group := models.AuditEventGroup{
+		Key:         "proxy",
+		Label:       "Proxy Events",
+		Description: "Proxy configuration changes",
+		Events: []models.AuditEventDefinition{
+			{Key: "proxy_create", Label: "Create"},
+			{Key: "proxy_update", Label: "Update"},
+		},
+	}
+
+	if group.Key != "proxy" {
+		t.Errorf("Expected key 'proxy', got '%s'", group.Key)
+	}
+	if group.Label != "Proxy Events" {
+		t.Errorf("Expected label 'Proxy Events', got '%s'", group.Label)
+	}
+	if group.Description != "Proxy configuration changes" {
+		t.Errorf("Expected description 'Proxy configuration changes', got '%s'", group.Description)
+	}
+	if len(group.Events) != 2 {
+		t.Errorf("Expected 2 events, got %d", len(group.Events))
+	}
+}
+
+// TestAuditLogListParams_MultipleFilters tests combining multiple filter types
+func TestAuditLogListParams_MultipleFilters(t *testing.T) {
+	params := AuditLogListParams{
+		Actions:              []string{"proxy.create", "proxy.update"},
+		ActionsExclude:       []string{"proxy.delete"},
+		ResourceTypes:        []string{"proxy"},
+		ResourceTypesExclude: []string{"system"},
+		Status:               "success",
+		StatusExclude:        "failure",
+		IPAddress:            "192.168.1.1",
+	}
+
+	// Test that include and exclude can coexist
+	if len(params.Actions) != 2 {
+		t.Errorf("Expected 2 actions, got %d", len(params.Actions))
+	}
+	if len(params.ActionsExclude) != 1 {
+		t.Errorf("Expected 1 excluded action, got %d", len(params.ActionsExclude))
+	}
+	if len(params.ResourceTypes) != 1 {
+		t.Errorf("Expected 1 resource type, got %d", len(params.ResourceTypes))
+	}
+	if len(params.ResourceTypesExclude) != 1 {
+		t.Errorf("Expected 1 excluded resource type, got %d", len(params.ResourceTypesExclude))
+	}
+	if params.Status != "success" {
+		t.Errorf("Expected status 'success', got '%s'", params.Status)
+	}
+	if params.StatusExclude != "failure" {
+		t.Errorf("Expected status exclude 'failure', got '%s'", params.StatusExclude)
+	}
+}
+
+// TestAuditLogListParams_IPAddressFilters tests all IP address filter options
+func TestAuditLogListParams_IPAddressFilters(t *testing.T) {
+	testCases := []struct {
+		name   string
+		params AuditLogListParams
+	}{
+		{
+			name: "exact IP",
+			params: AuditLogListParams{
+				IPAddress: "192.168.1.1",
+			},
+		},
+		{
+			name: "IP contains",
+			params: AuditLogListParams{
+				IPAddressContains: "168",
+			},
+		},
+		{
+			name: "IP starts with",
+			params: AuditLogListParams{
+				IPAddressStartsWith: "192",
+			},
+		},
+		{
+			name: "IP ends with",
+			params: AuditLogListParams{
+				IPAddressEndsWith: ".1",
+			},
+		},
+		{
+			name: "IP not equal",
+			params: AuditLogListParams{
+				IPAddressNot: "10.0.0.1",
+			},
+		},
+		{
+			name: "multiple IP filters",
+			params: AuditLogListParams{
+				IPAddressContains:   "168",
+				IPAddressStartsWith: "192",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Just verify the struct can hold the values
+			if tc.params.IPAddress != "" && tc.params.IPAddress != "192.168.1.1" {
+				t.Errorf("Unexpected IPAddress value: %s", tc.params.IPAddress)
+			}
+			// Additional assertions can be added here
+		})
 	}
 }

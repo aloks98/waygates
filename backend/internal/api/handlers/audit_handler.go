@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -154,7 +155,68 @@ func (h *AuditHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, &config, "Audit configuration updated successfully")
 }
 
+// GetEventGroups returns the available audit event groups for configuration UI
+func (h *AuditHandler) GetEventGroups(w http.ResponseWriter, r *http.Request) {
+	groups := models.GetAuditEventGroups()
+	utils.Success(w, groups, "Audit event groups retrieved successfully")
+}
+
+// Supported filter operators
+const (
+	OpEq         = "eq"          // equals (default)
+	OpNot        = "not"         // not equals
+	OpIn         = "in"          // in list
+	OpNotIn      = "not_in"      // not in list
+	OpContains   = "contains"    // contains (text)
+	OpStartsWith = "starts_with" // starts with (text)
+	OpEndsWith   = "ends_with"   // ends with (text)
+)
+
+// filterValue holds parsed operator and value from query param
+type filterValue struct {
+	Operator string
+	Value    string
+	Values   []string // For in/not_in operators
+}
+
+// parseFilterParam parses a filter parameter in format "operator:value" or just "value"
+// If no operator is specified, defaults to "eq" for single values
+// Examples:
+//   - "ends_with:121" -> {Operator: "ends_with", Value: "121"}
+//   - "in:a,b,c" -> {Operator: "in", Values: ["a", "b", "c"]}
+//   - "success" -> {Operator: "eq", Value: "success"}
+//   - "http://example.com" -> {Operator: "eq", Value: "http://example.com"} (colon in URL preserved)
+func parseFilterParam(param string) filterValue {
+	if param == "" {
+		return filterValue{}
+	}
+
+	// Check for operator prefix (operator:value format)
+	// Only split on first colon, and only if it looks like a known operator
+	colonIdx := strings.Index(param, ":")
+	if colonIdx > 0 {
+		possibleOp := param[:colonIdx]
+		// Check if it's a valid operator
+		switch possibleOp {
+		case OpEq, OpNot, OpIn, OpNotIn, OpContains, OpStartsWith, OpEndsWith:
+			value := param[colonIdx+1:]
+			fv := filterValue{Operator: possibleOp, Value: value}
+			// For in/not_in operators, split into multiple values
+			if possibleOp == OpIn || possibleOp == OpNotIn {
+				fv.Values = splitAndTrim(value)
+			}
+			return fv
+		}
+	}
+
+	// No valid operator found, default to "eq"
+	return filterValue{Operator: OpEq, Value: param}
+}
+
 // parseAuditListParams parses query parameters for audit log listing
+// Filter format: field=operator:value (e.g., ip_address=ends_with:121)
+// If no operator specified, defaults to "eq" (e.g., status=success)
+// Supported operators: eq, not, in, not_in, contains, starts_with, ends_with
 func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error) {
 	params := repository.AuditLogListParams{
 		Page:  1,
@@ -179,18 +241,77 @@ func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error
 		params.Limit = limit
 	}
 
-	// Parse search
+	// Parse search (simple text search, no operator)
 	params.Search = r.URL.Query().Get("search")
 
 	// Parse action filter
-	params.Action = r.URL.Query().Get("action")
+	if action := r.URL.Query().Get("action"); action != "" {
+		fv := parseFilterParam(action)
+		switch fv.Operator {
+		case OpIn, OpEq:
+			if len(fv.Values) > 0 {
+				params.Actions = fv.Values
+			} else {
+				params.Actions = splitAndTrim(fv.Value)
+			}
+		case OpNotIn, OpNot:
+			if len(fv.Values) > 0 {
+				params.ActionsExclude = fv.Values
+			} else {
+				params.ActionsExclude = splitAndTrim(fv.Value)
+			}
+		default:
+			return params, fmt.Errorf("invalid operator '%s' for action filter", fv.Operator)
+		}
+	}
 
 	// Parse resource_type filter
-	params.ResourceType = r.URL.Query().Get("resource_type")
+	if resourceType := r.URL.Query().Get("resource_type"); resourceType != "" {
+		fv := parseFilterParam(resourceType)
+		switch fv.Operator {
+		case OpIn, OpEq:
+			if len(fv.Values) > 0 {
+				params.ResourceTypes = fv.Values
+			} else {
+				params.ResourceTypes = splitAndTrim(fv.Value)
+			}
+		case OpNotIn, OpNot:
+			if len(fv.Values) > 0 {
+				params.ResourceTypesExclude = fv.Values
+			} else {
+				params.ResourceTypesExclude = splitAndTrim(fv.Value)
+			}
+		default:
+			return params, fmt.Errorf("invalid operator '%s' for resource_type filter", fv.Operator)
+		}
+	}
+
+	// Parse ip_address filter
+	if ipAddress := r.URL.Query().Get("ip_address"); ipAddress != "" {
+		fv := parseFilterParam(ipAddress)
+		switch fv.Operator {
+		case OpEq:
+			params.IPAddress = fv.Value
+		case OpNot:
+			params.IPAddressNot = fv.Value
+		case OpContains:
+			params.IPAddressContains = fv.Value
+		case OpStartsWith:
+			params.IPAddressStartsWith = fv.Value
+		case OpEndsWith:
+			params.IPAddressEndsWith = fv.Value
+		default:
+			return params, fmt.Errorf("invalid operator '%s' for ip_address filter", fv.Operator)
+		}
+	}
 
 	// Parse user_id filter
 	if userIDStr := r.URL.Query().Get("user_id"); userIDStr != "" {
-		userID, err := strconv.Atoi(userIDStr)
+		fv := parseFilterParam(userIDStr)
+		if fv.Operator != OpEq {
+			return params, fmt.Errorf("user_id only supports 'eq' operator")
+		}
+		userID, err := strconv.Atoi(fv.Value)
 		if err != nil {
 			return params, fmt.Errorf("invalid user_id")
 		}
@@ -199,10 +320,20 @@ func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error
 
 	// Parse status filter
 	if status := r.URL.Query().Get("status"); status != "" {
-		if status != "success" && status != "failure" {
+		fv := parseFilterParam(status)
+		// Validate status value
+		statusVal := fv.Value
+		if statusVal != "success" && statusVal != "failure" {
 			return params, fmt.Errorf("status must be 'success' or 'failure'")
 		}
-		params.Status = status
+		switch fv.Operator {
+		case OpEq:
+			params.Status = statusVal
+		case OpNot:
+			params.StatusExclude = statusVal
+		default:
+			return params, fmt.Errorf("invalid operator '%s' for status filter", fv.Operator)
+		}
 	}
 
 	// Parse date_from filter
@@ -255,4 +386,17 @@ func intPtrToString(i *int) string {
 		return ""
 	}
 	return strconv.Itoa(*i)
+}
+
+// splitAndTrim splits a comma-separated string and trims whitespace from each part
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

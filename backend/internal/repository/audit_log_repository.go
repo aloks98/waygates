@@ -32,17 +32,25 @@ func NewAuditLogRepository(db *gorm.DB) *AuditLogRepository {
 
 // AuditLogListParams holds parameters for listing audit logs
 type AuditLogListParams struct {
-	Page         int
-	Limit        int
-	Search       string
-	Action       string
-	ResourceType string
-	UserID       *int
-	Status       string
-	DateFrom     *time.Time
-	DateTo       *time.Time
-	Sort         string
-	Order        string
+	Page                 int
+	Limit                int
+	Search               string
+	Actions              []string // Multiple actions (IN filter)
+	ActionsExclude       []string // Multiple actions to exclude (NOT IN filter)
+	ResourceTypes        []string // Multiple resource types (IN filter)
+	ResourceTypesExclude []string // Multiple resource types to exclude (NOT IN filter)
+	UserID               *int
+	Status               string
+	StatusExclude        string // Status to exclude
+	IPAddress            string // Exact match
+	IPAddressContains    string // LIKE %value%
+	IPAddressStartsWith  string // LIKE value%
+	IPAddressEndsWith    string // LIKE %value
+	IPAddressNot         string // Not equal
+	DateFrom             *time.Time
+	DateTo               *time.Time
+	Sort                 string
+	Order                string
 }
 
 // Create creates a new audit log entry
@@ -72,12 +80,40 @@ func (r *AuditLogRepository) List(params AuditLogListParams) ([]models.AuditLog,
 		query = query.Where("action LIKE ? OR resource_name LIKE ?", searchPattern, searchPattern)
 	}
 
-	if params.Action != "" {
-		query = query.Where("action = ?", params.Action)
+	if len(params.Actions) > 0 {
+		query = query.Where("action IN ?", params.Actions)
 	}
 
-	if params.ResourceType != "" {
-		query = query.Where("resource_type = ?", params.ResourceType)
+	if len(params.ActionsExclude) > 0 {
+		query = query.Where("action NOT IN ?", params.ActionsExclude)
+	}
+
+	if len(params.ResourceTypes) > 0 {
+		query = query.Where("resource_type IN ?", params.ResourceTypes)
+	}
+
+	if len(params.ResourceTypesExclude) > 0 {
+		query = query.Where("resource_type NOT IN ?", params.ResourceTypesExclude)
+	}
+
+	if params.IPAddress != "" {
+		query = query.Where("ip_address = ?", params.IPAddress)
+	}
+
+	if params.IPAddressContains != "" {
+		query = query.Where("ip_address LIKE ?", "%"+params.IPAddressContains+"%")
+	}
+
+	if params.IPAddressStartsWith != "" {
+		query = query.Where("ip_address LIKE ?", params.IPAddressStartsWith+"%")
+	}
+
+	if params.IPAddressEndsWith != "" {
+		query = query.Where("ip_address LIKE ?", "%"+params.IPAddressEndsWith)
+	}
+
+	if params.IPAddressNot != "" {
+		query = query.Where("ip_address != ?", params.IPAddressNot)
 	}
 
 	if params.UserID != nil {
@@ -86,6 +122,10 @@ func (r *AuditLogRepository) List(params AuditLogListParams) ([]models.AuditLog,
 
 	if params.Status != "" {
 		query = query.Where("status = ?", params.Status)
+	}
+
+	if params.StatusExclude != "" {
+		query = query.Where("status != ?", params.StatusExclude)
 	}
 
 	if params.DateFrom != nil {
