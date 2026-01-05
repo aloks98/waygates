@@ -336,45 +336,56 @@ func TestAuditConfig(t *testing.T) {
 	// Test default config
 	config := models.DefaultAuditConfig()
 
-	if !config.ProxyEvents {
-		t.Error("Expected ProxyEvents to be true by default")
+	if !config.ProxyCreate {
+		t.Error("Expected ProxyCreate to be true by default")
 	}
-	if !config.AuthEvents {
-		t.Error("Expected AuthEvents to be true by default")
+	if !config.AuthLogin {
+		t.Error("Expected AuthLogin to be true by default")
 	}
-	if !config.SettingsEvents {
-		t.Error("Expected SettingsEvents to be true by default")
+	if !config.SettingsUpdate {
+		t.Error("Expected SettingsUpdate to be true by default")
 	}
-	if !config.SyncEvents {
-		t.Error("Expected SyncEvents to be true by default")
+	if !config.SyncStarted {
+		t.Error("Expected SyncStarted to be true by default")
 	}
-	if !config.SystemEvents {
-		t.Error("Expected SystemEvents to be true by default")
+	if !config.SystemStartup {
+		t.Error("Expected SystemStartup to be true by default")
 	}
 
 	// Test custom config
 	customConfig := models.AuditConfig{
-		ProxyEvents:    true,
-		AuthEvents:     false,
-		SettingsEvents: true,
-		SyncEvents:     false,
-		SystemEvents:   true,
+		ProxyCreate:        true,
+		ProxyUpdate:        true,
+		ProxyDelete:        true,
+		ProxyEnable:        true,
+		ProxyDisable:       true,
+		AuthLogin:          false,
+		AuthLogout:         false,
+		AuthRegister:       false,
+		AuthPasswordChange: false,
+		AuthLoginFailed:    false,
+		SettingsUpdate:     true,
+		SyncStarted:        false,
+		SyncCompleted:      false,
+		SyncFailed:         false,
+		SystemStartup:      true,
+		CaddyReload:        true,
 	}
 
-	if !customConfig.ProxyEvents {
-		t.Error("Expected ProxyEvents to be true")
+	if !customConfig.ProxyCreate {
+		t.Error("Expected ProxyCreate to be true")
 	}
-	if customConfig.AuthEvents {
-		t.Error("Expected AuthEvents to be false")
+	if customConfig.AuthLogin {
+		t.Error("Expected AuthLogin to be false")
 	}
-	if !customConfig.SettingsEvents {
-		t.Error("Expected SettingsEvents to be true")
+	if !customConfig.SettingsUpdate {
+		t.Error("Expected SettingsUpdate to be true")
 	}
-	if customConfig.SyncEvents {
-		t.Error("Expected SyncEvents to be false")
+	if customConfig.SyncStarted {
+		t.Error("Expected SyncStarted to be false")
 	}
-	if !customConfig.SystemEvents {
-		t.Error("Expected SystemEvents to be true")
+	if !customConfig.SystemStartup {
+		t.Error("Expected SystemStartup to be true")
 	}
 }
 

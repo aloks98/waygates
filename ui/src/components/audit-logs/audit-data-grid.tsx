@@ -6,6 +6,9 @@ import {
   DataGridPagination,
   DataGridTable,
   Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@e412/titanium';
 import {
   type ColumnDef,
@@ -45,9 +48,16 @@ export function AuditDataGrid({
         cell: ({ row }) => {
           const date = new Date(row.getValue('created_at') as string);
           return (
-            <span className="text-muted-foreground text-sm" title={date.toLocaleString()}>
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-muted-foreground text-sm cursor-default">
+                  {formatDistanceToNow(date, { addSuffix: true })}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{date.toLocaleString()}</p>
+              </TooltipContent>
+            </Tooltip>
           );
         },
         meta: {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -82,21 +81,48 @@ func (s *AuditService) LogEvent(ctx context.Context, event models.AuditEvent) er
 	return nil
 }
 
-// isEventEnabled checks if an event category is enabled in the config
+// isEventEnabled checks if a specific event is enabled in the config
 func (s *AuditService) isEventEnabled(action string) bool {
 	config := s.getConfig()
 
-	switch {
-	case strings.HasPrefix(action, "proxy."):
-		return config.ProxyEvents
-	case strings.HasPrefix(action, "auth."):
-		return config.AuthEvents
-	case strings.HasPrefix(action, "settings."):
-		return config.SettingsEvents
-	case strings.HasPrefix(action, "sync."):
-		return config.SyncEvents
-	case strings.HasPrefix(action, "system."), strings.HasPrefix(action, "caddy."):
-		return config.SystemEvents
+	switch action {
+	// Proxy events
+	case models.AuditActionProxyCreate:
+		return config.ProxyCreate
+	case models.AuditActionProxyUpdate:
+		return config.ProxyUpdate
+	case models.AuditActionProxyDelete:
+		return config.ProxyDelete
+	case models.AuditActionProxyEnable:
+		return config.ProxyEnable
+	case models.AuditActionProxyDisable:
+		return config.ProxyDisable
+	// Auth events
+	case models.AuditActionAuthLogin:
+		return config.AuthLogin
+	case models.AuditActionAuthLogout:
+		return config.AuthLogout
+	case models.AuditActionAuthRegister:
+		return config.AuthRegister
+	case models.AuditActionAuthPasswordChange:
+		return config.AuthPasswordChange
+	case models.AuditActionAuthLoginFailed:
+		return config.AuthLoginFailed
+	// Settings events
+	case models.AuditActionSettingsUpdate:
+		return config.SettingsUpdate
+	// Sync events
+	case models.AuditActionSyncStarted:
+		return config.SyncStarted
+	case models.AuditActionSyncCompleted:
+		return config.SyncCompleted
+	case models.AuditActionSyncFailed:
+		return config.SyncFailed
+	// System events
+	case models.AuditActionSystemStartup:
+		return config.SystemStartup
+	case models.AuditActionCaddyReload:
+		return config.CaddyReload
 	default:
 		// Log unknown events by default
 		return true
@@ -154,12 +180,7 @@ func (s *AuditService) SetConfig(config *models.AuditConfig) error {
 	s.configCache = config
 	s.configMutex.Unlock()
 
-	s.logger.Info("Audit config updated",
-		zap.Bool("proxy_events", config.ProxyEvents),
-		zap.Bool("auth_events", config.AuthEvents),
-		zap.Bool("settings_events", config.SettingsEvents),
-		zap.Bool("sync_events", config.SyncEvents),
-		zap.Bool("system_events", config.SystemEvents))
+	s.logger.Info("Audit config updated")
 
 	return nil
 }

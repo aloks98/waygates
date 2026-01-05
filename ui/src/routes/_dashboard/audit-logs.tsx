@@ -1,21 +1,17 @@
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@e412/titanium';
+import { Button, type Filter, type FilterFieldsConfig, Filters, Input } from '@e412/titanium';
 import type { PaginationState } from '@tanstack/react-table';
 import { Download, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuditDataGrid } from '@/components/audit-logs';
 import { useAuditLogs, useExportAuditLogs } from '@/hooks';
-import type { AuditAction, AuditStatus } from '@/types/audit';
+import type {
+  AuditAction,
+  AuditLogListParams,
+  AuditResourceType,
+  AuditStatus,
+} from '@/types/audit';
 
-const actionOptions: { value: AuditAction | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Actions' },
+const actionOptions = [
   { value: 'proxy.create', label: 'Proxy Create' },
   { value: 'proxy.update', label: 'Proxy Update' },
   { value: 'proxy.delete', label: 'Proxy Delete' },
@@ -34,11 +30,40 @@ const actionOptions: { value: AuditAction | 'all'; label: string }[] = [
   { value: 'caddy.reload', label: 'Caddy Reload' },
 ];
 
-const statusOptions: { value: AuditStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
+const statusOptions = [
   { value: 'success', label: 'Success' },
   { value: 'failure', label: 'Failed' },
 ];
+
+const resourceTypeOptions = [
+  { value: 'proxy', label: 'Proxy' },
+  { value: 'user', label: 'User' },
+  { value: 'settings', label: 'Settings' },
+  { value: 'system', label: 'System' },
+];
+
+const filterFields: FilterFieldsConfig<string> = {
+  action: {
+    label: 'Action',
+    type: 'multiselect',
+    options: actionOptions,
+  },
+  status: {
+    label: 'Status',
+    type: 'select',
+    options: statusOptions,
+  },
+  resource_type: {
+    label: 'Resource',
+    type: 'multiselect',
+    options: resourceTypeOptions,
+  },
+  ip_address: {
+    label: 'IP Address',
+    type: 'text',
+    placeholder: 'Filter by IP...',
+  },
+};
 
 export function AuditLogsPage() {
   const [pagination, setPagination] = useState<PaginationState>({
@@ -47,8 +72,7 @@ export function AuditLogsPage() {
   });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [actionFilter, setActionFilter] = useState<AuditAction | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<AuditStatus | 'all'>('all');
+  const [filters, setFilters] = useState<Filter<string>[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input
@@ -68,23 +92,55 @@ export function AuditLogsPage() {
     };
   }, [search]);
 
-  const { logs, total, totalPages, isLoading } = useAuditLogs({
-    page: pagination.pageIndex + 1,
-    limit: pagination.pageSize,
-    search: debouncedSearch || undefined,
-    action: actionFilter === 'all' ? undefined : actionFilter,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-  });
+  // Convert filters to API params
+  const apiParams = useMemo<AuditLogListParams>(() => {
+    const params: AuditLogListParams = {
+      page: pagination.pageIndex + 1,
+      limit: pagination.pageSize,
+    };
 
+    if (debouncedSearch) {
+      params.search = debouncedSearch;
+    }
+
+    for (const filter of filters) {
+      if (filter.values.length === 0) continue;
+
+      switch (filter.field) {
+        case 'action':
+          // For multiselect, use first value (API only supports single action filter)
+          params.action = filter.values[0] as AuditAction;
+          break;
+        case 'status':
+          params.status = filter.values[0] as AuditStatus;
+          break;
+        case 'resource_type':
+          params.resource_type = filter.values[0] as AuditResourceType;
+          break;
+        case 'ip_address':
+          // IP filter goes into search
+          if (!params.search) {
+            params.search = filter.values[0];
+          }
+          break;
+      }
+    }
+
+    return params;
+  }, [pagination, debouncedSearch, filters]);
+
+  const { logs, total, totalPages, isLoading } = useAuditLogs(apiParams);
   const { exportLogs, isExporting } = useExportAuditLogs();
 
   const handleExport = () => {
-    exportLogs({
-      search: debouncedSearch || undefined,
-      action: actionFilter === 'all' ? undefined : actionFilter,
-      status: statusFilter === 'all' ? undefined : statusFilter,
-    });
+    const { page, limit, ...exportParams } = apiParams;
+    exportLogs(exportParams);
   };
+
+  const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
+    setFilters(newFilters);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -107,43 +163,14 @@ export function AuditLogsPage() {
           />
         </div>
 
-        <Select
-          value={actionFilter}
-          onValueChange={(value) => {
-            setActionFilter(value as AuditAction | 'all');
-            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-          }}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All Actions" />
-          </SelectTrigger>
-          <SelectContent>
-            {actionOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(value) => {
-            setStatusFilter(value as AuditStatus | 'all');
-            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-          }}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Filters
+          filters={filters}
+          fields={filterFields}
+          onChange={handleFiltersChange}
+          addButtonText="Add Filter"
+          variant="outline"
+          size="md"
+        />
       </div>
 
       <AuditDataGrid

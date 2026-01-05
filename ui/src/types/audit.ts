@@ -58,11 +58,31 @@ export interface AuditLogStats {
 }
 
 export interface AuditConfig {
-  proxy_events: boolean;
-  auth_events: boolean;
-  settings_events: boolean;
-  sync_events: boolean;
-  system_events: boolean;
+  // Proxy events
+  proxy_create: boolean;
+  proxy_update: boolean;
+  proxy_delete: boolean;
+  proxy_enable: boolean;
+  proxy_disable: boolean;
+
+  // Auth events
+  auth_login: boolean;
+  auth_logout: boolean;
+  auth_register: boolean;
+  auth_password_change: boolean;
+  auth_login_failed: boolean;
+
+  // Settings events
+  settings_update: boolean;
+
+  // Sync events
+  sync_started: boolean;
+  sync_completed: boolean;
+  sync_failed: boolean;
+
+  // System events
+  system_startup: boolean;
+  caddy_reload: boolean;
 }
 
 export interface AuditLogListParams {

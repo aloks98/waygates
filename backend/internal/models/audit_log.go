@@ -46,23 +46,54 @@ type AuditLogStats struct {
 	RecentActivity []AuditLog       `json:"recent_activity"`
 }
 
-// AuditConfig represents the audit logging configuration
+// AuditConfig represents the audit logging configuration with fine-grained event control
 type AuditConfig struct {
-	ProxyEvents    bool `json:"proxy_events"`    // proxy.create, proxy.update, proxy.delete, etc.
-	AuthEvents     bool `json:"auth_events"`     // auth.login, auth.logout, auth.register, etc.
-	SettingsEvents bool `json:"settings_events"` // settings.update
-	SyncEvents     bool `json:"sync_events"`     // sync.started, sync.completed, sync.failed
-	SystemEvents   bool `json:"system_events"`   // system.startup, caddy.reload
+	// Proxy events
+	ProxyCreate  bool `json:"proxy_create"`
+	ProxyUpdate  bool `json:"proxy_update"`
+	ProxyDelete  bool `json:"proxy_delete"`
+	ProxyEnable  bool `json:"proxy_enable"`
+	ProxyDisable bool `json:"proxy_disable"`
+
+	// Auth events
+	AuthLogin          bool `json:"auth_login"`
+	AuthLogout         bool `json:"auth_logout"`
+	AuthRegister       bool `json:"auth_register"`
+	AuthPasswordChange bool `json:"auth_password_change"`
+	AuthLoginFailed    bool `json:"auth_login_failed"`
+
+	// Settings events
+	SettingsUpdate bool `json:"settings_update"`
+
+	// Sync events
+	SyncStarted   bool `json:"sync_started"`
+	SyncCompleted bool `json:"sync_completed"`
+	SyncFailed    bool `json:"sync_failed"`
+
+	// System events
+	SystemStartup bool `json:"system_startup"`
+	CaddyReload   bool `json:"caddy_reload"`
 }
 
 // DefaultAuditConfig returns the default audit configuration with all events enabled
 func DefaultAuditConfig() *AuditConfig {
 	return &AuditConfig{
-		ProxyEvents:    true,
-		AuthEvents:     true,
-		SettingsEvents: true,
-		SyncEvents:     true,
-		SystemEvents:   true,
+		ProxyCreate:        true,
+		ProxyUpdate:        true,
+		ProxyDelete:        true,
+		ProxyEnable:        true,
+		ProxyDisable:       true,
+		AuthLogin:          true,
+		AuthLogout:         true,
+		AuthRegister:       true,
+		AuthPasswordChange: true,
+		AuthLoginFailed:    true,
+		SettingsUpdate:     true,
+		SyncStarted:        true,
+		SyncCompleted:      true,
+		SyncFailed:         true,
+		SystemStartup:      true,
+		CaddyReload:        true,
 	}
 }
 

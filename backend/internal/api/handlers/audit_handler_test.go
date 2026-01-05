@@ -335,11 +335,22 @@ func TestAuditHandler_GetConfig_Success(t *testing.T) {
 	mockService := &mocks.MockAuditService{
 		GetConfigFunc: func() (*models.AuditConfig, error) {
 			return &models.AuditConfig{
-				ProxyEvents:    true,
-				AuthEvents:     true,
-				SettingsEvents: true,
-				SyncEvents:     true,
-				SystemEvents:   true,
+				ProxyCreate:        true,
+				ProxyUpdate:        true,
+				ProxyDelete:        true,
+				ProxyEnable:        true,
+				ProxyDisable:       true,
+				AuthLogin:          true,
+				AuthLogout:         true,
+				AuthRegister:       true,
+				AuthPasswordChange: true,
+				AuthLoginFailed:    true,
+				SettingsUpdate:     true,
+				SyncStarted:        true,
+				SyncCompleted:      true,
+				SyncFailed:         true,
+				SystemStartup:      true,
+				CaddyReload:        true,
 			}, nil
 		},
 	}
@@ -364,8 +375,8 @@ func TestAuditHandler_GetConfig_Success(t *testing.T) {
 	}
 
 	data := response["data"].(map[string]interface{})
-	if !data["proxy_events"].(bool) {
-		t.Error("Expected proxy_events to be true")
+	if !data["proxy_create"].(bool) {
+		t.Error("Expected proxy_create to be true")
 	}
 }
 
@@ -402,11 +413,22 @@ func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
 	handler := NewAuditHandler(mockService)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"proxy_events":    true,
-		"auth_events":     false,
-		"settings_events": true,
-		"sync_events":     false,
-		"system_events":   true,
+		"proxy_create":         true,
+		"proxy_update":         true,
+		"proxy_delete":         true,
+		"proxy_enable":         true,
+		"proxy_disable":        true,
+		"auth_login":           false,
+		"auth_logout":          false,
+		"auth_register":        false,
+		"auth_password_change": false,
+		"auth_login_failed":    false,
+		"settings_update":      true,
+		"sync_started":         false,
+		"sync_completed":       false,
+		"sync_failed":          false,
+		"system_startup":       true,
+		"caddy_reload":         true,
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/audit-logs/config", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -418,20 +440,20 @@ func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
-	if capturedConfig.ProxyEvents != true {
-		t.Error("Expected ProxyEvents to be true")
+	if capturedConfig.ProxyCreate != true {
+		t.Error("Expected ProxyCreate to be true")
 	}
-	if capturedConfig.AuthEvents != false {
-		t.Error("Expected AuthEvents to be false")
+	if capturedConfig.AuthLogin != false {
+		t.Error("Expected AuthLogin to be false")
 	}
-	if capturedConfig.SettingsEvents != true {
-		t.Error("Expected SettingsEvents to be true")
+	if capturedConfig.SettingsUpdate != true {
+		t.Error("Expected SettingsUpdate to be true")
 	}
-	if capturedConfig.SyncEvents != false {
-		t.Error("Expected SyncEvents to be false")
+	if capturedConfig.SyncStarted != false {
+		t.Error("Expected SyncStarted to be false")
 	}
-	if capturedConfig.SystemEvents != true {
-		t.Error("Expected SystemEvents to be true")
+	if capturedConfig.SystemStartup != true {
+		t.Error("Expected SystemStartup to be true")
 	}
 }
 
@@ -459,11 +481,22 @@ func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 	handler := NewAuditHandler(mockService)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"proxy_events":    true,
-		"auth_events":     true,
-		"settings_events": true,
-		"sync_events":     true,
-		"system_events":   true,
+		"proxy_create":         true,
+		"proxy_update":         true,
+		"proxy_delete":         true,
+		"proxy_enable":         true,
+		"proxy_disable":        true,
+		"auth_login":           true,
+		"auth_logout":          true,
+		"auth_register":        true,
+		"auth_password_change": true,
+		"auth_login_failed":    true,
+		"settings_update":      true,
+		"sync_started":         true,
+		"sync_completed":       true,
+		"sync_failed":          true,
+		"system_startup":       true,
+		"caddy_reload":         true,
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/audit-logs/config", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")

@@ -339,8 +339,8 @@ func TestAuditService_LogEvent_CategoryDisabled(t *testing.T) {
 	repo := newMockAuditLogRepo()
 	settingsSvc := newMockSettingsService()
 
-	// Disable proxy events
-	settingsSvc.settings[models.SettingAuditConfig] = `{"proxy_events":false,"auth_events":true,"settings_events":true,"sync_events":true,"system_events":true}`
+	// Disable proxy_create event
+	settingsSvc.settings[models.SettingAuditConfig] = `{"proxy_create":false,"proxy_update":true,"proxy_delete":true,"proxy_enable":true,"proxy_disable":true,"auth_login":true,"auth_logout":true,"auth_register":true,"auth_password_change":true,"auth_login_failed":true,"settings_update":true,"sync_started":true,"sync_completed":true,"sync_failed":true,"system_startup":true,"caddy_reload":true}`
 
 	svc := NewAuditService(repo, settingsSvc, nil)
 
@@ -356,7 +356,7 @@ func TestAuditService_LogEvent_CategoryDisabled(t *testing.T) {
 
 	// Should not have logged anything
 	if len(repo.logs) != 0 {
-		t.Errorf("Expected 0 logs (proxy events disabled), got %d", len(repo.logs))
+		t.Errorf("Expected 0 logs (proxy_create disabled), got %d", len(repo.logs))
 	}
 }
 
@@ -669,11 +669,11 @@ func TestAuditService_GetConfig(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if !config.ProxyEvents {
-		t.Error("Expected ProxyEvents to be true by default")
+	if !config.ProxyCreate {
+		t.Error("Expected ProxyCreate to be true by default")
 	}
-	if !config.AuthEvents {
-		t.Error("Expected AuthEvents to be true by default")
+	if !config.AuthLogin {
+		t.Error("Expected AuthLogin to be true by default")
 	}
 }
 
@@ -683,11 +683,22 @@ func TestAuditService_SetConfig(t *testing.T) {
 	svc := NewAuditService(repo, settingsSvc, nil)
 
 	config := &models.AuditConfig{
-		ProxyEvents:    true,
-		AuthEvents:     false,
-		SettingsEvents: true,
-		SyncEvents:     false,
-		SystemEvents:   true,
+		ProxyCreate:        true,
+		ProxyUpdate:        true,
+		ProxyDelete:        true,
+		ProxyEnable:        true,
+		ProxyDisable:       true,
+		AuthLogin:          false,
+		AuthLogout:         false,
+		AuthRegister:       false,
+		AuthPasswordChange: false,
+		AuthLoginFailed:    false,
+		SettingsUpdate:     true,
+		SyncStarted:        false,
+		SyncCompleted:      false,
+		SyncFailed:         false,
+		SystemStartup:      true,
+		CaddyReload:        true,
 	}
 
 	err := svc.SetConfig(config)
@@ -701,11 +712,11 @@ func TestAuditService_SetConfig(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if savedConfig.AuthEvents != false {
-		t.Error("Expected AuthEvents to be false")
+	if savedConfig.AuthLogin != false {
+		t.Error("Expected AuthLogin to be false")
 	}
-	if savedConfig.SyncEvents != false {
-		t.Error("Expected SyncEvents to be false")
+	if savedConfig.SyncStarted != false {
+		t.Error("Expected SyncStarted to be false")
 	}
 }
 
@@ -714,7 +725,7 @@ func TestAuditService_isEventEnabled(t *testing.T) {
 	settingsSvc := newMockSettingsService()
 
 	// Set config with some events disabled
-	settingsSvc.settings[models.SettingAuditConfig] = `{"proxy_events":true,"auth_events":false,"settings_events":true,"sync_events":false,"system_events":true}`
+	settingsSvc.settings[models.SettingAuditConfig] = `{"proxy_create":true,"proxy_update":true,"proxy_delete":true,"proxy_enable":true,"proxy_disable":true,"auth_login":false,"auth_logout":false,"auth_register":false,"auth_password_change":false,"auth_login_failed":false,"settings_update":true,"sync_started":false,"sync_completed":false,"sync_failed":false,"system_startup":true,"caddy_reload":true}`
 
 	svc := NewAuditService(repo, settingsSvc, nil)
 
@@ -753,11 +764,22 @@ func TestAuditService_InvalidateConfigCache(t *testing.T) {
 
 	// Set initial config
 	config := &models.AuditConfig{
-		ProxyEvents:    true,
-		AuthEvents:     true,
-		SettingsEvents: true,
-		SyncEvents:     true,
-		SystemEvents:   true,
+		ProxyCreate:        true,
+		ProxyUpdate:        true,
+		ProxyDelete:        true,
+		ProxyEnable:        true,
+		ProxyDisable:       true,
+		AuthLogin:          true,
+		AuthLogout:         true,
+		AuthRegister:       true,
+		AuthPasswordChange: true,
+		AuthLoginFailed:    true,
+		SettingsUpdate:     true,
+		SyncStarted:        true,
+		SyncCompleted:      true,
+		SyncFailed:         true,
+		SystemStartup:      true,
+		CaddyReload:        true,
 	}
 	_ = svc.SetConfig(config)
 

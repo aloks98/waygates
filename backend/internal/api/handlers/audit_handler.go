@@ -138,37 +138,20 @@ func (h *AuditHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, config, "Audit configuration retrieved successfully")
 }
 
-// UpdateConfigRequest represents the request body for updating audit config
-type UpdateConfigRequest struct {
-	ProxyEvents    bool `json:"proxy_events"`
-	AuthEvents     bool `json:"auth_events"`
-	SettingsEvents bool `json:"settings_events"`
-	SyncEvents     bool `json:"sync_events"`
-	SystemEvents   bool `json:"system_events"`
-}
-
 // UpdateConfig updates the audit configuration
 func (h *AuditHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
-	var req UpdateConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var config models.AuditConfig
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
 		utils.BadRequest(w, "Invalid request body", nil)
 		return
 	}
 
-	config := &models.AuditConfig{
-		ProxyEvents:    req.ProxyEvents,
-		AuthEvents:     req.AuthEvents,
-		SettingsEvents: req.SettingsEvents,
-		SyncEvents:     req.SyncEvents,
-		SystemEvents:   req.SystemEvents,
-	}
-
-	if err := h.auditService.SetConfig(config); err != nil {
+	if err := h.auditService.SetConfig(&config); err != nil {
 		utils.InternalError(w, "Failed to update audit configuration")
 		return
 	}
 
-	utils.Success(w, config, "Audit configuration updated successfully")
+	utils.Success(w, &config, "Audit configuration updated successfully")
 }
 
 // parseAuditListParams parses query parameters for audit log listing
