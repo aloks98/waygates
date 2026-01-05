@@ -40,19 +40,13 @@ export function useAuditLogs(params: AuditLogListParams = {}) {
         limit: String(limit),
       };
 
+      // New simplified format: field=operator:value
       if (filters.search) searchParams.search = filters.search;
       if (filters.action) searchParams.action = filters.action;
-      if (filters.action_not) searchParams.action_not = filters.action_not;
       if (filters.resource_type) searchParams.resource_type = filters.resource_type;
-      if (filters.resource_type_not) searchParams.resource_type_not = filters.resource_type_not;
       if (filters.user_id) searchParams.user_id = String(filters.user_id);
       if (filters.status) searchParams.status = filters.status;
-      if (filters.status_not) searchParams.status_not = filters.status_not;
       if (filters.ip_address) searchParams.ip_address = filters.ip_address;
-      if (filters.ip_address_contains) searchParams.ip_address_contains = filters.ip_address_contains;
-      if (filters.ip_address_starts_with) searchParams.ip_address_starts_with = filters.ip_address_starts_with;
-      if (filters.ip_address_ends_with) searchParams.ip_address_ends_with = filters.ip_address_ends_with;
-      if (filters.ip_address_not) searchParams.ip_address_not = filters.ip_address_not;
       if (filters.date_from) searchParams.date_from = filters.date_from;
       if (filters.date_to) searchParams.date_to = filters.date_to;
       if (filters.sort) searchParams.sort = filters.sort;
@@ -173,19 +167,13 @@ export function useExportAuditLogs() {
     mutationFn: async (params: AuditLogListParams = {}) => {
       const searchParams: Record<string, string> = {};
 
+      // New simplified format: field=operator:value
       if (params.search) searchParams.search = params.search;
       if (params.action) searchParams.action = params.action;
-      if (params.action_not) searchParams.action_not = params.action_not;
       if (params.resource_type) searchParams.resource_type = params.resource_type;
-      if (params.resource_type_not) searchParams.resource_type_not = params.resource_type_not;
       if (params.user_id) searchParams.user_id = String(params.user_id);
       if (params.status) searchParams.status = params.status;
-      if (params.status_not) searchParams.status_not = params.status_not;
       if (params.ip_address) searchParams.ip_address = params.ip_address;
-      if (params.ip_address_contains) searchParams.ip_address_contains = params.ip_address_contains;
-      if (params.ip_address_starts_with) searchParams.ip_address_starts_with = params.ip_address_starts_with;
-      if (params.ip_address_ends_with) searchParams.ip_address_ends_with = params.ip_address_ends_with;
-      if (params.ip_address_not) searchParams.ip_address_not = params.ip_address_not;
       if (params.date_from) searchParams.date_from = params.date_from;
       if (params.date_to) searchParams.date_to = params.date_to;
 

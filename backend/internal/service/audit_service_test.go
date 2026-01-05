@@ -57,8 +57,18 @@ func (m *mockAuditLogRepo) List(params repository.AuditLogListParams) ([]models.
 	// Simple filtering for tests
 	result := make([]models.AuditLog, 0, len(m.logs))
 	for _, log := range m.logs {
-		if params.Action != "" && log.Action != params.Action {
-			continue
+		// Filter by actions (if specified)
+		if len(params.Actions) > 0 {
+			found := false
+			for _, action := range params.Actions {
+				if log.Action == action {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
 		}
 		if params.Status != "" && log.Status != params.Status {
 			continue

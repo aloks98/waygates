@@ -109,14 +109,228 @@ func TestAuditHandler_List_WithFilters(t *testing.T) {
 	if capturedParams.Limit != 10 {
 		t.Errorf("Expected limit 10, got %d", capturedParams.Limit)
 	}
-	if capturedParams.Action != "proxy.create" {
-		t.Errorf("Expected action 'proxy.create', got '%s'", capturedParams.Action)
+	if len(capturedParams.Actions) != 1 || capturedParams.Actions[0] != "proxy.create" {
+		t.Errorf("Expected actions ['proxy.create'], got %v", capturedParams.Actions)
 	}
 	if capturedParams.Status != "success" {
 		t.Errorf("Expected status 'success', got '%s'", capturedParams.Status)
 	}
 	if capturedParams.Search != "test" {
 		t.Errorf("Expected search 'test', got '%s'", capturedParams.Search)
+	}
+}
+
+func TestAuditHandler_List_WithMultipleActions(t *testing.T) {
+	var capturedParams repository.AuditLogListParams
+	mockService := &mocks.MockAuditService{
+		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+			capturedParams = params
+			return &models.AuditLogListResponse{
+				Items:      []models.AuditLog{},
+				Total:      0,
+				Page:       1,
+				Limit:      20,
+				TotalPages: 0,
+			}, nil
+		},
+	}
+	handler := NewAuditHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?action=proxy.create,proxy.update,proxy.delete", nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if len(capturedParams.Actions) != 3 {
+		t.Errorf("Expected 3 actions, got %d", len(capturedParams.Actions))
+	}
+	expectedActions := []string{"proxy.create", "proxy.update", "proxy.delete"}
+	for i, action := range expectedActions {
+		if capturedParams.Actions[i] != action {
+			t.Errorf("Expected action[%d] '%s', got '%s'", i, action, capturedParams.Actions[i])
+		}
+	}
+}
+
+func TestAuditHandler_List_WithExclusionFilters(t *testing.T) {
+	var capturedParams repository.AuditLogListParams
+	mockService := &mocks.MockAuditService{
+		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+			capturedParams = params
+			return &models.AuditLogListResponse{
+				Items:      []models.AuditLog{},
+				Total:      0,
+				Page:       1,
+				Limit:      20,
+				TotalPages: 0,
+			}, nil
+		},
+	}
+	handler := NewAuditHandler(mockService)
+
+	// New format: field=operator:value
+	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?action=not_in:proxy.delete,auth.logout&resource_type=not:system&status=not:failure", nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if len(capturedParams.ActionsExclude) != 2 {
+		t.Errorf("Expected 2 excluded actions, got %d", len(capturedParams.ActionsExclude))
+	}
+	if capturedParams.ActionsExclude[0] != "proxy.delete" {
+		t.Errorf("Expected excluded action 'proxy.delete', got '%s'", capturedParams.ActionsExclude[0])
+	}
+	if len(capturedParams.ResourceTypesExclude) != 1 || capturedParams.ResourceTypesExclude[0] != "system" {
+		t.Errorf("Expected excluded resource type 'system', got %v", capturedParams.ResourceTypesExclude)
+	}
+	if capturedParams.StatusExclude != "failure" {
+		t.Errorf("Expected excluded status 'failure', got '%s'", capturedParams.StatusExclude)
+	}
+}
+
+func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		query                string
+		expectedIP           string
+		expectedIPNot        string
+		expectedIPContains   string
+		expectedIPStartsWith string
+		expectedIPEndsWith   string
+	}{
+		{
+			name:       "exact IP match (default eq)",
+			query:      "ip_address=192.168.1.1",
+			expectedIP: "192.168.1.1",
+		},
+		{
+			name:       "exact IP match (explicit eq)",
+			query:      "ip_address=eq:192.168.1.1",
+			expectedIP: "192.168.1.1",
+		},
+		{
+			name:          "IP not equal",
+			query:         "ip_address=not:10.0.0.1",
+			expectedIPNot: "10.0.0.1",
+		},
+		{
+			name:               "IP contains",
+			query:              "ip_address=contains:168",
+			expectedIPContains: "168",
+		},
+		{
+			name:                 "IP starts with",
+			query:                "ip_address=starts_with:192",
+			expectedIPStartsWith: "192",
+		},
+		{
+			name:               "IP ends with",
+			query:              "ip_address=ends_with:.1",
+			expectedIPEndsWith: ".1",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var capturedParams repository.AuditLogListParams
+			mockService := &mocks.MockAuditService{
+				ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+					capturedParams = params
+					return &models.AuditLogListResponse{
+						Items:      []models.AuditLog{},
+						Total:      0,
+						Page:       1,
+						Limit:      20,
+						TotalPages: 0,
+					}, nil
+				},
+			}
+			handler := NewAuditHandler(mockService)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?"+tc.query, nil)
+			rec := httptest.NewRecorder()
+
+			handler.List(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+			}
+
+			if tc.expectedIP != "" && capturedParams.IPAddress != tc.expectedIP {
+				t.Errorf("Expected IPAddress '%s', got '%s'", tc.expectedIP, capturedParams.IPAddress)
+			}
+			if tc.expectedIPNot != "" && capturedParams.IPAddressNot != tc.expectedIPNot {
+				t.Errorf("Expected IPAddressNot '%s', got '%s'", tc.expectedIPNot, capturedParams.IPAddressNot)
+			}
+			if tc.expectedIPContains != "" && capturedParams.IPAddressContains != tc.expectedIPContains {
+				t.Errorf("Expected IPAddressContains '%s', got '%s'", tc.expectedIPContains, capturedParams.IPAddressContains)
+			}
+			if tc.expectedIPStartsWith != "" && capturedParams.IPAddressStartsWith != tc.expectedIPStartsWith {
+				t.Errorf("Expected IPAddressStartsWith '%s', got '%s'", tc.expectedIPStartsWith, capturedParams.IPAddressStartsWith)
+			}
+			if tc.expectedIPEndsWith != "" && capturedParams.IPAddressEndsWith != tc.expectedIPEndsWith {
+				t.Errorf("Expected IPAddressEndsWith '%s', got '%s'", tc.expectedIPEndsWith, capturedParams.IPAddressEndsWith)
+			}
+		})
+	}
+}
+
+func TestAuditHandler_List_WithMultipleResourceTypes(t *testing.T) {
+	var capturedParams repository.AuditLogListParams
+	mockService := &mocks.MockAuditService{
+		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+			capturedParams = params
+			return &models.AuditLogListResponse{
+				Items:      []models.AuditLog{},
+				Total:      0,
+				Page:       1,
+				Limit:      20,
+				TotalPages: 0,
+			}, nil
+		},
+	}
+	handler := NewAuditHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?resource_type=proxy,user,settings", nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if len(capturedParams.ResourceTypes) != 3 {
+		t.Errorf("Expected 3 resource types, got %d", len(capturedParams.ResourceTypes))
+	}
+	expectedTypes := []string{"proxy", "user", "settings"}
+	for i, rt := range expectedTypes {
+		if capturedParams.ResourceTypes[i] != rt {
+			t.Errorf("Expected resource_type[%d] '%s', got '%s'", i, rt, capturedParams.ResourceTypes[i])
+		}
+	}
+}
+
+func TestAuditHandler_List_InvalidStatusNot(t *testing.T) {
+	mockService := &mocks.MockAuditService{}
+	handler := NewAuditHandler(mockService)
+
+	// New format: status=not:invalid
+	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?status=not:invalid", nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 
@@ -753,5 +967,337 @@ func TestAuditHandler_ResponseFormat(t *testing.T) {
 	}
 	if _, ok := response["data"]; !ok {
 		t.Error("Expected 'data' field in response")
+	}
+}
+
+// =============================================================================
+// splitAndTrim Tests
+// =============================================================================
+
+func TestSplitAndTrim(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "single value",
+			input:    "proxy.create",
+			expected: []string{"proxy.create"},
+		},
+		{
+			name:     "multiple values",
+			input:    "proxy.create,proxy.update,proxy.delete",
+			expected: []string{"proxy.create", "proxy.update", "proxy.delete"},
+		},
+		{
+			name:     "values with spaces",
+			input:    "proxy.create, proxy.update , proxy.delete",
+			expected: []string{"proxy.create", "proxy.update", "proxy.delete"},
+		},
+		{
+			name:     "empty values filtered",
+			input:    "proxy.create,,proxy.delete",
+			expected: []string{"proxy.create", "proxy.delete"},
+		},
+		{
+			name:     "only commas",
+			input:    ",,,",
+			expected: []string{},
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: []string{},
+		},
+		{
+			name:     "whitespace only",
+			input:    "   ,   ,   ",
+			expected: []string{},
+		},
+		{
+			name:     "single value with spaces",
+			input:    "  proxy.create  ",
+			expected: []string{"proxy.create"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := splitAndTrim(tc.input)
+
+			if len(result) != len(tc.expected) {
+				t.Errorf("Expected %d values, got %d", len(tc.expected), len(result))
+				return
+			}
+
+			for i, v := range tc.expected {
+				if result[i] != v {
+					t.Errorf("Expected value[%d] '%s', got '%s'", i, v, result[i])
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// GetEventGroups Tests
+// =============================================================================
+
+func TestAuditHandler_GetEventGroups_Success(t *testing.T) {
+	mockService := &mocks.MockAuditService{}
+	handler := NewAuditHandler(mockService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/event-groups", nil)
+	rec := httptest.NewRecorder()
+
+	handler.GetEventGroups(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+
+	if !response["success"].(bool) {
+		t.Error("Expected success to be true")
+	}
+
+	data := response["data"].([]interface{})
+	if len(data) == 0 {
+		t.Error("Expected non-empty event groups")
+	}
+
+	// Verify structure of first group
+	firstGroup := data[0].(map[string]interface{})
+	if _, ok := firstGroup["key"]; !ok {
+		t.Error("Expected 'key' field in event group")
+	}
+	if _, ok := firstGroup["label"]; !ok {
+		t.Error("Expected 'label' field in event group")
+	}
+	if _, ok := firstGroup["description"]; !ok {
+		t.Error("Expected 'description' field in event group")
+	}
+	if _, ok := firstGroup["events"]; !ok {
+		t.Error("Expected 'events' field in event group")
+	}
+}
+
+// =============================================================================
+// parseFilterParam Tests
+// =============================================================================
+
+func TestParseFilterParam(t *testing.T) {
+	testCases := []struct {
+		name             string
+		input            string
+		expectedOperator string
+		expectedValue    string
+		expectedValues   []string
+	}{
+		{
+			name:             "simple value defaults to eq",
+			input:            "success",
+			expectedOperator: "eq",
+			expectedValue:    "success",
+		},
+		{
+			name:             "explicit eq operator",
+			input:            "eq:success",
+			expectedOperator: "eq",
+			expectedValue:    "success",
+		},
+		{
+			name:             "not operator",
+			input:            "not:failure",
+			expectedOperator: "not",
+			expectedValue:    "failure",
+		},
+		{
+			name:             "contains operator",
+			input:            "contains:168",
+			expectedOperator: "contains",
+			expectedValue:    "168",
+		},
+		{
+			name:             "starts_with operator",
+			input:            "starts_with:192",
+			expectedOperator: "starts_with",
+			expectedValue:    "192",
+		},
+		{
+			name:             "ends_with operator",
+			input:            "ends_with:.121",
+			expectedOperator: "ends_with",
+			expectedValue:    ".121",
+		},
+		{
+			name:             "in operator with multiple values",
+			input:            "in:proxy.create,proxy.update,proxy.delete",
+			expectedOperator: "in",
+			expectedValue:    "proxy.create,proxy.update,proxy.delete",
+			expectedValues:   []string{"proxy.create", "proxy.update", "proxy.delete"},
+		},
+		{
+			name:             "not_in operator with multiple values",
+			input:            "not_in:auth.login,auth.logout",
+			expectedOperator: "not_in",
+			expectedValue:    "auth.login,auth.logout",
+			expectedValues:   []string{"auth.login", "auth.logout"},
+		},
+		{
+			name:             "URL with colon (not a valid operator) defaults to eq",
+			input:            "http://example.com",
+			expectedOperator: "eq",
+			expectedValue:    "http://example.com",
+		},
+		{
+			name:             "value with colon after unknown word defaults to eq",
+			input:            "unknown:value",
+			expectedOperator: "eq",
+			expectedValue:    "unknown:value",
+		},
+		{
+			name:             "empty string",
+			input:            "",
+			expectedOperator: "",
+			expectedValue:    "",
+		},
+		{
+			name:             "value containing colon after valid operator",
+			input:            "contains:192:168",
+			expectedOperator: "contains",
+			expectedValue:    "192:168",
+		},
+		{
+			name:             "IPv6 address defaults to eq",
+			input:            "2001:db8::1",
+			expectedOperator: "eq",
+			expectedValue:    "2001:db8::1",
+		},
+		{
+			name:             "contains with IPv6-like pattern",
+			input:            "contains:db8:",
+			expectedOperator: "contains",
+			expectedValue:    "db8:",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := parseFilterParam(tc.input)
+
+			if result.Operator != tc.expectedOperator {
+				t.Errorf("Expected operator '%s', got '%s'", tc.expectedOperator, result.Operator)
+			}
+			if result.Value != tc.expectedValue {
+				t.Errorf("Expected value '%s', got '%s'", tc.expectedValue, result.Value)
+			}
+			if tc.expectedValues != nil {
+				if len(result.Values) != len(tc.expectedValues) {
+					t.Errorf("Expected %d values, got %d", len(tc.expectedValues), len(result.Values))
+				} else {
+					for i, v := range tc.expectedValues {
+						if result.Values[i] != v {
+							t.Errorf("Expected values[%d] '%s', got '%s'", i, v, result.Values[i])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
+	mockService := &mocks.MockAuditService{}
+	handler := NewAuditHandler(mockService)
+
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{
+			name:  "invalid operator for action",
+			query: "action=contains:proxy",
+		},
+		{
+			name:  "invalid operator for status",
+			query: "status=in:success,failure",
+		},
+		{
+			name:  "invalid operator for ip_address",
+			query: "ip_address=in:192.168.1.1,10.0.0.1",
+		},
+		{
+			name:  "user_id with non-eq operator",
+			query: "user_id=not:5",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?"+tc.query, nil)
+			rec := httptest.NewRecorder()
+
+			handler.List(rec, req)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Combined Filter Tests
+// =============================================================================
+
+func TestAuditHandler_List_CombinedFilters(t *testing.T) {
+	var capturedParams repository.AuditLogListParams
+	mockService := &mocks.MockAuditService{
+		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+			capturedParams = params
+			return &models.AuditLogListResponse{
+				Items:      []models.AuditLog{},
+				Total:      0,
+				Page:       1,
+				Limit:      20,
+				TotalPages: 0,
+			}, nil
+		},
+	}
+	handler := NewAuditHandler(mockService)
+
+	// Test combining multiple filter types with new format
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/audit-logs?action=in:proxy.create,proxy.update&resource_type=proxy&status=success&ip_address=contains:192&search=test",
+		nil)
+	rec := httptest.NewRecorder()
+
+	handler.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	// Verify all filters are captured
+	if len(capturedParams.Actions) != 2 {
+		t.Errorf("Expected 2 actions, got %d", len(capturedParams.Actions))
+	}
+	if len(capturedParams.ResourceTypes) != 1 {
+		t.Errorf("Expected 1 resource type, got %d", len(capturedParams.ResourceTypes))
+	}
+	if capturedParams.Status != "success" {
+		t.Errorf("Expected status 'success', got '%s'", capturedParams.Status)
+	}
+	if capturedParams.IPAddressContains != "192" {
+		t.Errorf("Expected IP contains '192', got '%s'", capturedParams.IPAddressContains)
+	}
+	if capturedParams.Search != "test" {
+		t.Errorf("Expected search 'test', got '%s'", capturedParams.Search)
 	}
 }

@@ -85,22 +85,22 @@ export interface AuditConfig {
   caddy_reload: boolean;
 }
 
+// Filter format: field=operator:value
+// Supported operators: eq (default), not, in, not_in, contains, starts_with, ends_with
+// Examples:
+//   - action=in:proxy.create,proxy.update
+//   - status=not:failure
+//   - ip_address=ends_with:121
+//   - ip_address=192.168.1.1 (defaults to eq)
 export interface AuditLogListParams {
   page?: number;
   limit?: number;
   search?: string;
-  action?: string; // Comma-separated action values (include)
-  action_not?: string; // Comma-separated action values (exclude)
-  resource_type?: string; // Comma-separated resource type values (include)
-  resource_type_not?: string; // Comma-separated resource type values (exclude)
+  action?: string; // operator:value format (e.g., "in:proxy.create,proxy.update" or "not_in:auth.login")
+  resource_type?: string; // operator:value format
   user_id?: number;
-  status?: AuditStatus;
-  status_not?: AuditStatus;
-  ip_address?: string; // Exact match
-  ip_address_contains?: string; // Contains
-  ip_address_starts_with?: string; // Starts with
-  ip_address_ends_with?: string; // Ends with
-  ip_address_not?: string; // Not equal
+  status?: string; // operator:value format (e.g., "success" or "not:failure")
+  ip_address?: string; // operator:value format (e.g., "ends_with:121" or "contains:192")
   date_from?: string;
   date_to?: string;
   sort?: 'created_at' | 'action' | 'status';
