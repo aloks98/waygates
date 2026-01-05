@@ -6,20 +6,16 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
 } from '@e412/titanium';
 import type { PaginationState } from '@tanstack/react-table';
 import { Download, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { AuditConfigPanel, AuditDataGrid } from '@/components/audit-logs';
+import { AuditDataGrid } from '@/components/audit-logs';
 import { useAuditLogs, useExportAuditLogs } from '@/hooks';
 import type { AuditAction, AuditStatus } from '@/types/audit';
 
-const actionOptions: { value: AuditAction | ''; label: string }[] = [
-  { value: '', label: 'All Actions' },
+const actionOptions: { value: AuditAction | 'all'; label: string }[] = [
+  { value: 'all', label: 'All Actions' },
   { value: 'proxy.create', label: 'Proxy Create' },
   { value: 'proxy.update', label: 'Proxy Update' },
   { value: 'proxy.delete', label: 'Proxy Delete' },
@@ -38,8 +34,8 @@ const actionOptions: { value: AuditAction | ''; label: string }[] = [
   { value: 'caddy.reload', label: 'Caddy Reload' },
 ];
 
-const statusOptions: { value: AuditStatus | ''; label: string }[] = [
-  { value: '', label: 'All Statuses' },
+const statusOptions: { value: AuditStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'All Statuses' },
   { value: 'success', label: 'Success' },
   { value: 'failure', label: 'Failed' },
 ];
@@ -51,8 +47,8 @@ export function AuditLogsPage() {
   });
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [actionFilter, setActionFilter] = useState<AuditAction | ''>('');
-  const [statusFilter, setStatusFilter] = useState<AuditStatus | ''>('');
+  const [actionFilter, setActionFilter] = useState<AuditAction | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<AuditStatus | 'all'>('all');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input
@@ -76,8 +72,8 @@ export function AuditLogsPage() {
     page: pagination.pageIndex + 1,
     limit: pagination.pageSize,
     search: debouncedSearch || undefined,
-    action: actionFilter || undefined,
-    status: statusFilter || undefined,
+    action: actionFilter === 'all' ? undefined : actionFilter,
+    status: statusFilter === 'all' ? undefined : statusFilter,
   });
 
   const { exportLogs, isExporting } = useExportAuditLogs();
@@ -85,8 +81,8 @@ export function AuditLogsPage() {
   const handleExport = () => {
     exportLogs({
       search: debouncedSearch || undefined,
-      action: actionFilter || undefined,
-      status: statusFilter || undefined,
+      action: actionFilter === 'all' ? undefined : actionFilter,
+      status: statusFilter === 'all' ? undefined : statusFilter,
     });
   };
 
@@ -100,77 +96,64 @@ export function AuditLogsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="logs" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="logs" className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[200px] max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search logs..."
-                className="pl-9"
-              />
-            </div>
-
-            <Select
-              value={actionFilter}
-              onValueChange={(value) => {
-                setActionFilter(value as AuditAction | '');
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All Actions" />
-              </SelectTrigger>
-              <SelectContent>
-                {actionOptions.map((option) => (
-                  <SelectItem key={option.value || 'all'} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => {
-                setStatusFilter(value as AuditStatus | '');
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map((option) => (
-                  <SelectItem key={option.value || 'all'} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <AuditDataGrid
-            data={logs}
-            isLoading={isLoading}
-            pageCount={totalPages}
-            pagination={pagination}
-            onPaginationChange={setPagination}
-            total={total}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search logs..."
+            className="pl-9"
           />
-        </TabsContent>
+        </div>
 
-        <TabsContent value="config">
-          <AuditConfigPanel />
-        </TabsContent>
-      </Tabs>
+        <Select
+          value={actionFilter}
+          onValueChange={(value) => {
+            setActionFilter(value as AuditAction | 'all');
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Actions" />
+          </SelectTrigger>
+          <SelectContent>
+            {actionOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => {
+            setStatusFilter(value as AuditStatus | 'all');
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue placeholder="All Statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            {statusOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <AuditDataGrid
+        data={logs}
+        isLoading={isLoading}
+        pageCount={totalPages}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        total={total}
+      />
     </div>
   );
 }

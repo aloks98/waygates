@@ -18,6 +18,7 @@ import {
 import { useForm } from '@tanstack/react-form';
 import { useEffect } from 'react';
 import { z } from 'zod';
+import { AuditConfigPanel } from '@/components/audit-logs';
 import { useNotFoundSettings } from '@/hooks/use-settings';
 
 const settingsSchema = z
@@ -194,6 +195,8 @@ export function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <AuditConfigPanel />
     </div>
   );
 }

@@ -179,13 +179,13 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "sync:trigger", mwConfig)).Post("/trigger", syncHandler.Trigger)
 		})
 
-		// Audit log routes - admin only (audit_logs:read permission)
+		// Audit log routes - require audit_logs:read for viewing, settings:write for config
 		r.Route("/api/audit-logs", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/", auditHandler.List)
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/stats", auditHandler.GetStats)
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/export", auditHandler.Export)
-			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/config", auditHandler.GetConfig)
-			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Put("/config", auditHandler.UpdateConfig)
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/config", auditHandler.GetConfig)
+			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/config", auditHandler.UpdateConfig)
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/{id}", auditHandler.GetByID)
 		})
 	})

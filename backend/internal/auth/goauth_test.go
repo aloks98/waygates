@@ -102,7 +102,7 @@ func TestErrorHandler_Unauthorized(t *testing.T) {
 	}
 }
 
-func TestErrorHandler_Forbidden(t *testing.T) {
+func TestErrorHandler_Forbidden_Returns404(t *testing.T) {
 	handler := ErrorHandler()
 
 	w := httptest.NewRecorder()
@@ -110,8 +110,9 @@ func TestErrorHandler_Forbidden(t *testing.T) {
 
 	handler(w, r, middleware.ErrPermissionDenied)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("Expected status %d, got %d", http.StatusForbidden, w.Code)
+	// Returns 404 instead of 403 to avoid leaking information about protected resources
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status %d, got %d", http.StatusNotFound, w.Code)
 	}
 }
 

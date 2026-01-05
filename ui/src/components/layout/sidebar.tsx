@@ -2,6 +2,7 @@ import {
   Alert,
   AlertDescription,
   Avatar,
+  Badge,
   Button,
   Dialog,
   DialogBody,
@@ -259,7 +260,7 @@ function ProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Profile</DialogTitle>
         </DialogHeader>
@@ -273,6 +274,11 @@ function ProfileDialog({
             <div>
               <h3 className="text-lg font-semibold">{user?.name || 'User'}</h3>
               <p className="text-sm text-muted-foreground">@{user?.username}</p>
+              {user?.role && (
+                <Badge variant="secondary" className="mt-1 capitalize">
+                  {user.role}
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -285,11 +291,20 @@ function ProfileDialog({
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Username</p>
               <p className="text-sm">{user?.username}</p>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Role</p>
-              <p className="text-sm capitalize">{user?.role || 'user'}</p>
-            </div>
           </div>
+
+          {user?.permissions && user.permissions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Permissions</p>
+              <div className="flex flex-wrap gap-1.5">
+                {user.permissions.map((permission) => (
+                  <Badge key={permission} variant="outline" className="text-xs font-normal">
+                    {permission}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

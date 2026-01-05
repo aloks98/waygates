@@ -49,6 +49,12 @@ permission_groups:
         name: "View System Status"
         description: "View system health and status"
 
+  - name: "Audit"
+    permissions:
+      - key: "audit_logs:read"
+        name: "View Audit Logs"
+        description: "View audit log entries"
+
 role_templates:
   - key: "admin"
     name: "Administrator"
@@ -66,6 +72,7 @@ role_templates:
       - "sync:read"
       - "sync:trigger"
       - "system:status"
+      - "audit_logs:read"
 
   - key: "viewer"
     name: "Viewer"

@@ -134,7 +134,8 @@ func ErrorHandler() middleware.ErrorHandler {
 		case http.StatusUnauthorized:
 			utils.Unauthorized(w, err.Error())
 		case http.StatusForbidden:
-			utils.Forbidden(w, err.Error())
+			// Return 404 instead of 403 to avoid leaking information about protected resources
+			utils.NotFound(w, "Not found")
 		default:
 			utils.Unauthorized(w, "Authentication failed")
 		}
