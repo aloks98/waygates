@@ -194,13 +194,27 @@ func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error
 		params.Actions = splitAndTrim(action)
 	}
 
+	// Parse action exclusion filter
+	if actionNot := r.URL.Query().Get("action_not"); actionNot != "" {
+		params.ActionsExclude = splitAndTrim(actionNot)
+	}
+
 	// Parse resource_type filter (comma-separated for multiple values)
 	if resourceType := r.URL.Query().Get("resource_type"); resourceType != "" {
 		params.ResourceTypes = splitAndTrim(resourceType)
 	}
 
-	// Parse ip_address filter
+	// Parse resource_type exclusion filter
+	if resourceTypeNot := r.URL.Query().Get("resource_type_not"); resourceTypeNot != "" {
+		params.ResourceTypesExclude = splitAndTrim(resourceTypeNot)
+	}
+
+	// Parse ip_address filters
 	params.IPAddress = r.URL.Query().Get("ip_address")
+	params.IPAddressContains = r.URL.Query().Get("ip_address_contains")
+	params.IPAddressStartsWith = r.URL.Query().Get("ip_address_starts_with")
+	params.IPAddressEndsWith = r.URL.Query().Get("ip_address_ends_with")
+	params.IPAddressNot = r.URL.Query().Get("ip_address_not")
 
 	// Parse user_id filter
 	if userIDStr := r.URL.Query().Get("user_id"); userIDStr != "" {
@@ -217,6 +231,14 @@ func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error
 			return params, fmt.Errorf("status must be 'success' or 'failure'")
 		}
 		params.Status = status
+	}
+
+	// Parse status exclusion filter
+	if statusNot := r.URL.Query().Get("status_not"); statusNot != "" {
+		if statusNot != "success" && statusNot != "failure" {
+			return params, fmt.Errorf("status_not must be 'success' or 'failure'")
+		}
+		params.StatusExclude = statusNot
 	}
 
 	// Parse date_from filter

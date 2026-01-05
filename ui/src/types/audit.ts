@@ -89,11 +89,18 @@ export interface AuditLogListParams {
   page?: number;
   limit?: number;
   search?: string;
-  action?: string; // Comma-separated action values
-  resource_type?: string; // Comma-separated resource type values
+  action?: string; // Comma-separated action values (include)
+  action_not?: string; // Comma-separated action values (exclude)
+  resource_type?: string; // Comma-separated resource type values (include)
+  resource_type_not?: string; // Comma-separated resource type values (exclude)
   user_id?: number;
   status?: AuditStatus;
-  ip_address?: string;
+  status_not?: AuditStatus;
+  ip_address?: string; // Exact match
+  ip_address_contains?: string; // Contains
+  ip_address_starts_with?: string; // Starts with
+  ip_address_ends_with?: string; // Ends with
+  ip_address_not?: string; // Not equal
   date_from?: string;
   date_to?: string;
   sort?: 'created_at' | 'action' | 'status';

@@ -48,24 +48,43 @@ export function AuditLogsPage() {
         label: 'Action',
         type: 'multiselect',
         options: actionOptions,
+        operators: [
+          { value: 'isAnyOf', label: 'is any of', supportsMultiple: true },
+          { value: 'isNotAnyOf', label: 'is not any of', supportsMultiple: true },
+        ],
       },
       {
         key: 'status',
         label: 'Status',
         type: 'select',
         options: statusOptions,
+        operators: [
+          { value: 'is', label: 'is' },
+          { value: 'isNot', label: 'is not' },
+        ],
       },
       {
         key: 'resource_type',
         label: 'Resource',
         type: 'multiselect',
         options: resourceTypeOptions,
+        operators: [
+          { value: 'isAnyOf', label: 'is any of', supportsMultiple: true },
+          { value: 'isNotAnyOf', label: 'is not any of', supportsMultiple: true },
+        ],
       },
       {
         key: 'ip_address',
         label: 'IP Address',
         type: 'text',
-        placeholder: 'Filter by IP...',
+        placeholder: 'Enter IP address...',
+        operators: [
+          { value: 'is', label: 'is' },
+          { value: 'isNot', label: 'is not' },
+          { value: 'contains', label: 'contains' },
+          { value: 'startsWith', label: 'starts with' },
+          { value: 'endsWith', label: 'ends with' },
+        ],
       },
     ],
     [actionOptions],
@@ -102,20 +121,48 @@ export function AuditLogsPage() {
     for (const filter of filters) {
       if (filter.values.length === 0) continue;
 
+      // Check if operator is an exclusion type
+      const isExclude = filter.operator === 'isNot' || filter.operator === 'isNotAnyOf';
+
       switch (filter.field) {
         case 'action':
-          // Join multiple values with comma for API
-          params.action = filter.values.join(',');
+          if (isExclude) {
+            params.action_not = filter.values.join(',');
+          } else {
+            params.action = filter.values.join(',');
+          }
           break;
         case 'status':
-          params.status = filter.values[0] as AuditStatus;
+          if (isExclude) {
+            params.status_not = filter.values[0] as AuditStatus;
+          } else {
+            params.status = filter.values[0] as AuditStatus;
+          }
           break;
         case 'resource_type':
-          // Join multiple values with comma for API
-          params.resource_type = filter.values.join(',');
+          if (isExclude) {
+            params.resource_type_not = filter.values.join(',');
+          } else {
+            params.resource_type = filter.values.join(',');
+          }
           break;
         case 'ip_address':
-          params.ip_address = filter.values[0];
+          switch (filter.operator) {
+            case 'isNot':
+              params.ip_address_not = filter.values[0];
+              break;
+            case 'contains':
+              params.ip_address_contains = filter.values[0];
+              break;
+            case 'startsWith':
+              params.ip_address_starts_with = filter.values[0];
+              break;
+            case 'endsWith':
+              params.ip_address_ends_with = filter.values[0];
+              break;
+            default: // 'is' or any other
+              params.ip_address = filter.values[0];
+          }
           break;
       }
     }
