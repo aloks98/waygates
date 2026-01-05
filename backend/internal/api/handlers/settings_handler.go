@@ -3,7 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
+	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/aloks98/waygates/backend/internal/models"
@@ -14,12 +16,14 @@ import (
 // SettingsHandler handles settings-related HTTP requests
 type SettingsHandler struct {
 	settingsService service.SettingsServiceInterface
+	auditService    service.AuditServiceInterface
 }
 
 // NewSettingsHandler creates a new settings handler
-func NewSettingsHandler(settingsService service.SettingsServiceInterface) *SettingsHandler {
+func NewSettingsHandler(settingsService service.SettingsServiceInterface, auditService service.AuditServiceInterface) *SettingsHandler {
 	return &SettingsHandler{
 		settingsService: settingsService,
+		auditService:    auditService,
 	}
 }
 
@@ -58,11 +62,18 @@ type UpdateSettingRequest struct {
 
 // Update updates a setting by key
 func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	key := chi.URLParam(r, "key")
 	if key == "" {
 		utils.BadRequest(w, "Setting key is required", nil)
 		return
 	}
+
+	// Get old value for audit log
+	oldValue, _ := h.settingsService.Get(key)
 
 	var req UpdateSettingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -73,6 +84,11 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if err := h.settingsService.Set(key, req.Value); err != nil {
 		utils.InternalError(w, "Failed to update setting")
 		return
+	}
+
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		_ = h.auditService.LogSettingsUpdate(r.Context(), userID, key, oldValue, req.Value, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, map[string]string{"key": key, "value": req.Value}, "Setting updated successfully")
@@ -97,6 +113,20 @@ type UpdateNotFoundRequest struct {
 
 // UpdateNotFound updates the 404 page configuration
 func (h *SettingsHandler) UpdateNotFound(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
+	// Get old settings for audit log
+	oldSettings, _ := h.settingsService.GetNotFoundSettings()
+	var oldValue string
+	if oldSettings != nil {
+		oldValue = oldSettings.Mode
+		if oldSettings.RedirectURL != "" {
+			oldValue += " -> " + oldSettings.RedirectURL
+		}
+	}
+
 	var req UpdateNotFoundRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid request body", nil)
@@ -123,6 +153,15 @@ func (h *SettingsHandler) UpdateNotFound(w http.ResponseWriter, r *http.Request)
 	if err := h.settingsService.SetNotFoundSettings(settings); err != nil {
 		utils.InternalError(w, "Failed to update 404 settings")
 		return
+	}
+
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		newValue := req.Mode
+		if req.RedirectURL != "" {
+			newValue += " -> " + req.RedirectURL
+		}
+		_ = h.auditService.LogSettingsUpdate(r.Context(), userID, "not_found_settings", oldValue, newValue, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, settings, "404 settings updated successfully")

@@ -77,6 +77,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	proxyRepo := repository.NewProxyRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
+	auditLogRepo := repository.NewAuditLogRepository(db)
 
 	// Services - SyncService must be created first as ProxyService depends on it
 	syncService := service.NewSyncService(service.SyncServiceConfig{
@@ -98,6 +99,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsService := service.NewSettingsService(settingsRepo, logger)
 	settingsService.SetSyncService(syncService) // Wire up sync service for catchall updates
 
+	auditService := service.NewAuditService(auditLogRepo, settingsService, logger)
+
 	// Ensure Caddy directories exist
 	if err := caddyFileManager.EnsureDirectories(); err != nil {
 		logger.Error("Failed to ensure Caddy directories", zap.Error(err))
@@ -116,11 +119,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
-	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, cfg.Security.BcryptCost)
-	proxyHandler := handlers.NewProxyHandler(proxyService)
+	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, auditService, cfg.Security.BcryptCost)
+	proxyHandler := handlers.NewProxyHandler(proxyService, auditService)
 	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
-	settingsHandler := handlers.NewSettingsHandler(settingsService)
+	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService)
 	syncHandler := handlers.NewSyncHandler(syncService)
+	auditHandler := handlers.NewAuditHandler(auditService)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -173,6 +177,16 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Route("/api/sync", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "sync:read", mwConfig)).Get("/status", syncHandler.GetStatus)
 			r.With(chimw.RequirePermission(authAdapter, "sync:trigger", mwConfig)).Post("/trigger", syncHandler.Trigger)
+		})
+
+		// Audit log routes - admin only (audit_logs:read permission)
+		r.Route("/api/audit-logs", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/", auditHandler.List)
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/stats", auditHandler.GetStats)
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/export", auditHandler.Export)
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/config", auditHandler.GetConfig)
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Put("/config", auditHandler.UpdateConfig)
+			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/{id}", auditHandler.GetByID)
 		})
 	})
 

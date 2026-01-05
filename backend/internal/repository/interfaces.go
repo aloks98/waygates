@@ -1,6 +1,10 @@
 package repository
 
-import "github.com/aloks98/waygates/backend/internal/models"
+import (
+	"time"
+
+	"github.com/aloks98/waygates/backend/internal/models"
+)
 
 // ProxyRepositoryInterface defines the interface for proxy database operations
 type ProxyRepositoryInterface interface {
@@ -37,9 +41,21 @@ type SettingsRepositoryInterface interface {
 	SetNotFoundSettings(settings *models.NotFoundSettings) error
 }
 
+// AuditLogRepositoryInterface defines the interface for audit log database operations
+type AuditLogRepositoryInterface interface {
+	Create(log *models.AuditLog) error
+	GetByID(id int) (*models.AuditLog, error)
+	List(params AuditLogListParams) ([]models.AuditLog, int64, error)
+	GetStats() (*models.AuditLogStats, error)
+	DeleteOlderThan(before time.Time) (int64, error)
+	CountByAction(action string) (int64, error)
+	CountByUserID(userID int) (int64, error)
+}
+
 // Ensure repositories implement interfaces
 var (
 	_ ProxyRepositoryInterface    = (*ProxyRepository)(nil)
 	_ UserRepositoryInterface     = (*UserRepository)(nil)
 	_ SettingsRepositoryInterface = (*SettingsRepository)(nil)
+	_ AuditLogRepositoryInterface = (*AuditLogRepository)(nil)
 )

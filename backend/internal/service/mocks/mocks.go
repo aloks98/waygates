@@ -298,11 +298,222 @@ func (m *MockReloader) TestConnection(ctx context.Context) error {
 	return nil
 }
 
+// MockAuditService is a mock implementation of AuditServiceInterface
+type MockAuditService struct {
+	LogEventFunc              func(ctx context.Context, event models.AuditEvent) error
+	GetConfigFunc             func() (*models.AuditConfig, error)
+	SetConfigFunc             func(config *models.AuditConfig) error
+	InvalidateConfigCacheFunc func()
+	ListAuditLogsFunc         func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error)
+	GetAuditLogByIDFunc       func(id int) (*models.AuditLog, error)
+	GetStatsFunc              func() (*models.AuditLogStats, error)
+	LogProxyCreateFunc        func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogProxyUpdateFunc        func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error
+	LogProxyDeleteFunc        func(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error
+	LogProxyEnableFunc        func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogProxyDisableFunc       func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogLoginFunc              func(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogLoginFailedFunc        func(ctx context.Context, username, ip, userAgent, reason string) error
+	LogLogoutFunc             func(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogRegisterFunc           func(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogPasswordChangeFunc     func(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogSettingsUpdateFunc     func(ctx context.Context, userID int, key string, oldVal, newVal string, ip, userAgent string) error
+	LogSyncStartedFunc        func(ctx context.Context) error
+	LogSyncCompletedFunc      func(ctx context.Context, proxiesCount int) error
+	LogSyncFailedFunc         func(ctx context.Context, errMsg string) error
+	LogSystemStartupFunc      func(ctx context.Context) error
+	LogCaddyReloadFunc        func(ctx context.Context, success bool, errMsg string) error
+}
+
+// LogEvent implements AuditServiceInterface.
+func (m *MockAuditService) LogEvent(ctx context.Context, event models.AuditEvent) error {
+	if m.LogEventFunc != nil {
+		return m.LogEventFunc(ctx, event)
+	}
+	return nil
+}
+
+// GetConfig implements AuditServiceInterface.
+func (m *MockAuditService) GetConfig() (*models.AuditConfig, error) {
+	if m.GetConfigFunc != nil {
+		return m.GetConfigFunc()
+	}
+	return models.DefaultAuditConfig(), nil
+}
+
+// SetConfig implements AuditServiceInterface.
+func (m *MockAuditService) SetConfig(config *models.AuditConfig) error {
+	if m.SetConfigFunc != nil {
+		return m.SetConfigFunc(config)
+	}
+	return nil
+}
+
+// InvalidateConfigCache implements AuditServiceInterface.
+func (m *MockAuditService) InvalidateConfigCache() {
+	if m.InvalidateConfigCacheFunc != nil {
+		m.InvalidateConfigCacheFunc()
+	}
+}
+
+// ListAuditLogs implements AuditServiceInterface.
+func (m *MockAuditService) ListAuditLogs(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+	if m.ListAuditLogsFunc != nil {
+		return m.ListAuditLogsFunc(params)
+	}
+	return &models.AuditLogListResponse{Items: []models.AuditLog{}, Total: 0}, nil
+}
+
+// GetAuditLogByID implements AuditServiceInterface.
+func (m *MockAuditService) GetAuditLogByID(id int) (*models.AuditLog, error) {
+	if m.GetAuditLogByIDFunc != nil {
+		return m.GetAuditLogByIDFunc(id)
+	}
+	return nil, nil
+}
+
+// GetStats implements AuditServiceInterface.
+func (m *MockAuditService) GetStats() (*models.AuditLogStats, error) {
+	if m.GetStatsFunc != nil {
+		return m.GetStatsFunc()
+	}
+	return &models.AuditLogStats{}, nil
+}
+
+// LogProxyCreate implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyCreate(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+	if m.LogProxyCreateFunc != nil {
+		return m.LogProxyCreateFunc(ctx, userID, proxy, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyUpdate(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogProxyUpdateFunc != nil {
+		return m.LogProxyUpdateFunc(ctx, userID, proxy, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyDelete(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error {
+	if m.LogProxyDeleteFunc != nil {
+		return m.LogProxyDeleteFunc(ctx, userID, proxyID, proxyName, hostname, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyEnable implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyEnable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+	if m.LogProxyEnableFunc != nil {
+		return m.LogProxyEnableFunc(ctx, userID, proxy, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyDisable implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyDisable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+	if m.LogProxyDisableFunc != nil {
+		return m.LogProxyDisableFunc(ctx, userID, proxy, ip, userAgent)
+	}
+	return nil
+}
+
+// LogLogin implements AuditServiceInterface.
+func (m *MockAuditService) LogLogin(ctx context.Context, userID int, username string, ip, userAgent string) error {
+	if m.LogLoginFunc != nil {
+		return m.LogLoginFunc(ctx, userID, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogLoginFailed implements AuditServiceInterface.
+func (m *MockAuditService) LogLoginFailed(ctx context.Context, username, ip, userAgent, reason string) error {
+	if m.LogLoginFailedFunc != nil {
+		return m.LogLoginFailedFunc(ctx, username, ip, userAgent, reason)
+	}
+	return nil
+}
+
+// LogLogout implements AuditServiceInterface.
+func (m *MockAuditService) LogLogout(ctx context.Context, userID int, username string, ip, userAgent string) error {
+	if m.LogLogoutFunc != nil {
+		return m.LogLogoutFunc(ctx, userID, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogRegister implements AuditServiceInterface.
+func (m *MockAuditService) LogRegister(ctx context.Context, userID int, username string, ip, userAgent string) error {
+	if m.LogRegisterFunc != nil {
+		return m.LogRegisterFunc(ctx, userID, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogPasswordChange implements AuditServiceInterface.
+func (m *MockAuditService) LogPasswordChange(ctx context.Context, userID int, username string, ip, userAgent string) error {
+	if m.LogPasswordChangeFunc != nil {
+		return m.LogPasswordChangeFunc(ctx, userID, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogSettingsUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogSettingsUpdate(ctx context.Context, userID int, key string, oldVal, newVal string, ip, userAgent string) error {
+	if m.LogSettingsUpdateFunc != nil {
+		return m.LogSettingsUpdateFunc(ctx, userID, key, oldVal, newVal, ip, userAgent)
+	}
+	return nil
+}
+
+// LogSyncStarted implements AuditServiceInterface.
+func (m *MockAuditService) LogSyncStarted(ctx context.Context) error {
+	if m.LogSyncStartedFunc != nil {
+		return m.LogSyncStartedFunc(ctx)
+	}
+	return nil
+}
+
+// LogSyncCompleted implements AuditServiceInterface.
+func (m *MockAuditService) LogSyncCompleted(ctx context.Context, proxiesCount int) error {
+	if m.LogSyncCompletedFunc != nil {
+		return m.LogSyncCompletedFunc(ctx, proxiesCount)
+	}
+	return nil
+}
+
+// LogSyncFailed implements AuditServiceInterface.
+func (m *MockAuditService) LogSyncFailed(ctx context.Context, errMsg string) error {
+	if m.LogSyncFailedFunc != nil {
+		return m.LogSyncFailedFunc(ctx, errMsg)
+	}
+	return nil
+}
+
+// LogSystemStartup implements AuditServiceInterface.
+func (m *MockAuditService) LogSystemStartup(ctx context.Context) error {
+	if m.LogSystemStartupFunc != nil {
+		return m.LogSystemStartupFunc(ctx)
+	}
+	return nil
+}
+
+// LogCaddyReload implements AuditServiceInterface.
+func (m *MockAuditService) LogCaddyReload(ctx context.Context, success bool, errMsg string) error {
+	if m.LogCaddyReloadFunc != nil {
+		return m.LogCaddyReloadFunc(ctx, success, errMsg)
+	}
+	return nil
+}
+
 // Ensure mocks implement interfaces
 var (
 	_ service.ProxyServiceInterface      = (*MockProxyService)(nil)
 	_ service.SettingsServiceInterface   = (*MockSettingsService)(nil)
 	_ service.SyncServiceInterface       = (*MockSyncService)(nil)
+	_ service.AuditServiceInterface      = (*MockAuditService)(nil)
 	_ repository.UserRepositoryInterface = (*MockUserRepository)(nil)
 	_ caddy.ReloaderInterface            = (*MockReloader)(nil)
 )

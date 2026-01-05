@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
@@ -42,10 +44,53 @@ type ProxySyncer interface {
 	DisableProxy(proxyID int, hostname string) error
 }
 
+// AuditServiceInterface defines the interface for audit logging operations
+type AuditServiceInterface interface {
+	// Core logging
+	LogEvent(ctx context.Context, event models.AuditEvent) error
+
+	// Configuration
+	GetConfig() (*models.AuditConfig, error)
+	SetConfig(config *models.AuditConfig) error
+	InvalidateConfigCache()
+
+	// Queries
+	ListAuditLogs(params repository.AuditLogListParams) (*models.AuditLogListResponse, error)
+	GetAuditLogByID(id int) (*models.AuditLog, error)
+	GetStats() (*models.AuditLogStats, error)
+
+	// Proxy events
+	LogProxyCreate(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogProxyUpdate(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error
+	LogProxyDelete(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error
+	LogProxyEnable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogProxyDisable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+
+	// Auth events
+	LogLogin(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogLoginFailed(ctx context.Context, username, ip, userAgent, reason string) error
+	LogLogout(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogRegister(ctx context.Context, userID int, username string, ip, userAgent string) error
+	LogPasswordChange(ctx context.Context, userID int, username string, ip, userAgent string) error
+
+	// Settings events
+	LogSettingsUpdate(ctx context.Context, userID int, key string, oldVal, newVal string, ip, userAgent string) error
+
+	// Sync events
+	LogSyncStarted(ctx context.Context) error
+	LogSyncCompleted(ctx context.Context, proxiesCount int) error
+	LogSyncFailed(ctx context.Context, errMsg string) error
+
+	// System events
+	LogSystemStartup(ctx context.Context) error
+	LogCaddyReload(ctx context.Context, success bool, errMsg string) error
+}
+
 // Ensure concrete types implement interfaces
 var (
 	_ ProxyServiceInterface    = (*ProxyService)(nil)
 	_ SettingsServiceInterface = (*SettingsService)(nil)
 	_ SyncServiceInterface     = (*SyncService)(nil)
 	_ ProxySyncer              = (*SyncService)(nil)
+	_ AuditServiceInterface    = (*AuditService)(nil)
 )

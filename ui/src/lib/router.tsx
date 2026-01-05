@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import { RootLayout } from '@/routes/__root';
 import { DashboardIndex } from '@/routes/_dashboard';
+import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
 import { ProxiesPage } from '@/routes/_dashboard/proxies';
 import { DashboardLayout } from '@/routes/_dashboard/route';
 import { SettingsPage } from '@/routes/_dashboard/settings';
@@ -78,11 +79,17 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const auditLogsRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/audit-logs',
+  component: AuditLogsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
-  dashboardRoute.addChildren([dashboardIndexRoute, proxiesRoute, settingsRoute]),
+  dashboardRoute.addChildren([dashboardIndexRoute, proxiesRoute, settingsRoute, auditLogsRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

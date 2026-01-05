@@ -40,7 +40,7 @@ func requestWithUserID(method, url string, body []byte, userID string) *http.Req
 
 func TestNewProxyHandler(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	if handler == nil {
 		t.Fatal("Expected handler to be created")
@@ -66,7 +66,7 @@ func TestListProxies_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies", nil)
 	rec := httptest.NewRecorder()
@@ -86,7 +86,7 @@ func TestListProxies_WithQueryParams(t *testing.T) {
 			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies?page=2&limit=10&search=test&type=reverse&status=active&sort=name&order=desc", nil)
 	rec := httptest.NewRecorder()
@@ -127,7 +127,7 @@ func TestListProxies_InvalidPage(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockService := &mocks.MockProxyService{}
-			handler := NewProxyHandler(mockService)
+			handler := NewProxyHandler(mockService, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/proxies?page="+tc.page, nil)
 			rec := httptest.NewRecorder()
@@ -154,7 +154,7 @@ func TestListProxies_InvalidLimit(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockService := &mocks.MockProxyService{}
-			handler := NewProxyHandler(mockService)
+			handler := NewProxyHandler(mockService, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/proxies?limit="+tc.limit, nil)
 			rec := httptest.NewRecorder()
@@ -170,7 +170,7 @@ func TestListProxies_InvalidLimit(t *testing.T) {
 
 func TestListProxies_InvalidStatus(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies?status=invalid", nil)
 	rec := httptest.NewRecorder()
@@ -188,7 +188,7 @@ func TestListProxies_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies", nil)
 	rec := httptest.NewRecorder()
@@ -210,7 +210,7 @@ func TestGetProxy_Success(t *testing.T) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/proxies/{id}", handler.GetProxy)
@@ -227,7 +227,7 @@ func TestGetProxy_Success(t *testing.T) {
 
 func TestGetProxy_InvalidID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/proxies/{id}", handler.GetProxy)
@@ -248,7 +248,7 @@ func TestGetProxy_NotFound(t *testing.T) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/proxies/{id}", handler.GetProxy)
@@ -269,7 +269,7 @@ func TestGetProxy_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/proxies/{id}", handler.GetProxy)
@@ -295,7 +295,7 @@ func TestCreateProxy_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name":     "Test Proxy",
@@ -314,7 +314,7 @@ func TestCreateProxy_Success(t *testing.T) {
 
 func TestCreateProxy_MissingUserID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name":     "Test Proxy",
@@ -332,7 +332,7 @@ func TestCreateProxy_MissingUserID(t *testing.T) {
 
 func TestCreateProxy_InvalidUserID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name":     "Test Proxy",
@@ -350,7 +350,7 @@ func TestCreateProxy_InvalidUserID(t *testing.T) {
 
 func TestCreateProxy_InvalidJSON(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := requestWithUserID(http.MethodPost, "/api/proxies", []byte(`{invalid json}`), "123")
 	rec := httptest.NewRecorder()
@@ -368,7 +368,7 @@ func TestCreateProxy_HostnameConflict(t *testing.T) {
 			return service.ErrHostnameConflict
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name":     "Test Proxy",
@@ -390,7 +390,7 @@ func TestCreateProxy_CaddyError(t *testing.T) {
 			return service.NewCaddyError("caddy validation failed")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name":     "Test Proxy",
@@ -412,7 +412,7 @@ func TestCreateProxy_ValidationError(t *testing.T) {
 			return errors.New("validation: hostname is required")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"name": "Test Proxy",
@@ -437,14 +437,15 @@ func TestUpdateProxy_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":     "Updated Proxy",
-		"hostname": "updated.example.com",
+		"name":        "Updated Proxy",
+		"hostname":    "updated.example.com",
+		"ssl_enabled": true,
 	})
 	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -459,7 +460,7 @@ func TestUpdateProxy_Success(t *testing.T) {
 
 func TestUpdateProxy_InvalidID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
@@ -478,7 +479,7 @@ func TestUpdateProxy_InvalidID(t *testing.T) {
 
 func TestUpdateProxy_InvalidJSON(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
@@ -500,7 +501,7 @@ func TestUpdateProxy_NotFound(t *testing.T) {
 			return service.ErrProxyNotFound
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
@@ -523,12 +524,12 @@ func TestUpdateProxy_HostnameConflict(t *testing.T) {
 			return service.ErrHostnameConflict
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
 
-	body, _ := json.Marshal(map[string]interface{}{"hostname": "existing.example.com"})
+	body, _ := json.Marshal(map[string]interface{}{"hostname": "existing.example.com", "ssl_enabled": true})
 	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -546,12 +547,12 @@ func TestUpdateProxy_CaddyError(t *testing.T) {
 			return service.NewCaddyError("caddy reload failed")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
 
-	body, _ := json.Marshal(map[string]interface{}{"name": "Test"})
+	body, _ := json.Marshal(map[string]interface{}{"name": "Test", "ssl_enabled": true})
 	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -569,12 +570,12 @@ func TestUpdateProxy_ValidationError(t *testing.T) {
 			return errors.New("validation: invalid hostname format")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/proxies/{id}", handler.UpdateProxy)
 
-	body, _ := json.Marshal(map[string]interface{}{"hostname": "invalid"})
+	body, _ := json.Marshal(map[string]interface{}{"hostname": "invalid", "ssl_enabled": true})
 	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -596,7 +597,7 @@ func TestDeleteProxy_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Delete("/api/proxies/{id}", handler.DeleteProxy)
@@ -613,7 +614,7 @@ func TestDeleteProxy_Success(t *testing.T) {
 
 func TestDeleteProxy_InvalidID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Delete("/api/proxies/{id}", handler.DeleteProxy)
@@ -634,7 +635,7 @@ func TestDeleteProxy_NotFound(t *testing.T) {
 			return service.ErrProxyNotFound
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Delete("/api/proxies/{id}", handler.DeleteProxy)
@@ -655,7 +656,7 @@ func TestDeleteProxy_ServiceError(t *testing.T) {
 			return errors.New("database error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Delete("/api/proxies/{id}", handler.DeleteProxy)
@@ -680,7 +681,7 @@ func TestEnableProxy_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -697,7 +698,7 @@ func TestEnableProxy_Success(t *testing.T) {
 
 func TestEnableProxy_InvalidID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -718,7 +719,7 @@ func TestEnableProxy_NotFound(t *testing.T) {
 			return service.ErrProxyNotFound
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -739,7 +740,7 @@ func TestEnableProxy_AlreadyEnabled(t *testing.T) {
 			return service.ErrProxyAlreadyEnabled
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -760,7 +761,7 @@ func TestEnableProxy_CaddyError(t *testing.T) {
 			return service.NewCaddyError("caddy error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -781,7 +782,7 @@ func TestEnableProxy_ServiceError(t *testing.T) {
 			return errors.New("unknown error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/enable", handler.EnableProxy)
@@ -806,7 +807,7 @@ func TestDisableProxy_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/disable", handler.DisableProxy)
@@ -823,7 +824,7 @@ func TestDisableProxy_Success(t *testing.T) {
 
 func TestDisableProxy_InvalidID(t *testing.T) {
 	mockService := &mocks.MockProxyService{}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/disable", handler.DisableProxy)
@@ -844,7 +845,7 @@ func TestDisableProxy_NotFound(t *testing.T) {
 			return service.ErrProxyNotFound
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/disable", handler.DisableProxy)
@@ -865,7 +866,7 @@ func TestDisableProxy_AlreadyDisabled(t *testing.T) {
 			return service.ErrProxyAlreadyDisabled
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/disable", handler.DisableProxy)
@@ -886,7 +887,7 @@ func TestDisableProxy_ServiceError(t *testing.T) {
 			return errors.New("unknown error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Post("/api/proxies/{id}/disable", handler.DisableProxy)
@@ -915,7 +916,7 @@ func TestGetStats_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies/stats", nil)
 	rec := httptest.NewRecorder()
@@ -933,7 +934,7 @@ func TestGetStats_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewProxyHandler(mockService)
+	handler := NewProxyHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/proxies/stats", nil)
 	rec := httptest.NewRecorder()

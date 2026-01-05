@@ -160,7 +160,7 @@ func TestNewAuthHandler(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	authProvider := &MockAuthProvider{}
 
-	handler := NewAuthHandler(authProvider, userRepo, 10)
+	handler := NewAuthHandler(authProvider, userRepo, nil, 10)
 
 	if handler == nil {
 		t.Fatal("Expected non-nil handler")
@@ -361,7 +361,7 @@ func TestRegister(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, 4) // Low cost for tests
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4) // Low cost for tests
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -498,7 +498,7 @@ func TestLogin(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, 4)
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4)
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -570,7 +570,7 @@ func TestRefreshToken(t *testing.T) {
 				tc.setupMocks(authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, &MockUserRepository{}, 4)
+			handler := NewAuthHandler(authProvider, &MockUserRepository{}, nil, 4)
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -626,7 +626,7 @@ func TestLogout(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, 4)
+			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, nil, 4)
 
 			var body []byte
 			if tc.requestBody != nil {
@@ -732,7 +732,7 @@ func TestGetMe(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, 4)
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 			if tc.setupContext != nil {

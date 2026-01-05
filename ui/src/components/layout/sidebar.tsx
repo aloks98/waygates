@@ -40,6 +40,7 @@ import { Link, useLocation, useRouter } from '@tanstack/react-router';
 import {
   CheckCircle2,
   ChevronUp,
+  ClipboardList,
   Globe,
   Home,
   KeyRound,
@@ -69,6 +70,11 @@ const navItems: NavItem[] = [
     label: 'Proxies',
     path: '/dashboard/proxies',
     icon: <Globe className="size-4" />,
+  },
+  {
+    label: 'Audit Logs',
+    path: '/dashboard/audit-logs',
+    icon: <ClipboardList className="size-4" />,
   },
   {
     label: 'Settings',

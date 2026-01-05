@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
@@ -16,14 +17,33 @@ import (
 
 // ProxyHandler handles proxy-related HTTP requests
 type ProxyHandler struct {
-	service service.ProxyServiceInterface
+	service      service.ProxyServiceInterface
+	auditService service.AuditServiceInterface
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(svc service.ProxyServiceInterface) *ProxyHandler {
+func NewProxyHandler(svc service.ProxyServiceInterface, auditService service.AuditServiceInterface) *ProxyHandler {
 	return &ProxyHandler{
-		service: svc,
+		service:      svc,
+		auditService: auditService,
 	}
+}
+
+// getClientIP extracts the client IP from the request, handling X-Forwarded-For
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	// Remove port from RemoteAddr
+	addr := r.RemoteAddr
+	if idx := strings.LastIndex(addr, ":"); idx != -1 {
+		return addr[:idx]
+	}
+	return addr
 }
 
 // ListProxies handles GET /api/proxies
@@ -164,6 +184,11 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log audit event
+	if h.auditService != nil {
+		_ = h.auditService.LogProxyCreate(r.Context(), userID, &proxy, getClientIP(r), r.UserAgent())
+	}
+
 	// Return created proxy
 	utils.Created(w, proxy, "Proxy created successfully")
 }
@@ -176,6 +201,10 @@ type updateProxyRequest struct {
 
 // UpdateProxy handles PUT /api/proxies/:id
 func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	// Get ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -230,18 +259,36 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		_ = h.auditService.LogProxyUpdate(r.Context(), userID, &proxy, nil, getClientIP(r), r.UserAgent())
+	}
+
 	// Return updated proxy
 	utils.Success(w, proxy, "Proxy updated successfully")
 }
 
 // DeleteProxy handles DELETE /api/proxies/:id
 func (h *ProxyHandler) DeleteProxy(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	// Get ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid proxy ID", nil)
 		return
+	}
+
+	// Get proxy info for audit log before deletion
+	var proxyName, proxyHostname string
+	if h.auditService != nil {
+		if proxy, err := h.service.GetProxyByID(id); err == nil {
+			proxyName = proxy.Name
+			proxyHostname = proxy.Hostname
+		}
 	}
 
 	// Delete proxy via service
@@ -254,12 +301,21 @@ func (h *ProxyHandler) DeleteProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		_ = h.auditService.LogProxyDelete(r.Context(), userID, id, proxyName, proxyHostname, getClientIP(r), r.UserAgent())
+	}
+
 	// Return success response
 	utils.Success(w, nil, "Proxy deleted successfully")
 }
 
 // EnableProxy handles POST /api/proxies/:id/enable
 func (h *ProxyHandler) EnableProxy(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	// Get ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -287,12 +343,23 @@ func (h *ProxyHandler) EnableProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		if proxy, err := h.service.GetProxyByID(id); err == nil {
+			_ = h.auditService.LogProxyEnable(r.Context(), userID, proxy, getClientIP(r), r.UserAgent())
+		}
+	}
+
 	// Return success response
 	utils.Success(w, nil, "Proxy enabled successfully")
 }
 
 // DisableProxy handles POST /api/proxies/:id/disable
 func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
+	// Get user ID from context
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	// Get ID from URL
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
@@ -313,6 +380,13 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		utils.InternalError(w, "Failed to disable proxy")
 		return
+	}
+
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		if proxy, err := h.service.GetProxyByID(id); err == nil {
+			_ = h.auditService.LogProxyDisable(r.Context(), userID, proxy, getClientIP(r), r.UserAgent())
+		}
 	}
 
 	// Return success response

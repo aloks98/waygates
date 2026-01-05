@@ -11,23 +11,26 @@ import (
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
+	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
 	"github.com/aloks98/waygates/backend/internal/validation"
 )
 
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
-	auth       AuthProvider
-	userRepo   repository.UserRepositoryInterface
-	bcryptCost int
+	auth         AuthProvider
+	userRepo     repository.UserRepositoryInterface
+	auditService service.AuditServiceInterface
+	bcryptCost   int
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, bcryptCost int) *AuthHandler {
+func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, bcryptCost int) *AuthHandler {
 	return &AuthHandler{
-		auth:       authInstance,
-		userRepo:   userRepo,
-		bcryptCost: bcryptCost,
+		auth:         authInstance,
+		userRepo:     userRepo,
+		auditService: auditService,
+		bcryptCost:   bcryptCost,
 	}
 }
 
@@ -114,6 +117,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log audit event
+	if h.auditService != nil {
+		_ = h.auditService.LogRegister(ctx, user.ID, user.Username, getClientIP(r), r.UserAgent())
+	}
+
 	utils.Created(w, user, "User registered successfully")
 }
 
@@ -131,6 +139,7 @@ type LoginResponse struct {
 
 // Login handles user login
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid request body", nil)
@@ -146,6 +155,10 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	user, err := h.userRepo.GetByUsernameOrEmail(req.Identifier)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Log failed login attempt
+			if h.auditService != nil {
+				_ = h.auditService.LogLoginFailed(ctx, req.Identifier, getClientIP(r), r.UserAgent(), "User not found")
+			}
 			utils.Unauthorized(w, "Invalid credentials")
 			return
 		}
@@ -155,12 +168,15 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Check password
 	if !user.CheckPassword(req.Password) {
+		// Log failed login attempt
+		if h.auditService != nil {
+			_ = h.auditService.LogLoginFailed(ctx, req.Identifier, getClientIP(r), r.UserAgent(), "Invalid password")
+		}
 		utils.Unauthorized(w, "Invalid credentials")
 		return
 	}
 
 	// Generate tokens using goauth
-	ctx := r.Context()
 	userIDStr := fmt.Sprintf("%d", user.ID)
 
 	tokenPair, err := h.auth.GenerateTokenPair(ctx, userIDStr, map[string]any{
@@ -170,6 +186,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		utils.InternalError(w, "Failed to generate tokens")
 		return
+	}
+
+	// Log successful login
+	if h.auditService != nil {
+		_ = h.auditService.LogLogin(ctx, user.ID, user.Username, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, LoginResponse{
@@ -236,6 +257,9 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Get user info for audit log before logout
+	userID, _ := auth.GetUserIDAsUint(ctx)
+
 	// Revoke access token (ignore errors - token might already be revoked or expired)
 	_ = h.auth.RevokeAccessToken(ctx, accessToken)
 
@@ -249,6 +273,13 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// Revoke refresh token if provided (ignore errors - token might already be revoked or expired)
 	if req.RefreshToken != "" {
 		_ = h.auth.RevokeRefreshToken(ctx, req.RefreshToken)
+	}
+
+	// Log audit event
+	if h.auditService != nil && userID > 0 {
+		if user, err := h.userRepo.GetByID(int(userID)); err == nil {
+			_ = h.auditService.LogLogout(ctx, int(userID), user.Username, getClientIP(r), r.UserAgent())
+		}
 	}
 
 	utils.Success(w, nil, "Logged out successfully")
@@ -308,6 +339,11 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if err := h.userRepo.UpdatePassword(int(userID), user.PasswordHash); err != nil {
 		utils.InternalError(w, "Failed to update password")
 		return
+	}
+
+	// Log audit event
+	if h.auditService != nil {
+		_ = h.auditService.LogPasswordChange(ctx, int(userID), user.Username, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, nil, "Password changed successfully")

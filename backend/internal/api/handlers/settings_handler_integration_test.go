@@ -24,7 +24,7 @@ func TestSettingsHandler_GetAll_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
 	w := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestSettingsHandler_GetAll_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings", nil)
 	w := httptest.NewRecorder()
@@ -71,7 +71,7 @@ func TestSettingsHandler_Get_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/settings/{key}", handler.Get)
@@ -93,7 +93,7 @@ func TestSettingsHandler_Get_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/settings/{key}", handler.Get)
@@ -115,7 +115,7 @@ func TestSettingsHandler_Update_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/settings/{key}", handler.Update)
@@ -133,7 +133,7 @@ func TestSettingsHandler_Update_Success(t *testing.T) {
 }
 
 func TestSettingsHandler_Update_InvalidBody(t *testing.T) {
-	handler := NewSettingsHandler(&mocks.MockSettingsService{})
+	handler := NewSettingsHandler(&mocks.MockSettingsService{}, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/settings/{key}", handler.Update)
@@ -156,7 +156,7 @@ func TestSettingsHandler_Update_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Put("/api/settings/{key}", handler.Update)
@@ -183,7 +183,7 @@ func TestSettingsHandler_GetNotFound_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
 	w := httptest.NewRecorder()
@@ -202,7 +202,7 @@ func TestSettingsHandler_GetNotFound_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/settings/404", nil)
 	w := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestSettingsHandler_UpdateNotFound_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	body := `{"mode": "redirect", "redirect_url": "https://example.com"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString(body))
@@ -236,7 +236,7 @@ func TestSettingsHandler_UpdateNotFound_Success(t *testing.T) {
 }
 
 func TestSettingsHandler_UpdateNotFound_InvalidMode(t *testing.T) {
-	handler := NewSettingsHandler(&mocks.MockSettingsService{})
+	handler := NewSettingsHandler(&mocks.MockSettingsService{}, nil)
 
 	body := `{"mode": "invalid", "redirect_url": ""}`
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString(body))
@@ -251,7 +251,7 @@ func TestSettingsHandler_UpdateNotFound_InvalidMode(t *testing.T) {
 }
 
 func TestSettingsHandler_UpdateNotFound_RedirectWithoutURL(t *testing.T) {
-	handler := NewSettingsHandler(&mocks.MockSettingsService{})
+	handler := NewSettingsHandler(&mocks.MockSettingsService{}, nil)
 
 	body := `{"mode": "redirect", "redirect_url": ""}`
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString(body))
@@ -272,7 +272,7 @@ func TestSettingsHandler_UpdateNotFound_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewSettingsHandler(mockService)
+	handler := NewSettingsHandler(mockService, nil)
 
 	body := `{"mode": "default", "redirect_url": ""}`
 	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBufferString(body))
