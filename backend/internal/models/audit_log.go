@@ -156,3 +156,74 @@ const (
 
 // SettingAuditConfig is the settings key for audit configuration
 const SettingAuditConfig = "audit_config"
+
+// AuditEventDefinition represents a single audit event type
+type AuditEventDefinition struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// AuditEventGroup represents a group of related audit events
+type AuditEventGroup struct {
+	Key         string                 `json:"key"`
+	Label       string                 `json:"label"`
+	Description string                 `json:"description"`
+	Events      []AuditEventDefinition `json:"events"`
+}
+
+// GetAuditEventGroups returns all audit event groups for configuration UI
+func GetAuditEventGroups() []AuditEventGroup {
+	return []AuditEventGroup{
+		{
+			Key:         "proxy",
+			Label:       "Proxy Events",
+			Description: "Proxy configuration changes",
+			Events: []AuditEventDefinition{
+				{Key: "proxy_create", Label: "Create"},
+				{Key: "proxy_update", Label: "Update"},
+				{Key: "proxy_delete", Label: "Delete"},
+				{Key: "proxy_enable", Label: "Enable"},
+				{Key: "proxy_disable", Label: "Disable"},
+			},
+		},
+		{
+			Key:         "auth",
+			Label:       "Authentication Events",
+			Description: "User authentication activities",
+			Events: []AuditEventDefinition{
+				{Key: "auth_login", Label: "Login"},
+				{Key: "auth_logout", Label: "Logout"},
+				{Key: "auth_register", Label: "Register"},
+				{Key: "auth_password_change", Label: "Password Change"},
+				{Key: "auth_login_failed", Label: "Failed Login"},
+			},
+		},
+		{
+			Key:         "settings",
+			Label:       "Settings Events",
+			Description: "Configuration changes",
+			Events: []AuditEventDefinition{
+				{Key: "settings_update", Label: "Settings Update"},
+			},
+		},
+		{
+			Key:         "sync",
+			Label:       "Sync Events",
+			Description: "Caddy synchronization operations",
+			Events: []AuditEventDefinition{
+				{Key: "sync_started", Label: "Started"},
+				{Key: "sync_completed", Label: "Completed"},
+				{Key: "sync_failed", Label: "Failed"},
+			},
+		},
+		{
+			Key:         "system",
+			Label:       "System Events",
+			Description: "System and Caddy operations",
+			Events: []AuditEventDefinition{
+				{Key: "system_startup", Label: "System Startup"},
+				{Key: "caddy_reload", Label: "Caddy Reload"},
+			},
+		},
+	}
+}

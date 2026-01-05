@@ -98,3 +98,15 @@ export interface AuditLogListParams {
   sort?: 'created_at' | 'action' | 'status';
   order?: 'asc' | 'desc';
 }
+
+export interface AuditEventDefinition {
+  key: keyof AuditConfig;
+  label: string;
+}
+
+export interface AuditEventGroup {
+  key: string;
+  label: string;
+  description: string;
+  events: AuditEventDefinition[];
+}

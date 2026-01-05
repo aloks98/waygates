@@ -3,77 +3,19 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
   Checkbox,
+  Spinner,
 } from '@e412/titanium';
-import { Loader2, Save } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useAuditConfig } from '@/hooks';
-import type { AuditConfig } from '@/types/audit';
-
-interface EventGroup {
-  key: string;
-  label: string;
-  description: string;
-  events: { key: keyof AuditConfig; label: string }[];
-}
-
-const eventGroups: EventGroup[] = [
-  {
-    key: 'proxy',
-    label: 'Proxy Events',
-    description: 'Proxy configuration changes',
-    events: [
-      { key: 'proxy_create', label: 'Create' },
-      { key: 'proxy_update', label: 'Update' },
-      { key: 'proxy_delete', label: 'Delete' },
-      { key: 'proxy_enable', label: 'Enable' },
-      { key: 'proxy_disable', label: 'Disable' },
-    ],
-  },
-  {
-    key: 'auth',
-    label: 'Authentication Events',
-    description: 'User authentication activities',
-    events: [
-      { key: 'auth_login', label: 'Login' },
-      { key: 'auth_logout', label: 'Logout' },
-      { key: 'auth_register', label: 'Register' },
-      { key: 'auth_password_change', label: 'Password Change' },
-      { key: 'auth_login_failed', label: 'Failed Login' },
-    ],
-  },
-  {
-    key: 'settings',
-    label: 'Settings Events',
-    description: 'Configuration changes',
-    events: [{ key: 'settings_update', label: 'Settings Update' }],
-  },
-  {
-    key: 'sync',
-    label: 'Sync Events',
-    description: 'Caddy synchronization operations',
-    events: [
-      { key: 'sync_started', label: 'Started' },
-      { key: 'sync_completed', label: 'Completed' },
-      { key: 'sync_failed', label: 'Failed' },
-    ],
-  },
-  {
-    key: 'system',
-    label: 'System Events',
-    description: 'System and Caddy operations',
-    events: [
-      { key: 'system_startup', label: 'System Startup' },
-      { key: 'caddy_reload', label: 'Caddy Reload' },
-    ],
-  },
-];
+import { useAuditConfig, useAuditEventGroups } from '@/hooks';
+import type { AuditConfig, AuditEventDefinition } from '@/types/audit';
 
 function getGroupCheckedState(
   config: AuditConfig,
-  events: { key: keyof AuditConfig }[],
+  events: AuditEventDefinition[],
 ): boolean | 'indeterminate' {
   const enabledCount = events.filter((e) => config[e.key]).length;
   if (enabledCount === 0) return false;
@@ -83,6 +25,7 @@ function getGroupCheckedState(
 
 export function AuditConfigPanel() {
   const { config, isLoading, updateConfig, isUpdating } = useAuditConfig();
+  const { eventGroups, isLoading: isLoadingEventGroups } = useAuditEventGroups();
   const [localConfig, setLocalConfig] = useState<AuditConfig | null>(null);
   const [savedConfig, setSavedConfig] = useState<AuditConfig | null>(null);
 
@@ -109,7 +52,7 @@ export function AuditConfigPanel() {
     });
   };
 
-  const handleGroupToggle = (events: { key: keyof AuditConfig }[]) => {
+  const handleGroupToggle = (events: AuditEventDefinition[]) => {
     if (!localConfig) return;
     const checkedState = getGroupCheckedState(localConfig, events);
     // If all are checked, uncheck all. Otherwise, check all.
@@ -139,13 +82,21 @@ export function AuditConfigPanel() {
     }
   };
 
-  if (isLoading || !localConfig) {
+  if (isLoading || isLoadingEventGroups || !localConfig) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Event Logging Configuration</CardTitle>
-          <CardDescription>Loading configuration...</CardDescription>
+          <CardDescription>
+            Choose which events to log. Disabled events will not create audit log entries.
+          </CardDescription>
         </CardHeader>
+        <CardContent className="flex justify-center items-center min-h-64">
+          <div className="flex items-center gap-2">
+            <Spinner variant={"circle"} />
+            Loading...
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -166,6 +117,7 @@ export function AuditConfigPanel() {
             <div key={group.key} className="space-y-3">
               <div className="flex items-start gap-3">
                 <Checkbox
+                  className="mt-1"
                   checked={checkedState}
                   onCheckedChange={() => handleGroupToggle(group.events)}
                   id={`group-${group.key}`}
@@ -202,25 +154,24 @@ export function AuditConfigPanel() {
           );
         })}
 
-        <div className="flex items-center justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={handleReset} disabled={isUpdating || !hasChanges}>
-            Reset
-          </Button>
-          <Button onClick={handleSave} disabled={isUpdating || !hasChanges}>
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 size-4" />
-                Save Changes
-              </>
-            )}
-          </Button>
-        </div>
       </CardContent>
+      <CardFooter className="flex justify-end gap-2">
+        <Button variant="outline" onClick={handleReset} disabled={isUpdating || !hasChanges}>
+          Reset
+        </Button>
+        <Button onClick={handleSave} disabled={isUpdating || !hasChanges}>
+          {isUpdating ? (
+            <>
+              <Spinner variant="circle" />
+              Saving...
+            </>
+          ) : (
+            <>
+              Save Changes
+            </>
+          )}
+        </Button>
+      </CardFooter>
     </Card>
   );
 }

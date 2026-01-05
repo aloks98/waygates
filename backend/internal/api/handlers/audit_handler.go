@@ -154,6 +154,12 @@ func (h *AuditHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, &config, "Audit configuration updated successfully")
 }
 
+// GetEventGroups returns the available audit event groups for configuration UI
+func (h *AuditHandler) GetEventGroups(w http.ResponseWriter, r *http.Request) {
+	groups := models.GetAuditEventGroups()
+	utils.Success(w, groups, "Audit event groups retrieved successfully")
+}
+
 // parseAuditListParams parses query parameters for audit log listing
 func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error) {
 	params := repository.AuditLogListParams{

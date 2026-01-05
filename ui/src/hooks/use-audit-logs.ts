@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type {
   AuditConfig,
+  AuditEventGroup,
   AuditLog,
   AuditLogListParams,
   AuditLogListResponse,
@@ -14,6 +15,7 @@ import type {
 const QUERY_KEY = ['audit-logs'] as const;
 const CONFIG_QUERY_KEY = ['audit-config'] as const;
 const STATS_QUERY_KEY = ['audit-stats'] as const;
+const EVENT_GROUPS_QUERY_KEY = ['audit-event-groups'] as const;
 
 async function handleApiError(error: unknown): Promise<string> {
   if (error instanceof HTTPError) {
@@ -135,6 +137,26 @@ export function useAuditConfig() {
     error: query.error,
     updateConfig: updateMutation.mutateAsync,
     isUpdating: updateMutation.isPending,
+  };
+}
+
+export function useAuditEventGroups() {
+  const query = useQuery({
+    queryKey: EVENT_GROUPS_QUERY_KEY,
+    queryFn: async () => {
+      const response = await api
+        .get('audit-logs/event-groups')
+        .json<ApiResponse<AuditEventGroup[]>>();
+      return response.data;
+    },
+    staleTime: Number.POSITIVE_INFINITY, // Event groups don't change at runtime
+  });
+
+  return {
+    eventGroups: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
   };
 }
 

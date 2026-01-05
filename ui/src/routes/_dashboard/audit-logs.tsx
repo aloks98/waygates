@@ -3,32 +3,13 @@ import type { PaginationState } from '@tanstack/react-table';
 import { Download, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuditDataGrid } from '@/components/audit-logs';
-import { useAuditLogs, useExportAuditLogs } from '@/hooks';
+import { useAuditEventGroups, useAuditLogs, useExportAuditLogs } from '@/hooks';
 import type {
   AuditAction,
   AuditLogListParams,
   AuditResourceType,
   AuditStatus,
 } from '@/types/audit';
-
-const actionOptions = [
-  { value: 'proxy.create', label: 'Proxy Create' },
-  { value: 'proxy.update', label: 'Proxy Update' },
-  { value: 'proxy.delete', label: 'Proxy Delete' },
-  { value: 'proxy.enable', label: 'Proxy Enable' },
-  { value: 'proxy.disable', label: 'Proxy Disable' },
-  { value: 'auth.login', label: 'Login' },
-  { value: 'auth.logout', label: 'Logout' },
-  { value: 'auth.register', label: 'Register' },
-  { value: 'auth.password_change', label: 'Password Change' },
-  { value: 'auth.login_failed', label: 'Failed Login' },
-  { value: 'settings.update', label: 'Settings Update' },
-  { value: 'sync.started', label: 'Sync Started' },
-  { value: 'sync.completed', label: 'Sync Completed' },
-  { value: 'sync.failed', label: 'Sync Failed' },
-  { value: 'system.startup', label: 'System Startup' },
-  { value: 'caddy.reload', label: 'Caddy Reload' },
-];
 
 const statusOptions = [
   { value: 'success', label: 'Success' },
@@ -42,29 +23,6 @@ const resourceTypeOptions = [
   { value: 'system', label: 'System' },
 ];
 
-const filterFields: FilterFieldsConfig<string> = {
-  action: {
-    label: 'Action',
-    type: 'multiselect',
-    options: actionOptions,
-  },
-  status: {
-    label: 'Status',
-    type: 'select',
-    options: statusOptions,
-  },
-  resource_type: {
-    label: 'Resource',
-    type: 'multiselect',
-    options: resourceTypeOptions,
-  },
-  ip_address: {
-    label: 'IP Address',
-    type: 'text',
-    placeholder: 'Filter by IP...',
-  },
-};
-
 export function AuditLogsPage() {
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -74,6 +32,49 @@ export function AuditLogsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState<Filter<string>[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { eventGroups } = useAuditEventGroups();
+
+  // Generate action options from event groups
+  const actionOptions = useMemo(() => {
+    return eventGroups.flatMap((group) =>
+      group.events.map((event) => ({
+        // Transform key from "proxy_create" to "proxy.create"
+        value: event.key.replace('_', '.'),
+        label: `${group.label.replace(' Events', '')} ${event.label}`,
+      })),
+    );
+  }, [eventGroups]);
+
+  const filterFields = useMemo<FilterFieldsConfig<string>>(
+    () => [
+      {
+        key: 'action',
+        label: 'Action',
+        type: 'multiselect',
+        options: actionOptions,
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: statusOptions,
+      },
+      {
+        key: 'resource_type',
+        label: 'Resource',
+        type: 'multiselect',
+        options: resourceTypeOptions,
+      },
+      {
+        key: 'ip_address',
+        label: 'IP Address',
+        type: 'text',
+        placeholder: 'Filter by IP...',
+      },
+    ],
+    [actionOptions],
+  );
 
   // Debounce search input
   useEffect(() => {

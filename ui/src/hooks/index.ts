@@ -1,5 +1,6 @@
 export {
   useAuditConfig,
+  useAuditEventGroups,
   useAuditLogById,
   useAuditLogs,
   useAuditStats,

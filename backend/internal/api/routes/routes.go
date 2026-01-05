@@ -186,6 +186,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/export", auditHandler.Export)
 			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/config", auditHandler.GetConfig)
 			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/config", auditHandler.UpdateConfig)
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/event-groups", auditHandler.GetEventGroups)
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/{id}", auditHandler.GetByID)
 		})
 	})
