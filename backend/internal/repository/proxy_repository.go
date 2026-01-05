@@ -37,13 +37,17 @@ func NewProxyRepository(db *gorm.DB) *ProxyRepository {
 
 // ProxyListParams holds parameters for listing proxies
 type ProxyListParams struct {
-	Page   int
-	Limit  int
-	Search string
-	Type   string
-	Status string // "active" or "inactive"
-	Sort   string
-	Order  string
+	Page         int
+	Limit        int
+	Search       string
+	Types        []string // Filter by multiple types (IN query)
+	TypesExclude []string // Exclude types (NOT IN query)
+	Status       string   // "active" or "inactive"
+	StatusNot    string   // Exclude status
+	SSLEnabled   *bool    // Filter by SSL enabled (nil = no filter)
+	Target       string   // Filter by target/upstream address (searches in upstreams JSON)
+	Sort         string
+	Order        string
 }
 
 // List returns a paginated list of proxies
@@ -60,14 +64,35 @@ func (r *ProxyRepository) List(params ProxyListParams) ([]models.Proxy, int64, e
 			"%"+params.Search+"%")
 	}
 
-	if params.Type != "" {
-		query = query.Where("type = ?", params.Type)
+	// Type filters
+	if len(params.Types) > 0 {
+		query = query.Where("type IN ?", params.Types)
+	}
+	if len(params.TypesExclude) > 0 {
+		query = query.Where("type NOT IN ?", params.TypesExclude)
 	}
 
+	// Status filters
 	if params.Status == "active" {
 		query = query.Where("is_active = ?", true)
 	} else if params.Status == "inactive" {
 		query = query.Where("is_active = ?", false)
+	}
+	if params.StatusNot == "active" {
+		query = query.Where("is_active = ?", false)
+	} else if params.StatusNot == "inactive" {
+		query = query.Where("is_active = ?", true)
+	}
+
+	// SSL enabled filter
+	if params.SSLEnabled != nil {
+		query = query.Where("ssl_enabled = ?", *params.SSLEnabled)
+	}
+
+	// Target filter (searches in upstreams JSON and redirect_config)
+	if params.Target != "" {
+		targetPattern := "%" + params.Target + "%"
+		query = query.Where("upstreams LIKE ? OR redirect_config LIKE ?", targetPattern, targetPattern)
 	}
 
 	// Count total (before pagination)

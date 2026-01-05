@@ -71,26 +71,78 @@ func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := r.URL.Query().Get("search")
-	proxyType := r.URL.Query().Get("type")
-	status := r.URL.Query().Get("status")
 	sort := r.URL.Query().Get("sort")
 	order := r.URL.Query().Get("order")
 
-	// Validate status if provided
-	if status != "" && status != "active" && status != "inactive" {
-		utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
-		return
-	}
-
-	// Create request
+	// Create request with defaults
 	req := service.ListProxiesRequest{
 		Page:   page,
 		Limit:  limit,
 		Search: search,
-		Type:   proxyType,
-		Status: status,
 		Sort:   sort,
 		Order:  order,
+	}
+
+	// Parse type filter (supports operator:value format)
+	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
+		fv := parseFilterParam(typeParam)
+		switch fv.Operator {
+		case OpIn, OpEq:
+			if len(fv.Values) > 0 {
+				req.Types = fv.Values
+			} else {
+				req.Types = splitAndTrim(fv.Value)
+			}
+		case OpNotIn, OpNot:
+			if len(fv.Values) > 0 {
+				req.TypesExclude = fv.Values
+			} else {
+				req.TypesExclude = splitAndTrim(fv.Value)
+			}
+		default:
+			utils.BadRequest(w, "Invalid operator for type filter", nil)
+			return
+		}
+	}
+
+	// Parse status filter (supports operator:value format)
+	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
+		fv := parseFilterParam(statusParam)
+		// Validate status value
+		statusVal := fv.Value
+		if statusVal != "active" && statusVal != "inactive" {
+			utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
+			return
+		}
+		switch fv.Operator {
+		case OpEq:
+			req.Status = statusVal
+		case OpNot:
+			req.StatusNot = statusVal
+		default:
+			utils.BadRequest(w, "Invalid operator for status filter", nil)
+			return
+		}
+	}
+
+	// Parse ssl_enabled filter
+	if sslParam := r.URL.Query().Get("ssl_enabled"); sslParam != "" {
+		switch sslParam {
+		case "true":
+			sslEnabled := true
+			req.SSLEnabled = &sslEnabled
+		case "false":
+			sslEnabled := false
+			req.SSLEnabled = &sslEnabled
+		default:
+			utils.BadRequest(w, "Invalid ssl_enabled parameter: must be 'true' or 'false'", nil)
+			return
+		}
+	}
+
+	// Parse target filter (searches in upstreams/redirect config)
+	if target := r.URL.Query().Get("target"); target != "" {
+		req.Target = target
 	}
 
 	// Get proxies from service
