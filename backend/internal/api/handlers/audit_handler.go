@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -188,11 +189,18 @@ func parseAuditListParams(r *http.Request) (repository.AuditLogListParams, error
 	// Parse search
 	params.Search = r.URL.Query().Get("search")
 
-	// Parse action filter
-	params.Action = r.URL.Query().Get("action")
+	// Parse action filter (comma-separated for multiple values)
+	if action := r.URL.Query().Get("action"); action != "" {
+		params.Actions = splitAndTrim(action)
+	}
 
-	// Parse resource_type filter
-	params.ResourceType = r.URL.Query().Get("resource_type")
+	// Parse resource_type filter (comma-separated for multiple values)
+	if resourceType := r.URL.Query().Get("resource_type"); resourceType != "" {
+		params.ResourceTypes = splitAndTrim(resourceType)
+	}
+
+	// Parse ip_address filter
+	params.IPAddress = r.URL.Query().Get("ip_address")
 
 	// Parse user_id filter
 	if userIDStr := r.URL.Query().Get("user_id"); userIDStr != "" {
@@ -261,4 +269,17 @@ func intPtrToString(i *int) string {
 		return ""
 	}
 	return strconv.Itoa(*i)
+}
+
+// splitAndTrim splits a comma-separated string and trims whitespace from each part
+func splitAndTrim(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }

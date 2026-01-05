@@ -32,17 +32,18 @@ func NewAuditLogRepository(db *gorm.DB) *AuditLogRepository {
 
 // AuditLogListParams holds parameters for listing audit logs
 type AuditLogListParams struct {
-	Page         int
-	Limit        int
-	Search       string
-	Action       string
-	ResourceType string
-	UserID       *int
-	Status       string
-	DateFrom     *time.Time
-	DateTo       *time.Time
-	Sort         string
-	Order        string
+	Page          int
+	Limit         int
+	Search        string
+	Actions       []string // Multiple actions (OR filter)
+	ResourceTypes []string // Multiple resource types (OR filter)
+	UserID        *int
+	Status        string
+	IPAddress     string
+	DateFrom      *time.Time
+	DateTo        *time.Time
+	Sort          string
+	Order         string
 }
 
 // Create creates a new audit log entry
@@ -72,12 +73,16 @@ func (r *AuditLogRepository) List(params AuditLogListParams) ([]models.AuditLog,
 		query = query.Where("action LIKE ? OR resource_name LIKE ?", searchPattern, searchPattern)
 	}
 
-	if params.Action != "" {
-		query = query.Where("action = ?", params.Action)
+	if len(params.Actions) > 0 {
+		query = query.Where("action IN ?", params.Actions)
 	}
 
-	if params.ResourceType != "" {
-		query = query.Where("resource_type = ?", params.ResourceType)
+	if len(params.ResourceTypes) > 0 {
+		query = query.Where("resource_type IN ?", params.ResourceTypes)
+	}
+
+	if params.IPAddress != "" {
+		query = query.Where("ip_address = ?", params.IPAddress)
 	}
 
 	if params.UserID != nil {

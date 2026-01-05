@@ -89,10 +89,11 @@ export interface AuditLogListParams {
   page?: number;
   limit?: number;
   search?: string;
-  action?: AuditAction;
-  resource_type?: AuditResourceType;
+  action?: string; // Comma-separated action values
+  resource_type?: string; // Comma-separated resource type values
   user_id?: number;
   status?: AuditStatus;
+  ip_address?: string;
   date_from?: string;
   date_to?: string;
   sort?: 'created_at' | 'action' | 'status';

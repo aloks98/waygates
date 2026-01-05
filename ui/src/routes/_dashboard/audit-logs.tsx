@@ -4,12 +4,7 @@ import { Download, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuditDataGrid } from '@/components/audit-logs';
 import { useAuditEventGroups, useAuditLogs, useExportAuditLogs } from '@/hooks';
-import type {
-  AuditAction,
-  AuditLogListParams,
-  AuditResourceType,
-  AuditStatus,
-} from '@/types/audit';
+import type { AuditLogListParams, AuditStatus } from '@/types/audit';
 
 const statusOptions = [
   { value: 'success', label: 'Success' },
@@ -109,20 +104,18 @@ export function AuditLogsPage() {
 
       switch (filter.field) {
         case 'action':
-          // For multiselect, use first value (API only supports single action filter)
-          params.action = filter.values[0] as AuditAction;
+          // Join multiple values with comma for API
+          params.action = filter.values.join(',');
           break;
         case 'status':
           params.status = filter.values[0] as AuditStatus;
           break;
         case 'resource_type':
-          params.resource_type = filter.values[0] as AuditResourceType;
+          // Join multiple values with comma for API
+          params.resource_type = filter.values.join(',');
           break;
         case 'ip_address':
-          // IP filter goes into search
-          if (!params.search) {
-            params.search = filter.values[0];
-          }
+          params.ip_address = filter.values[0];
           break;
       }
     }

@@ -45,6 +45,7 @@ export function useAuditLogs(params: AuditLogListParams = {}) {
       if (filters.resource_type) searchParams.resource_type = filters.resource_type;
       if (filters.user_id) searchParams.user_id = String(filters.user_id);
       if (filters.status) searchParams.status = filters.status;
+      if (filters.ip_address) searchParams.ip_address = filters.ip_address;
       if (filters.date_from) searchParams.date_from = filters.date_from;
       if (filters.date_to) searchParams.date_to = filters.date_to;
       if (filters.sort) searchParams.sort = filters.sort;
@@ -170,6 +171,7 @@ export function useExportAuditLogs() {
       if (params.resource_type) searchParams.resource_type = params.resource_type;
       if (params.user_id) searchParams.user_id = String(params.user_id);
       if (params.status) searchParams.status = params.status;
+      if (params.ip_address) searchParams.ip_address = params.ip_address;
       if (params.date_from) searchParams.date_from = params.date_from;
       if (params.date_to) searchParams.date_to = params.date_to;
 
