@@ -991,13 +991,13 @@ func TestServiceErrors(t *testing.T) {
 // TestListProxies_FilterPassthrough tests that filter params are passed through to repo
 func TestListProxies_FilterPassthrough(t *testing.T) {
 	testCases := []struct {
-		name             string
-		req              ListProxiesRequest
-		expectTypes      []string
-		expectTypesExcl  []string
-		expectStatus     string
-		expectStatusNot  string
-		expectSearch     string
+		name            string
+		req             ListProxiesRequest
+		expectTypes     []string
+		expectTypesExcl []string
+		expectStatus    string
+		expectStatusNot string
+		expectSearch    string
 	}{
 		{
 			name: "types filter passed through",
