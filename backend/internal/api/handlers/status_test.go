@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aloks98/waygates/backend/internal/service/mocks"
 )
 
@@ -16,20 +19,15 @@ import (
 // =============================================================================
 
 func TestNewStatusHandler(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{}
 	mockUserRepo := &mocks.MockUserRepository{}
 
 	handler := NewStatusHandler(mockReloader, mockUserRepo)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-	if handler.reloader != mockReloader {
-		t.Error("Expected reloader to be set")
-	}
-	if handler.userRepo != mockUserRepo {
-		t.Error("Expected userRepo to be set")
-	}
+	require.NotNil(t, handler, "handler should be created")
+	assert.Equal(t, mockReloader, handler.reloader, "reloader should be set")
+	assert.Equal(t, mockUserRepo, handler.userRepo, "userRepo should be set")
 }
 
 // =============================================================================
@@ -37,6 +35,7 @@ func TestNewStatusHandler(t *testing.T) {
 // =============================================================================
 
 func TestStatusHandler_GetStatus_AllHealthy(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -54,29 +53,24 @@ func TestStatusHandler_GetStatus_AllHealthy(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			CaddyStatus       string `json:"caddy_status"`
+			UserSetupComplete bool   `json:"user_setup_complete"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
-
-	data := response["data"].(map[string]interface{})
-	if data["caddy_status"] != "healthy" {
-		t.Errorf("Expected caddy_status 'healthy', got '%v'", data["caddy_status"])
-	}
-	if data["user_setup_complete"] != true {
-		t.Errorf("Expected user_setup_complete true, got '%v'", data["user_setup_complete"])
-	}
+	assert.True(t, response.Success, "expected success to be true")
+	assert.Equal(t, "healthy", response.Data.CaddyStatus)
+	assert.True(t, response.Data.UserSetupComplete, "expected user_setup_complete to be true")
 }
 
 func TestStatusHandler_GetStatus_CaddyUnhealthy(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return errors.New("connection refused")
@@ -94,22 +88,20 @@ func TestStatusHandler_GetStatus_CaddyUnhealthy(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			CaddyStatus string `json:"caddy_status"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	data := response["data"].(map[string]interface{})
-	if data["caddy_status"] != "unhealthy" {
-		t.Errorf("Expected caddy_status 'unhealthy', got '%v'", data["caddy_status"])
-	}
+	assert.Equal(t, "unhealthy", response.Data.CaddyStatus)
 }
 
 func TestStatusHandler_GetStatus_NoUsers(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -127,22 +119,20 @@ func TestStatusHandler_GetStatus_NoUsers(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			UserSetupComplete bool `json:"user_setup_complete"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	data := response["data"].(map[string]interface{})
-	if data["user_setup_complete"] != false {
-		t.Errorf("Expected user_setup_complete false, got '%v'", data["user_setup_complete"])
-	}
+	assert.False(t, response.Data.UserSetupComplete, "expected user_setup_complete to be false")
 }
 
 func TestStatusHandler_GetStatus_UserCountError(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -160,12 +150,11 @@ func TestStatusHandler_GetStatus_UserCountError(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestStatusHandler_GetStatus_BothUnhealthy(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return errors.New("caddy not running")
@@ -183,25 +172,22 @@ func TestStatusHandler_GetStatus_BothUnhealthy(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			CaddyStatus       string `json:"caddy_status"`
+			UserSetupComplete bool   `json:"user_setup_complete"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	data := response["data"].(map[string]interface{})
-	if data["caddy_status"] != "unhealthy" {
-		t.Errorf("Expected caddy_status 'unhealthy', got '%v'", data["caddy_status"])
-	}
-	if data["user_setup_complete"] != false {
-		t.Errorf("Expected user_setup_complete false, got '%v'", data["user_setup_complete"])
-	}
+	assert.Equal(t, "unhealthy", response.Data.CaddyStatus)
+	assert.False(t, response.Data.UserSetupComplete, "expected user_setup_complete to be false")
 }
 
 func TestStatusHandler_GetStatus_ResponseFormat(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -219,33 +205,27 @@ func TestStatusHandler_GetStatus_ResponseFormat(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool                   `json:"success"`
+		Message string                 `json:"message"`
+		Data    map[string]interface{} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Check response structure
-	if _, ok := response["success"]; !ok {
-		t.Error("Expected 'success' field in response")
-	}
-	if _, ok := response["message"]; !ok {
-		t.Error("Expected 'message' field in response")
-	}
-	if _, ok := response["data"]; !ok {
-		t.Error("Expected 'data' field in response")
-	}
+	assert.True(t, response.Success, "expected success field")
+	assert.NotEmpty(t, response.Message, "expected message field")
+	assert.NotNil(t, response.Data, "expected data field")
 
 	// Check data structure
-	data := response["data"].(map[string]interface{})
-	if _, ok := data["caddy_status"]; !ok {
-		t.Error("Expected 'caddy_status' in data")
-	}
-	if _, ok := data["user_setup_complete"]; !ok {
-		t.Error("Expected 'user_setup_complete' in data")
-	}
+	_, hasCaddyStatus := response.Data["caddy_status"]
+	assert.True(t, hasCaddyStatus, "expected 'caddy_status' in data")
+	_, hasUserSetupComplete := response.Data["user_setup_complete"]
+	assert.True(t, hasUserSetupComplete, "expected 'user_setup_complete' in data")
 }
 
 func TestStatusHandler_GetStatus_SuccessMessage(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -263,17 +243,16 @@ func TestStatusHandler_GetStatus_SuccessMessage(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Message string `json:"message"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if response["message"] != "Status retrieved successfully" {
-		t.Errorf("Expected message 'Status retrieved successfully', got '%v'", response["message"])
-	}
+	assert.Equal(t, "Status retrieved successfully", response.Message)
 }
 
 func TestStatusHandler_GetStatus_CaddyTimeout(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			// Simulate context being canceled/timeout
@@ -297,23 +276,21 @@ func TestStatusHandler_GetStatus_CaddyTimeout(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			CaddyStatus string `json:"caddy_status"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	data := response["data"].(map[string]interface{})
 	// Caddy should be marked unhealthy on timeout
-	if data["caddy_status"] != "unhealthy" {
-		t.Errorf("Expected caddy_status 'unhealthy' on timeout, got '%v'", data["caddy_status"])
-	}
+	assert.Equal(t, "unhealthy", response.Data.CaddyStatus)
 }
 
 func TestStatusHandler_GetStatus_ManyUsers(t *testing.T) {
+	t.Parallel()
 	mockReloader := &mocks.MockReloader{
 		TestConnectionFunc: func(ctx context.Context) error {
 			return nil
@@ -331,17 +308,14 @@ func TestStatusHandler_GetStatus_ManyUsers(t *testing.T) {
 
 	handler.GetStatus(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			UserSetupComplete bool `json:"user_setup_complete"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	data := response["data"].(map[string]interface{})
-	if data["user_setup_complete"] != true {
-		t.Errorf("Expected user_setup_complete true with 1000 users, got '%v'", data["user_setup_complete"])
-	}
+	assert.True(t, response.Data.UserSetupComplete, "expected user_setup_complete to be true with 1000 users")
 }

@@ -6,6 +6,7 @@ import (
 )
 
 func TestValidateRegisterRequest(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		req       RegisterRequest
@@ -112,6 +113,7 @@ func TestValidateRegisterRequest(t *testing.T) {
 }
 
 func TestValidateHostname(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		hostname  string
@@ -145,6 +147,7 @@ func TestValidateHostname(t *testing.T) {
 }
 
 func TestValidateProxyType(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		proxyType string
@@ -177,6 +180,7 @@ func TestValidateProxyType(t *testing.T) {
 }
 
 func TestToSnakeCase(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		input    string
 		expected string
@@ -199,6 +203,7 @@ func TestToSnakeCase(t *testing.T) {
 }
 
 func TestValidationError_Error(t *testing.T) {
+	t.Parallel()
 	err := &ValidationError{
 		Field:   "username",
 		Message: "username is required",
@@ -211,6 +216,7 @@ func TestValidationError_Error(t *testing.T) {
 }
 
 func TestValidateStructAll(t *testing.T) {
+	t.Parallel()
 	// Test with multiple errors
 	req := RegisterRequest{
 		Name:     "",        // Error: required
@@ -231,6 +237,7 @@ func TestValidateStructAll(t *testing.T) {
 }
 
 func TestValidateStructAll_NoErrors(t *testing.T) {
+	t.Parallel()
 	req := RegisterRequest{
 		Name:     "John Doe",
 		Username: "johndoe",
@@ -245,6 +252,7 @@ func TestValidateStructAll_NoErrors(t *testing.T) {
 }
 
 func TestValidateLoginRequest(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		req       LoginRequest
@@ -291,6 +299,7 @@ func TestValidateLoginRequest(t *testing.T) {
 }
 
 func TestGetValidator_Singleton(t *testing.T) {
+	t.Parallel()
 	v1 := GetValidator()
 	v2 := GetValidator()
 
@@ -300,6 +309,7 @@ func TestGetValidator_Singleton(t *testing.T) {
 }
 
 func TestValidateHostname_LongLabel(t *testing.T) {
+	t.Parallel()
 	// Label longer than 63 characters
 	longLabel := "a"
 	for i := 0; i < 64; i++ {
@@ -320,6 +330,7 @@ func TestValidateHostname_LongLabel(t *testing.T) {
 }
 
 func TestValidateHostname_MaxLength(t *testing.T) {
+	t.Parallel()
 	// Hostname longer than 253 characters
 	hostname := ""
 	for i := 0; i < 260; i++ {
@@ -339,6 +350,7 @@ func TestValidateHostname_MaxLength(t *testing.T) {
 }
 
 func TestValidateProxyRequest_NameMaxLength(t *testing.T) {
+	t.Parallel()
 	// Name longer than 255 characters
 	longName := ""
 	for i := 0; i < 260; i++ {
@@ -365,6 +377,7 @@ func TestValidateProxyRequest_NameMaxLength(t *testing.T) {
 }
 
 func TestGetErrorMessage_AllTags(t *testing.T) {
+	t.Parallel()
 	t.Run("max tag", func(t *testing.T) {
 		// Username too long (max 50)
 		longUsername := ""
@@ -393,6 +406,7 @@ func TestGetErrorMessage_AllTags(t *testing.T) {
 }
 
 func TestUsernameRegex(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		input string
 		valid bool
@@ -420,6 +434,7 @@ func TestUsernameRegex(t *testing.T) {
 }
 
 func TestValidateStruct_ValidInput(t *testing.T) {
+	t.Parallel()
 	req := ProxyRequest{
 		Name:     "Test Proxy",
 		Hostname: "test.example.com",
@@ -432,6 +447,7 @@ func TestValidateStruct_ValidInput(t *testing.T) {
 }
 
 func TestValidateHostname_SingleLabel(t *testing.T) {
+	t.Parallel()
 	req := ProxyRequest{
 		Name:     "Test",
 		Hostname: "localhost",
@@ -444,6 +460,7 @@ func TestValidateHostname_SingleLabel(t *testing.T) {
 }
 
 func TestValidateHostname_DeepSubdomain(t *testing.T) {
+	t.Parallel()
 	req := ProxyRequest{
 		Name:     "Test",
 		Hostname: "api.v1.staging.example.com",

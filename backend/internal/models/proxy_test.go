@@ -8,6 +8,7 @@ import (
 
 // TestProxy_Validate tests the Proxy validation function
 func TestProxy_Validate(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name        string
 		proxy       Proxy
@@ -207,6 +208,7 @@ func TestProxy_Validate(t *testing.T) {
 
 // TestProxy_ValidateHostname tests hostname validation edge cases
 func TestProxy_ValidateHostname(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		hostname string
@@ -253,6 +255,7 @@ func TestProxy_ValidateHostname(t *testing.T) {
 
 // TestJSONField_MarshalUnmarshal tests JSONField serialization
 func TestJSONField_MarshalUnmarshal(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		input    JSONField
@@ -330,6 +333,7 @@ func TestJSONField_MarshalUnmarshal(t *testing.T) {
 
 // TestJSONField_Value tests database value conversion
 func TestJSONField_Value(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		input     JSONField
@@ -359,6 +363,7 @@ func TestJSONField_Value(t *testing.T) {
 
 // TestJSONField_Scan tests database scan conversion
 func TestJSONField_Scan(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name      string
 		input     interface{}
@@ -389,6 +394,7 @@ func TestJSONField_Scan(t *testing.T) {
 
 // TestProxy_TableName tests the table name
 func TestProxy_TableName(t *testing.T) {
+	t.Parallel()
 	proxy := Proxy{}
 	if proxy.TableName() != "proxies" {
 		t.Errorf("Expected table name 'proxies', got '%s'", proxy.TableName())
@@ -397,6 +403,7 @@ func TestProxy_TableName(t *testing.T) {
 
 // TestProxyTypes tests proxy type constants
 func TestProxyTypes(t *testing.T) {
+	t.Parallel()
 	if ProxyTypeReverseProxy != "reverse_proxy" {
 		t.Errorf("Expected ProxyTypeReverseProxy to be 'reverse_proxy', got '%s'", ProxyTypeReverseProxy)
 	}
@@ -410,6 +417,7 @@ func TestProxyTypes(t *testing.T) {
 
 // TestValidationError tests the ValidationError type
 func TestValidationError(t *testing.T) {
+	t.Parallel()
 	err := &ValidationError{Message: "test error"}
 	if err.Error() != "test error" {
 		t.Errorf("Expected error message 'test error', got '%s'", err.Error())
@@ -418,6 +426,7 @@ func TestValidationError(t *testing.T) {
 
 // TestProxyListResponse tests ProxyListResponse struct
 func TestProxyListResponse(t *testing.T) {
+	t.Parallel()
 	resp := ProxyListResponse{
 		Items:      []Proxy{},
 		Total:      100,

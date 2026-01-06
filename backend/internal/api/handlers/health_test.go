@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // =============================================================================
@@ -12,26 +15,20 @@ import (
 // =============================================================================
 
 func TestNewHealthHandler(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-	if handler.startTime.IsZero() {
-		t.Error("Expected startTime to be set")
-	}
+	require.NotNil(t, handler, "handler should be created")
+	assert.False(t, handler.startTime.IsZero(), "startTime should be set")
 }
 
 func TestNewHealthHandlerWithDB(t *testing.T) {
+	t.Parallel()
 	// Test with nil DB
 	handler := NewHealthHandlerWithDB(nil)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-	if handler.startTime.IsZero() {
-		t.Error("Expected startTime to be set")
-	}
+	require.NotNil(t, handler, "handler should be created")
+	assert.False(t, handler.startTime.IsZero(), "startTime should be set")
 }
 
 // =============================================================================
@@ -39,6 +36,7 @@ func TestNewHealthHandlerWithDB(t *testing.T) {
 // =============================================================================
 
 func TestHealthHandler_HealthCheck_ResponseFormat(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -46,48 +44,45 @@ func TestHealthHandler_HealthCheck_ResponseFormat(t *testing.T) {
 
 	handler.HealthCheck(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Status     string            `json:"status"`
+			Service    string            `json:"service"`
+			Version    string            `json:"version"`
+			Uptime     string            `json:"uptime"`
+			Time       string            `json:"time"`
+			Components map[string]string `json:"components"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Check response structure
-	if _, ok := response["success"]; !ok {
-		t.Error("Expected 'success' field in response")
-	}
+	assert.True(t, response.Success, "expected success to be true")
 
-	data := response["data"].(map[string]interface{})
-
-	// Check required fields
-	requiredFields := []string{"status", "service", "version", "uptime", "time", "components"}
-	for _, field := range requiredFields {
-		if _, ok := data[field]; !ok {
-			t.Errorf("Expected field '%s' in data", field)
-		}
-	}
+	// Check required fields are present
+	assert.NotEmpty(t, response.Data.Status, "expected status to be set")
+	assert.NotEmpty(t, response.Data.Service, "expected service to be set")
+	assert.NotEmpty(t, response.Data.Version, "expected version to be set")
+	assert.NotEmpty(t, response.Data.Uptime, "expected uptime to be set")
+	assert.NotEmpty(t, response.Data.Time, "expected time to be set")
+	assert.NotNil(t, response.Data.Components, "expected components to be set")
 
 	// Check service name
-	if data["service"] != "caddy-manager-backend" {
-		t.Errorf("Expected service 'caddy-manager-backend', got '%v'", data["service"])
-	}
+	assert.Equal(t, "caddy-manager-backend", response.Data.Service)
 
 	// Check version
-	if data["version"] != "1.0.0" {
-		t.Errorf("Expected version '1.0.0', got '%v'", data["version"])
-	}
+	assert.Equal(t, "1.0.0", response.Data.Version)
 
 	// Check components structure
-	components := data["components"].(map[string]interface{})
-	if _, ok := components["database"]; !ok {
-		t.Error("Expected 'database' in components")
-	}
+	_, hasDatabase := response.Data.Components["database"]
+	assert.True(t, hasDatabase, "expected 'database' in components")
 }
 
 func TestHealthHandler_HealthCheck_UptimeIncreases(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
 	// First request
@@ -95,20 +90,18 @@ func TestHealthHandler_HealthCheck_UptimeIncreases(t *testing.T) {
 	rec1 := httptest.NewRecorder()
 	handler.HealthCheck(rec1, req1)
 
-	var response1 map[string]interface{}
-	if err := json.Unmarshal(rec1.Body.Bytes(), &response1); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response1 struct {
+		Data struct {
+			Uptime string `json:"uptime"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec1.Body.Bytes(), &response1), "failed to parse response")
 
-	data1 := response1["data"].(map[string]interface{})
-	uptime1 := data1["uptime"].(string)
-
-	if uptime1 == "" {
-		t.Error("Expected uptime to be non-empty")
-	}
+	assert.NotEmpty(t, response1.Data.Uptime, "expected uptime to be non-empty")
 }
 
 func TestHealthHandler_HealthCheck_StatusField(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -116,21 +109,20 @@ func TestHealthHandler_HealthCheck_StatusField(t *testing.T) {
 
 	handler.HealthCheck(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			Status string `json:"status"`
+		} `json:"data"`
 	}
-
-	data := response["data"].(map[string]interface{})
-	status := data["status"].(string)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Status should be either "healthy" or "degraded"
-	if status != "healthy" && status != "degraded" {
-		t.Errorf("Expected status to be 'healthy' or 'degraded', got '%s'", status)
-	}
+	assert.Contains(t, []string{"healthy", "degraded"}, response.Data.Status,
+		"expected status to be 'healthy' or 'degraded', got '%s'", response.Data.Status)
 }
 
 func TestHealthHandler_HealthCheck_TimeFormat(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -138,25 +130,21 @@ func TestHealthHandler_HealthCheck_TimeFormat(t *testing.T) {
 
 	handler.HealthCheck(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			Time string `json:"time"`
+		} `json:"data"`
 	}
-
-	data := response["data"].(map[string]interface{})
-	timeStr := data["time"].(string)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Time should be in RFC3339 format
-	if timeStr == "" {
-		t.Error("Expected time to be non-empty")
-	}
-	// RFC3339 format should contain 'T' and 'Z' or timezone offset
-	if len(timeStr) < 20 {
-		t.Errorf("Time format seems incorrect: %s", timeStr)
-	}
+	assert.NotEmpty(t, response.Data.Time, "expected time to be non-empty")
+	// RFC3339 format should contain 'T' and be at least 20 chars
+	assert.GreaterOrEqual(t, len(response.Data.Time), 20, "time format seems incorrect: %s", response.Data.Time)
 }
 
 func TestHealthHandler_HealthCheck_WithNilDB(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandlerWithDB(nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -165,22 +153,19 @@ func TestHealthHandler_HealthCheck_WithNilDB(t *testing.T) {
 	handler.HealthCheck(rec, req)
 
 	// Should still return 200 OK even if DB check fails
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Response should still be successful
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
+	assert.True(t, response.Success, "expected success to be true")
 }
 
 func TestHealthHandler_HealthCheck_ComponentsPresent(t *testing.T) {
+	t.Parallel()
 	handler := NewHealthHandler()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -188,17 +173,16 @@ func TestHealthHandler_HealthCheck_ComponentsPresent(t *testing.T) {
 
 	handler.HealthCheck(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Data struct {
+			Components map[string]string `json:"components"`
+		} `json:"data"`
 	}
-
-	data := response["data"].(map[string]interface{})
-	components := data["components"].(map[string]interface{})
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
 	// Database component should have a status
-	dbStatus := components["database"].(string)
-	if dbStatus != "healthy" && dbStatus != "unhealthy" {
-		t.Errorf("Expected database status to be 'healthy' or 'unhealthy', got '%s'", dbStatus)
-	}
+	dbStatus, hasDatabase := response.Data.Components["database"]
+	require.True(t, hasDatabase, "expected 'database' in components")
+	assert.Contains(t, []string{"healthy", "unhealthy"}, dbStatus,
+		"expected database status to be 'healthy' or 'unhealthy', got '%s'", dbStatus)
 }

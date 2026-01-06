@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -21,15 +23,12 @@ import (
 // =============================================================================
 
 func TestNewAuditHandler(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
-	if handler == nil {
-		t.Fatal("Expected handler to be created")
-	}
-	if handler.auditService != mockService {
-		t.Error("Expected audit service to be set")
-	}
+	require.NotNil(t, handler, "handler should be created")
+	assert.Equal(t, mockService, handler.auditService, "audit service should be set")
 }
 
 // =============================================================================
@@ -37,6 +36,7 @@ func TestNewAuditHandler(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_List_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return &models.AuditLogListResponse{
@@ -58,27 +58,23 @@ func TestAuditHandler_List_Success(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Items []models.AuditLog `json:"items"`
+			Total int64             `json:"total"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
-
-	data := response["data"].(map[string]interface{})
-	items := data["items"].([]interface{})
-	if len(items) != 2 {
-		t.Errorf("Expected 2 items, got %d", len(items))
-	}
+	assert.True(t, response.Success, "expected success to be true")
+	assert.Len(t, response.Data.Items, 2, "expected 2 items")
 }
 
 func TestAuditHandler_List_WithFilters(t *testing.T) {
+	t.Parallel()
 	var capturedParams repository.AuditLogListParams
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -99,28 +95,18 @@ func TestAuditHandler_List_WithFilters(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	if capturedParams.Page != 2 {
-		t.Errorf("Expected page 2, got %d", capturedParams.Page)
-	}
-	if capturedParams.Limit != 10 {
-		t.Errorf("Expected limit 10, got %d", capturedParams.Limit)
-	}
-	if len(capturedParams.Actions) != 1 || capturedParams.Actions[0] != "proxy.create" {
-		t.Errorf("Expected actions ['proxy.create'], got %v", capturedParams.Actions)
-	}
-	if capturedParams.Status != "success" {
-		t.Errorf("Expected status 'success', got '%s'", capturedParams.Status)
-	}
-	if capturedParams.Search != "test" {
-		t.Errorf("Expected search 'test', got '%s'", capturedParams.Search)
-	}
+	assert.Equal(t, 2, capturedParams.Page)
+	assert.Equal(t, 10, capturedParams.Limit)
+	require.Len(t, capturedParams.Actions, 1)
+	assert.Equal(t, "proxy.create", capturedParams.Actions[0])
+	assert.Equal(t, "success", capturedParams.Status)
+	assert.Equal(t, "test", capturedParams.Search)
 }
 
 func TestAuditHandler_List_WithMultipleActions(t *testing.T) {
+	t.Parallel()
 	var capturedParams repository.AuditLogListParams
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -141,22 +127,17 @@ func TestAuditHandler_List_WithMultipleActions(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	if len(capturedParams.Actions) != 3 {
-		t.Errorf("Expected 3 actions, got %d", len(capturedParams.Actions))
-	}
+	require.Len(t, capturedParams.Actions, 3)
 	expectedActions := []string{"proxy.create", "proxy.update", "proxy.delete"}
 	for i, action := range expectedActions {
-		if capturedParams.Actions[i] != action {
-			t.Errorf("Expected action[%d] '%s', got '%s'", i, action, capturedParams.Actions[i])
-		}
+		assert.Equal(t, action, capturedParams.Actions[i])
 	}
 }
 
 func TestAuditHandler_List_WithExclusionFilters(t *testing.T) {
+	t.Parallel()
 	var capturedParams repository.AuditLogListParams
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -178,25 +159,17 @@ func TestAuditHandler_List_WithExclusionFilters(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	if len(capturedParams.ActionsExclude) != 2 {
-		t.Errorf("Expected 2 excluded actions, got %d", len(capturedParams.ActionsExclude))
-	}
-	if capturedParams.ActionsExclude[0] != "proxy.delete" {
-		t.Errorf("Expected excluded action 'proxy.delete', got '%s'", capturedParams.ActionsExclude[0])
-	}
-	if len(capturedParams.ResourceTypesExclude) != 1 || capturedParams.ResourceTypesExclude[0] != "system" {
-		t.Errorf("Expected excluded resource type 'system', got %v", capturedParams.ResourceTypesExclude)
-	}
-	if capturedParams.StatusExclude != "failure" {
-		t.Errorf("Expected excluded status 'failure', got '%s'", capturedParams.StatusExclude)
-	}
+	require.Len(t, capturedParams.ActionsExclude, 2)
+	assert.Equal(t, "proxy.delete", capturedParams.ActionsExclude[0])
+	require.Len(t, capturedParams.ResourceTypesExclude, 1)
+	assert.Equal(t, "system", capturedParams.ResourceTypesExclude[0])
+	assert.Equal(t, "failure", capturedParams.StatusExclude)
 }
 
 func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name                 string
 		query                string
@@ -239,7 +212,9 @@ func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var capturedParams repository.AuditLogListParams
 			mockService := &mocks.MockAuditService{
 				ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -260,30 +235,29 @@ func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
 
 			handler.List(rec, req)
 
-			if rec.Code != http.StatusOK {
-				t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-			}
+			require.Equal(t, http.StatusOK, rec.Code)
 
-			if tc.expectedIP != "" && capturedParams.IPAddress != tc.expectedIP {
-				t.Errorf("Expected IPAddress '%s', got '%s'", tc.expectedIP, capturedParams.IPAddress)
+			if tc.expectedIP != "" {
+				assert.Equal(t, tc.expectedIP, capturedParams.IPAddress)
 			}
-			if tc.expectedIPNot != "" && capturedParams.IPAddressNot != tc.expectedIPNot {
-				t.Errorf("Expected IPAddressNot '%s', got '%s'", tc.expectedIPNot, capturedParams.IPAddressNot)
+			if tc.expectedIPNot != "" {
+				assert.Equal(t, tc.expectedIPNot, capturedParams.IPAddressNot)
 			}
-			if tc.expectedIPContains != "" && capturedParams.IPAddressContains != tc.expectedIPContains {
-				t.Errorf("Expected IPAddressContains '%s', got '%s'", tc.expectedIPContains, capturedParams.IPAddressContains)
+			if tc.expectedIPContains != "" {
+				assert.Equal(t, tc.expectedIPContains, capturedParams.IPAddressContains)
 			}
-			if tc.expectedIPStartsWith != "" && capturedParams.IPAddressStartsWith != tc.expectedIPStartsWith {
-				t.Errorf("Expected IPAddressStartsWith '%s', got '%s'", tc.expectedIPStartsWith, capturedParams.IPAddressStartsWith)
+			if tc.expectedIPStartsWith != "" {
+				assert.Equal(t, tc.expectedIPStartsWith, capturedParams.IPAddressStartsWith)
 			}
-			if tc.expectedIPEndsWith != "" && capturedParams.IPAddressEndsWith != tc.expectedIPEndsWith {
-				t.Errorf("Expected IPAddressEndsWith '%s', got '%s'", tc.expectedIPEndsWith, capturedParams.IPAddressEndsWith)
+			if tc.expectedIPEndsWith != "" {
+				assert.Equal(t, tc.expectedIPEndsWith, capturedParams.IPAddressEndsWith)
 			}
 		})
 	}
 }
 
 func TestAuditHandler_List_WithMultipleResourceTypes(t *testing.T) {
+	t.Parallel()
 	var capturedParams repository.AuditLogListParams
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -304,22 +278,17 @@ func TestAuditHandler_List_WithMultipleResourceTypes(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	if len(capturedParams.ResourceTypes) != 3 {
-		t.Errorf("Expected 3 resource types, got %d", len(capturedParams.ResourceTypes))
-	}
+	require.Len(t, capturedParams.ResourceTypes, 3)
 	expectedTypes := []string{"proxy", "user", "settings"}
 	for i, rt := range expectedTypes {
-		if capturedParams.ResourceTypes[i] != rt {
-			t.Errorf("Expected resource_type[%d] '%s', got '%s'", i, rt, capturedParams.ResourceTypes[i])
-		}
+		assert.Equal(t, rt, capturedParams.ResourceTypes[i])
 	}
 }
 
 func TestAuditHandler_List_InvalidStatusNot(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -329,12 +298,11 @@ func TestAuditHandler_List_InvalidStatusNot(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestAuditHandler_List_InvalidPage(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -343,12 +311,11 @@ func TestAuditHandler_List_InvalidPage(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestAuditHandler_List_InvalidLimit(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -357,12 +324,11 @@ func TestAuditHandler_List_InvalidLimit(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestAuditHandler_List_InvalidStatus(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -371,12 +337,11 @@ func TestAuditHandler_List_InvalidStatus(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestAuditHandler_List_ServiceError(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return nil, errors.New("database error")
@@ -389,9 +354,7 @@ func TestAuditHandler_List_ServiceError(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 // =============================================================================
@@ -399,6 +362,7 @@ func TestAuditHandler_List_ServiceError(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_GetByID_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetAuditLogByIDFunc: func(id int) (*models.AuditLog, error) {
 			return &models.AuditLog{
@@ -419,21 +383,18 @@ func TestAuditHandler_GetByID_Success(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
+	assert.True(t, response.Success, "expected success to be true")
 }
 
 func TestAuditHandler_GetByID_NotFound(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetAuditLogByIDFunc: func(id int) (*models.AuditLog, error) {
 			return nil, errors.New("not found")
@@ -449,12 +410,11 @@ func TestAuditHandler_GetByID_NotFound(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("Expected status %d, got %d", http.StatusNotFound, rec.Code)
-	}
+	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestAuditHandler_GetByID_InvalidID(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -466,9 +426,7 @@ func TestAuditHandler_GetByID_InvalidID(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 // =============================================================================
@@ -476,6 +434,7 @@ func TestAuditHandler_GetByID_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_GetStats_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetStatsFunc: func() (*models.AuditLogStats, error) {
 			return &models.AuditLogStats{
@@ -504,26 +463,22 @@ func TestAuditHandler_GetStats_Success(t *testing.T) {
 
 	handler.GetStats(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			TotalLogs int64 `json:"total_logs"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
-
-	data := response["data"].(map[string]interface{})
-	if data["total_logs"].(float64) != 100 {
-		t.Errorf("Expected total_logs 100, got %v", data["total_logs"])
-	}
+	assert.True(t, response.Success, "expected success to be true")
+	assert.Equal(t, int64(100), response.Data.TotalLogs)
 }
 
 func TestAuditHandler_GetStats_ServiceError(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetStatsFunc: func() (*models.AuditLogStats, error) {
 			return nil, errors.New("database error")
@@ -536,9 +491,7 @@ func TestAuditHandler_GetStats_ServiceError(t *testing.T) {
 
 	handler.GetStats(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 // =============================================================================
@@ -546,6 +499,7 @@ func TestAuditHandler_GetStats_ServiceError(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_GetConfig_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetConfigFunc: func() (*models.AuditConfig, error) {
 			return &models.AuditConfig{
@@ -575,26 +529,22 @@ func TestAuditHandler_GetConfig_Success(t *testing.T) {
 
 	handler.GetConfig(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			ProxyCreate bool `json:"proxy_create"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
-
-	data := response["data"].(map[string]interface{})
-	if !data["proxy_create"].(bool) {
-		t.Error("Expected proxy_create to be true")
-	}
+	assert.True(t, response.Success, "expected success to be true")
+	assert.True(t, response.Data.ProxyCreate, "expected proxy_create to be true")
 }
 
 func TestAuditHandler_GetConfig_ServiceError(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		GetConfigFunc: func() (*models.AuditConfig, error) {
 			return nil, errors.New("database error")
@@ -607,9 +557,7 @@ func TestAuditHandler_GetConfig_ServiceError(t *testing.T) {
 
 	handler.GetConfig(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 // =============================================================================
@@ -617,6 +565,7 @@ func TestAuditHandler_GetConfig_ServiceError(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
+	t.Parallel()
 	var capturedConfig *models.AuditConfig
 	mockService := &mocks.MockAuditService{
 		SetConfigFunc: func(config *models.AuditConfig) error {
@@ -650,28 +599,18 @@ func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
 
 	handler.UpdateConfig(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	if capturedConfig.ProxyCreate != true {
-		t.Error("Expected ProxyCreate to be true")
-	}
-	if capturedConfig.AuthLogin != false {
-		t.Error("Expected AuthLogin to be false")
-	}
-	if capturedConfig.SettingsUpdate != true {
-		t.Error("Expected SettingsUpdate to be true")
-	}
-	if capturedConfig.SyncStarted != false {
-		t.Error("Expected SyncStarted to be false")
-	}
-	if capturedConfig.SystemStartup != true {
-		t.Error("Expected SystemStartup to be true")
-	}
+	require.NotNil(t, capturedConfig)
+	assert.True(t, capturedConfig.ProxyCreate)
+	assert.False(t, capturedConfig.AuthLogin)
+	assert.True(t, capturedConfig.SettingsUpdate)
+	assert.False(t, capturedConfig.SyncStarted)
+	assert.True(t, capturedConfig.SystemStartup)
 }
 
 func TestAuditHandler_UpdateConfig_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -681,12 +620,11 @@ func TestAuditHandler_UpdateConfig_InvalidJSON(t *testing.T) {
 
 	handler.UpdateConfig(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		SetConfigFunc: func(config *models.AuditConfig) error {
 			return errors.New("database error")
@@ -718,9 +656,7 @@ func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 
 	handler.UpdateConfig(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 // =============================================================================
@@ -728,6 +664,7 @@ func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_Export_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			resourceType := "proxy"
@@ -766,28 +703,17 @@ func TestAuditHandler_Export_Success(t *testing.T) {
 
 	handler.Export(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	contentType := rec.Header().Get("Content-Type")
-	if contentType != "text/csv" {
-		t.Errorf("Expected Content-Type 'text/csv', got '%s'", contentType)
-	}
-
-	contentDisposition := rec.Header().Get("Content-Disposition")
-	if contentDisposition == "" {
-		t.Error("Expected Content-Disposition header to be set")
-	}
+	assert.Equal(t, "text/csv", rec.Header().Get("Content-Type"))
+	assert.NotEmpty(t, rec.Header().Get("Content-Disposition"))
 
 	// Check CSV contains header and data
-	body := rec.Body.String()
-	if body == "" {
-		t.Error("Expected non-empty CSV body")
-	}
+	assert.NotEmpty(t, rec.Body.String(), "expected non-empty CSV body")
 }
 
 func TestAuditHandler_Export_ServiceError(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return nil, errors.New("database error")
@@ -800,9 +726,7 @@ func TestAuditHandler_Export_ServiceError(t *testing.T) {
 
 	handler.Export(rec, req)
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 // =============================================================================
@@ -810,91 +734,71 @@ func TestAuditHandler_Export_ServiceError(t *testing.T) {
 // =============================================================================
 
 func TestParseAuditListParams_Defaults(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs", nil)
 
 	params, err := parseAuditListParams(req)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if params.Page != 1 {
-		t.Errorf("Expected default page 1, got %d", params.Page)
-	}
-	if params.Limit != 20 {
-		t.Errorf("Expected default limit 20, got %d", params.Limit)
-	}
+	assert.Equal(t, 1, params.Page)
+	assert.Equal(t, 20, params.Limit)
 }
 
 func TestParseAuditListParams_DateFilters(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?date_from=2024-01-01&date_to=2024-12-31", nil)
 
 	params, err := parseAuditListParams(req)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if params.DateFrom == nil {
-		t.Error("Expected DateFrom to be set")
-	}
-	if params.DateTo == nil {
-		t.Error("Expected DateTo to be set")
-	}
+	assert.NotNil(t, params.DateFrom, "expected DateFrom to be set")
+	assert.NotNil(t, params.DateTo, "expected DateTo to be set")
 }
 
 func TestParseAuditListParams_DateFilters_RFC3339(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?date_from=2024-01-01T00:00:00Z&date_to=2024-12-31T23:59:59Z", nil)
 
 	params, err := parseAuditListParams(req)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if params.DateFrom == nil {
-		t.Error("Expected DateFrom to be set")
-	}
-	if params.DateTo == nil {
-		t.Error("Expected DateTo to be set")
-	}
+	assert.NotNil(t, params.DateFrom, "expected DateFrom to be set")
+	assert.NotNil(t, params.DateTo, "expected DateTo to be set")
 }
 
 func TestParseAuditListParams_InvalidDateFrom(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?date_from=invalid", nil)
 
 	_, err := parseAuditListParams(req)
-	if err == nil {
-		t.Error("Expected error for invalid date_from")
-	}
+	assert.Error(t, err, "expected error for invalid date_from")
 }
 
 func TestParseAuditListParams_InvalidDateTo(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?date_to=invalid", nil)
 
 	_, err := parseAuditListParams(req)
-	if err == nil {
-		t.Error("Expected error for invalid date_to")
-	}
+	assert.Error(t, err, "expected error for invalid date_to")
 }
 
 func TestParseAuditListParams_UserID(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?user_id=5", nil)
 
 	params, err := parseAuditListParams(req)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if params.UserID == nil || *params.UserID != 5 {
-		t.Error("Expected UserID to be 5")
-	}
+	require.NotNil(t, params.UserID)
+	assert.Equal(t, 5, *params.UserID)
 }
 
 func TestParseAuditListParams_InvalidUserID(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?user_id=invalid", nil)
 
 	_, err := parseAuditListParams(req)
-	if err == nil {
-		t.Error("Expected error for invalid user_id")
-	}
+	assert.Error(t, err, "expected error for invalid user_id")
 }
 
 // =============================================================================
@@ -902,33 +806,27 @@ func TestParseAuditListParams_InvalidUserID(t *testing.T) {
 // =============================================================================
 
 func TestStringOrEmpty(t *testing.T) {
+	t.Parallel()
 	// Test nil
 	result := stringOrEmpty(nil)
-	if result != "" {
-		t.Errorf("Expected empty string, got '%s'", result)
-	}
+	assert.Equal(t, "", result)
 
 	// Test non-nil
 	str := "test"
 	result = stringOrEmpty(&str)
-	if result != "test" {
-		t.Errorf("Expected 'test', got '%s'", result)
-	}
+	assert.Equal(t, "test", result)
 }
 
 func TestIntPtrToString(t *testing.T) {
+	t.Parallel()
 	// Test nil
 	result := intPtrToString(nil)
-	if result != "" {
-		t.Errorf("Expected empty string, got '%s'", result)
-	}
+	assert.Equal(t, "", result)
 
 	// Test non-nil
 	num := 123
 	result = intPtrToString(&num)
-	if result != "123" {
-		t.Errorf("Expected '123', got '%s'", result)
-	}
+	assert.Equal(t, "123", result)
 }
 
 // =============================================================================
@@ -936,6 +834,7 @@ func TestIntPtrToString(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_ResponseFormat(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return &models.AuditLogListResponse{
@@ -954,20 +853,16 @@ func TestAuditHandler_ResponseFormat(t *testing.T) {
 
 	handler.List(rec, req)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool                   `json:"success"`
+		Message string                 `json:"message"`
+		Data    map[string]interface{} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if _, ok := response["success"]; !ok {
-		t.Error("Expected 'success' field in response")
-	}
-	if _, ok := response["message"]; !ok {
-		t.Error("Expected 'message' field in response")
-	}
-	if _, ok := response["data"]; !ok {
-		t.Error("Expected 'data' field in response")
-	}
+	assert.True(t, response.Success, "expected 'success' field")
+	assert.NotEmpty(t, response.Message, "expected 'message' field")
+	assert.NotNil(t, response.Data, "expected 'data' field")
 }
 
 // =============================================================================
@@ -975,6 +870,7 @@ func TestAuditHandler_ResponseFormat(t *testing.T) {
 // =============================================================================
 
 func TestSplitAndTrim(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		input    string
@@ -1023,18 +919,15 @@ func TestSplitAndTrim(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := splitAndTrim(tc.input)
 
-			if len(result) != len(tc.expected) {
-				t.Errorf("Expected %d values, got %d", len(tc.expected), len(result))
-				return
-			}
+			require.Len(t, result, len(tc.expected))
 
 			for i, v := range tc.expected {
-				if result[i] != v {
-					t.Errorf("Expected value[%d] '%s', got '%s'", i, v, result[i])
-				}
+				assert.Equal(t, v, result[i])
 			}
 		})
 	}
@@ -1045,6 +938,7 @@ func TestSplitAndTrim(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_GetEventGroups_Success(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -1053,38 +947,29 @@ func TestAuditHandler_GetEventGroups_Success(t *testing.T) {
 
 	handler.GetEventGroups(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
-	var response map[string]interface{}
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
+	var response struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Key         string `json:"key"`
+			Label       string `json:"label"`
+			Description string `json:"description"`
+			Events      []struct {
+				Key   string `json:"key"`
+				Label string `json:"label"`
+			} `json:"events"`
+		} `json:"data"`
 	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response), "failed to parse response")
 
-	if !response["success"].(bool) {
-		t.Error("Expected success to be true")
-	}
-
-	data := response["data"].([]interface{})
-	if len(data) == 0 {
-		t.Error("Expected non-empty event groups")
-	}
+	assert.True(t, response.Success, "expected success to be true")
+	assert.NotEmpty(t, response.Data, "expected non-empty event groups")
 
 	// Verify structure of first group
-	firstGroup := data[0].(map[string]interface{})
-	if _, ok := firstGroup["key"]; !ok {
-		t.Error("Expected 'key' field in event group")
-	}
-	if _, ok := firstGroup["label"]; !ok {
-		t.Error("Expected 'label' field in event group")
-	}
-	if _, ok := firstGroup["description"]; !ok {
-		t.Error("Expected 'description' field in event group")
-	}
-	if _, ok := firstGroup["events"]; !ok {
-		t.Error("Expected 'events' field in event group")
-	}
+	firstGroup := response.Data[0]
+	assert.NotEmpty(t, firstGroup.Key, "expected 'key' field in event group")
+	assert.NotEmpty(t, firstGroup.Label, "expected 'label' field in event group")
 }
 
 // =============================================================================
@@ -1092,6 +977,7 @@ func TestAuditHandler_GetEventGroups_Success(t *testing.T) {
 // =============================================================================
 
 func TestParseFilterParam(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name             string
 		input            string
@@ -1188,24 +1074,17 @@ func TestParseFilterParam(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := parseFilterParam(tc.input)
 
-			if result.Operator != tc.expectedOperator {
-				t.Errorf("Expected operator '%s', got '%s'", tc.expectedOperator, result.Operator)
-			}
-			if result.Value != tc.expectedValue {
-				t.Errorf("Expected value '%s', got '%s'", tc.expectedValue, result.Value)
-			}
+			assert.Equal(t, tc.expectedOperator, result.Operator)
+			assert.Equal(t, tc.expectedValue, result.Value)
 			if tc.expectedValues != nil {
-				if len(result.Values) != len(tc.expectedValues) {
-					t.Errorf("Expected %d values, got %d", len(tc.expectedValues), len(result.Values))
-				} else {
-					for i, v := range tc.expectedValues {
-						if result.Values[i] != v {
-							t.Errorf("Expected values[%d] '%s', got '%s'", i, v, result.Values[i])
-						}
-					}
+				require.Len(t, result.Values, len(tc.expectedValues))
+				for i, v := range tc.expectedValues {
+					assert.Equal(t, v, result.Values[i])
 				}
 			}
 		})
@@ -1213,6 +1092,7 @@ func TestParseFilterParam(t *testing.T) {
 }
 
 func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
+	t.Parallel()
 	mockService := &mocks.MockAuditService{}
 	handler := NewAuditHandler(mockService)
 
@@ -1239,15 +1119,15 @@ func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?"+tc.query, nil)
 			rec := httptest.NewRecorder()
 
 			handler.List(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
-				t.Errorf("Expected status %d, got %d", http.StatusBadRequest, rec.Code)
-			}
+			require.Equal(t, http.StatusBadRequest, rec.Code)
 		})
 	}
 }
@@ -1257,6 +1137,7 @@ func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
 // =============================================================================
 
 func TestAuditHandler_List_CombinedFilters(t *testing.T) {
+	t.Parallel()
 	var capturedParams repository.AuditLogListParams
 	mockService := &mocks.MockAuditService{
 		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
@@ -1280,24 +1161,12 @@ func TestAuditHandler_List_CombinedFilters(t *testing.T) {
 
 	handler.List(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("Expected status %d, got %d", http.StatusOK, rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
 	// Verify all filters are captured
-	if len(capturedParams.Actions) != 2 {
-		t.Errorf("Expected 2 actions, got %d", len(capturedParams.Actions))
-	}
-	if len(capturedParams.ResourceTypes) != 1 {
-		t.Errorf("Expected 1 resource type, got %d", len(capturedParams.ResourceTypes))
-	}
-	if capturedParams.Status != "success" {
-		t.Errorf("Expected status 'success', got '%s'", capturedParams.Status)
-	}
-	if capturedParams.IPAddressContains != "192" {
-		t.Errorf("Expected IP contains '192', got '%s'", capturedParams.IPAddressContains)
-	}
-	if capturedParams.Search != "test" {
-		t.Errorf("Expected search 'test', got '%s'", capturedParams.Search)
-	}
+	assert.Len(t, capturedParams.Actions, 2)
+	assert.Len(t, capturedParams.ResourceTypes, 1)
+	assert.Equal(t, "success", capturedParams.Status)
+	assert.Equal(t, "192", capturedParams.IPAddressContains)
+	assert.Equal(t, "test", capturedParams.Search)
 }

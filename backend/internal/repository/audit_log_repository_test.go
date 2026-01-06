@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewAuditLogRepository(t *testing.T) {
+	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewAuditLogRepository(nil)
 	if repo == nil {
@@ -20,6 +21,7 @@ func TestNewAuditLogRepository(t *testing.T) {
 }
 
 func TestAuditLogListParams_Structure(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	userID := 1
 	params := AuditLogListParams{
@@ -104,6 +106,7 @@ func TestAuditLogListParams_Structure(t *testing.T) {
 }
 
 func TestAuditLogListParams_Defaults(t *testing.T) {
+	t.Parallel()
 	// Test zero value defaults
 	params := AuditLogListParams{}
 
@@ -162,6 +165,7 @@ func TestAuditLogListParams_Defaults(t *testing.T) {
 
 // TestAuditLogList_SQLInjectionPrevented tests that SQL injection attempts are blocked
 func TestAuditLogList_SQLInjectionPrevented(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name          string
 		sortInput     string
@@ -258,6 +262,7 @@ func TestAuditLogList_SQLInjectionPrevented(t *testing.T) {
 
 // TestAuditLogAllowedSortFields verifies the whitelist is correctly defined
 func TestAuditLogAllowedSortFields(t *testing.T) {
+	t.Parallel()
 	expectedFields := []string{"id", "action", "resource_type", "resource_name", "status", "created_at", "user_id"}
 
 	for _, field := range expectedFields {
@@ -277,6 +282,7 @@ func TestAuditLogAllowedSortFields(t *testing.T) {
 
 // TestAuditLogStats_Structure tests the stats struct
 func TestAuditLogStats_Structure(t *testing.T) {
+	t.Parallel()
 	stats := models.AuditLogStats{
 		TotalLogs:      100,
 		ByAction:       make(map[string]int64),
@@ -317,6 +323,7 @@ func TestAuditLogStats_Structure(t *testing.T) {
 
 // TestAuditLogModel_Pointers tests that pointer fields work correctly
 func TestAuditLogModel_Pointers(t *testing.T) {
+	t.Parallel()
 	// Test with nil pointers
 	log := models.AuditLog{
 		ID:        1,
@@ -389,6 +396,7 @@ func TestAuditLogModel_Pointers(t *testing.T) {
 
 // TestAuditConfig tests the audit configuration struct
 func TestAuditConfig(t *testing.T) {
+	t.Parallel()
 	// Test default config
 	config := models.DefaultAuditConfig()
 
@@ -447,6 +455,7 @@ func TestAuditConfig(t *testing.T) {
 
 // TestAuditEvent tests the audit event struct
 func TestAuditEvent(t *testing.T) {
+	t.Parallel()
 	userID := 1
 	resourceID := 5
 
@@ -497,6 +506,7 @@ func TestAuditEvent(t *testing.T) {
 
 // TestAuditActionConstants tests that all action constants are defined
 func TestAuditActionConstants(t *testing.T) {
+	t.Parallel()
 	// Proxy actions
 	if models.AuditActionProxyCreate != "proxy.create" {
 		t.Errorf("Expected AuditActionProxyCreate 'proxy.create', got '%s'", models.AuditActionProxyCreate)
@@ -558,6 +568,7 @@ func TestAuditActionConstants(t *testing.T) {
 
 // TestAuditStatusConstants tests that all status constants are defined
 func TestAuditStatusConstants(t *testing.T) {
+	t.Parallel()
 	if models.AuditStatusSuccess != "success" {
 		t.Errorf("Expected AuditStatusSuccess 'success', got '%s'", models.AuditStatusSuccess)
 	}
@@ -568,6 +579,7 @@ func TestAuditStatusConstants(t *testing.T) {
 
 // TestAuditResourceTypeConstants tests that all resource type constants are defined
 func TestAuditResourceTypeConstants(t *testing.T) {
+	t.Parallel()
 	if models.AuditResourceTypeProxy != "proxy" {
 		t.Errorf("Expected AuditResourceTypeProxy 'proxy', got '%s'", models.AuditResourceTypeProxy)
 	}
@@ -584,6 +596,7 @@ func TestAuditResourceTypeConstants(t *testing.T) {
 
 // TestAuditLogTableName tests the table name
 func TestAuditLogTableName(t *testing.T) {
+	t.Parallel()
 	log := models.AuditLog{}
 	if log.TableName() != "audit_logs" {
 		t.Errorf("Expected table name 'audit_logs', got '%s'", log.TableName())
@@ -592,6 +605,7 @@ func TestAuditLogTableName(t *testing.T) {
 
 // TestAuditLogListResponse tests the list response struct
 func TestAuditLogListResponse(t *testing.T) {
+	t.Parallel()
 	response := models.AuditLogListResponse{
 		Items: []models.AuditLog{
 			{ID: 1, Action: "proxy.create", Status: "success"},
@@ -622,6 +636,7 @@ func TestAuditLogListResponse(t *testing.T) {
 
 // TestSettingAuditConfigKey tests the settings key constant
 func TestSettingAuditConfigKey(t *testing.T) {
+	t.Parallel()
 	if models.SettingAuditConfig != "audit_config" {
 		t.Errorf("Expected SettingAuditConfig 'audit_config', got '%s'", models.SettingAuditConfig)
 	}
@@ -629,6 +644,7 @@ func TestSettingAuditConfigKey(t *testing.T) {
 
 // TestGetAuditEventGroups tests the event groups function
 func TestGetAuditEventGroups(t *testing.T) {
+	t.Parallel()
 	groups := models.GetAuditEventGroups()
 
 	if len(groups) == 0 {
@@ -677,6 +693,7 @@ func TestGetAuditEventGroups(t *testing.T) {
 
 // TestAuditEventDefinition tests the event definition struct
 func TestAuditEventDefinition(t *testing.T) {
+	t.Parallel()
 	event := models.AuditEventDefinition{
 		Key:   "proxy_create",
 		Label: "Create",
@@ -692,6 +709,7 @@ func TestAuditEventDefinition(t *testing.T) {
 
 // TestAuditEventGroup tests the event group struct
 func TestAuditEventGroup(t *testing.T) {
+	t.Parallel()
 	group := models.AuditEventGroup{
 		Key:         "proxy",
 		Label:       "Proxy Events",
@@ -718,6 +736,7 @@ func TestAuditEventGroup(t *testing.T) {
 
 // TestAuditLogListParams_MultipleFilters tests combining multiple filter types
 func TestAuditLogListParams_MultipleFilters(t *testing.T) {
+	t.Parallel()
 	params := AuditLogListParams{
 		Actions:              []string{"proxy.create", "proxy.update"},
 		ActionsExclude:       []string{"proxy.delete"},
@@ -751,6 +770,7 @@ func TestAuditLogListParams_MultipleFilters(t *testing.T) {
 
 // TestAuditLogListParams_IPAddressFilters tests all IP address filter options
 func TestAuditLogListParams_IPAddressFilters(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name   string
 		params AuditLogListParams
