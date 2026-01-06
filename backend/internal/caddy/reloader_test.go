@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,70 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
-
-// createMockCaddyScript creates a mock caddy script that can be configured
-// to return specific outputs and exit codes for different commands
-func createMockCaddyScript(t *testing.T, behavior map[string]struct {
-	stdout   string
-	stderr   string
-	exitCode int
-}) string {
-	t.Helper()
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-
-	// Build the script content based on behavior configuration
-	var cases strings.Builder
-	for cmd, b := range behavior {
-		cases.WriteString("    \"" + cmd + "\")\n")
-		if b.stdout != "" {
-			cases.WriteString("        echo \"" + b.stdout + "\"\n")
-		}
-		if b.stderr != "" {
-			cases.WriteString("        echo \"" + b.stderr + "\" >&2\n")
-		}
-		cases.WriteString("        exit " + string(rune('0'+b.exitCode)) + "\n")
-		cases.WriteString("        ;;\n")
-	}
-
-	script := `#!/bin/bash
-case "$1" in
-` + cases.String() + `    *)
-        echo "Unknown command: $1" >&2
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err, "Failed to create mock caddy script")
-
-	return scriptPath
-}
-
-// createMockCaddyScriptWithExitCode creates a simple mock script with configurable exit code
-func createMockCaddyScriptWithExitCode(t *testing.T, exitCode int, stdout, stderr string) string {
-	t.Helper()
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-
-	script := `#!/bin/bash
-`
-	if stdout != "" {
-		script += `echo "` + stdout + `"
-`
-	}
-	if stderr != "" {
-		script += `echo "` + stderr + `" >&2
-`
-	}
-	script += `exit ` + string(rune('0'+exitCode)) + `
-`
-
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err, "Failed to create mock caddy script")
-
-	return scriptPath
-}
 
 // Test NewReloader with default configuration
 func TestNewReloader_Defaults(t *testing.T) {

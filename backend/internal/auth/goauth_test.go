@@ -13,9 +13,10 @@ import (
 	"github.com/aloks98/goauth/middleware"
 	"github.com/aloks98/goauth/store"
 	"github.com/aloks98/goauth/token"
-	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/aloks98/waygates/backend/internal/config"
 )
 
 func TestExtractUserID_CustomClaims(t *testing.T) {
@@ -291,33 +292,33 @@ func findSubstring(s, substr string) bool {
 
 // mockStore implements store.Store interface for testing
 type mockStore struct {
-	pingErr                        error
-	migrateErr                     error
-	userPermissions                map[string]*store.UserPermissions
-	getUserPermissionsErr          error
-	saveUserPermissionsErr         error
-	deleteUserPermissionsErr       error
-	refreshTokens                  map[string]*store.RefreshToken
-	saveRefreshTokenErr            error
-	getRefreshTokenErr             error
-	revokeRefreshTokenErr          error
-	revokeTokenFamilyErr           error
-	revokeAllUserRefreshTokensErr  error
-	deleteExpiredRefreshTokensErr  error
-	blacklist                      map[string]int64
-	addToBlacklistErr              error
-	isBlacklistedErr               error
-	deleteExpiredBlacklistErr      error
-	apiKeys                        map[string]*store.APIKey
-	saveAPIKeyErr                  error
-	getAPIKeyErr                   error
-	listAPIKeysErr                 error
-	revokeAPIKeyErr                error
-	deleteExpiredAPIKeysErr        error
-	roleTemplates                  map[string]*store.StoredRoleTemplate
-	getRoleTemplatesErr            error
-	saveRoleTemplateErr            error
-	updateUsersWithRoleErr         error
+	pingErr                       error
+	migrateErr                    error
+	userPermissions               map[string]*store.UserPermissions
+	getUserPermissionsErr         error
+	saveUserPermissionsErr        error
+	deleteUserPermissionsErr      error
+	refreshTokens                 map[string]*store.RefreshToken
+	saveRefreshTokenErr           error
+	getRefreshTokenErr            error
+	revokeRefreshTokenErr         error
+	revokeTokenFamilyErr          error
+	revokeAllUserRefreshTokensErr error
+	deleteExpiredRefreshTokensErr error
+	blacklist                     map[string]int64
+	addToBlacklistErr             error
+	isBlacklistedErr              error
+	deleteExpiredBlacklistErr     error
+	apiKeys                       map[string]*store.APIKey
+	saveAPIKeyErr                 error
+	getAPIKeyErr                  error
+	listAPIKeysErr                error
+	revokeAPIKeyErr               error
+	deleteExpiredAPIKeysErr       error
+	roleTemplates                 map[string]*store.StoredRoleTemplate
+	getRoleTemplatesErr           error
+	saveRoleTemplateErr           error
+	updateUsersWithRoleErr        error
 }
 
 func newMockStore() *mockStore {
@@ -330,8 +331,8 @@ func newMockStore() *mockStore {
 	}
 }
 
-func (m *mockStore) Close() error                { return nil }
-func (m *mockStore) Ping(_ context.Context) error { return m.pingErr }
+func (m *mockStore) Close() error                    { return nil }
+func (m *mockStore) Ping(_ context.Context) error    { return m.pingErr }
 func (m *mockStore) Migrate(_ context.Context) error { return m.migrateErr }
 func (m *mockStore) SaveRefreshToken(_ context.Context, token *store.RefreshToken) error {
 	if m.saveRefreshTokenErr != nil {
@@ -1168,7 +1169,7 @@ func TestAdapter_NilContext(t *testing.T) {
 	assert.False(t, hasPerm)
 }
 
-func TestAdapter_CancelledContext(t *testing.T) {
+func TestAdapter_CanceledContext(t *testing.T) {
 	t.Parallel()
 	auth := createTestAuth(t)
 	adapter := &Adapter{auth: auth}
@@ -1176,7 +1177,7 @@ func TestAdapter_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	// These operations should handle cancelled context
+	// These operations should handle canceled context
 	// The behavior depends on the underlying implementation
 	_, _ = adapter.ValidateAccessToken(ctx, "some-token")
 	_, _ = adapter.HasPermission(ctx, "user", "perm")

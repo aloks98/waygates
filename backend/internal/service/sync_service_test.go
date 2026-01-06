@@ -1357,10 +1357,7 @@ func TestEnsureInitialConfigs(t *testing.T) {
 		writeMainCalled := false
 		fileManager := &MockFileManager{
 			FileExistsFunc: func(path string) bool {
-				if path == "/etc/caddy/Caddyfile" {
-					return false
-				}
-				return true
+				return path != "/etc/caddy/Caddyfile"
 			},
 			GetCaddyfilePathFunc: func() string {
 				return "/etc/caddy/Caddyfile"
@@ -1400,10 +1397,7 @@ func TestEnsureInitialConfigs(t *testing.T) {
 		writeCatchAllCalled := false
 		fileManager := &MockFileManager{
 			FileExistsFunc: func(path string) bool {
-				if path == "/etc/caddy/catchall.conf" {
-					return false
-				}
-				return true
+				return path != "/etc/caddy/catchall.conf"
 			},
 			GetCaddyfilePathFunc: func() string {
 				return "/etc/caddy/Caddyfile"

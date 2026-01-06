@@ -1114,8 +1114,8 @@ func TestChangePassword(t *testing.T) {
 			},
 		},
 		{
-			name:           "error - invalid request body (malformed JSON)",
-			requestBody:    `{invalid json}`,
+			name:        "error - invalid request body (malformed JSON)",
+			requestBody: `{invalid json}`,
 			setupContext: func(r *http.Request) *http.Request {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)

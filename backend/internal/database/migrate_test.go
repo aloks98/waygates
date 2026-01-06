@@ -165,7 +165,7 @@ func TestEnsureDatabase_CreateNewDatabase(t *testing.T) {
 	// Verify database exists by connecting to it
 	db, err := sql.Open("postgres", databaseURL)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	err = db.Ping()
 	assert.NoError(t, err, "Should be able to connect to newly created database")
@@ -225,7 +225,7 @@ func TestRunMigrations_Success(t *testing.T) {
 	// Verify migrations ran by checking if tables exist
 	db, err := sql.Open("postgres", databaseURL)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Check if proxies table exists (from migration 000001)
 	var tableExists bool
@@ -511,7 +511,7 @@ func TestEnsureDatabase_SpecialCharactersInDbName(t *testing.T) {
 	// Verify database was created
 	db, err := sql.Open("postgres", databaseURL)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	err = db.Ping()
 	assert.NoError(t, err)
@@ -593,7 +593,7 @@ func TestEnsureDatabase_SequentialCalls(t *testing.T) {
 	// Verify database exists
 	db, err := sql.Open("postgres", databaseURL)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	err = db.Ping()
 	assert.NoError(t, err, "Database should exist after multiple EnsureDatabase calls")

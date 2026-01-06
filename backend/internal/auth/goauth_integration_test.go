@@ -195,8 +195,8 @@ func TestNewAuth_Integration_Success(t *testing.T) {
 	require.NotNil(t, adapter)
 
 	// Clean up auth resources
-	if auth.Auth != nil {
-		_ = auth.Auth.Close()
+	if auth != nil {
+		_ = auth.Close()
 	}
 }
 
@@ -267,8 +267,8 @@ func TestNewAuth_Integration_EmptyRBACPath(t *testing.T) {
 	require.NotNil(t, auth)
 
 	// Clean up auth resources
-	if auth.Auth != nil {
-		_ = auth.Auth.Close()
+	if auth != nil {
+		_ = auth.Close()
 	}
 }
 
@@ -294,8 +294,8 @@ func TestNewAuth_Integration_FullLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, auth)
 	defer func() {
-		if auth.Auth != nil {
-			_ = auth.Auth.Close()
+		if auth != nil {
+			_ = auth.Close()
 		}
 	}()
 
@@ -303,7 +303,7 @@ func TestNewAuth_Integration_FullLifecycle(t *testing.T) {
 	adapter := auth.Adapter()
 
 	// Test token generation and validation
-	tokenPair, err := auth.Auth.GenerateTokenPair(ctx, "user123", nil)
+	tokenPair, err := auth.GenerateTokenPair(ctx, "user123", nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenPair.AccessToken)
 
@@ -317,7 +317,7 @@ func TestNewAuth_Integration_FullLifecycle(t *testing.T) {
 	assert.Equal(t, "user123", userID)
 
 	// Test permission setting directly (without role assignment to avoid role sync issues)
-	err = auth.Auth.SetPermissions(ctx, "user123", []string{"users:read", "proxies:read"})
+	err = auth.SetPermissions(ctx, "user123", []string{"users:read", "proxies:read"})
 	require.NoError(t, err)
 
 	hasPerm, err := adapter.HasPermission(ctx, "user123", "users:read")

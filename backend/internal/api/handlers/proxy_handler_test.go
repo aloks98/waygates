@@ -1861,7 +1861,7 @@ func TestListProxies_ContextCancellation(t *testing.T) {
 
 	handler.ListProxies(rec, req)
 
-	// The handler should still work even with cancelled context
+	// The handler should still work even with canceled context
 	// as the mock doesn't check context - this tests that the handler doesn't panic
 	require.True(t, rec.Code == http.StatusOK || rec.Code == http.StatusInternalServerError)
 }
@@ -1886,7 +1886,7 @@ func TestGetProxy_ContextCancellation(t *testing.T) {
 
 	r.ServeHTTP(rec, req)
 
-	// The handler should still work even with cancelled context
+	// The handler should still work even with canceled context
 	require.True(t, rec.Code == http.StatusOK || rec.Code == http.StatusInternalServerError)
 }
 
@@ -1919,7 +1919,7 @@ func TestCreateProxy_ContextCancellation(t *testing.T) {
 	handler.CreateProxy(rec, req)
 
 	// The handler should still process the request
-	// This tests that the handler doesn't panic on cancelled context
+	// This tests that the handler doesn't panic on canceled context
 	require.True(t, createCalled || rec.Code != http.StatusCreated)
 }
 
@@ -1940,6 +1940,6 @@ func TestGetStats_ContextCancellation(t *testing.T) {
 
 	handler.GetStats(rec, req)
 
-	// The handler should still work even with cancelled context
+	// The handler should still work even with canceled context
 	require.True(t, rec.Code == http.StatusOK || rec.Code == http.StatusInternalServerError)
 }
