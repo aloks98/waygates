@@ -1,6 +1,5 @@
 import {
   Badge,
-  Button,
   ScrollArea,
   Separator,
   Sheet,
@@ -10,7 +9,7 @@ import {
   Skeleton,
 } from '@e412/titanium';
 import { format } from 'date-fns';
-import { AlertCircle, ArrowRight, Clock, Globe, Monitor, Server, User, X } from 'lucide-react';
+import { AlertCircle, ArrowRight, Clock, Globe, Monitor, Server, User } from 'lucide-react';
 import { useAuditLogById } from '@/hooks';
 import type { AuditLog } from '@/types/audit';
 import { ActionBadge, StatusBadge } from './cells';
@@ -45,30 +44,64 @@ interface ChangeItemProps {
   newValue: unknown;
 }
 
-function ChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
-  const formatValue = (value: unknown): string => {
-    if (value === null || value === undefined) return '-';
-    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-    if (typeof value === 'object') return JSON.stringify(value);
-    return String(value);
-  };
+function isComplexValue(value: unknown): boolean {
+  return typeof value === 'object' && value !== null;
+}
 
+function formatSimpleValue(value: unknown): string {
+  if (value === null || value === undefined) return '-';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
+function SimpleChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
   return (
     <div className="rounded-md border bg-muted/30 p-3">
       <p className="text-sm font-medium text-foreground mb-2 capitalize">
         {field.replace(/_/g, ' ')}
       </p>
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground line-through truncate max-w-[120px]">
-          {formatValue(oldValue)}
+        <span className="text-muted-foreground line-through">
+          {formatSimpleValue(oldValue)}
         </span>
         <ArrowRight className="size-3 text-muted-foreground flex-shrink-0" />
-        <span className="text-foreground font-medium truncate max-w-[120px]">
-          {formatValue(newValue)}
+        <span className="text-foreground font-medium">
+          {formatSimpleValue(newValue)}
         </span>
       </div>
     </div>
   );
+}
+
+function ComplexChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <p className="text-sm font-medium text-foreground mb-3 capitalize">
+        {field.replace(/_/g, ' ')}
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">Before</p>
+          <pre className="text-xs bg-background/50 p-2 rounded overflow-auto max-h-32">
+            {oldValue ? JSON.stringify(oldValue, null, 2) : '-'}
+          </pre>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">After</p>
+          <pre className="text-xs bg-background/50 p-2 rounded overflow-auto max-h-32">
+            {newValue ? JSON.stringify(newValue, null, 2) : '-'}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
+  if (isComplexValue(oldValue) || isComplexValue(newValue)) {
+    return <ComplexChangeItem field={field} oldValue={oldValue} newValue={newValue} />;
+  }
+  return <SimpleChangeItem field={field} oldValue={oldValue} newValue={newValue} />;
 }
 
 interface ChangesDisplayProps {
@@ -82,11 +115,30 @@ function ChangesDisplay({ changes }: ChangesDisplayProps) {
     return <p className="text-sm text-muted-foreground">No changes recorded</p>;
   }
 
+  // Separate simple and complex changes
+  const simpleChanges = entries.filter(
+    ([, { old: o, new: n }]) => !isComplexValue(o) && !isComplexValue(n)
+  );
+  const complexChanges = entries.filter(
+    ([, { old: o, new: n }]) => isComplexValue(o) || isComplexValue(n)
+  );
+
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {entries.map(([field, { old: oldVal, new: newVal }]) => (
-        <ChangeItem key={field} field={field} oldValue={oldVal} newValue={newVal} />
-      ))}
+    <div className="space-y-3">
+      {simpleChanges.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {simpleChanges.map(([field, { old: oldVal, new: newVal }]) => (
+            <ChangeItem key={field} field={field} oldValue={oldVal} newValue={newVal} />
+          ))}
+        </div>
+      )}
+      {complexChanges.length > 0 && (
+        <div className="space-y-2">
+          {complexChanges.map(([field, { old: oldVal, new: newVal }]) => (
+            <ChangeItem key={field} field={field} oldValue={oldVal} newValue={newVal} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -262,18 +314,9 @@ export function AuditLogDetailSheet({ logId, open, onOpenChange }: AuditLogDetai
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg">
-        <SheetHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <SheetContent className="w-full sm:max-w-2xl">
+        <SheetHeader>
           <SheetTitle>Audit Log Details</SheetTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-8 p-0"
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="size-4" />
-            <span className="sr-only">Close</span>
-          </Button>
         </SheetHeader>
         <ScrollArea className="h-[calc(100vh-8rem)] pr-4">
           {isLoading ? (
