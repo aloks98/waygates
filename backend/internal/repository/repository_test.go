@@ -5,6 +5,7 @@ import (
 )
 
 func TestNewSettingsRepository(t *testing.T) {
+	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewSettingsRepository(nil)
 	if repo == nil {
@@ -16,6 +17,7 @@ func TestNewSettingsRepository(t *testing.T) {
 }
 
 func TestNewProxyRepository(t *testing.T) {
+	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewProxyRepository(nil)
 	if repo == nil {
@@ -27,6 +29,7 @@ func TestNewProxyRepository(t *testing.T) {
 }
 
 func TestNewUserRepository(t *testing.T) {
+	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewUserRepository(nil)
 	if repo == nil {
@@ -38,6 +41,7 @@ func TestNewUserRepository(t *testing.T) {
 }
 
 func TestProxyStats_Structure(t *testing.T) {
+	t.Parallel()
 	// Test that ProxyStats can be initialized properly
 	stats := ProxyStats{
 		Total:    10,
@@ -67,6 +71,7 @@ func TestProxyStats_Structure(t *testing.T) {
 }
 
 func TestProxyListParams_Structure(t *testing.T) {
+	t.Parallel()
 	sslEnabled := true
 	params := ProxyListParams{
 		Page:         1,
@@ -118,6 +123,7 @@ func TestProxyListParams_Structure(t *testing.T) {
 }
 
 func TestProxyListParams_Defaults(t *testing.T) {
+	t.Parallel()
 	// Test zero value defaults
 	params := ProxyListParams{}
 

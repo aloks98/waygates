@@ -6,6 +6,7 @@ import (
 
 // TestSetting_TableName verifies the table name
 func TestSetting_TableName(t *testing.T) {
+	t.Parallel()
 	s := Setting{}
 	if s.TableName() != "settings" {
 		t.Errorf("Expected table name 'settings', got '%s'", s.TableName())
@@ -14,6 +15,7 @@ func TestSetting_TableName(t *testing.T) {
 
 // TestSettingConstants verifies the setting key constants
 func TestSettingConstants(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		constant string
@@ -34,6 +36,7 @@ func TestSettingConstants(t *testing.T) {
 
 // TestNotFoundSettings_Validation tests NotFoundSettings struct
 func TestNotFoundSettings_Validation(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name        string
 		settings    NotFoundSettings
@@ -92,6 +95,7 @@ func TestNotFoundSettings_Validation(t *testing.T) {
 
 // TestNotFoundSettings_JSONMarshaling tests JSON field names
 func TestNotFoundSettings_JSONMarshaling(t *testing.T) {
+	t.Parallel()
 	settings := NotFoundSettings{
 		Mode:        "redirect",
 		RedirectURL: "https://example.com/404",
@@ -108,6 +112,7 @@ func TestNotFoundSettings_JSONMarshaling(t *testing.T) {
 
 // TestSetting_StructFields verifies Setting struct fields
 func TestSetting_StructFields(t *testing.T) {
+	t.Parallel()
 	setting := Setting{
 		Key:   "test.key",
 		Value: "test.value",

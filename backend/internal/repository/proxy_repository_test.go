@@ -7,6 +7,7 @@ import (
 
 // TestListProxies_SQLInjectionPrevented tests that SQL injection attempts are blocked
 func TestListProxies_SQLInjectionPrevented(t *testing.T) {
+	t.Parallel()
 	// Test that malicious sort values are rejected/sanitized
 	testCases := []struct {
 		name          string
@@ -104,6 +105,7 @@ func TestListProxies_SQLInjectionPrevented(t *testing.T) {
 
 // TestAllowedSortFields verifies the whitelist is correctly defined
 func TestAllowedSortFields(t *testing.T) {
+	t.Parallel()
 	expectedFields := []string{"id", "name", "hostname", "type", "is_active", "created_at", "updated_at"}
 
 	for _, field := range expectedFields {
@@ -123,6 +125,7 @@ func TestAllowedSortFields(t *testing.T) {
 
 // TestAllowedSortOrders verifies the order whitelist is correctly defined
 func TestAllowedSortOrders(t *testing.T) {
+	t.Parallel()
 	// Should only allow asc and desc
 	if _, ok := allowedSortOrders["asc"]; !ok {
 		t.Error("Expected 'asc' to be in allowedSortOrders")

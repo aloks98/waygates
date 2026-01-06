@@ -10,6 +10,7 @@ import (
 )
 
 func TestBodyLimit_ContentLengthExceeded(t *testing.T) {
+	t.Parallel()
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -31,6 +32,7 @@ func TestBodyLimit_ContentLengthExceeded(t *testing.T) {
 }
 
 func TestBodyLimit_ContentLengthWithinLimit(t *testing.T) {
+	t.Parallel()
 	nextCalled := false
 	handler := BodyLimit(1024)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
@@ -53,6 +55,7 @@ func TestBodyLimit_ContentLengthWithinLimit(t *testing.T) {
 }
 
 func TestBodyLimit_NoBody(t *testing.T) {
+	t.Parallel()
 	nextCalled := false
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
@@ -73,6 +76,7 @@ func TestBodyLimit_NoBody(t *testing.T) {
 }
 
 func TestBodyLimit_ZeroContentLength(t *testing.T) {
+	t.Parallel()
 	nextCalled := false
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
@@ -94,6 +98,7 @@ func TestBodyLimit_ZeroContentLength(t *testing.T) {
 }
 
 func TestBodyLimit_MaxBytesReader(t *testing.T) {
+	t.Parallel()
 	// Test that the body is wrapped with MaxBytesReader
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Try to read more than the limit
@@ -122,6 +127,7 @@ func TestBodyLimit_MaxBytesReader(t *testing.T) {
 }
 
 func TestConstants(t *testing.T) {
+	t.Parallel()
 	if DefaultBodyLimit != 1*1024*1024 {
 		t.Errorf("Expected DefaultBodyLimit to be 1MB, got %d", DefaultBodyLimit)
 	}
@@ -132,6 +138,7 @@ func TestConstants(t *testing.T) {
 }
 
 func TestBodyLimit_ExactLimit(t *testing.T) {
+	t.Parallel()
 	// Test body exactly at the limit
 	nextCalled := false
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +162,7 @@ func TestBodyLimit_ExactLimit(t *testing.T) {
 }
 
 func TestBodyLimit_OneOverLimit(t *testing.T) {
+	t.Parallel()
 	handler := BodyLimit(10)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))

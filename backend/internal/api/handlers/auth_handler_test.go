@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/aloks98/goauth/middleware"
@@ -16,6 +18,7 @@ import (
 	"github.com/aloks98/goauth/token"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/service/mocks"
 	"github.com/aloks98/waygates/backend/internal/utils"
 	"github.com/aloks98/waygates/backend/internal/validation"
 )
@@ -1038,4 +1041,545 @@ func TestSuccessResponseFormat(t *testing.T) {
 	if response.Message != "Test message" {
 		t.Errorf("Expected message 'Test message', got '%s'", response.Message)
 	}
+}
+
+// TestChangePassword tests password change functionality
+func TestChangePassword(t *testing.T) {
+	t.Parallel()
+
+	// Helper to create test user with known password
+	makeTestUser := func(t *testing.T, password string) *models.User {
+		t.Helper()
+		user := &models.User{
+			ID:       1,
+			Name:     "Test User",
+			Username: "testuser",
+			Email:    "test@example.com",
+		}
+		if err := user.SetPassword(password, 4); err != nil {
+			t.Fatalf("Failed to set password: %v", err)
+		}
+		return user
+	}
+
+	tests := []struct {
+		name           string
+		requestBody    interface{}
+		setupContext   func(*http.Request) *http.Request
+		setupMocks     func(*MockUserRepository, *MockAuthProvider)
+		expectedStatus int
+		checkResponse  func(*testing.T, *httptest.ResponseRecorder)
+	}{
+		{
+			name: "success - password changed",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				testUser := makeTestUser(t, "oldpassword123")
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return testUser, nil
+				}
+				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+					return nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.SuccessResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.True(t, response.Success)
+				assert.Equal(t, "Password changed successfully", response.Message)
+			},
+		},
+		{
+			name:        "error - not authenticated (no user ID in context)",
+			requestBody: ChangePasswordRequest{CurrentPassword: "old", NewPassword: "newpassword123"},
+			setupContext: func(r *http.Request) *http.Request {
+				return r // No context modification - no user ID
+			},
+			expectedStatus: http.StatusUnauthorized,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Not authenticated", response.Error.Message)
+			},
+		},
+		{
+			name:        "error - invalid request body (malformed JSON)",
+			requestBody: `{invalid json}`,
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Invalid request body", response.Error.Message)
+			},
+		},
+		{
+			name: "error - missing current password",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Current password and new password are required", response.Error.Message)
+			},
+		},
+		{
+			name: "error - missing new password",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Current password and new password are required", response.Error.Message)
+			},
+		},
+		{
+			name: "error - both passwords missing",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "",
+				NewPassword:     "",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Current password and new password are required", response.Error.Message)
+			},
+		},
+		{
+			name: "error - new password too short (less than 8 characters)",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "short",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "New password must be at least 8 characters", response.Error.Message)
+			},
+		},
+		{
+			name: "error - new password exactly 7 characters (boundary)",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "1234567",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "New password must be at least 8 characters", response.Error.Message)
+			},
+		},
+		{
+			name: "success - new password exactly 8 characters (boundary)",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "12345678",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				testUser := makeTestUser(t, "oldpassword123")
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return testUser, nil
+				}
+				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+					return nil
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "error - user not found",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "999")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "User not found", response.Error.Message)
+			},
+		},
+		{
+			name: "error - wrong current password",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "wrongpassword",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				testUser := makeTestUser(t, "correctpassword123")
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return testUser, nil
+				}
+			},
+			expectedStatus: http.StatusUnauthorized,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Current password is incorrect", response.Error.Message)
+			},
+		},
+		{
+			name: "error - database error when updating password",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				testUser := makeTestUser(t, "oldpassword123")
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return testUser, nil
+				}
+				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+					return errors.New("database connection error")
+				}
+			},
+			expectedStatus: http.StatusInternalServerError,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "Failed to update password", response.Error.Message)
+			},
+		},
+		{
+			name: "error - database error when fetching user",
+			requestBody: ChangePasswordRequest{
+				CurrentPassword: "oldpassword123",
+				NewPassword:     "newpassword123",
+			},
+			setupContext: func(r *http.Request) *http.Request {
+				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
+				return r.WithContext(ctx)
+			},
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+					return nil, errors.New("database connection error")
+				}
+			},
+			expectedStatus: http.StatusNotFound,
+			checkResponse: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var response utils.ErrorResponse
+				err := json.Unmarshal(rec.Body.Bytes(), &response)
+				require.NoError(t, err)
+				assert.False(t, response.Success)
+				assert.Equal(t, "User not found", response.Error.Message)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			userRepo := &MockUserRepository{}
+			authProvider := &MockAuthProvider{}
+
+			if tc.setupMocks != nil {
+				tc.setupMocks(userRepo, authProvider)
+			}
+
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4) // Low bcrypt cost for tests
+
+			var body []byte
+			switch v := tc.requestBody.(type) {
+			case string:
+				body = []byte(v)
+			default:
+				body, _ = json.Marshal(v)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			if tc.setupContext != nil {
+				req = tc.setupContext(req)
+			}
+			rec := httptest.NewRecorder()
+
+			handler.ChangePassword(rec, req)
+
+			if rec.Code != tc.expectedStatus {
+				t.Errorf("Expected status %d, got %d. Body: %s", tc.expectedStatus, rec.Code, rec.Body.String())
+			}
+
+			if tc.checkResponse != nil {
+				tc.checkResponse(t, rec)
+			}
+		})
+	}
+}
+
+// TestChangePassword_WithAuditLogging tests that password changes are properly audit logged
+func TestChangePassword_WithAuditLogging(t *testing.T) {
+	t.Parallel()
+
+	testUser := &models.User{
+		ID:       1,
+		Name:     "Test User",
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	if err := testUser.SetPassword("oldpassword123", 4); err != nil {
+		t.Fatalf("Failed to set password: %v", err)
+	}
+
+	auditLogCalled := false
+	mockAuditService := &mocks.MockAuditService{
+		LogPasswordChangeFunc: func(ctx context.Context, userID int, username string, ip, userAgent string) error {
+			auditLogCalled = true
+			assert.Equal(t, 1, userID)
+			assert.Equal(t, "testuser", username)
+			return nil
+		},
+	}
+
+	userRepo := &MockUserRepository{
+		GetByIDFunc: func(id int) (*models.User, error) {
+			return testUser, nil
+		},
+		UpdatePasswordFunc: func(id int, passwordHash string) error {
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4)
+
+	reqBody := ChangePasswordRequest{
+		CurrentPassword: "oldpassword123",
+		NewPassword:     "newpassword123",
+	}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Test-Agent")
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, "1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ChangePassword(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, auditLogCalled, "Audit log should be called on successful password change")
+}
+
+// TestChangePassword_AuditLoggingNotCalledOnFailure tests that audit logging is not called when password change fails
+func TestChangePassword_AuditLoggingNotCalledOnFailure(t *testing.T) {
+	t.Parallel()
+
+	testUser := &models.User{
+		ID:       1,
+		Name:     "Test User",
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	if err := testUser.SetPassword("oldpassword123", 4); err != nil {
+		t.Fatalf("Failed to set password: %v", err)
+	}
+
+	auditLogCalled := false
+	mockAuditService := &mocks.MockAuditService{
+		LogPasswordChangeFunc: func(ctx context.Context, userID int, username string, ip, userAgent string) error {
+			auditLogCalled = true
+			return nil
+		},
+	}
+
+	userRepo := &MockUserRepository{
+		GetByIDFunc: func(id int) (*models.User, error) {
+			return testUser, nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4)
+
+	// Try with wrong password
+	reqBody := ChangePasswordRequest{
+		CurrentPassword: "wrongpassword",
+		NewPassword:     "newpassword123",
+	}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, "1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ChangePassword(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.False(t, auditLogCalled, "Audit log should NOT be called when password change fails")
+}
+
+// TestChangePassword_PasswordHashActuallyUpdated verifies the new password hash is different from the old one
+func TestChangePassword_PasswordHashActuallyUpdated(t *testing.T) {
+	t.Parallel()
+
+	testUser := &models.User{
+		ID:       1,
+		Name:     "Test User",
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	if err := testUser.SetPassword("oldpassword123", 4); err != nil {
+		t.Fatalf("Failed to set password: %v", err)
+	}
+	originalHash := testUser.PasswordHash
+
+	var updatedHash string
+	userRepo := &MockUserRepository{
+		GetByIDFunc: func(id int) (*models.User, error) {
+			return testUser, nil
+		},
+		UpdatePasswordFunc: func(id int, passwordHash string) error {
+			updatedHash = passwordHash
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4)
+
+	reqBody := ChangePasswordRequest{
+		CurrentPassword: "oldpassword123",
+		NewPassword:     "newpassword123",
+	}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, "1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ChangePassword(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.NotEmpty(t, updatedHash, "Password hash should be updated")
+	assert.NotEqual(t, originalHash, updatedHash, "New password hash should be different from original")
+}
+
+// TestChangePassword_CorrectUserIDUsed verifies the correct user ID is passed to repository
+func TestChangePassword_CorrectUserIDUsed(t *testing.T) {
+	t.Parallel()
+
+	testUser := &models.User{
+		ID:       42,
+		Name:     "Test User",
+		Username: "testuser",
+		Email:    "test@example.com",
+	}
+	if err := testUser.SetPassword("oldpassword123", 4); err != nil {
+		t.Fatalf("Failed to set password: %v", err)
+	}
+
+	var getByIDCalledWith int
+	var updatePasswordCalledWith int
+
+	userRepo := &MockUserRepository{
+		GetByIDFunc: func(id int) (*models.User, error) {
+			getByIDCalledWith = id
+			return testUser, nil
+		},
+		UpdatePasswordFunc: func(id int, passwordHash string) error {
+			updatePasswordCalledWith = id
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4)
+
+	reqBody := ChangePasswordRequest{
+		CurrentPassword: "oldpassword123",
+		NewPassword:     "newpassword123",
+	}
+	body, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, "42")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ChangePassword(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, 42, getByIDCalledWith, "GetByID should be called with user ID 42")
+	assert.Equal(t, 42, updatePasswordCalledWith, "UpdatePassword should be called with user ID 42")
 }

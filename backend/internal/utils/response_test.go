@@ -8,6 +8,7 @@ import (
 )
 
 func TestJSON(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		statusCode     int
@@ -66,6 +67,7 @@ func TestJSON(t *testing.T) {
 }
 
 func TestJSON_MarshalError(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 
 	// channels cannot be marshaled to JSON
@@ -83,6 +85,7 @@ func TestJSON_MarshalError(t *testing.T) {
 }
 
 func TestSuccess(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	data := map[string]int{"count": 42}
 	Success(w, data, "Data retrieved successfully")
@@ -105,6 +108,7 @@ func TestSuccess(t *testing.T) {
 }
 
 func TestCreated(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	data := map[string]int{"id": 1}
 	Created(w, data, "Resource created")
@@ -127,6 +131,7 @@ func TestCreated(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	Error(w, http.StatusTeapot, "TEAPOT", "I'm a teapot", map[string]string{"detail": "brew coffee"})
 
@@ -151,6 +156,7 @@ func TestError(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	BadRequest(w, "Invalid input", []string{"field1 is required"})
 
@@ -169,6 +175,7 @@ func TestBadRequest(t *testing.T) {
 }
 
 func TestUnauthorized(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	Unauthorized(w, "Invalid credentials")
 
@@ -187,6 +194,7 @@ func TestUnauthorized(t *testing.T) {
 }
 
 func TestForbidden(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	Forbidden(w, "Access denied")
 
@@ -205,6 +213,7 @@ func TestForbidden(t *testing.T) {
 }
 
 func TestNotFound(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	NotFound(w, "Resource not found")
 
@@ -223,6 +232,7 @@ func TestNotFound(t *testing.T) {
 }
 
 func TestConflict(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	Conflict(w, "Resource already exists")
 
@@ -241,6 +251,7 @@ func TestConflict(t *testing.T) {
 }
 
 func TestInternalError(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	InternalError(w, "Something went wrong")
 
@@ -259,6 +270,7 @@ func TestInternalError(t *testing.T) {
 }
 
 func TestBadGateway(t *testing.T) {
+	t.Parallel()
 	w := httptest.NewRecorder()
 	BadGateway(w, "Upstream service unavailable")
 
