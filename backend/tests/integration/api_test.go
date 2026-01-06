@@ -75,9 +75,6 @@ func SetupContainerEnvironment(t *testing.T) *ContainerTestEnv {
 	}
 	env.PostgresContainer = postgresContainer
 
-	// Wait for postgres to be ready
-	time.Sleep(2 * time.Second)
-
 	// Get the path to test Caddyfile
 	// This Caddyfile disables TLS automation for testing
 	testCaddyfile := findTestCaddyfile(t)
@@ -201,7 +198,10 @@ func (env *ContainerTestEnv) RegisterAndLogin(t *testing.T) {
 		"email":    "test@example.com",
 		"password": "testpassword123",
 	}
-	body, _ := json.Marshal(registerBody)
+	body, err := json.Marshal(registerBody)
+	if err != nil {
+		t.Fatalf("Failed to marshal register body: %v", err)
+	}
 
 	resp, err := http.Post(env.BaseURL+"/api/auth/register", "application/json", bytes.NewBuffer(body))
 	if err != nil {
@@ -219,7 +219,10 @@ func (env *ContainerTestEnv) RegisterAndLogin(t *testing.T) {
 		"identifier": "testuser",
 		"password":   "testpassword123",
 	}
-	body, _ = json.Marshal(loginBody)
+	body, err = json.Marshal(loginBody)
+	if err != nil {
+		t.Fatalf("Failed to marshal login body: %v", err)
+	}
 
 	resp, err = http.Post(env.BaseURL+"/api/auth/login", "application/json", bytes.NewBuffer(body))
 	if err != nil {
@@ -250,9 +253,13 @@ func (env *ContainerTestEnv) RegisterAndLogin(t *testing.T) {
 
 // MakeAuthenticatedRequest makes an authenticated HTTP request
 func (env *ContainerTestEnv) MakeAuthenticatedRequest(t *testing.T, method, path string, body interface{}) *http.Response {
+	t.Helper()
 	var reqBody io.Reader
 	if body != nil {
-		jsonBody, _ := json.Marshal(body)
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("Failed to marshal request body: %v", err)
+		}
 		reqBody = bytes.NewBuffer(jsonBody)
 	}
 
@@ -315,6 +322,105 @@ func (env *ContainerTestEnv) ReadMainCaddyfile(t *testing.T) (string, error) {
 	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/Caddyfile"})
 }
 
+// WaitForProxyFile waits for a proxy file to exist with timeout
+func (env *ContainerTestEnv) WaitForProxyFile(t *testing.T, filename string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		if env.ProxyFileExists(t, filename) {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+// WaitForProxyFileRemoved waits for a proxy file to be removed with timeout
+func (env *ContainerTestEnv) WaitForProxyFileRemoved(t *testing.T, filename string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		if !env.ProxyFileExists(t, filename) {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+// WaitForDisabledProxyFile waits for a disabled proxy file to exist with timeout
+func (env *ContainerTestEnv) WaitForDisabledProxyFile(t *testing.T, filename string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		if env.DisabledProxyFileExists(t, filename) {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+// WaitForDisabledProxyFileRemoved waits for a disabled proxy file to be removed with timeout
+func (env *ContainerTestEnv) WaitForDisabledProxyFileRemoved(t *testing.T, filename string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		if !env.DisabledProxyFileExists(t, filename) {
+			return true
+		}
+		time.Sleep(pollInterval)
+	}
+	return false
+}
+
+// ReadJSONResponse reads response body and unmarshals to v
+func (env *ContainerTestEnv) ReadJSONResponse(t *testing.T, resp *http.Response, v interface{}) []byte {
+	t.Helper()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body: %v", err)
+	}
+	if v != nil {
+		if err := json.Unmarshal(body, v); err != nil {
+			t.Fatalf("Failed to unmarshal response: %v\nBody: %s", err, string(body))
+		}
+	}
+	return body
+}
+
+// WaitForSyncComplete waits for sync to complete by polling sync status
+func (env *ContainerTestEnv) WaitForSyncComplete(t *testing.T, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	pollInterval := 100 * time.Millisecond
+
+	for time.Now().Before(deadline) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/sync/status", nil)
+		var status struct {
+			Data struct {
+				IsSyncing bool `json:"is_syncing"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, resp, &status)
+		_ = resp.Body.Close()
+
+		if !status.Data.IsSyncing {
+			return
+		}
+		time.Sleep(pollInterval)
+	}
+	t.Logf("Warning: sync did not complete within %v timeout", timeout)
+}
+
 // findTestCaddyfile locates the test Caddyfile
 func findTestCaddyfile(t *testing.T) string {
 	// Get the current working directory
@@ -359,21 +465,31 @@ func sanitizeHostname(hostname string) string {
 }
 
 // TestIntegration_ProxyLifecycle tests the full proxy lifecycle
+// NOTE: Subtests in this function share state (createdProxyID) and MUST run sequentially.
+// Do NOT add t.Parallel() to any subtest as they depend on the order of execution.
 func TestIntegration_ProxyLifecycle(t *testing.T) {
 	env := SetupContainerEnvironment(t)
 	defer env.Cleanup(t)
 
 	env.RegisterAndLogin(t)
 
-	var createdProxyID int
-	hostname := "test.example.com"
+	// proxyState holds state shared between sequential subtests
+	type proxyState struct {
+		id              int
+		hostname        string
+		updatedHostname string
+	}
+	state := &proxyState{
+		hostname:        "test.example.com",
+		updatedHostname: "updated.example.com",
+	}
 
 	// Test 1: Create a proxy
 	t.Run("CreateProxy", func(t *testing.T) {
 		proxy := map[string]interface{}{
 			"type":     "reverse_proxy",
 			"name":     "Test Backend",
-			"hostname": hostname,
+			"hostname": state.hostname,
 			"upstreams": []map[string]interface{}{
 				{
 					"host":   "httpbin.org",
@@ -406,23 +522,23 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		if response.Data.ID == 0 {
 			t.Error("Expected proxy ID to be set")
 		}
-		createdProxyID = response.Data.ID
-		if response.Data.Hostname != hostname {
-			t.Errorf("Expected hostname '%s', got '%s'", hostname, response.Data.Hostname)
+		state.id = response.Data.ID
+		if response.Data.Hostname != state.hostname {
+			t.Errorf("Expected hostname '%s', got '%s'", state.hostname, response.Data.Hostname)
 		}
 
 		t.Logf("Created proxy with ID: %d", response.Data.ID)
 
-		// Verify proxy file was created
-		expectedFilename := fmt.Sprintf("%d_%s.conf", createdProxyID, sanitizeHostname(hostname))
-		if !env.ProxyFileExists(t, expectedFilename) {
+		// Verify proxy file was created (with polling)
+		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.hostname))
+		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 			t.Errorf("Expected proxy file %s to exist", expectedFilename)
 		} else {
 			content, err := env.ReadProxyFile(t, expectedFilename)
 			if err != nil {
 				t.Errorf("Failed to read proxy file: %v", err)
 			} else {
-				if !strings.Contains(content, hostname) {
+				if !strings.Contains(content, state.hostname) {
 					t.Error("Proxy file should contain hostname")
 				}
 				if !strings.Contains(content, "reverse_proxy") {
@@ -464,7 +580,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 
 	// Test 3: Get proxy by ID
 	t.Run("GetProxy", func(t *testing.T) {
-		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", createdProxyID), nil)
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusOK {
@@ -473,14 +589,12 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		}
 	})
 
-	updatedHostname := "updated.example.com"
-
 	// Test 4: Update proxy
 	t.Run("UpdateProxy", func(t *testing.T) {
 		updateData := map[string]interface{}{
 			"type":     "reverse_proxy",
 			"name":     "Updated Backend",
-			"hostname": updatedHostname,
+			"hostname": state.updatedHostname,
 			"upstreams": []map[string]interface{}{
 				{
 					"host":   "httpbin.org",
@@ -490,7 +604,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			},
 		}
 
-		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/proxies/%d", createdProxyID), updateData)
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/proxies/%d", state.id), updateData)
 		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ := io.ReadAll(resp.Body)
@@ -499,7 +613,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		}
 
 		// Verify the update
-		resp = env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", createdProxyID), nil)
+		resp = env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ = io.ReadAll(resp.Body)
@@ -516,20 +630,20 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		if response.Data.Name != "Updated Backend" {
 			t.Errorf("Expected name 'Updated Backend', got '%s'", response.Data.Name)
 		}
-		if response.Data.Hostname != updatedHostname {
-			t.Errorf("Expected hostname '%s', got '%s'", updatedHostname, response.Data.Hostname)
+		if response.Data.Hostname != state.updatedHostname {
+			t.Errorf("Expected hostname '%s', got '%s'", state.updatedHostname, response.Data.Hostname)
 		}
 
-		// Verify proxy file was updated
-		expectedFilename := fmt.Sprintf("%d_%s.conf", createdProxyID, sanitizeHostname(updatedHostname))
-		if !env.ProxyFileExists(t, expectedFilename) {
+		// Verify proxy file was updated (with polling)
+		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
+		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 			t.Errorf("Expected updated proxy file %s to exist", expectedFilename)
 		} else {
 			content, err := env.ReadProxyFile(t, expectedFilename)
 			if err != nil {
 				t.Errorf("Failed to read proxy file: %v", err)
 			} else {
-				if !strings.Contains(content, updatedHostname) {
+				if !strings.Contains(content, state.updatedHostname) {
 					t.Error("Proxy file should contain updated hostname")
 				}
 				t.Logf("Updated proxy file content:\n%s", content)
@@ -539,7 +653,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 
 	// Test 5: Disable proxy
 	t.Run("DisableProxy", func(t *testing.T) {
-		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/disable", createdProxyID), nil)
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/disable", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ := io.ReadAll(resp.Body)
@@ -547,12 +661,12 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify proxy file was renamed to .disabled
-		expectedFilename := fmt.Sprintf("%d_%s.conf", createdProxyID, sanitizeHostname(updatedHostname))
-		if env.ProxyFileExists(t, expectedFilename) {
+		// Verify proxy file was renamed to .disabled (with polling)
+		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
+		if !env.WaitForProxyFileRemoved(t, expectedFilename, 5*time.Second) {
 			t.Error("Enabled proxy file should not exist after disable")
 		}
-		if !env.DisabledProxyFileExists(t, expectedFilename) {
+		if !env.WaitForDisabledProxyFile(t, expectedFilename, 5*time.Second) {
 			t.Error("Disabled proxy file should exist after disable")
 		}
 		t.Log("Proxy disabled - file renamed to .disabled")
@@ -560,7 +674,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 
 	// Test 6: Enable proxy
 	t.Run("EnableProxy", func(t *testing.T) {
-		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/enable", createdProxyID), nil)
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/enable", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ := io.ReadAll(resp.Body)
@@ -568,12 +682,12 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify proxy file was renamed back
-		expectedFilename := fmt.Sprintf("%d_%s.conf", createdProxyID, sanitizeHostname(updatedHostname))
-		if !env.ProxyFileExists(t, expectedFilename) {
+		// Verify proxy file was renamed back (with polling)
+		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
+		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 			t.Error("Enabled proxy file should exist after enable")
 		}
-		if env.DisabledProxyFileExists(t, expectedFilename) {
+		if !env.WaitForDisabledProxyFileRemoved(t, expectedFilename, 5*time.Second) {
 			t.Error("Disabled proxy file should not exist after enable")
 		}
 		t.Log("Proxy enabled - file restored from .disabled")
@@ -581,7 +695,7 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 
 	// Test 7: Delete proxy
 	t.Run("DeleteProxy", func(t *testing.T) {
-		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d", createdProxyID), nil)
+		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		respBody, _ := io.ReadAll(resp.Body)
@@ -590,19 +704,19 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 		}
 
 		// Verify proxy is deleted
-		resp = env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", createdProxyID), nil)
+		resp = env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", state.id), nil)
 		defer func() { _ = resp.Body.Close() }()
 
 		if resp.StatusCode != http.StatusNotFound {
 			t.Errorf("Expected 404 after delete, got %d", resp.StatusCode)
 		}
 
-		// Verify proxy file was deleted
-		expectedFilename := fmt.Sprintf("%d_%s.conf", createdProxyID, sanitizeHostname(updatedHostname))
-		if env.ProxyFileExists(t, expectedFilename) {
+		// Verify proxy file was deleted (with polling)
+		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
+		if !env.WaitForProxyFileRemoved(t, expectedFilename, 5*time.Second) {
 			t.Error("Proxy file should not exist after delete")
 		}
-		if env.DisabledProxyFileExists(t, expectedFilename) {
+		if !env.WaitForDisabledProxyFileRemoved(t, expectedFilename, 5*time.Second) {
 			t.Error("Disabled proxy file should not exist after delete")
 		}
 		t.Log("Proxy deleted - file removed")
@@ -648,9 +762,9 @@ func TestIntegration_RedirectProxy(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with redirect config
+	// Verify proxy file was created with redirect config (with polling)
 	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.ProxyFileExists(t, expectedFilename) {
+	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
 	}
 
@@ -712,9 +826,9 @@ func TestIntegration_StaticProxy(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with static config
+	// Verify proxy file was created with static config (with polling)
 	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.ProxyFileExists(t, expectedFilename) {
+	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
 	}
 
@@ -1047,8 +1161,8 @@ func TestIntegration_SyncAPI(t *testing.T) {
 		}
 		t.Logf("Sync trigger response: %s", response.Message)
 
-		// Wait a moment for sync to complete
-		time.Sleep(500 * time.Millisecond)
+		// Wait for sync to complete (with polling)
+		env.WaitForSyncComplete(t, 5*time.Second)
 
 		// Verify Caddyfile was generated
 		content, err := env.ReadMainCaddyfile(t)
@@ -1115,9 +1229,9 @@ func TestIntegration_ReverseProxy_LoadBalancing(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with load balancing config
+	// Verify proxy file was created with load balancing config (with polling)
 	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.ProxyFileExists(t, expectedFilename) {
+	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
 	}
 
@@ -1187,9 +1301,9 @@ func TestIntegration_ReverseProxy_BlockExploits(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with security import
+	// Verify proxy file was created with security import (with polling)
 	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.ProxyFileExists(t, expectedFilename) {
+	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
 		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
 	}
 
@@ -1204,4 +1318,102 @@ func TestIntegration_ReverseProxy_BlockExploits(t *testing.T) {
 	}
 
 	t.Logf("Secure proxy file content:\n%s", content)
+}
+
+// TestIntegration_AuthErrors tests authentication error handling
+func TestIntegration_AuthErrors(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	// Test 1: Missing Authorization header
+	t.Run("MissingAuthHeader", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, env.BaseURL+"/api/proxies", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		// Intentionally not setting Authorization header
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected 401 Unauthorized for missing auth header, got %d: %s", resp.StatusCode, string(respBody))
+		}
+		t.Log("Correctly rejected request without Authorization header")
+	})
+
+	// Test 2: Invalid/malformed token
+	t.Run("InvalidToken", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, env.BaseURL+"/api/proxies", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer invalid-token-that-is-not-a-valid-jwt")
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected 401 Unauthorized for invalid token, got %d: %s", resp.StatusCode, string(respBody))
+		}
+		t.Log("Correctly rejected request with invalid token")
+	})
+
+	// Test 3: Malformed Authorization header (missing Bearer prefix)
+	t.Run("MalformedAuthHeader", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, env.BaseURL+"/api/proxies", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "some-token-without-bearer-prefix")
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected 401 Unauthorized for malformed auth header, got %d: %s", resp.StatusCode, string(respBody))
+		}
+		t.Log("Correctly rejected request with malformed Authorization header")
+	})
+
+	// Test 4: Empty Bearer token
+	t.Run("EmptyBearerToken", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, env.BaseURL+"/api/proxies", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer ")
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Failed to make request: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Errorf("Expected 401 Unauthorized for empty bearer token, got %d: %s", resp.StatusCode, string(respBody))
+		}
+		t.Log("Correctly rejected request with empty Bearer token")
+	})
 }
