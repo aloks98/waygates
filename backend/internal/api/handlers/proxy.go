@@ -272,22 +272,23 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch existing proxy for change tracking and ssl_enabled preservation
+	existing, err := h.service.GetProxyByID(id)
+	if err != nil {
+		if errors.Is(err, service.ErrProxyNotFound) {
+			utils.NotFound(w, "Proxy not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get proxy")
+		return
+	}
+
 	proxy := req.Proxy
 
 	// Handle ssl_enabled - if explicitly provided, use it; otherwise keep existing value
 	if req.SSLEnabled != nil {
 		proxy.SSLEnabled = *req.SSLEnabled
 	} else {
-		// Fetch existing proxy to preserve ssl_enabled
-		existing, err := h.service.GetProxyByID(id)
-		if err != nil {
-			if errors.Is(err, service.ErrProxyNotFound) {
-				utils.NotFound(w, "Proxy not found")
-				return
-			}
-			utils.InternalError(w, "Failed to get proxy")
-			return
-		}
 		proxy.SSLEnabled = existing.SSLEnabled
 	}
 
@@ -311,9 +312,10 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log audit event
+	// Log audit event with change tracking
 	if h.auditService != nil && userID > 0 {
-		_ = h.auditService.LogProxyUpdate(r.Context(), userID, &proxy, nil, getClientIP(r), r.UserAgent())
+		changes := buildProxyChanges(existing, &proxy)
+		_ = h.auditService.LogProxyUpdate(r.Context(), userID, &proxy, changes, getClientIP(r), r.UserAgent())
 	}
 
 	// Return updated proxy
@@ -454,4 +456,96 @@ func (h *ProxyHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.Success(w, stats, "")
+}
+
+// buildProxyChanges compares old and new proxy values and returns a map of changes.
+// Each changed field is represented as {"old": oldValue, "new": newValue}.
+// Returns nil if no tracked fields changed.
+func buildProxyChanges(old, new *models.Proxy) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	// Track hostname changes
+	if old.Hostname != new.Hostname {
+		changes["hostname"] = map[string]interface{}{
+			"old": old.Hostname,
+			"new": new.Hostname,
+		}
+	}
+
+	// Track type changes
+	if old.Type != new.Type {
+		changes["type"] = map[string]interface{}{
+			"old": old.Type,
+			"new": new.Type,
+		}
+	}
+
+	// Track ssl_enabled changes
+	if old.SSLEnabled != new.SSLEnabled {
+		changes["ssl_enabled"] = map[string]interface{}{
+			"old": old.SSLEnabled,
+			"new": new.SSLEnabled,
+		}
+	}
+
+	// Track is_active changes
+	if old.IsActive != new.IsActive {
+		changes["is_active"] = map[string]interface{}{
+			"old": old.IsActive,
+			"new": new.IsActive,
+		}
+	}
+
+	// Track name changes
+	if old.Name != new.Name {
+		changes["name"] = map[string]interface{}{
+			"old": old.Name,
+			"new": new.Name,
+		}
+	}
+
+	// Track upstreams changes (compare JSON representation)
+	if !jsonEqual(old.Upstreams, new.Upstreams) {
+		changes["upstreams"] = map[string]interface{}{
+			"old": old.Upstreams,
+			"new": new.Upstreams,
+		}
+	}
+
+	// Track redirect config changes
+	if !jsonEqual(old.RedirectConfig, new.RedirectConfig) {
+		changes["redirect"] = map[string]interface{}{
+			"old": old.RedirectConfig,
+			"new": new.RedirectConfig,
+		}
+	}
+
+	if len(changes) == 0 {
+		return nil
+	}
+
+	return changes
+}
+
+// jsonEqual compares two interface values by their JSON representation.
+// This handles comparison of complex types like slices, maps, and JSONField.
+func jsonEqual(a, b interface{}) bool {
+	// Handle nil cases
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	// Marshal both values to JSON for comparison
+	aJSON, errA := json.Marshal(a)
+	bJSON, errB := json.Marshal(b)
+
+	if errA != nil || errB != nil {
+		// If marshaling fails, fall back to direct comparison
+		return false
+	}
+
+	return string(aJSON) == string(bJSON)
 }

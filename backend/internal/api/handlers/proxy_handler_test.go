@@ -423,6 +423,9 @@ func TestCreateProxy_ValidationError(t *testing.T) {
 func TestUpdateProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: true}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return nil
 		},
@@ -492,8 +495,8 @@ func TestUpdateProxy_InvalidJSON(t *testing.T) {
 func TestUpdateProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
-			return service.ErrProxyNotFound
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return nil, service.ErrProxyNotFound
 		},
 	}
 	handler := NewProxyHandler(mockService, nil)
@@ -514,6 +517,9 @@ func TestUpdateProxy_NotFound(t *testing.T) {
 func TestUpdateProxy_HostnameConflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "old.example.com", SSLEnabled: true}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return service.ErrHostnameConflict
 		},
@@ -536,6 +542,9 @@ func TestUpdateProxy_HostnameConflict(t *testing.T) {
 func TestUpdateProxy_CaddyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return service.NewCaddyError("caddy reload failed")
 		},
@@ -558,6 +567,9 @@ func TestUpdateProxy_CaddyError(t *testing.T) {
 func TestUpdateProxy_ValidationError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return errors.New("validation: invalid hostname format")
 		},
@@ -1405,6 +1417,9 @@ func TestUpdateProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: false}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return nil
 		},
@@ -1413,6 +1428,8 @@ func TestUpdateProxy_WithAuditService(t *testing.T) {
 		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
+			// Verify changes were captured
+			assert.NotNil(t, changes, "changes map should not be nil when fields changed")
 			return nil
 		},
 	}
@@ -1612,6 +1629,9 @@ func TestDisableProxy_WithAuditService_GetProxyError(t *testing.T) {
 func TestUpdateProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+		},
 		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
 			return nil
 		},
@@ -1734,6 +1754,296 @@ func TestDisableProxy_WithoutUserID_NoAudit(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.False(t, auditCalled, "audit should not be called when userID is 0")
+}
+
+// =============================================================================
+// Change Tracking Tests
+// =============================================================================
+
+func TestBuildProxyChanges_NoChanges(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{
+		ID:         1,
+		Name:       "Test Proxy",
+		Hostname:   "test.example.com",
+		Type:       "reverse_proxy",
+		SSLEnabled: true,
+		IsActive:   true,
+	}
+	new := &models.Proxy{
+		ID:         1,
+		Name:       "Test Proxy",
+		Hostname:   "test.example.com",
+		Type:       "reverse_proxy",
+		SSLEnabled: true,
+		IsActive:   true,
+	}
+
+	changes := buildProxyChanges(old, new)
+
+	assert.Nil(t, changes, "should return nil when no changes")
+}
+
+func TestBuildProxyChanges_HostnameChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{Hostname: "old.example.com"}
+	new := &models.Proxy{Hostname: "new.example.com"}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "hostname")
+	hostnameChange := changes["hostname"].(map[string]interface{})
+	assert.Equal(t, "old.example.com", hostnameChange["old"])
+	assert.Equal(t, "new.example.com", hostnameChange["new"])
+}
+
+func TestBuildProxyChanges_NameChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{Name: "Old Name"}
+	new := &models.Proxy{Name: "New Name"}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "name")
+	nameChange := changes["name"].(map[string]interface{})
+	assert.Equal(t, "Old Name", nameChange["old"])
+	assert.Equal(t, "New Name", nameChange["new"])
+}
+
+func TestBuildProxyChanges_TypeChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{Type: "reverse_proxy"}
+	new := &models.Proxy{Type: "redirect"}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "type")
+	typeChange := changes["type"].(map[string]interface{})
+	assert.Equal(t, "reverse_proxy", typeChange["old"])
+	assert.Equal(t, "redirect", typeChange["new"])
+}
+
+func TestBuildProxyChanges_SSLEnabledChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{SSLEnabled: true}
+	new := &models.Proxy{SSLEnabled: false}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "ssl_enabled")
+	sslChange := changes["ssl_enabled"].(map[string]interface{})
+	assert.Equal(t, true, sslChange["old"])
+	assert.Equal(t, false, sslChange["new"])
+}
+
+func TestBuildProxyChanges_IsActiveChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{IsActive: true}
+	new := &models.Proxy{IsActive: false}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "is_active")
+	activeChange := changes["is_active"].(map[string]interface{})
+	assert.Equal(t, true, activeChange["old"])
+	assert.Equal(t, false, activeChange["new"])
+}
+
+func TestBuildProxyChanges_UpstreamsChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{Upstreams: []interface{}{"http://localhost:8080"}}
+	new := &models.Proxy{Upstreams: []interface{}{"http://localhost:9090"}}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "upstreams")
+}
+
+func TestBuildProxyChanges_RedirectChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{RedirectConfig: models.JSONField{"url": "https://old.example.com"}}
+	new := &models.Proxy{RedirectConfig: models.JSONField{"url": "https://new.example.com"}}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "redirect")
+}
+
+func TestBuildProxyChanges_MultipleChanges(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{
+		Name:       "Old Name",
+		Hostname:   "old.example.com",
+		SSLEnabled: true,
+	}
+	new := &models.Proxy{
+		Name:       "New Name",
+		Hostname:   "new.example.com",
+		SSLEnabled: false,
+	}
+
+	changes := buildProxyChanges(old, new)
+
+	require.NotNil(t, changes)
+	assert.Len(t, changes, 3, "should have 3 changes")
+	assert.Contains(t, changes, "name")
+	assert.Contains(t, changes, "hostname")
+	assert.Contains(t, changes, "ssl_enabled")
+}
+
+func TestUpdateProxy_WithAuditService_ChangesTracked(t *testing.T) {
+	t.Parallel()
+	var capturedChanges map[string]interface{}
+	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{
+				ID:         1,
+				Name:       "Old Name",
+				Hostname:   "old.example.com",
+				Type:       "reverse_proxy",
+				SSLEnabled: false,
+				IsActive:   true,
+			}, nil
+		},
+		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+			return nil
+		},
+	}
+	mockAuditService := &mocks.MockAuditService{
+		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+			capturedChanges = changes
+			return nil
+		},
+	}
+	handler := NewProxyHandler(mockService, mockAuditService)
+
+	r := chi.NewRouter()
+	r.Put("/api/proxies/{id}", handler.UpdateProxy)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":        "New Name",
+		"hostname":    "new.example.com",
+		"type":        "reverse_proxy",
+		"ssl_enabled": true,
+	})
+	req := requestWithUserID(http.MethodPut, "/api/proxies/1", body, "123")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, capturedChanges, "changes should be captured")
+
+	// Verify specific changes
+	assert.Contains(t, capturedChanges, "name")
+	assert.Contains(t, capturedChanges, "hostname")
+	assert.Contains(t, capturedChanges, "ssl_enabled")
+
+	// Verify name change structure
+	nameChange := capturedChanges["name"].(map[string]interface{})
+	assert.Equal(t, "Old Name", nameChange["old"])
+	assert.Equal(t, "New Name", nameChange["new"])
+
+	// Verify hostname change structure
+	hostnameChange := capturedChanges["hostname"].(map[string]interface{})
+	assert.Equal(t, "old.example.com", hostnameChange["old"])
+	assert.Equal(t, "new.example.com", hostnameChange["new"])
+
+	// Verify ssl_enabled change structure
+	sslChange := capturedChanges["ssl_enabled"].(map[string]interface{})
+	assert.Equal(t, false, sslChange["old"])
+	assert.Equal(t, true, sslChange["new"])
+}
+
+func TestUpdateProxy_WithAuditService_NoChanges(t *testing.T) {
+	t.Parallel()
+	var capturedChanges map[string]interface{}
+	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{
+				ID:         1,
+				Name:       "Same Name",
+				Hostname:   "same.example.com",
+				Type:       "reverse_proxy",
+				SSLEnabled: true,
+			}, nil
+		},
+		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+			return nil
+		},
+	}
+	mockAuditService := &mocks.MockAuditService{
+		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+			capturedChanges = changes
+			return nil
+		},
+	}
+	handler := NewProxyHandler(mockService, mockAuditService)
+
+	r := chi.NewRouter()
+	r.Put("/api/proxies/{id}", handler.UpdateProxy)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":        "Same Name",
+		"hostname":    "same.example.com",
+		"type":        "reverse_proxy",
+		"ssl_enabled": true,
+	})
+	req := requestWithUserID(http.MethodPut, "/api/proxies/1", body, "123")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Nil(t, capturedChanges, "changes should be nil when nothing changed")
+}
+
+func TestJsonEqual_NilValues(t *testing.T) {
+	t.Parallel()
+	assert.True(t, jsonEqual(nil, nil), "nil == nil should be true")
+	assert.False(t, jsonEqual(nil, "value"), "nil != value should be false")
+	assert.False(t, jsonEqual("value", nil), "value != nil should be false")
+}
+
+func TestJsonEqual_SameValues(t *testing.T) {
+	t.Parallel()
+	assert.True(t, jsonEqual("test", "test"), "same strings should be equal")
+	assert.True(t, jsonEqual(123, 123), "same numbers should be equal")
+	assert.True(t, jsonEqual(true, true), "same booleans should be equal")
+}
+
+func TestJsonEqual_DifferentValues(t *testing.T) {
+	t.Parallel()
+	assert.False(t, jsonEqual("test1", "test2"), "different strings should not be equal")
+	assert.False(t, jsonEqual(123, 456), "different numbers should not be equal")
+	assert.False(t, jsonEqual(true, false), "different booleans should not be equal")
+}
+
+func TestJsonEqual_Slices(t *testing.T) {
+	t.Parallel()
+	slice1 := []interface{}{"a", "b"}
+	slice2 := []interface{}{"a", "b"}
+	slice3 := []interface{}{"a", "c"}
+
+	assert.True(t, jsonEqual(slice1, slice2), "same slices should be equal")
+	assert.False(t, jsonEqual(slice1, slice3), "different slices should not be equal")
+}
+
+func TestJsonEqual_Maps(t *testing.T) {
+	t.Parallel()
+	map1 := map[string]interface{}{"key": "value"}
+	map2 := map[string]interface{}{"key": "value"}
+	map3 := map[string]interface{}{"key": "different"}
+
+	assert.True(t, jsonEqual(map1, map2), "same maps should be equal")
+	assert.False(t, jsonEqual(map1, map3), "different maps should not be equal")
 }
 
 // =============================================================================

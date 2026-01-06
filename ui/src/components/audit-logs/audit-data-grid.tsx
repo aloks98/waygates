@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   DataGrid,
   DataGridColumnHeader,
   DataGridContainer,
@@ -19,8 +20,10 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { format, formatDistanceToNow } from 'date-fns';
-import { useMemo } from 'react';
+import { Eye } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 import type { AuditLog } from '@/types/audit';
+import { AuditLogDetailSheet } from './audit-log-detail-sheet';
 import { ActionBadge, StatusBadge } from './cells';
 
 interface AuditDataGridProps {
@@ -40,6 +43,14 @@ export function AuditDataGrid({
   onPaginationChange,
   total,
 }: AuditDataGridProps) {
+  const [selectedLogId, setSelectedLogId] = useState<number | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const handleViewLog = useCallback((log: AuditLog) => {
+    setSelectedLogId(log.id);
+    setSheetOpen(true);
+  }, []);
+
   const columns = useMemo<ColumnDef<AuditLog>[]>(
     () => [
       {
@@ -140,8 +151,36 @@ export function AuditDataGrid({
           skeleton: <Skeleton className="h-5 w-28" />,
         },
       },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  onClick={() => handleViewLog(row.original)}
+                >
+                  <Eye className="size-4" />
+                  <span className="sr-only">View details</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View details</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        ),
+        enableSorting: false,
+        meta: {
+          skeleton: <Skeleton className="size-8 rounded" />,
+        },
+      },
     ],
-    [],
+    [handleViewLog],
   );
 
   const table = useReactTable({
@@ -162,19 +201,23 @@ export function AuditDataGrid({
   });
 
   return (
-    <DataGrid
-      table={table}
-      recordCount={total}
-      isLoading={isLoading}
-      loadingMode="skeleton"
-      emptyMessage="No audit logs found."
-    >
-      <DataGridContainer>
-        <DataGridTable />
-        <div className="border-t px-4 py-2">
-          <DataGridPagination sizes={[10, 20, 50, 100]} />
-        </div>
-      </DataGridContainer>
-    </DataGrid>
+    <>
+      <DataGrid
+        table={table}
+        recordCount={total}
+        isLoading={isLoading}
+        loadingMode="skeleton"
+        emptyMessage="No audit logs found."
+      >
+        <DataGridContainer>
+          <DataGridTable />
+          <div className="border-t px-4 py-2">
+            <DataGridPagination sizes={[10, 20, 50, 100]} />
+          </div>
+        </DataGridContainer>
+      </DataGrid>
+
+      <AuditLogDetailSheet logId={selectedLogId} open={sheetOpen} onOpenChange={setSheetOpen} />
+    </>
   );
 }
