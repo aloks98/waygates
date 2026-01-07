@@ -66,7 +66,10 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	caddyfilePath := getEnvOrDefault("CADDY_CADDYFILE_PATH", "/etc/caddy/Caddyfile")
 	caddyBinary := getEnvOrDefault("CADDY_BINARY", "caddy")
 
-	caddyBuilder := caddyfile.NewBuilder(logger)
+	caddyBuilder := caddyfile.NewBuilderWithOptions(caddyfile.BuilderOptions{
+		Logger:            logger,
+		WaygatesVerifyURL: cfg.ACL.WaygatesVerifyURL,
+	})
 	caddyFileManager := caddy.NewFileManager(caddyBasePath, logger)
 	caddyReloader := caddy.NewReloader(caddy.ReloaderConfig{
 		CaddyBinary:   caddyBinary,

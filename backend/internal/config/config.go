@@ -93,10 +93,11 @@ type DefaultUserConfig struct {
 
 // ACLConfig holds ACL-related configuration
 type ACLConfig struct {
-	CookieDomain string        // Domain for session cookies (e.g., ".company.com")
-	CookieSecure bool          // Whether cookies should be secure-only
-	SessionTTL   time.Duration // Default session TTL
-	OAuth        OAuthConfig   // OAuth provider configuration
+	CookieDomain      string        // Domain for session cookies (e.g., ".company.com")
+	CookieSecure      bool          // Whether cookies should be secure-only
+	SessionTTL        time.Duration // Default session TTL
+	OAuth             OAuthConfig   // OAuth provider configuration
+	WaygatesVerifyURL string        // Internal URL for Caddy to reach Waygates auth verify endpoint (e.g., "http://waygates:8080")
 }
 
 // OAuthConfig holds OAuth-related configuration
@@ -156,9 +157,10 @@ func Load() (*Config, error) {
 			Path:    viper.GetString("UI_PATH"),
 		},
 		ACL: ACLConfig{
-			CookieDomain: viper.GetString("ACL_COOKIE_DOMAIN"),
-			CookieSecure: viper.GetBool("ACL_COOKIE_SECURE"),
-			SessionTTL:   viper.GetDuration("ACL_SESSION_TTL"),
+			CookieDomain:      viper.GetString("ACL_COOKIE_DOMAIN"),
+			CookieSecure:      viper.GetBool("ACL_COOKIE_SECURE"),
+			SessionTTL:        viper.GetDuration("ACL_SESSION_TTL"),
+			WaygatesVerifyURL: viper.GetString("ACL_WAYGATES_VERIFY_URL"),
 			OAuth: OAuthConfig{
 				CallbackBaseURL: viper.GetString("ACL_OAUTH_CALLBACK_BASE_URL"),
 			},
@@ -209,10 +211,11 @@ func setDefaults() {
 	viper.SetDefault("UI_PATH", "./ui")
 
 	// ACL configuration
-	viper.SetDefault("ACL_COOKIE_DOMAIN", "")           // Empty means use request host
-	viper.SetDefault("ACL_COOKIE_SECURE", true)         // Default to secure cookies
-	viper.SetDefault("ACL_SESSION_TTL", 24*time.Hour)   // Default 24 hours
-	viper.SetDefault("ACL_OAUTH_CALLBACK_BASE_URL", "") // Must be set if using OAuth
+	viper.SetDefault("ACL_COOKIE_DOMAIN", "")                        // Empty means use request host
+	viper.SetDefault("ACL_COOKIE_SECURE", true)                      // Default to secure cookies
+	viper.SetDefault("ACL_SESSION_TTL", 24*time.Hour)                // Default 24 hours
+	viper.SetDefault("ACL_OAUTH_CALLBACK_BASE_URL", "")              // Must be set if using OAuth
+	viper.SetDefault("ACL_WAYGATES_VERIFY_URL", "http://waygates:8080") // Internal URL for Caddy to reach Waygates
 }
 
 // MinJWTSecretLength is the minimum required length for JWT secret

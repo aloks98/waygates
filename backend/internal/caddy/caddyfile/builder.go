@@ -151,7 +151,20 @@ func (b *Builder) BuildProxyFileWithACL(proxy *models.Proxy, aclAssignments []mo
 	var err error
 
 	// Check if we have ACL assignments and ACL builder is configured
-	hasACL := len(aclAssignments) > 0 && b.aclBuilder != nil && HasACLConfig(aclAssignments)
+	hasAssignments := len(aclAssignments) > 0
+	hasBuilder := b.aclBuilder != nil
+	hasConfig := HasACLConfig(aclAssignments)
+	hasACL := hasAssignments && hasBuilder && hasConfig
+
+	b.logger.Debug("Building proxy config with ACL check",
+		zap.Int("proxy_id", proxy.ID),
+		zap.String("proxy_name", proxy.Name),
+		zap.Int("acl_assignments_count", len(aclAssignments)),
+		zap.Bool("has_assignments", hasAssignments),
+		zap.Bool("has_acl_builder", hasBuilder),
+		zap.Bool("has_acl_config", hasConfig),
+		zap.Bool("has_acl", hasACL),
+	)
 
 	switch proxy.Type {
 	case models.ProxyTypeReverseProxy:

@@ -370,11 +370,16 @@ func (r *ACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssi
 	return r.db.Create(assignment).Error
 }
 
-// GetProxyACLAssignments returns all ACL assignments for a proxy, ordered by priority
+// GetProxyACLAssignments returns all ACL assignments for a proxy, ordered by priority.
+// This preloads all ACL group relations needed for Caddyfile generation.
 func (r *ACLRepository) GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAssignment, error) {
 	var assignments []models.ProxyACLAssignment
 	if err := r.db.
 		Preload("ACLGroup").
+		Preload("ACLGroup.IPRules").
+		Preload("ACLGroup.BasicAuthUsers").
+		Preload("ACLGroup.WaygatesAuth").
+		Preload("ACLGroup.ExternalProviders").
 		Where("proxy_id = ?", proxyID).
 		Order("priority ASC, id ASC").
 		Find(&assignments).Error; err != nil {
