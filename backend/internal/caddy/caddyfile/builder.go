@@ -20,7 +20,8 @@ type Builder struct {
 // BuilderOptions holds configuration options for creating a new Builder
 type BuilderOptions struct {
 	Logger            *zap.Logger
-	WaygatesVerifyURL string // URL for Waygates forward auth verification
+	WaygatesVerifyURL string // URL for Waygates forward auth verification (internal, e.g., http://waygates:8080)
+	WaygatesLoginURL  string // URL for Waygates login page (external, e.g., https://waygates.company.com/auth/login)
 }
 
 // NewBuilder creates a new Caddyfile builder
@@ -35,7 +36,7 @@ func NewBuilder(logger *zap.Logger) *Builder {
 func NewBuilderWithOptions(opts BuilderOptions) *Builder {
 	var aclBuilder *ACLBuilder
 	if opts.WaygatesVerifyURL != "" {
-		aclBuilder = NewACLBuilder(opts.WaygatesVerifyURL)
+		aclBuilder = NewACLBuilder(opts.WaygatesVerifyURL, opts.WaygatesLoginURL)
 	}
 
 	logger := opts.Logger

@@ -12,13 +12,15 @@ import (
 // It supports various authentication methods including IP rules, basic auth,
 // forward auth (Waygates), and external providers (Authelia, Authentik).
 type ACLBuilder struct {
-	waygatesVerifyURL string // e.g., http://localhost:8080/api/auth/acl/verify
+	waygatesVerifyURL string // e.g., http://localhost:8080 (internal URL for Caddy)
+	waygatesLoginURL  string // e.g., https://waygates.company.com/auth/login (external URL for users)
 }
 
-// NewACLBuilder creates a new ACL builder with the specified Waygates verify URL.
-func NewACLBuilder(waygatesVerifyURL string) *ACLBuilder {
+// NewACLBuilder creates a new ACL builder with the specified Waygates URLs.
+func NewACLBuilder(waygatesVerifyURL, waygatesLoginURL string) *ACLBuilder {
 	return &ACLBuilder{
 		waygatesVerifyURL: waygatesVerifyURL,
+		waygatesLoginURL:  waygatesLoginURL,
 	}
 }
 
@@ -469,6 +471,17 @@ func (b *ACLBuilder) buildWaygatesForwardAuth(indent string) string {
 	sb.WriteString(fmt.Sprintf("%sforward_auth %s {\n", indent, b.waygatesVerifyURL))
 	sb.WriteString(fmt.Sprintf("%s\turi /api/auth/acl/verify\n", indent))
 	sb.WriteString(fmt.Sprintf("%s\tcopy_headers %s\n", indent, strings.Join(waygatesDefaultHeaders, " ")))
+
+	// Handle 401 response by redirecting to login page
+	if b.waygatesLoginURL != "" {
+		// Use Caddy placeholders for dynamic redirect URL
+		// {scheme}://{host}{uri} captures the original URL the user was trying to access
+		sb.WriteString(fmt.Sprintf("%s\t@unauthorized status 401\n", indent))
+		sb.WriteString(fmt.Sprintf("%s\thandle_response @unauthorized {\n", indent))
+		sb.WriteString(fmt.Sprintf("%s\t\tredir %s?redirect={scheme}://{host}{uri} 302\n", indent, b.waygatesLoginURL))
+		sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+	}
+
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 
 	return sb.String()

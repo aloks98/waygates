@@ -98,6 +98,7 @@ type ACLConfig struct {
 	SessionTTL        time.Duration // Default session TTL
 	OAuth             OAuthConfig   // OAuth provider configuration
 	WaygatesVerifyURL string        // Internal URL for Caddy to reach Waygates auth verify endpoint (e.g., "http://waygates:8080")
+	WaygatesLoginURL  string        // External URL for ACL login page (e.g., "https://waygates.company.com/auth/login")
 }
 
 // OAuthConfig holds OAuth-related configuration
@@ -161,6 +162,7 @@ func Load() (*Config, error) {
 			CookieSecure:      viper.GetBool("ACL_COOKIE_SECURE"),
 			SessionTTL:        viper.GetDuration("ACL_SESSION_TTL"),
 			WaygatesVerifyURL: viper.GetString("ACL_WAYGATES_VERIFY_URL"),
+			WaygatesLoginURL:  viper.GetString("ACL_WAYGATES_LOGIN_URL"),
 			OAuth: OAuthConfig{
 				CallbackBaseURL: viper.GetString("ACL_OAUTH_CALLBACK_BASE_URL"),
 			},
@@ -211,11 +213,12 @@ func setDefaults() {
 	viper.SetDefault("UI_PATH", "./ui")
 
 	// ACL configuration
-	viper.SetDefault("ACL_COOKIE_DOMAIN", "")                        // Empty means use request host
-	viper.SetDefault("ACL_COOKIE_SECURE", true)                      // Default to secure cookies
-	viper.SetDefault("ACL_SESSION_TTL", 24*time.Hour)                // Default 24 hours
-	viper.SetDefault("ACL_OAUTH_CALLBACK_BASE_URL", "")              // Must be set if using OAuth
+	viper.SetDefault("ACL_COOKIE_DOMAIN", "")                           // Empty means use request host
+	viper.SetDefault("ACL_COOKIE_SECURE", true)                         // Default to secure cookies
+	viper.SetDefault("ACL_SESSION_TTL", 24*time.Hour)                   // Default 24 hours
+	viper.SetDefault("ACL_OAUTH_CALLBACK_BASE_URL", "")                 // Must be set if using OAuth
 	viper.SetDefault("ACL_WAYGATES_VERIFY_URL", "http://waygates:8080") // Internal URL for Caddy to reach Waygates
+	viper.SetDefault("ACL_WAYGATES_LOGIN_URL", "")                      // External URL for login page (e.g., https://waygates.company.com/auth/login)
 }
 
 // MinJWTSecretLength is the minimum required length for JWT secret
