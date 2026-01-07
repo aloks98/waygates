@@ -312,17 +312,24 @@ func (b *ACLBuilder) buildBasicAuthBlock(proxy *models.Proxy, group *models.ACLG
 
 	matcherName := fmt.Sprintf("@%s_basic_auth", matcherPrefix)
 
-	// Build matcher that excludes already handled IPs
-	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
-	if pathPattern != "" && pathPattern != "/*" {
-		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
-	}
-
 	// Exclude bypass and allow IPs
 	excludeIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
 	excludeIPs = append(excludeIPs, bypassIPs...)
 	excludeIPs = append(excludeIPs, allowIPs...)
-	if len(excludeIPs) > 0 {
+
+	hasPathCondition := pathPattern != "" && pathPattern != "/*"
+	hasIPCondition := len(excludeIPs) > 0
+
+	// Build matcher that excludes already handled IPs
+	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
+	if hasPathCondition {
+		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
+	} else if !hasIPCondition {
+		// If no conditions at all, add wildcard path to match everything
+		sb.WriteString("\t\tpath *\n")
+	}
+
+	if hasIPCondition {
 		sb.WriteString(fmt.Sprintf("\t\tnot remote_ip %s\n", strings.Join(excludeIPs, " ")))
 	}
 	sb.WriteString("\t}\n")
@@ -345,11 +352,17 @@ func (b *ACLBuilder) buildBasicAuthBlockAll(proxy *models.Proxy, group *models.A
 
 	matcherName := fmt.Sprintf("@%s_basic_auth_all", matcherPrefix)
 
+	hasPathCondition := pathPattern != "" && pathPattern != "/*"
+	hasIPCondition := len(allowedIPs) > 0
+
 	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
-	if pathPattern != "" && pathPattern != "/*" {
+	if hasPathCondition {
 		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
+	} else if !hasIPCondition {
+		// If no conditions at all, add wildcard path to match everything
+		sb.WriteString("\t\tpath *\n")
 	}
-	if len(allowedIPs) > 0 {
+	if hasIPCondition {
 		sb.WriteString(fmt.Sprintf("\t\tremote_ip %s\n", strings.Join(allowedIPs, " ")))
 	}
 	sb.WriteString("\t}\n")
@@ -372,17 +385,25 @@ func (b *ACLBuilder) buildForwardAuthBlock(proxy *models.Proxy, group *models.AC
 
 	matcherName := fmt.Sprintf("@%s_forward_auth", matcherPrefix)
 
-	// Build matcher that excludes already handled IPs
-	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
-	if pathPattern != "" && pathPattern != "/*" {
-		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
-	}
-
 	// Exclude bypass and allow IPs
 	excludeIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
 	excludeIPs = append(excludeIPs, bypassIPs...)
 	excludeIPs = append(excludeIPs, allowIPs...)
-	if len(excludeIPs) > 0 {
+
+	hasPathCondition := pathPattern != "" && pathPattern != "/*"
+	hasIPCondition := len(excludeIPs) > 0
+
+	// Build matcher that excludes already handled IPs
+	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
+	if hasPathCondition {
+		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
+	} else if !hasIPCondition {
+		// If no conditions at all, add wildcard path to match everything
+		// An empty matcher {} matches nothing in Caddy
+		sb.WriteString("\t\tpath *\n")
+	}
+
+	if hasIPCondition {
 		sb.WriteString(fmt.Sprintf("\t\tnot remote_ip %s\n", strings.Join(excludeIPs, " ")))
 	}
 	sb.WriteString("\t}\n")
@@ -410,11 +431,17 @@ func (b *ACLBuilder) buildForwardAuthBlockAll(proxy *models.Proxy, group *models
 
 	matcherName := fmt.Sprintf("@%s_forward_auth_all", matcherPrefix)
 
+	hasPathCondition := pathPattern != "" && pathPattern != "/*"
+	hasIPCondition := len(allowedIPs) > 0
+
 	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
-	if pathPattern != "" && pathPattern != "/*" {
+	if hasPathCondition {
 		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
+	} else if !hasIPCondition {
+		// If no conditions at all, add wildcard path to match everything
+		sb.WriteString("\t\tpath *\n")
 	}
-	if len(allowedIPs) > 0 {
+	if hasIPCondition {
 		sb.WriteString(fmt.Sprintf("\t\tremote_ip %s\n", strings.Join(allowedIPs, " ")))
 	}
 	sb.WriteString("\t}\n")
