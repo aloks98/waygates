@@ -61,13 +61,9 @@ function SimpleChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
         {field.replace(/_/g, ' ')}
       </p>
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground line-through">
-          {formatSimpleValue(oldValue)}
-        </span>
+        <span className="text-muted-foreground line-through">{formatSimpleValue(oldValue)}</span>
         <ArrowRight className="size-3 text-muted-foreground flex-shrink-0" />
-        <span className="text-foreground font-medium">
-          {formatSimpleValue(newValue)}
-        </span>
+        <span className="text-foreground font-medium">{formatSimpleValue(newValue)}</span>
       </div>
     </div>
   );
@@ -117,10 +113,10 @@ function ChangesDisplay({ changes }: ChangesDisplayProps) {
 
   // Separate simple and complex changes
   const simpleChanges = entries.filter(
-    ([, { old: o, new: n }]) => !isComplexValue(o) && !isComplexValue(n)
+    ([, { old: o, new: n }]) => !isComplexValue(o) && !isComplexValue(n),
   );
   const complexChanges = entries.filter(
-    ([, { old: o, new: n }]) => isComplexValue(o) || isComplexValue(n)
+    ([, { old: o, new: n }]) => isComplexValue(o) || isComplexValue(n),
   );
 
   return (

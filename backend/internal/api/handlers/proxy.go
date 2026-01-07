@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -547,5 +548,5 @@ func jsonEqual(a, b interface{}) bool {
 		return false
 	}
 
-	return string(aJSON) == string(bJSON)
+	return bytes.Equal(aJSON, bJSON)
 }
