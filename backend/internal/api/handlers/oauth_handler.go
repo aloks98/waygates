@@ -87,9 +87,8 @@ type OAuthProvidersResponse struct {
 func (h *OAuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
 	providers := h.providerManager.GetEnabledProvidersPublic()
 
-	utils.Success(w, OAuthProvidersResponse{
-		Providers: providers,
-	}, "")
+	// Return array directly for frontend compatibility
+	utils.Success(w, providers, "")
 }
 
 // =============================================================================
