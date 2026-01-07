@@ -108,6 +108,10 @@ type ConfigureWaygatesAuthRequest struct {
 	AllowedEmailPatterns []string `json:"allowed_email_patterns,omitempty"`
 	Require2FA           bool     `json:"require_2fa"`
 	SessionTTL           int      `json:"session_ttl"`
+	// OAuth user restrictions
+	AllowedEmails    []string `json:"allowed_emails,omitempty"`
+	AllowedDomains   []string `json:"allowed_domains,omitempty"`
+	AllowedProviders []string `json:"allowed_providers,omitempty"`
 }
 
 // UpdateBrandingRequest is the request body for updating branding
@@ -917,6 +921,9 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 		AllowedEmailPatterns: req.AllowedEmailPatterns,
 		Require2FA:           req.Require2FA,
 		SessionTTL:           req.SessionTTL,
+		AllowedEmails:        req.AllowedEmails,
+		AllowedDomains:       req.AllowedDomains,
+		AllowedProviders:     req.AllowedProviders,
 	}
 
 	if err := h.aclService.ConfigureWaygatesAuth(groupID, config); err != nil {
@@ -924,6 +931,7 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 			utils.NotFound(w, "ACL group not found")
 			return
 		}
+		h.logger.Error("Failed to configure Waygates auth", zap.Int("group_id", groupID), zap.Error(err))
 		utils.InternalError(w, "Failed to configure Waygates auth")
 		return
 	}
