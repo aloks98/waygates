@@ -34,6 +34,7 @@ type SettingsServiceInterface interface {
 type SyncServiceInterface interface {
 	GetStatus() SyncStatus
 	FullSync() error
+	SyncProxyByID(proxyID int) error
 }
 
 // ProxySyncer defines the interface for proxy sync operations used by ProxyService

@@ -21,7 +21,7 @@ import (
 
 // setupProxyACLTestRouter creates a router with proxy ACL handler for testing
 func setupProxyACLTestRouter(mockService *MockACLService) *chi.Mux {
-	handler := NewProxyACLHandler(mockService, nil, nil)
+	handler := NewProxyACLHandler(mockService, nil, nil, nil)
 	r := chi.NewRouter()
 
 	r.Get("/api/proxies/{id}/acl", handler.GetProxyACL)

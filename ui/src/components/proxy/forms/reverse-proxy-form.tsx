@@ -55,6 +55,7 @@ type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
 
 interface ReverseProxyFormProps {
   initialData?: ProxyConfig | null;
+  initialACLAssignments?: ACLAssignment[];
   onSubmit: (data: CreateReverseProxyRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
@@ -62,6 +63,7 @@ interface ReverseProxyFormProps {
 
 export function ReverseProxyForm({
   initialData,
+  initialACLAssignments,
   onSubmit,
   loading,
   onCancel,
@@ -69,7 +71,9 @@ export function ReverseProxyForm({
   const [upstreams, setUpstreams] = useState<
     Array<{ host: string; port: number; scheme: 'http' | 'https' }>
   >([{ host: '', port: 8080, scheme: 'http' }]);
-  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
+    initialACLAssignments ?? [],
+  );
 
   const form = useForm({
     defaultValues: {
@@ -155,6 +159,13 @@ export function ReverseProxyForm({
       );
     }
   }, [initialData, form.setFieldValue]);
+
+  // Update ACL assignments when initialACLAssignments changes (async load)
+  useEffect(() => {
+    if (initialACLAssignments) {
+      setAclAssignments(initialACLAssignments);
+    }
+  }, [initialACLAssignments]);
 
   const addUpstream = () => {
     const newUpstreams = [...upstreams, { host: '', port: 8080, scheme: 'http' as const }];

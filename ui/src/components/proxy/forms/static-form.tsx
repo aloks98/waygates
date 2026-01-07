@@ -40,14 +40,23 @@ type StaticFormValues = z.infer<typeof staticSchema>;
 
 interface StaticFormProps {
   initialData?: ProxyConfig | null;
+  initialACLAssignments?: ACLAssignment[];
   onSubmit: (data: CreateStaticRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
 
-export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticFormProps) {
+export function StaticForm({
+  initialData,
+  initialACLAssignments,
+  onSubmit,
+  loading,
+  onCancel,
+}: StaticFormProps) {
   const [tryFiles, setTryFiles] = useState<string[]>([]);
-  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
+    initialACLAssignments ?? [],
+  );
 
   const form = useForm({
     defaultValues: {
@@ -96,6 +105,13 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
       setTryFiles(initialData.static?.try_files || []);
     }
   }, [initialData, form.setFieldValue]);
+
+  // Update ACL assignments when initialACLAssignments changes (async load)
+  useEffect(() => {
+    if (initialACLAssignments) {
+      setAclAssignments(initialACLAssignments);
+    }
+  }, [initialACLAssignments]);
 
   const addTryFile = () => {
     setTryFiles([...tryFiles, '']);

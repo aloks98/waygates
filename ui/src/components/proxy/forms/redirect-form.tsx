@@ -39,13 +39,22 @@ type RedirectFormValues = z.infer<typeof redirectSchema>;
 
 interface RedirectFormProps {
   initialData?: ProxyConfig | null;
+  initialACLAssignments?: ACLAssignment[];
   onSubmit: (data: CreateRedirectRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
 
-export function RedirectForm({ initialData, onSubmit, loading, onCancel }: RedirectFormProps) {
-  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
+export function RedirectForm({
+  initialData,
+  initialACLAssignments,
+  onSubmit,
+  loading,
+  onCancel,
+}: RedirectFormProps) {
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
+    initialACLAssignments ?? [],
+  );
 
   const form = useForm({
     defaultValues: {
@@ -92,6 +101,13 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
       form.setFieldValue('preserve_query', initialData.redirect?.preserve_query ?? true);
     }
   }, [initialData, form.setFieldValue]);
+
+  // Update ACL assignments when initialACLAssignments changes (async load)
+  useEffect(() => {
+    if (initialACLAssignments) {
+      setAclAssignments(initialACLAssignments);
+    }
+  }, [initialACLAssignments]);
 
   return (
     <form

@@ -26,7 +26,7 @@ import {
   ProxyDataGrid,
   ProxyFormModal,
 } from '@/components/proxy';
-import { useAssignACL } from '@/hooks';
+import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
@@ -211,11 +211,26 @@ export function ProxiesPage() {
   } = useProxies(apiParams);
 
   const { assignACL } = useAssignACL();
+  const { removeACL } = useRemoveACL();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
+
+  // Fetch ACL assignments for the proxy being edited
+  const { assignments: editingProxyACL } = useProxyACL(editingProxy?.id ?? 0);
+
+  // Convert API ACL assignments to form ACL assignments
+  const editingProxyACLAssignments: ACLAssignment[] = useMemo(() => {
+    return editingProxyACL.map((a) => ({
+      acl_group_id: a.acl_group_id,
+      acl_group_name: a.acl_group?.name,
+      path_pattern: a.path_pattern,
+      priority: a.priority,
+      enabled: a.enabled,
+    }));
+  }, [editingProxyACL]);
 
   const handleCreateProxy = (type: ProxyType) => {
     setCreateProxyType(type);
@@ -244,14 +259,36 @@ export function ProxiesPage() {
     setCreateModalOpen(false);
   };
 
-  const handleUpdate = async (data: CreateProxyRequest, _aclAssignments?: ACLAssignment[]) => {
+  const handleUpdate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
     if (!editingProxy) return;
     await update({ id: editingProxy.id, data });
 
-    // For updates, we would need to handle ACL assignments differently
-    // (remove old ones, add new ones) - for now, ACL changes on edit
-    // can be managed via the ACL group detail page
-    // TODO: implement full ACL sync on proxy edit if needed
+    // Sync ACL assignments
+    const newAssignments = aclAssignments ?? [];
+    const oldGroupIds = editingProxyACL.map((a) => a.acl_group_id);
+    const newGroupIds = newAssignments.map((a) => a.acl_group_id);
+
+    // Remove ACL groups that are no longer assigned
+    for (const oldAssignment of editingProxyACL) {
+      if (!newGroupIds.includes(oldAssignment.acl_group_id)) {
+        await removeACL({ proxyId: editingProxy.id, groupId: oldAssignment.acl_group_id });
+      }
+    }
+
+    // Add new ACL groups
+    for (const newAssignment of newAssignments) {
+      if (!oldGroupIds.includes(newAssignment.acl_group_id)) {
+        await assignACL({
+          proxyId: editingProxy.id,
+          data: {
+            acl_group_id: newAssignment.acl_group_id,
+            path_pattern: newAssignment.path_pattern,
+            priority: newAssignment.priority,
+            enabled: newAssignment.enabled,
+          },
+        });
+      }
+    }
 
     setEditingProxy(null);
   };
@@ -344,6 +381,7 @@ export function ProxiesPage() {
           onOpenChange={(open) => !open && setEditingProxy(null)}
           onSubmit={handleUpdate}
           initialData={editingProxy}
+          initialACLAssignments={editingProxyACLAssignments}
           proxyType={editingProxy.type}
           title={`Edit ${getProxyTypeLabel(editingProxy.type)}`}
           loading={isUpdating}

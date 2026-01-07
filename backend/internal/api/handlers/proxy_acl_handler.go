@@ -16,14 +16,16 @@ import (
 // ProxyACLHandler handles proxy ACL assignment HTTP requests
 type ProxyACLHandler struct {
 	aclService   service.ACLServiceInterface
+	syncService  service.SyncServiceInterface
 	auditService service.AuditServiceInterface
 	logger       *zap.Logger
 }
 
 // NewProxyACLHandler creates a new proxy ACL handler
-func NewProxyACLHandler(aclService service.ACLServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyACLHandler {
+func NewProxyACLHandler(aclService service.ACLServiceInterface, syncService service.SyncServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyACLHandler {
 	return &ProxyACLHandler{
 		aclService:   aclService,
+		syncService:  syncService,
 		auditService: auditService,
 		logger:       logger,
 	}
@@ -149,6 +151,18 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Trigger Caddy sync to update the proxy's Caddyfile with ACL config
+	if h.syncService != nil {
+		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
+			if h.logger != nil {
+				h.logger.Warn("Failed to sync proxy after ACL assignment",
+					zap.Int("proxy_id", proxyID),
+					zap.Error(err))
+			}
+			// Don't fail the request, the ACL was assigned successfully
+		}
+	}
+
 	utils.Created(w, assignments, "ACL assigned to proxy successfully")
 }
 
@@ -156,7 +170,7 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 // Updates a specific ACL assignment for a proxy
 func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *http.Request) {
 	proxyIDStr := chi.URLParam(r, "id")
-	_, err := strconv.Atoi(proxyIDStr)
+	proxyID, err := strconv.Atoi(proxyIDStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid proxy ID", nil)
 		return
@@ -196,6 +210,17 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Trigger Caddy sync to update the proxy's Caddyfile with ACL config
+	if h.syncService != nil {
+		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
+			if h.logger != nil {
+				h.logger.Warn("Failed to sync proxy after ACL assignment update",
+					zap.Int("proxy_id", proxyID),
+					zap.Error(err))
+			}
+		}
+	}
+
 	utils.Success(w, nil, "ACL assignment updated successfully")
 }
 
@@ -230,6 +255,17 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 		}
 		utils.InternalError(w, "Failed to remove ACL from proxy")
 		return
+	}
+
+	// Trigger Caddy sync to update the proxy's Caddyfile (remove ACL config)
+	if h.syncService != nil {
+		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
+			if h.logger != nil {
+				h.logger.Warn("Failed to sync proxy after ACL removal",
+					zap.Int("proxy_id", proxyID),
+					zap.Error(err))
+			}
+		}
 	}
 
 	utils.Success(w, nil, "ACL removed from proxy successfully")

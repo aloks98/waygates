@@ -417,6 +417,15 @@ func (s *SyncService) SyncProxy(proxy *models.Proxy) error {
 	return s.SyncProxyWithACL(proxy, nil)
 }
 
+// SyncProxyByID syncs a single proxy to file by its ID
+func (s *SyncService) SyncProxyByID(proxyID int) error {
+	proxy, err := s.proxyRepo.GetByID(proxyID)
+	if err != nil {
+		return fmt.Errorf("getting proxy: %w", err)
+	}
+	return s.SyncProxyWithACL(proxy, nil)
+}
+
 // SyncProxyWithACL syncs a single proxy to file with ACL assignments.
 // If aclAssignments is nil and ACL repo is available, it will load them automatically.
 func (s *SyncService) SyncProxyWithACL(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) error {
