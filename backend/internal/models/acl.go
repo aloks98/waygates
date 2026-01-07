@@ -176,7 +176,7 @@ type ACLWaygatesAuth struct {
 	AllowedUsers         JSONStringArray `json:"allowed_users,omitempty" gorm:"type:text"`
 	AllowedRoles         JSONStringArray `json:"allowed_roles,omitempty" gorm:"type:text"`
 	AllowedEmailPatterns JSONStringArray `json:"allowed_email_patterns,omitempty" gorm:"type:text"`
-	Require2FA           bool            `json:"require_2fa" gorm:"default:false"`
+	Require2FA           bool            `json:"require_2fa" gorm:"column:require_2fa;default:false"`
 	SessionTTL           int             `json:"session_ttl" gorm:"default:86400"`
 	CreatedAt            time.Time       `json:"created_at" gorm:"autoCreateTime"`
 
