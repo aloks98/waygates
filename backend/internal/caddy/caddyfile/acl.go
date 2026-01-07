@@ -48,6 +48,176 @@ var providerDefaultHeaders = map[string][]string{
 	},
 }
 
+// forbiddenHTML is the HTML template shown when access is denied (403)
+const forbiddenHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e2e8f0;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            color: #ef4444;
+        }
+        h1 {
+            font-size: 1.875rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f8fafc;
+        }
+        .code {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #ef4444;
+            margin-bottom: 0.5rem;
+        }
+        p {
+            color: #94a3b8;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+        </div>
+        <div class="code">403</div>
+        <h1>Access Denied</h1>
+        <p>You don't have permission to access this resource. Please contact your administrator if you believe this is an error.</p>
+        <a href="javascript:history.back()" class="btn">Go Back</a>
+    </div>
+</body>
+</html>`
+
+// unauthorizedHTML is the HTML template shown when authentication is required (401)
+const unauthorizedHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Required</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #e2e8f0;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: rgba(234, 179, 8, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            color: #eab308;
+        }
+        h1 {
+            font-size: 1.875rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f8fafc;
+        }
+        .code {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #eab308;
+            margin-bottom: 0.5rem;
+        }
+        p {
+            color: #94a3b8;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        </div>
+        <div class="code">401</div>
+        <h1>Authentication Required</h1>
+        <p>You need to sign in to access this resource. Please authenticate to continue.</p>
+        <a href="javascript:history.back()" class="btn">Go Back</a>
+    </div>
+</body>
+</html>`
+
 // ACLConfig holds the complete ACL configuration for a proxy
 type ACLConfig struct {
 	Proxy       *models.Proxy
@@ -472,15 +642,30 @@ func (b *ACLBuilder) buildWaygatesForwardAuth(indent string) string {
 	sb.WriteString(fmt.Sprintf("%s\turi /api/auth/acl/verify\n", indent))
 	sb.WriteString(fmt.Sprintf("%s\tcopy_headers %s\n", indent, strings.Join(waygatesDefaultHeaders, " ")))
 
-	// Handle 401 response by redirecting to login page
+	// Handle 401 response
+	sb.WriteString(fmt.Sprintf("%s\t@unauthorized status 401\n", indent))
+	sb.WriteString(fmt.Sprintf("%s\thandle_response @unauthorized {\n", indent))
 	if b.waygatesLoginURL != "" {
-		// Use Caddy placeholders for dynamic redirect URL
+		// Redirect to login page with original URL
 		// {scheme}://{host}{uri} captures the original URL the user was trying to access
-		sb.WriteString(fmt.Sprintf("%s\t@unauthorized status 401\n", indent))
-		sb.WriteString(fmt.Sprintf("%s\thandle_response @unauthorized {\n", indent))
 		sb.WriteString(fmt.Sprintf("%s\t\tredir %s?redirect={scheme}://{host}{uri} 302\n", indent, b.waygatesLoginURL))
-		sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+	} else {
+		// No login URL configured, show error page
+		sb.WriteString(fmt.Sprintf("%s\t\theader Content-Type text/html\n", indent))
+		sb.WriteString(fmt.Sprintf("%s\t\trespond <<HTML\n", indent))
+		sb.WriteString(unauthorizedHTML)
+		sb.WriteString(fmt.Sprintf("\n%s\t\tHTML 401\n", indent))
 	}
+	sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+
+	// Handle 403 response with a proper error page
+	sb.WriteString(fmt.Sprintf("%s\t@forbidden status 403\n", indent))
+	sb.WriteString(fmt.Sprintf("%s\thandle_response @forbidden {\n", indent))
+	sb.WriteString(fmt.Sprintf("%s\t\theader Content-Type text/html\n", indent))
+	sb.WriteString(fmt.Sprintf("%s\t\trespond <<HTML\n", indent))
+	sb.WriteString(forbiddenHTML)
+	sb.WriteString(fmt.Sprintf("\n%s\t\tHTML 403\n", indent))
+	sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 
