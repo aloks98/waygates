@@ -87,6 +87,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	syncService := service.NewSyncService(service.SyncServiceConfig{
 		ProxyRepo:    proxyRepo,
 		SettingsRepo: settingsRepo,
+		ACLRepo:      aclRepo,
 		Builder:      caddyBuilder,
 		FileManager:  caddyFileManager,
 		Reloader:     caddyReloader,
