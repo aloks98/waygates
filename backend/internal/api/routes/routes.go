@@ -128,15 +128,15 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
-	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, auditService, cfg.Security.BcryptCost)
-	proxyHandler := handlers.NewProxyHandler(proxyService, auditService)
+	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, auditService, cfg.Security.BcryptCost, logger)
+	proxyHandler := handlers.NewProxyHandler(proxyService, auditService, logger)
 	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
-	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService)
-	syncHandler := handlers.NewSyncHandler(syncService)
-	auditHandler := handlers.NewAuditHandler(auditService)
+	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService, logger)
+	syncHandler := handlers.NewSyncHandler(syncService, logger)
+	auditHandler := handlers.NewAuditHandler(auditService, logger)
 	aclHandler := handlers.NewACLHandler(aclService, aclRepo, auditService, logger)
-	aclVerifyHandler := handlers.NewACLVerifyHandler(aclService, userRepo, auditService)
-	proxyACLHandler := handlers.NewProxyACLHandler(aclService, auditService)
+	aclVerifyHandler := handlers.NewACLVerifyHandler(aclService, userRepo, auditService, logger)
+	proxyACLHandler := handlers.NewProxyACLHandler(aclService, auditService, logger)
 	oauthHandler := handlers.NewOAuthHandler(handlers.OAuthHandlerConfig{
 		ProviderManager: oauthProviderManager,
 		ACLService:      aclService,

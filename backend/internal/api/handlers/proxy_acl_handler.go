@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
@@ -16,13 +17,15 @@ import (
 type ProxyACLHandler struct {
 	aclService   service.ACLServiceInterface
 	auditService service.AuditServiceInterface
+	logger       *zap.Logger
 }
 
 // NewProxyACLHandler creates a new proxy ACL handler
-func NewProxyACLHandler(aclService service.ACLServiceInterface, auditService service.AuditServiceInterface) *ProxyACLHandler {
+func NewProxyACLHandler(aclService service.ACLServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyACLHandler {
 	return &ProxyACLHandler{
 		aclService:   aclService,
 		auditService: auditService,
+		logger:       logger,
 	}
 }
 
@@ -63,6 +66,11 @@ func (h *ProxyACLHandler) GetProxyACL(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
+		}
+		if h.logger != nil {
+			h.logger.Error("Failed to get proxy ACL assignments",
+				zap.Int("proxy_id", proxyID),
+				zap.Error(err))
 		}
 		utils.InternalError(w, "Failed to get proxy ACL assignments")
 		return
@@ -118,6 +126,13 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 			utils.BadRequest(w, "Invalid path pattern", nil)
 			return
 		}
+		if h.logger != nil {
+			h.logger.Error("Failed to assign ACL to proxy",
+				zap.Int("proxy_id", proxyID),
+				zap.Int("acl_group_id", req.ACLGroupID),
+				zap.String("path_pattern", pathPattern),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to assign ACL to proxy")
 		return
 	}
@@ -125,6 +140,11 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 	// Get updated assignments to return
 	assignments, err := h.aclService.GetProxyACL(proxyID)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get updated ACL assignments after assign",
+				zap.Int("proxy_id", proxyID),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to get updated ACL assignments")
 		return
 	}
@@ -166,6 +186,12 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 			utils.BadRequest(w, "Invalid path pattern", nil)
 			return
 		}
+		if h.logger != nil {
+			h.logger.Error("Failed to update ACL assignment",
+				zap.Int("assignment_id", assignmentID),
+				zap.String("path_pattern", req.PathPattern),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to update ACL assignment")
 		return
 	}
@@ -195,6 +221,12 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 		if errors.Is(err, service.ErrProxyACLNotFound) {
 			utils.NotFound(w, "ACL assignment not found")
 			return
+		}
+		if h.logger != nil {
+			h.logger.Error("Failed to remove ACL from proxy",
+				zap.Int("proxy_id", proxyID),
+				zap.Int("group_id", groupID),
+				zap.Error(err))
 		}
 		utils.InternalError(w, "Failed to remove ACL from proxy")
 		return

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/auth"
@@ -22,15 +23,17 @@ type AuthHandler struct {
 	userRepo     repository.UserRepositoryInterface
 	auditService service.AuditServiceInterface
 	bcryptCost   int
+	logger       *zap.Logger
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, bcryptCost int) *AuthHandler {
+func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, bcryptCost int, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
 		auth:         authInstance,
 		userRepo:     userRepo,
 		auditService: auditService,
 		bcryptCost:   bcryptCost,
+		logger:       logger,
 	}
 }
 
@@ -63,6 +66,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		if h.logger != nil {
+			h.logger.Error("Failed to check existing user by email",
+				zap.String("email", req.Email),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to check existing user")
 		return
 	}
@@ -73,6 +81,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		if h.logger != nil {
+			h.logger.Error("Failed to check existing user by username",
+				zap.String("username", req.Username),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to check existing user")
 		return
 	}
@@ -86,12 +99,23 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// Hash password
 	if err := user.SetPassword(req.Password, h.bcryptCost); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to hash password during registration",
+				zap.String("username", req.Username),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to process password")
 		return
 	}
 
 	// Save user to database
 	if err := h.userRepo.Create(user); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to create user in database",
+				zap.String("username", req.Username),
+				zap.String("email", req.Email),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to create user")
 		return
 	}
@@ -107,9 +131,20 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.auth.AssignRole(ctx, userIDStr, role); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to assign role to user",
+				zap.Int("user_id", user.ID),
+				zap.String("role", role),
+				zap.Error(err))
+		}
 		// Rollback user creation if role assignment fails
 		// This is critical - especially for the first user who needs admin role
 		if delErr := h.userRepo.Delete(user.ID); delErr != nil {
+			if h.logger != nil {
+				h.logger.Error("Failed to rollback user creation after role assignment failure",
+					zap.Int("user_id", user.ID),
+					zap.Error(delErr))
+			}
 			utils.InternalError(w, "Failed to assign role and rollback failed")
 			return
 		}
@@ -159,8 +194,18 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			if h.auditService != nil {
 				_ = h.auditService.LogLoginFailed(ctx, req.Identifier, getClientIP(r), r.UserAgent(), "User not found")
 			}
+			if h.logger != nil {
+				h.logger.Info("Login failed: user not found",
+					zap.String("identifier", req.Identifier),
+					zap.String("client_ip", getClientIP(r)))
+			}
 			utils.Unauthorized(w, "Invalid credentials")
 			return
+		}
+		if h.logger != nil {
+			h.logger.Error("Failed to get user during login",
+				zap.String("identifier", req.Identifier),
+				zap.Error(err))
 		}
 		utils.InternalError(w, "Failed to authenticate")
 		return
@@ -171,6 +216,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		// Log failed login attempt
 		if h.auditService != nil {
 			_ = h.auditService.LogLoginFailed(ctx, req.Identifier, getClientIP(r), r.UserAgent(), "Invalid password")
+		}
+		if h.logger != nil {
+			h.logger.Info("Login failed: invalid password",
+				zap.String("identifier", req.Identifier),
+				zap.String("client_ip", getClientIP(r)))
 		}
 		utils.Unauthorized(w, "Invalid credentials")
 		return
@@ -184,6 +234,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"email":    user.Email,
 	})
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to generate token pair",
+				zap.Int("user_id", user.ID),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to generate tokens")
 		return
 	}
@@ -227,6 +282,10 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	tokenPair, err := h.auth.RefreshTokens(ctx, req.RefreshToken)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Info("Token refresh failed",
+				zap.Error(err))
+		}
 		utils.Unauthorized(w, "Invalid or expired refresh token")
 		return
 	}
@@ -319,6 +378,11 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	// Get the current user
 	user, err := h.userRepo.GetByID(int(userID))
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get user for password change",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+		}
 		utils.NotFound(w, "User not found")
 		return
 	}
@@ -331,12 +395,22 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	// Set new password
 	if err := user.SetPassword(req.NewPassword, h.bcryptCost); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to hash new password",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to process new password")
 		return
 	}
 
 	// Update user in database - we need to update the password hash
 	if err := h.userRepo.UpdatePassword(int(userID), user.PasswordHash); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to update password in database",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to update password")
 		return
 	}
@@ -360,6 +434,11 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.userRepo.GetByID(int(userID))
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get user for GetMe",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+		}
 		utils.NotFound(w, "User not found")
 		return
 	}

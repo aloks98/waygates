@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
@@ -17,14 +19,16 @@ type ACLVerifyHandler struct {
 	aclService   service.ACLServiceInterface
 	userRepo     repository.UserRepositoryInterface
 	auditService service.AuditServiceInterface
+	logger       *zap.Logger
 }
 
 // NewACLVerifyHandler creates a new ACL verify handler
-func NewACLVerifyHandler(aclService service.ACLServiceInterface, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface) *ACLVerifyHandler {
+func NewACLVerifyHandler(aclService service.ACLServiceInterface, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ACLVerifyHandler {
 	return &ACLVerifyHandler{
 		aclService:   aclService,
 		userRepo:     userRepo,
 		auditService: auditService,
+		logger:       logger,
 	}
 }
 
@@ -122,6 +126,14 @@ func (h *ACLVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	response, err := h.aclService.VerifyAccess(verifyReq)
 	if err != nil {
 		// Internal error - return 500
+		if h.logger != nil {
+			h.logger.Error("Failed to verify ACL access",
+				zap.String("host", host),
+				zap.String("uri", uri),
+				zap.String("method", method),
+				zap.String("remote_ip", remoteIP),
+				zap.Error(err))
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -185,6 +197,11 @@ func (h *ACLVerifyHandler) Login(w http.ResponseWriter, r *http.Request) {
 		if h.auditService != nil {
 			_ = h.auditService.LogLoginFailed(r.Context(), req.Email, clientIP, userAgent, "User not found")
 		}
+		if h.logger != nil {
+			h.logger.Info("ACL login failed: user not found",
+				zap.String("email", req.Email),
+				zap.String("client_ip", clientIP))
+		}
 		utils.Unauthorized(w, "Invalid email or password")
 		return
 	}
@@ -195,6 +212,11 @@ func (h *ACLVerifyHandler) Login(w http.ResponseWriter, r *http.Request) {
 		if h.auditService != nil {
 			_ = h.auditService.LogLoginFailed(r.Context(), req.Email, clientIP, userAgent, "Invalid password")
 		}
+		if h.logger != nil {
+			h.logger.Info("ACL login failed: invalid password",
+				zap.String("email", req.Email),
+				zap.String("client_ip", clientIP))
+		}
 		utils.Unauthorized(w, "Invalid email or password")
 		return
 	}
@@ -203,6 +225,12 @@ func (h *ACLVerifyHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// Default session TTL of 24 hours (86400 seconds)
 	session, err := h.aclService.CreateSession(user.ID, nil, clientIP, userAgent, 86400)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to create ACL session",
+				zap.Int("user_id", user.ID),
+				zap.String("client_ip", clientIP),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to create session")
 		return
 	}

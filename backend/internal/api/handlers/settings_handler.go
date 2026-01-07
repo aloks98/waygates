@@ -7,6 +7,7 @@ import (
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/service"
@@ -17,13 +18,15 @@ import (
 type SettingsHandler struct {
 	settingsService service.SettingsServiceInterface
 	auditService    service.AuditServiceInterface
+	logger          *zap.Logger
 }
 
 // NewSettingsHandler creates a new settings handler
-func NewSettingsHandler(settingsService service.SettingsServiceInterface, auditService service.AuditServiceInterface) *SettingsHandler {
+func NewSettingsHandler(settingsService service.SettingsServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *SettingsHandler {
 	return &SettingsHandler{
 		settingsService: settingsService,
 		auditService:    auditService,
+		logger:          logger,
 	}
 }
 
@@ -31,6 +34,9 @@ func NewSettingsHandler(settingsService service.SettingsServiceInterface, auditS
 func (h *SettingsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.settingsService.GetAll()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get all settings", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to get settings")
 		return
 	}
@@ -48,6 +54,11 @@ func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	value, err := h.settingsService.Get(key)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get setting",
+				zap.String("key", key),
+				zap.Error(err))
+		}
 		utils.NotFound(w, "Setting not found")
 		return
 	}
@@ -82,6 +93,11 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.settingsService.Set(key, req.Value); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to update setting",
+				zap.String("key", key),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to update setting")
 		return
 	}
@@ -98,6 +114,9 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *SettingsHandler) GetNotFound(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.settingsService.GetNotFoundSettings()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get 404 settings", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to get 404 settings")
 		return
 	}
@@ -151,6 +170,11 @@ func (h *SettingsHandler) UpdateNotFound(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.settingsService.SetNotFoundSettings(settings); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to update 404 settings",
+				zap.String("mode", settings.Mode),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to update 404 settings")
 		return
 	}
