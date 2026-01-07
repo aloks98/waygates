@@ -561,7 +561,7 @@ func TestProxyACLHandler_FullWorkflow(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		data := response["data"].([]interface{})
 		assert.Empty(t, data)
 	})
@@ -585,7 +585,7 @@ func TestProxyACLHandler_FullWorkflow(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		data := response["data"].([]interface{})
 		assert.Len(t, data, 1)
 	})
@@ -622,7 +622,7 @@ func TestProxyACLHandler_FullWorkflow(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 		data := response["data"].([]interface{})
 		assert.Empty(t, data)
 	})

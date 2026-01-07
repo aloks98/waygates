@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -300,8 +301,12 @@ func TestACLGroup_Validate_Errors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.group.Validate()
-			if err != tc.expectedErr {
-				t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+			if tc.expectedErr != nil {
+				if !errors.Is(err, tc.expectedErr) {
+					t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+				}
+			} else if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
 			}
 		})
 	}
@@ -402,8 +407,12 @@ func TestACLIPRule_Validate_Errors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.rule.Validate()
-			if err != tc.expectedErr {
-				t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+			if tc.expectedErr != nil {
+				if !errors.Is(err, tc.expectedErr) {
+					t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+				}
+			} else if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
 			}
 		})
 	}
@@ -515,8 +524,12 @@ func TestACLExternalProvider_Validate_Errors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.provider.Validate()
-			if err != tc.expectedErr {
-				t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+			if tc.expectedErr != nil {
+				if !errors.Is(err, tc.expectedErr) {
+					t.Errorf("Expected error %v, got: %v", tc.expectedErr, err)
+				}
+			} else if err != nil {
+				t.Errorf("Expected no error, got: %v", err)
 			}
 		})
 	}
@@ -710,8 +723,8 @@ func TestValidationErrors_ErrorMessages(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.expected, func(t *testing.T) {
-			validationErr, ok := tc.err.(*ValidationError)
-			if !ok {
+			var validationErr *ValidationError
+			if !errors.As(tc.err, &validationErr) {
 				t.Fatal("Expected *ValidationError type")
 			}
 			if validationErr.Error() != tc.expected {
@@ -736,7 +749,7 @@ func TestACLGroup_DefaultCombinationMode(t *testing.T) {
 	// When CombinationMode is empty, validation should fail
 	// because the service layer should set the default
 	err := group.Validate()
-	if err != ErrInvalidCombinationMode {
+	if !errors.Is(err, ErrInvalidCombinationMode) {
 		t.Errorf("Expected ErrInvalidCombinationMode for empty mode, got: %v", err)
 	}
 }

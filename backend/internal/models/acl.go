@@ -149,15 +149,15 @@ func (u *ACLBasicAuthUser) CheckPassword(password string) bool {
 
 // ACLExternalProvider represents an external auth provider config
 type ACLExternalProvider struct {
-	ID              int              `json:"id" gorm:"primaryKey;autoIncrement"`
-	ACLGroupID      int              `json:"acl_group_id" gorm:"not null;index"`
-	ProviderType    string           `json:"provider_type" gorm:"type:varchar(50);not null"`
-	Name            string           `json:"name" gorm:"type:varchar(255);not null"`
-	VerifyURL       string           `json:"verify_url" gorm:"type:varchar(500);not null"`
-	AuthRedirectURL *string          `json:"auth_redirect_url,omitempty" gorm:"type:varchar(500)"`
-	HeadersToCopy   JSONStringArray  `json:"headers_to_copy,omitempty" gorm:"type:text"`
-	CreatedAt       time.Time        `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt       time.Time        `json:"updated_at" gorm:"autoUpdateTime"`
+	ID              int             `json:"id" gorm:"primaryKey;autoIncrement"`
+	ACLGroupID      int             `json:"acl_group_id" gorm:"not null;index"`
+	ProviderType    string          `json:"provider_type" gorm:"type:varchar(50);not null"`
+	Name            string          `json:"name" gorm:"type:varchar(255);not null"`
+	VerifyURL       string          `json:"verify_url" gorm:"type:varchar(500);not null"`
+	AuthRedirectURL *string         `json:"auth_redirect_url,omitempty" gorm:"type:varchar(500)"`
+	HeadersToCopy   JSONStringArray `json:"headers_to_copy,omitempty" gorm:"type:text"`
+	CreatedAt       time.Time       `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt       time.Time       `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relations
 	ACLGroup *ACLGroup `json:"-" gorm:"foreignKey:ACLGroupID"`
@@ -273,18 +273,18 @@ type ACLSessionListResponse struct {
 
 // ACL validation errors
 var (
-	ErrACLGroupNameRequired    = &ValidationError{Message: "ACL group name is required"}
-	ErrACLGroupNameTooLong     = &ValidationError{Message: "ACL group name must be at most 255 characters"}
-	ErrInvalidCombinationMode  = &ValidationError{Message: "invalid combination mode"}
-	ErrInvalidIPRuleType       = &ValidationError{Message: "invalid IP rule type"}
-	ErrInvalidCIDR             = &ValidationError{Message: "invalid CIDR format"}
-	ErrBasicAuthUsernameEmpty  = &ValidationError{Message: "basic auth username cannot be empty"}
-	ErrBasicAuthPasswordEmpty  = &ValidationError{Message: "basic auth password cannot be empty"}
-	ErrInvalidProviderType     = &ValidationError{Message: "invalid external provider type"}
-	ErrProviderNameRequired    = &ValidationError{Message: "external provider name is required"}
-	ErrProviderVerifyURLEmpty  = &ValidationError{Message: "external provider verify URL is required"}
-	ErrInvalidPathPattern      = &ValidationError{Message: "invalid path pattern"}
-	ErrSessionTokenEmpty       = &ValidationError{Message: "session token cannot be empty"}
+	ErrACLGroupNameRequired   = &ValidationError{Message: "ACL group name is required"}
+	ErrACLGroupNameTooLong    = &ValidationError{Message: "ACL group name must be at most 255 characters"}
+	ErrInvalidCombinationMode = &ValidationError{Message: "invalid combination mode"}
+	ErrInvalidIPRuleType      = &ValidationError{Message: "invalid IP rule type"}
+	ErrInvalidCIDR            = &ValidationError{Message: "invalid CIDR format"}
+	ErrBasicAuthUsernameEmpty = &ValidationError{Message: "basic auth username cannot be empty"}
+	ErrBasicAuthPasswordEmpty = &ValidationError{Message: "basic auth password cannot be empty"}
+	ErrInvalidProviderType    = &ValidationError{Message: "invalid external provider type"}
+	ErrProviderNameRequired   = &ValidationError{Message: "external provider name is required"}
+	ErrProviderVerifyURLEmpty = &ValidationError{Message: "external provider verify URL is required"}
+	ErrInvalidPathPattern     = &ValidationError{Message: "invalid path pattern"}
+	ErrSessionTokenEmpty      = &ValidationError{Message: "session token cannot be empty"}
 )
 
 // Validate performs basic validation on the ACL group

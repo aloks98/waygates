@@ -30,8 +30,8 @@ func TestOAuthProviderManager_GoogleProvider(t *testing.T) {
 	defer clearOAuthEnvVars()
 
 	// Set Google credentials
-	os.Setenv("GOOGLE_CLIENT_ID", "google-client-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-client-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-client-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-client-secret")
 
 	manager := NewOAuthProviderManager()
 
@@ -54,8 +54,8 @@ func TestOAuthProviderManager_GitHubProvider(t *testing.T) {
 	defer clearOAuthEnvVars()
 
 	// Set GitHub credentials
-	os.Setenv("GITHUB_CLIENT_ID", "github-client-id")
-	os.Setenv("GITHUB_CLIENT_SECRET", "github-client-secret")
+	_ = os.Setenv("GITHUB_CLIENT_ID", "github-client-id")
+	_ = os.Setenv("GITHUB_CLIENT_SECRET", "github-client-secret")
 
 	manager := NewOAuthProviderManager()
 
@@ -77,10 +77,10 @@ func TestOAuthProviderManager_MicrosoftProvider(t *testing.T) {
 	defer clearOAuthEnvVars()
 
 	t.Run("default tenant", func(t *testing.T) {
-		os.Setenv("MICROSOFT_CLIENT_ID", "microsoft-client-id")
-		os.Setenv("MICROSOFT_CLIENT_SECRET", "microsoft-client-secret")
-		defer os.Unsetenv("MICROSOFT_CLIENT_ID")
-		defer os.Unsetenv("MICROSOFT_CLIENT_SECRET")
+		_ = os.Setenv("MICROSOFT_CLIENT_ID", "microsoft-client-id")
+		_ = os.Setenv("MICROSOFT_CLIENT_SECRET", "microsoft-client-secret")
+		defer func() { _ = os.Unsetenv("MICROSOFT_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("MICROSOFT_CLIENT_SECRET") }()
 
 		manager := NewOAuthProviderManager()
 
@@ -94,12 +94,12 @@ func TestOAuthProviderManager_MicrosoftProvider(t *testing.T) {
 	})
 
 	t.Run("custom tenant", func(t *testing.T) {
-		os.Setenv("MICROSOFT_CLIENT_ID", "microsoft-client-id")
-		os.Setenv("MICROSOFT_CLIENT_SECRET", "microsoft-client-secret")
-		os.Setenv("MICROSOFT_TENANT_ID", "my-tenant-id")
-		defer os.Unsetenv("MICROSOFT_CLIENT_ID")
-		defer os.Unsetenv("MICROSOFT_CLIENT_SECRET")
-		defer os.Unsetenv("MICROSOFT_TENANT_ID")
+		_ = os.Setenv("MICROSOFT_CLIENT_ID", "microsoft-client-id")
+		_ = os.Setenv("MICROSOFT_CLIENT_SECRET", "microsoft-client-secret")
+		_ = os.Setenv("MICROSOFT_TENANT_ID", "my-tenant-id")
+		defer func() { _ = os.Unsetenv("MICROSOFT_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("MICROSOFT_CLIENT_SECRET") }()
+		defer func() { _ = os.Unsetenv("MICROSOFT_TENANT_ID") }()
 
 		manager := NewOAuthProviderManager()
 
@@ -116,10 +116,10 @@ func TestOAuthProviderManager_GitLabProvider(t *testing.T) {
 	defer clearOAuthEnvVars()
 
 	t.Run("default gitlab.com", func(t *testing.T) {
-		os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
-		os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
-		defer os.Unsetenv("GITLAB_CLIENT_ID")
-		defer os.Unsetenv("GITLAB_CLIENT_SECRET")
+		_ = os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
+		_ = os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_SECRET") }()
 
 		manager := NewOAuthProviderManager()
 
@@ -134,12 +134,12 @@ func TestOAuthProviderManager_GitLabProvider(t *testing.T) {
 	})
 
 	t.Run("custom gitlab instance", func(t *testing.T) {
-		os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
-		os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
-		os.Setenv("GITLAB_BASE_URL", "https://gitlab.mycompany.com")
-		defer os.Unsetenv("GITLAB_CLIENT_ID")
-		defer os.Unsetenv("GITLAB_CLIENT_SECRET")
-		defer os.Unsetenv("GITLAB_BASE_URL")
+		_ = os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
+		_ = os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
+		_ = os.Setenv("GITLAB_BASE_URL", "https://gitlab.mycompany.com")
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_SECRET") }()
+		defer func() { _ = os.Unsetenv("GITLAB_BASE_URL") }()
 
 		manager := NewOAuthProviderManager()
 
@@ -151,12 +151,12 @@ func TestOAuthProviderManager_GitLabProvider(t *testing.T) {
 	})
 
 	t.Run("trailing slash removed", func(t *testing.T) {
-		os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
-		os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
-		os.Setenv("GITLAB_BASE_URL", "https://gitlab.mycompany.com/")
-		defer os.Unsetenv("GITLAB_CLIENT_ID")
-		defer os.Unsetenv("GITLAB_CLIENT_SECRET")
-		defer os.Unsetenv("GITLAB_BASE_URL")
+		_ = os.Setenv("GITLAB_CLIENT_ID", "gitlab-client-id")
+		_ = os.Setenv("GITLAB_CLIENT_SECRET", "gitlab-client-secret")
+		_ = os.Setenv("GITLAB_BASE_URL", "https://gitlab.mycompany.com/")
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_ID") }()
+		defer func() { _ = os.Unsetenv("GITLAB_CLIENT_SECRET") }()
+		defer func() { _ = os.Unsetenv("GITLAB_BASE_URL") }()
 
 		manager := NewOAuthProviderManager()
 
@@ -177,10 +177,10 @@ func TestOAuthProviderManager_GetEnabledProviders(t *testing.T) {
 	})
 
 	t.Run("some providers enabled", func(t *testing.T) {
-		os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-		os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
-		os.Setenv("GITHUB_CLIENT_ID", "github-id")
-		os.Setenv("GITHUB_CLIENT_SECRET", "github-secret")
+		_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+		_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+		_ = os.Setenv("GITHUB_CLIENT_ID", "github-id")
+		_ = os.Setenv("GITHUB_CLIENT_SECRET", "github-secret")
 		defer clearOAuthEnvVars()
 
 		manager := NewOAuthProviderManager()
@@ -200,8 +200,8 @@ func TestOAuthProviderManager_GetEnabledProvidersPublic(t *testing.T) {
 	clearOAuthEnvVars()
 	defer clearOAuthEnvVars()
 
-	os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
 
 	manager := NewOAuthProviderManager()
 	public := manager.GetEnabledProvidersPublic()
@@ -221,8 +221,8 @@ func TestOAuthProviderManager_IsEnabled(t *testing.T) {
 
 	assert.False(t, manager.IsEnabled(OAuthProviderGoogle))
 
-	os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
 	manager.Reload()
 
 	assert.True(t, manager.IsEnabled(OAuthProviderGoogle))
@@ -236,8 +236,8 @@ func TestOAuthProviderManager_HasEnabledProviders(t *testing.T) {
 	manager := NewOAuthProviderManager()
 	assert.False(t, manager.HasEnabledProviders())
 
-	os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
 	manager.Reload()
 
 	assert.True(t, manager.HasEnabledProviders())
@@ -247,8 +247,8 @@ func TestOAuthProviderManager_GetProviderByString(t *testing.T) {
 	clearOAuthEnvVars()
 	defer clearOAuthEnvVars()
 
-	os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
 
 	manager := NewOAuthProviderManager()
 
@@ -270,14 +270,14 @@ func TestOAuthProviderManager_Reload(t *testing.T) {
 	assert.False(t, manager.IsEnabled(OAuthProviderGoogle))
 
 	// Add credentials and reload
-	os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-	os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+	_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+	_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
 	manager.Reload()
 
 	assert.True(t, manager.IsEnabled(OAuthProviderGoogle))
 
 	// Remove credentials and reload
-	os.Unsetenv("GOOGLE_CLIENT_ID")
+	_ = os.Unsetenv("GOOGLE_CLIENT_ID")
 	manager.Reload()
 
 	assert.False(t, manager.IsEnabled(OAuthProviderGoogle))
@@ -340,16 +340,16 @@ func TestOAuthProviderManager_PartialCredentials(t *testing.T) {
 	defer clearOAuthEnvVars()
 
 	t.Run("only client id", func(t *testing.T) {
-		os.Setenv("GOOGLE_CLIENT_ID", "google-id")
-		defer os.Unsetenv("GOOGLE_CLIENT_ID")
+		_ = os.Setenv("GOOGLE_CLIENT_ID", "google-id")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_ID") }()
 
 		manager := NewOAuthProviderManager()
 		assert.False(t, manager.IsEnabled(OAuthProviderGoogle))
 	})
 
 	t.Run("only client secret", func(t *testing.T) {
-		os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
-		defer os.Unsetenv("GOOGLE_CLIENT_SECRET")
+		_ = os.Setenv("GOOGLE_CLIENT_SECRET", "google-secret")
+		defer func() { _ = os.Unsetenv("GOOGLE_CLIENT_SECRET") }()
 
 		manager := NewOAuthProviderManager()
 		assert.False(t, manager.IsEnabled(OAuthProviderGoogle))
@@ -371,6 +371,6 @@ func clearOAuthEnvVars() {
 		"GITLAB_BASE_URL",
 	}
 	for _, v := range envVars {
-		os.Unsetenv(v)
+		_ = os.Unsetenv(v)
 	}
 }

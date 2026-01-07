@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/aloks98/goauth/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,12 +25,12 @@ import (
 // MockACLService is a mock implementation of ACLServiceInterface for testing
 type MockACLService struct {
 	// Group Management
-	CreateGroupFunc     func(group *models.ACLGroup, createdBy int) error
-	GetGroupFunc        func(id int) (*models.ACLGroup, error)
-	GetGroupByNameFunc  func(name string) (*models.ACLGroup, error)
-	ListGroupsFunc      func(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
-	UpdateGroupFunc     func(id int, updates *models.ACLGroup) error
-	DeleteGroupFunc     func(id int) error
+	CreateGroupFunc    func(group *models.ACLGroup, createdBy int) error
+	GetGroupFunc       func(id int) (*models.ACLGroup, error)
+	GetGroupByNameFunc func(name string) (*models.ACLGroup, error)
+	ListGroupsFunc     func(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
+	UpdateGroupFunc    func(id int, updates *models.ACLGroup) error
+	DeleteGroupFunc    func(id int) error
 
 	// IP Rules
 	AddIPRuleFunc    func(groupID int, rule *models.ACLIPRule) error
@@ -37,9 +38,9 @@ type MockACLService struct {
 	DeleteIPRuleFunc func(id int) error
 
 	// Basic Auth
-	AddBasicAuthUserFunc       func(groupID int, username, password string) error
+	AddBasicAuthUserFunc        func(groupID int, username, password string) error
 	UpdateBasicAuthPasswordFunc func(id int, password string) error
-	DeleteBasicAuthUserFunc    func(id int) error
+	DeleteBasicAuthUserFunc     func(id int) error
 
 	// External Providers
 	AddExternalProviderFunc    func(groupID int, provider *models.ACLExternalProvider) error
@@ -51,11 +52,11 @@ type MockACLService struct {
 	ConfigureWaygatesAuthFunc func(groupID int, config *models.ACLWaygatesAuth) error
 
 	// Proxy Assignment
-	AssignToProxyFunc        func(proxyID, groupID int, pathPattern string, priority int) error
+	AssignToProxyFunc         func(proxyID, groupID int, pathPattern string, priority int) error
 	UpdateProxyAssignmentFunc func(id int, pathPattern string, priority int, enabled bool) error
-	RemoveFromProxyFunc      func(proxyID, groupID int) error
-	GetProxyACLFunc          func(proxyID int) ([]models.ProxyACLAssignment, error)
-	GetGroupUsageFunc        func(groupID int) ([]models.ProxyACLAssignment, error)
+	RemoveFromProxyFunc       func(proxyID, groupID int) error
+	GetProxyACLFunc           func(proxyID int) ([]models.ProxyACLAssignment, error)
+	GetGroupUsageFunc         func(groupID int) ([]models.ProxyACLAssignment, error)
 
 	// Branding
 	GetBrandingFunc    func() (*models.ACLBranding, error)
@@ -324,26 +325,28 @@ type MockACLRepository struct {
 	ListExternalProvidersFunc func(groupID int) ([]models.ACLExternalProvider, error)
 }
 
-func (m *MockACLRepository) CreateGroup(group *models.ACLGroup) error              { return nil }
-func (m *MockACLRepository) GetGroupByID(id int) (*models.ACLGroup, error)         { return nil, nil }
-func (m *MockACLRepository) GetGroupByName(name string) (*models.ACLGroup, error)  { return nil, nil }
+func (m *MockACLRepository) CreateGroup(group *models.ACLGroup) error             { return nil }
+func (m *MockACLRepository) GetGroupByID(id int) (*models.ACLGroup, error)        { return nil, nil }
+func (m *MockACLRepository) GetGroupByName(name string) (*models.ACLGroup, error) { return nil, nil }
 func (m *MockACLRepository) ListGroups(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 	return nil, 0, nil
 }
-func (m *MockACLRepository) UpdateGroup(group *models.ACLGroup) error              { return nil }
-func (m *MockACLRepository) DeleteGroup(id int) error                               { return nil }
-func (m *MockACLRepository) CreateIPRule(rule *models.ACLIPRule) error             { return nil }
-func (m *MockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error)       { return nil, nil }
+func (m *MockACLRepository) UpdateGroup(group *models.ACLGroup) error        { return nil }
+func (m *MockACLRepository) DeleteGroup(id int) error                        { return nil }
+func (m *MockACLRepository) CreateIPRule(rule *models.ACLIPRule) error       { return nil }
+func (m *MockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error) { return nil, nil }
 func (m *MockACLRepository) ListIPRules(groupID int) ([]models.ACLIPRule, error) {
 	if m.ListIPRulesFunc != nil {
 		return m.ListIPRulesFunc(groupID)
 	}
 	return []models.ACLIPRule{}, nil
 }
-func (m *MockACLRepository) UpdateIPRule(rule *models.ACLIPRule) error                     { return nil }
-func (m *MockACLRepository) DeleteIPRule(id int) error                                      { return nil }
-func (m *MockACLRepository) CreateBasicAuthUser(user *models.ACLBasicAuthUser) error      { return nil }
-func (m *MockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUser, error) { return nil, nil }
+func (m *MockACLRepository) UpdateIPRule(rule *models.ACLIPRule) error               { return nil }
+func (m *MockACLRepository) DeleteIPRule(id int) error                               { return nil }
+func (m *MockACLRepository) CreateBasicAuthUser(user *models.ACLBasicAuthUser) error { return nil }
+func (m *MockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUser, error) {
+	return nil, nil
+}
 func (m *MockACLRepository) GetBasicAuthUser(groupID int, username string) (*models.ACLBasicAuthUser, error) {
 	return nil, nil
 }
@@ -353,9 +356,11 @@ func (m *MockACLRepository) ListBasicAuthUsers(groupID int) ([]models.ACLBasicAu
 	}
 	return []models.ACLBasicAuthUser{}, nil
 }
-func (m *MockACLRepository) UpdateBasicAuthUser(user *models.ACLBasicAuthUser) error          { return nil }
-func (m *MockACLRepository) DeleteBasicAuthUser(id int) error                                  { return nil }
-func (m *MockACLRepository) CreateExternalProvider(provider *models.ACLExternalProvider) error { return nil }
+func (m *MockACLRepository) UpdateBasicAuthUser(user *models.ACLBasicAuthUser) error { return nil }
+func (m *MockACLRepository) DeleteBasicAuthUser(id int) error                        { return nil }
+func (m *MockACLRepository) CreateExternalProvider(provider *models.ACLExternalProvider) error {
+	return nil
+}
 func (m *MockACLRepository) GetExternalProviderByID(id int) (*models.ACLExternalProvider, error) {
 	return nil, nil
 }
@@ -365,12 +370,16 @@ func (m *MockACLRepository) ListExternalProviders(groupID int) ([]models.ACLExte
 	}
 	return []models.ACLExternalProvider{}, nil
 }
-func (m *MockACLRepository) UpdateExternalProvider(provider *models.ACLExternalProvider) error { return nil }
-func (m *MockACLRepository) DeleteExternalProvider(id int) error                                { return nil }
-func (m *MockACLRepository) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error)      { return nil, nil }
-func (m *MockACLRepository) CreateWaygatesAuth(auth *models.ACLWaygatesAuth) error             { return nil }
-func (m *MockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error             { return nil }
-func (m *MockACLRepository) DeleteWaygatesAuth(groupID int) error                               { return nil }
+func (m *MockACLRepository) UpdateExternalProvider(provider *models.ACLExternalProvider) error {
+	return nil
+}
+func (m *MockACLRepository) DeleteExternalProvider(id int) error { return nil }
+func (m *MockACLRepository) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error) {
+	return nil, nil
+}
+func (m *MockACLRepository) CreateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
+func (m *MockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
+func (m *MockACLRepository) DeleteWaygatesAuth(groupID int) error                  { return nil }
 func (m *MockACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
 	return nil
 }
@@ -383,16 +392,20 @@ func (m *MockACLRepository) GetProxyACLAssignmentsByGroup(groupID int) ([]models
 func (m *MockACLRepository) UpdateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
 	return nil
 }
-func (m *MockACLRepository) DeleteProxyACLAssignment(id int) error                              { return nil }
-func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error { return nil }
-func (m *MockACLRepository) GetBranding() (*models.ACLBranding, error)                          { return nil, nil }
-func (m *MockACLRepository) UpdateBranding(branding *models.ACLBranding) error                  { return nil }
-func (m *MockACLRepository) CreateSession(session *models.ACLSession) error                    { return nil }
-func (m *MockACLRepository) GetSessionByToken(token string) (*models.ACLSession, error)        { return nil, nil }
-func (m *MockACLRepository) DeleteSession(token string) error                                   { return nil }
-func (m *MockACLRepository) DeleteExpiredSessions() (int64, error)                              { return 0, nil }
-func (m *MockACLRepository) DeleteUserSessions(userID int) error                                { return nil }
-func (m *MockACLRepository) DeleteProxySessions(proxyID int) error                              { return nil }
+func (m *MockACLRepository) DeleteProxyACLAssignment(id int) error { return nil }
+func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error {
+	return nil
+}
+func (m *MockACLRepository) GetBranding() (*models.ACLBranding, error)         { return nil, nil }
+func (m *MockACLRepository) UpdateBranding(branding *models.ACLBranding) error { return nil }
+func (m *MockACLRepository) CreateSession(session *models.ACLSession) error    { return nil }
+func (m *MockACLRepository) GetSessionByToken(token string) (*models.ACLSession, error) {
+	return nil, nil
+}
+func (m *MockACLRepository) DeleteSession(token string) error      { return nil }
+func (m *MockACLRepository) DeleteExpiredSessions() (int64, error) { return 0, nil }
+func (m *MockACLRepository) DeleteUserSessions(userID int) error   { return nil }
+func (m *MockACLRepository) DeleteProxySessions(proxyID int) error { return nil }
 
 // Ensure mock implements interface
 var _ service.ACLServiceInterface = (*MockACLService)(nil)
@@ -455,8 +468,9 @@ func createAuthenticatedRequest(method, url string, body interface{}) *http.Requ
 
 	req := httptest.NewRequest(method, url, bodyReader)
 	req.Header.Set("Content-Type", "application/json")
-	// Add X-User-ID header for authentication (simulating goauth middleware)
-	req.Header.Set("X-User-ID", "1")
+	// Set user ID in context (simulating goauth middleware)
+	ctx := middleware.SetUserID(req.Context(), "1")
+	req = req.WithContext(ctx)
 	return req
 }
 
@@ -1490,18 +1504,19 @@ func TestACLHandler_InvalidIDFormat(t *testing.T) {
 	r := setupACLTestRouter(&MockACLService{}, nil)
 
 	testCases := []struct {
-		name string
-		url  string
+		name   string
+		method string
+		url    string
 	}{
-		{"invalid group id", "/api/acl/groups/abc"},
-		{"invalid ip rule id", "/api/acl/ip-rules/xyz"},
-		{"invalid basic auth id", "/api/acl/basic-auth/foo"},
-		{"invalid provider id", "/api/acl/providers/bar"},
+		{"invalid group id", http.MethodGet, "/api/acl/groups/abc"},
+		{"invalid ip rule id", http.MethodDelete, "/api/acl/ip-rules/xyz"},
+		{"invalid basic auth id", http.MethodDelete, "/api/acl/basic-auth/foo"},
+		{"invalid provider id", http.MethodDelete, "/api/acl/providers/bar"},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tc.url, nil)
+			req := httptest.NewRequest(tc.method, tc.url, nil)
 			w := httptest.NewRecorder()
 
 			r.ServeHTTP(w, req)
@@ -1512,7 +1527,10 @@ func TestACLHandler_InvalidIDFormat(t *testing.T) {
 }
 
 // Helper function for creating io.ReadCloser from string
-func httpReadCloser(s string) interface{ Read([]byte) (int, error); Close() error } {
+func httpReadCloser(s string) interface {
+	Read([]byte) (int, error)
+	Close() error
+} {
 	return &stringReadCloser{s: s}
 }
 

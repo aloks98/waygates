@@ -28,7 +28,7 @@ func NewACLVerifyHandler(aclService service.ACLServiceInterface, userRepo reposi
 	}
 }
 
-// ACL session cookie name
+// ACLSessionCookieName is the name of the cookie used for ACL sessions
 const ACLSessionCookieName = "waygates_acl_session"
 
 // =============================================================================
@@ -243,11 +243,9 @@ func (h *ACLVerifyHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke the session
-	if err := h.aclService.RevokeSession(cookie.Value); err != nil {
-		// Log error but don't fail - the cookie will be cleared anyway
-		// The session might already be expired or revoked
-	}
+	// Revoke the session - ignore errors as the session might already be expired or revoked
+	// The cookie will be cleared anyway
+	_ = h.aclService.RevokeSession(cookie.Value)
 
 	// Clear the session cookie
 	http.SetCookie(w, &http.Cookie{

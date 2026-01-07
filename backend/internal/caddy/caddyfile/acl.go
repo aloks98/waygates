@@ -188,7 +188,9 @@ func (b *ACLBuilder) buildAllModeConfig(proxy *models.Proxy, group *models.ACLGr
 	}
 
 	// 2. For ALL mode with IP rules, requests must come from allowed IPs AND pass auth
-	allAllowedIPs := append(bypassIPs, allowIPs...)
+	allAllowedIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
+	allAllowedIPs = append(allAllowedIPs, bypassIPs...)
+	allAllowedIPs = append(allAllowedIPs, allowIPs...)
 	if len(allAllowedIPs) > 0 {
 		// Deny requests not from allowed IPs
 		sb.WriteString(b.buildIPDenyNotInListBlock(pathPattern, matcherPrefix, allAllowedIPs))
@@ -317,7 +319,9 @@ func (b *ACLBuilder) buildBasicAuthBlock(proxy *models.Proxy, group *models.ACLG
 	}
 
 	// Exclude bypass and allow IPs
-	excludeIPs := append(bypassIPs, allowIPs...)
+	excludeIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
+	excludeIPs = append(excludeIPs, bypassIPs...)
+	excludeIPs = append(excludeIPs, allowIPs...)
 	if len(excludeIPs) > 0 {
 		sb.WriteString(fmt.Sprintf("\t\tnot remote_ip %s\n", strings.Join(excludeIPs, " ")))
 	}
@@ -375,7 +379,9 @@ func (b *ACLBuilder) buildForwardAuthBlock(proxy *models.Proxy, group *models.AC
 	}
 
 	// Exclude bypass and allow IPs
-	excludeIPs := append(bypassIPs, allowIPs...)
+	excludeIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
+	excludeIPs = append(excludeIPs, bypassIPs...)
+	excludeIPs = append(excludeIPs, allowIPs...)
 	if len(excludeIPs) > 0 {
 		sb.WriteString(fmt.Sprintf("\t\tnot remote_ip %s\n", strings.Join(excludeIPs, " ")))
 	}

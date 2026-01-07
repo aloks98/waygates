@@ -54,11 +54,11 @@ type MockACLRepository struct {
 	DeleteWaygatesAuthFunc func(groupID int) error
 
 	// Proxy ACL Assignment methods
-	CreateProxyACLAssignmentFunc             func(assignment *models.ProxyACLAssignment) error
-	GetProxyACLAssignmentsFunc               func(proxyID int) ([]models.ProxyACLAssignment, error)
-	GetProxyACLAssignmentsByGroupFunc        func(groupID int) ([]models.ProxyACLAssignment, error)
-	UpdateProxyACLAssignmentFunc             func(assignment *models.ProxyACLAssignment) error
-	DeleteProxyACLAssignmentFunc             func(id int) error
+	CreateProxyACLAssignmentFunc                func(assignment *models.ProxyACLAssignment) error
+	GetProxyACLAssignmentsFunc                  func(proxyID int) ([]models.ProxyACLAssignment, error)
+	GetProxyACLAssignmentsByGroupFunc           func(groupID int) ([]models.ProxyACLAssignment, error)
+	UpdateProxyACLAssignmentFunc                func(assignment *models.ProxyACLAssignment) error
+	DeleteProxyACLAssignmentFunc                func(id int) error
 	DeleteProxyACLAssignmentByProxyAndGroupFunc func(proxyID, groupID int) error
 
 	// Branding methods
@@ -1960,7 +1960,7 @@ func TestMatchPath(t *testing.T) {
 		// Prefix patterns - note: /api/* matches /api because it's a prefix match
 		{"/api/*", "/api/users", true},
 		{"/api/*", "/api/users/123", true},
-		{"/api/*", "/api", true},   // Matches because /api has prefix /api
+		{"/api/*", "/api", true}, // Matches because /api has prefix /api
 		{"/api/*", "/other", false},
 
 		// Middle wildcard patterns
@@ -2071,7 +2071,7 @@ func TestValidatePathPattern(t *testing.T) {
 		isValid bool
 	}{
 		// Valid patterns
-		{"", true},         // Empty is valid (defaults to /*)
+		{"", true}, // Empty is valid (defaults to /*)
 		{"/*", true},
 		{"/api/*", true},
 		{"/api/v1/users", true},

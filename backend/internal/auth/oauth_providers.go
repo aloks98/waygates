@@ -31,16 +31,16 @@ func AllOAuthProviders() []OAuthProviderID {
 // OAuthProvider represents a configured OAuth provider
 type OAuthProvider struct {
 	ID           OAuthProviderID `json:"id"`
-	Name         string          `json:"name"`          // Display name
-	ClientID     string          `json:"-"`             // Never expose in JSON
-	ClientSecret string          `json:"-"`             // Never expose in JSON
-	Enabled      bool            `json:"enabled"`       // True if properly configured
-	AuthURL      string          `json:"auth_url"`      // OAuth authorize URL
-	TokenURL     string          `json:"token_url"`     // OAuth token URL
-	UserInfoURL  string          `json:"user_info_url"` // User info endpoint
-	Scopes       []string        `json:"scopes"`        // OAuth scopes
-	BaseURL      string          `json:"base_url,omitempty"`   // For GitLab: custom instance URL
-	TenantID     string          `json:"tenant_id,omitempty"`  // For Microsoft: Azure AD tenant
+	Name         string          `json:"name"`                // Display name
+	ClientID     string          `json:"-"`                   // Never expose in JSON
+	ClientSecret string          `json:"-"`                   // Never expose in JSON
+	Enabled      bool            `json:"enabled"`             // True if properly configured
+	AuthURL      string          `json:"auth_url"`            // OAuth authorize URL
+	TokenURL     string          `json:"token_url"`           // OAuth token URL
+	UserInfoURL  string          `json:"user_info_url"`       // User info endpoint
+	Scopes       []string        `json:"scopes"`              // OAuth scopes
+	BaseURL      string          `json:"base_url,omitempty"`  // For GitLab: custom instance URL
+	TenantID     string          `json:"tenant_id,omitempty"` // For Microsoft: Azure AD tenant
 }
 
 // OAuthProviderPublic is the public representation of a provider (for API responses)

@@ -222,7 +222,8 @@ func (h *ACLHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Handle validation errors
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -303,7 +304,8 @@ func (h *ACLHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 			utils.Conflict(w, "ACL group with this name already exists")
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -426,7 +428,8 @@ func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
 			utils.BadRequest(w, "Invalid CIDR format", nil)
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -487,7 +490,8 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 			utils.BadRequest(w, "Invalid CIDR format", nil)
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -592,7 +596,8 @@ func (h *ACLHandler) AddBasicAuthUser(w http.ResponseWriter, r *http.Request) {
 			utils.Conflict(w, "Basic auth user already exists in this group")
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -634,7 +639,8 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 			utils.NotFound(w, "Basic auth user not found")
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -751,7 +757,8 @@ func (h *ACLHandler) AddExternalProvider(w http.ResponseWriter, r *http.Request)
 			utils.NotFound(w, "ACL group not found")
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
@@ -813,7 +820,8 @@ func (h *ACLHandler) UpdateExternalProvider(w http.ResponseWriter, r *http.Reque
 			utils.NotFound(w, "External provider not found")
 			return
 		}
-		if _, ok := err.(*models.ValidationError); ok {
+		var validationErr *models.ValidationError
+		if errors.As(err, &validationErr) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}

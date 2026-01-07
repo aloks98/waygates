@@ -384,7 +384,7 @@ func (h *OAuthHandler) fetchUserInfo(ctx context.Context, provider *auth.OAuthPr
 	if err != nil {
 		return nil, fmt.Errorf("fetching user info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

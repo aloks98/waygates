@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 func TestNewACLBuilder(t *testing.T) {
