@@ -16,7 +16,7 @@ import { publicApi } from '@/lib/api';
 import type { ApiResponse } from '@/types/api';
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Please enter a valid email'),
+  identifier: z.string().min(1, 'Username or email is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -36,7 +36,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
 
   const form = useForm({
     defaultValues: {
-      email: '',
+      identifier: '',
       password: '',
     },
     validators: {
@@ -48,7 +48,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
         const response = await publicApi
           .post('auth/acl/login', {
             json: {
-              email: value.email,
+              email: value.identifier,
               password: value.password,
               redirect: redirectUrl,
             },
@@ -57,16 +57,22 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
 
         if (response.success && response.data) {
           onSuccess?.();
-          // If backend provides a redirect URL, navigate to it
-          if (response.data.redirect_url) {
-            window.location.href = response.data.redirect_url;
-          } else if (redirectUrl) {
-            window.location.href = redirectUrl;
+          // Determine where to redirect after login
+          const targetUrl = response.data.redirect_url || redirectUrl;
+          if (targetUrl) {
+            // Small delay to ensure cookie is set before redirect
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 100);
+          } else {
+            // If no redirect URL, reload to show authenticated state
+            window.location.reload();
           }
         } else {
           setError(response.message || 'Login failed');
         }
-      } catch {
+      } catch (err) {
+        console.error('ACL login error:', err);
         setError('Invalid credentials');
       }
     },
@@ -96,21 +102,21 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
           </Alert>
         )}
 
-        <form.Field name="email">
+        <form.Field name="identifier">
           {(field) => {
             const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
             return (
               <Field data-invalid={hasError}>
-                <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                <FieldLabel htmlFor={field.name}>Username or Email</FieldLabel>
                 <Input
                   id={field.name}
-                  type="email"
-                  placeholder="Enter your email"
+                  type="text"
+                  placeholder="Enter your username or email"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
                   aria-invalid={hasError}
-                  autoComplete="email"
+                  autoComplete="username"
                 />
                 {hasError && <FieldError errors={field.state.meta.errors} />}
               </Field>

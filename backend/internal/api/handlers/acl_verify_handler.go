@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"go.uber.org/zap"
+	"golang.org/x/net/publicsuffix"
 
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
@@ -20,15 +22,26 @@ type ACLVerifyHandler struct {
 	userRepo     repository.UserRepositoryInterface
 	auditService service.AuditServiceInterface
 	logger       *zap.Logger
+	cookieSecure bool
+}
+
+// ACLVerifyHandlerConfig holds configuration for ACL verify handler
+type ACLVerifyHandlerConfig struct {
+	ACLService   service.ACLServiceInterface
+	UserRepo     repository.UserRepositoryInterface
+	AuditService service.AuditServiceInterface
+	Logger       *zap.Logger
+	CookieSecure bool // Whether cookies should be secure-only
 }
 
 // NewACLVerifyHandler creates a new ACL verify handler
-func NewACLVerifyHandler(aclService service.ACLServiceInterface, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ACLVerifyHandler {
+func NewACLVerifyHandler(cfg ACLVerifyHandlerConfig) *ACLVerifyHandler {
 	return &ACLVerifyHandler{
-		aclService:   aclService,
-		userRepo:     userRepo,
-		auditService: auditService,
-		logger:       logger,
+		aclService:   cfg.ACLService,
+		userRepo:     cfg.UserRepo,
+		auditService: cfg.AuditService,
+		logger:       cfg.Logger,
+		cookieSecure: cfg.CookieSecure,
 	}
 }
 
@@ -235,22 +248,32 @@ func (h *ACLVerifyHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set session cookie
-	http.SetCookie(w, &http.Cookie{
-		Name:     ACLSessionCookieName,
-		Value:    session.SessionToken,
-		Path:     "/",
-		Expires:  session.ExpiresAt,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	})
-
 	// Determine redirect URL
 	redirectURL := req.Redirect
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
+
+	// Extract cookie domain dynamically from the redirect URL
+	// This allows the cookie to work across different domains (e.g., e412.in vs example.com)
+	cookieDomain := extractCookieDomain(redirectURL)
+	if h.logger != nil {
+		h.logger.Debug("Setting ACL session cookie",
+			zap.String("redirect_url", redirectURL),
+			zap.String("cookie_domain", cookieDomain))
+	}
+
+	// Set session cookie with domain for cross-subdomain support
+	http.SetCookie(w, &http.Cookie{
+		Name:     ACLSessionCookieName,
+		Value:    session.SessionToken,
+		Path:     "/",
+		Domain:   cookieDomain,
+		Expires:  session.ExpiresAt,
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	utils.Success(w, ACLLoginResponse{
 		Success:     true,
@@ -278,14 +301,22 @@ func (h *ACLVerifyHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	// The cookie will be cleared anyway
 	_ = h.aclService.RevokeSession(cookie.Value)
 
-	// Clear the session cookie
+	// Extract cookie domain from X-Forwarded-Host (if coming through Caddy) or request host
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	cookieDomain := extractCookieDomainFromHost(host)
+
+	// Clear the session cookie (must use same domain as when it was set)
 	http.SetCookie(w, &http.Cookie{
 		Name:     ACLSessionCookieName,
 		Value:    "",
 		Path:     "/",
+		Domain:   cookieDomain,
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 	})
 
@@ -313,14 +344,22 @@ func (h *ACLVerifyHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 	session, err := h.aclService.ValidateSession(cookie.Value)
 	if err != nil {
 		// Session invalid or expired
+		// Extract cookie domain from request host
+		host := r.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = r.Host
+		}
+		cookieDomain := extractCookieDomainFromHost(host)
+
 		// Clear the invalid cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     ACLSessionCookieName,
 			Value:    "",
 			Path:     "/",
+			Domain:   cookieDomain,
 			MaxAge:   -1,
 			HttpOnly: true,
-			Secure:   true,
+			Secure:   h.cookieSecure,
 			SameSite: http.SameSiteLaxMode,
 		})
 
@@ -389,4 +428,110 @@ func parseBasicAuth(authHeader string) *service.BasicAuthCredentials {
 		Username: parts[0],
 		Password: parts[1],
 	}
+}
+
+// extractCookieDomain extracts the base domain from a URL string for cookie setting.
+// For example:
+//   - "https://nginx.e412.in/path" -> ".e412.in"
+//   - "https://app.internal.company.com" -> ".internal.company.com"
+//   - "https://localhost:8080" -> "" (no domain for localhost)
+//
+// This allows cookies to be shared across subdomains of the same base domain.
+func extractCookieDomain(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	host := parsed.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	// Don't set domain for localhost or IP addresses
+	if host == "localhost" || isIPAddress(host) {
+		return ""
+	}
+
+	// Use publicsuffix to get the eTLD+1 (effective TLD plus one more label)
+	// This handles cases like:
+	// - "nginx.e412.in" -> "e412.in"
+	// - "app.internal.company.com" -> "company.com" (if .com is the eTLD)
+	// - "app.internal.co.uk" -> "internal.co.uk" (because .co.uk is the eTLD)
+	baseDomain, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil {
+		// Fallback: just use the host as-is (for internal domains not in public suffix list)
+		// Try to extract a reasonable base domain
+		return extractBaseDomainFallback(host)
+	}
+
+	// If the host is the same as the base domain (e.g., "e412.in"), use it directly
+	// Otherwise, prefix with dot for subdomain sharing
+	if host == baseDomain {
+		return "." + baseDomain
+	}
+
+	return "." + baseDomain
+}
+
+// extractBaseDomainFallback handles domains not in the public suffix list
+// by finding a reasonable base domain (last 2 segments for simple TLDs)
+func extractBaseDomainFallback(host string) string {
+	parts := strings.Split(host, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	// For simple domains like "internal.mycompany.local", use the last 2 parts
+	// This won't work for complex TLDs like .co.uk but covers internal use cases
+	if len(parts) >= 2 {
+		baseDomain := strings.Join(parts[len(parts)-2:], ".")
+		return "." + baseDomain
+	}
+
+	return ""
+}
+
+// isIPAddress checks if the host is an IP address (v4 or v6)
+func isIPAddress(host string) bool {
+	// Simple check: contains only digits and dots (IPv4) or contains colon (IPv6)
+	if strings.Contains(host, ":") {
+		return true // IPv6
+	}
+
+	// Check for IPv4
+	for _, c := range host {
+		if c != '.' && (c < '0' || c > '9') {
+			return false
+		}
+	}
+	return len(host) > 0
+}
+
+// extractCookieDomainFromHost extracts cookie domain from a bare host string
+func extractCookieDomainFromHost(host string) string {
+	// Strip port if present
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		// Check if this is IPv6 (would have multiple colons or brackets)
+		if !strings.Contains(host, "[") && strings.Count(host, ":") == 1 {
+			host = host[:idx]
+		}
+	}
+
+	// Don't set domain for localhost or IP addresses
+	if host == "localhost" || isIPAddress(host) {
+		return ""
+	}
+
+	// Use publicsuffix to get the eTLD+1
+	baseDomain, err := publicsuffix.EffectiveTLDPlusOne(host)
+	if err != nil {
+		return extractBaseDomainFallback(host)
+	}
+
+	return "." + baseDomain
 }

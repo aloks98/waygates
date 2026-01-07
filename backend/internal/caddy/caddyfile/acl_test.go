@@ -11,13 +11,14 @@ import (
 )
 
 func TestNewACLBuilder(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "https://waygates.example.com/auth/login")
 	require.NotNil(t, builder)
 	assert.Equal(t, "http://localhost:8080", builder.waygatesVerifyURL)
+	assert.Equal(t, "https://waygates.example.com/auth/login", builder.waygatesLoginURL)
 }
 
 func TestBuildACLConfig_EmptyAssignments(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	// Test with nil assignments
@@ -30,7 +31,7 @@ func TestBuildACLConfig_EmptyAssignments(t *testing.T) {
 }
 
 func TestBuildACLConfig_DisabledAssignments(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -59,7 +60,7 @@ func TestBuildACLConfig_DisabledAssignments(t *testing.T) {
 }
 
 func TestBuildACLConfig_IPDenyRules(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -92,7 +93,7 @@ func TestBuildACLConfig_IPDenyRules(t *testing.T) {
 }
 
 func TestBuildACLConfig_IPBypassRules(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -125,7 +126,7 @@ func TestBuildACLConfig_IPBypassRules(t *testing.T) {
 }
 
 func TestBuildACLConfig_IPAllowRules(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -157,7 +158,7 @@ func TestBuildACLConfig_IPAllowRules(t *testing.T) {
 }
 
 func TestBuildACLConfig_BasicAuth(t *testing.T) {
-	builder := NewACLBuilder("http://localhost:8080")
+	builder := NewACLBuilder("http://localhost:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -192,7 +193,7 @@ func TestBuildACLConfig_BasicAuth(t *testing.T) {
 }
 
 func TestBuildACLConfig_WaygatesAuth(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -228,7 +229,7 @@ func TestBuildACLConfig_WaygatesAuth(t *testing.T) {
 }
 
 func TestBuildACLConfig_ExternalProvider_Authelia(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	redirectURL := "https://auth.example.com/"
@@ -267,7 +268,7 @@ func TestBuildACLConfig_ExternalProvider_Authelia(t *testing.T) {
 }
 
 func TestBuildACLConfig_ExternalProvider_Authentik(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -305,7 +306,7 @@ func TestBuildACLConfig_ExternalProvider_Authentik(t *testing.T) {
 }
 
 func TestBuildACLConfig_ExternalProvider_CustomHeaders(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -343,7 +344,7 @@ func TestBuildACLConfig_ExternalProvider_CustomHeaders(t *testing.T) {
 }
 
 func TestBuildACLConfig_CombinationModeAll(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -384,7 +385,7 @@ func TestBuildACLConfig_CombinationModeAll(t *testing.T) {
 }
 
 func TestBuildACLConfig_IPBypassWithForwardAuth(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{
@@ -427,7 +428,7 @@ func TestBuildACLConfig_IPBypassWithForwardAuth(t *testing.T) {
 }
 
 func TestBuildACLConfig_MultipleAssignments(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group1 := &models.ACLGroup{
@@ -481,7 +482,7 @@ func TestBuildACLConfig_MultipleAssignments(t *testing.T) {
 }
 
 func TestBuildACLConfig_PriorityOrdering(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group1 := &models.ACLGroup{
@@ -530,7 +531,7 @@ func TestBuildACLConfig_PriorityOrdering(t *testing.T) {
 }
 
 func TestBuildACLConfig_NoAuthMethodsConfigured(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	// Group with no auth methods
@@ -557,7 +558,7 @@ func TestBuildACLConfig_NoAuthMethodsConfigured(t *testing.T) {
 }
 
 func TestBuildACLConfig_NilACLGroup(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	assignments := []models.ProxyACLAssignment{
@@ -577,7 +578,7 @@ func TestBuildACLConfig_NilACLGroup(t *testing.T) {
 }
 
 func TestBuildACLConfig_PathPatternWildcard(t *testing.T) {
-	builder := NewACLBuilder("http://waygates:8080")
+	builder := NewACLBuilder("http://waygates:8080", "")
 	proxy := createTestProxy()
 
 	group := &models.ACLGroup{

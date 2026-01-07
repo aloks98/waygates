@@ -93,8 +93,8 @@ type DefaultUserConfig struct {
 
 // ACLConfig holds ACL-related configuration
 type ACLConfig struct {
-	CookieDomain      string        // Domain for session cookies (e.g., ".company.com")
-	CookieSecure      bool          // Whether cookies should be secure-only
+	CookieDomain      string        // DEPRECATED: Cookie domain is now extracted dynamically from redirect URLs
+	CookieSecure      bool          // Whether cookies should be secure-only (recommended: true for production)
 	SessionTTL        time.Duration // Default session TTL
 	OAuth             OAuthConfig   // OAuth provider configuration
 	WaygatesVerifyURL string        // Internal URL for Caddy to reach Waygates auth verify endpoint (e.g., "http://waygates:8080")

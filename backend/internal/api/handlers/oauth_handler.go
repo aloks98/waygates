@@ -283,19 +283,20 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		_ = h.auditService.LogLogin(r.Context(), user.ID, user.Username+" (OAuth:"+providerID+")", clientIP, userAgent)
 	}
 
+	// Extract cookie domain dynamically from the redirect URL
+	// This allows the cookie to work across different domains
+	cookieDomain := extractCookieDomain(redirectURL)
+
 	// Set session cookie
 	cookie := &http.Cookie{
 		Name:     ACLSessionCookieName,
 		Value:    session.SessionToken,
 		Path:     "/",
+		Domain:   cookieDomain,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
 		Secure:   h.config.ACL.CookieSecure,
 		SameSite: http.SameSiteLaxMode,
-	}
-
-	if h.config.ACL.CookieDomain != "" {
-		cookie.Domain = h.config.ACL.CookieDomain
 	}
 
 	http.SetCookie(w, cookie)

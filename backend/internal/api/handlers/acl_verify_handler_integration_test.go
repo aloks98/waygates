@@ -29,7 +29,13 @@ func setupACLVerifyTestRouter(
 	mockUserRepo *mocks.MockUserRepository,
 	mockAuditService *mocks.MockAuditService,
 ) *chi.Mux {
-	handler := NewACLVerifyHandler(mockACLService, mockUserRepo, mockAuditService, nil)
+	handler := NewACLVerifyHandler(ACLVerifyHandlerConfig{
+		ACLService:   mockACLService,
+		UserRepo:     mockUserRepo,
+		AuditService: mockAuditService,
+		Logger:       nil,
+		CookieSecure: true,
+	})
 	r := chi.NewRouter()
 
 	r.Get("/api/auth/acl/verify", handler.Verify)

@@ -13,7 +13,7 @@ const defaultBranding: ACLBranding = {
   title: 'Waygates',
   subtitle: 'Sign in to continue',
   primary_color: '#3b82f6',
-  background_color: '#f8fafc',
+  background_color: '', // Empty to use default theme background
   updated_at: '',
 };
 
@@ -209,10 +209,10 @@ export function ACLLoginPage() {
     ? { __html: effectiveBranding.custom_css }
     : null;
 
-  // Background style from branding
-  const backgroundStyle = {
-    backgroundColor: effectiveBranding.background_color || defaultBranding.background_color,
-  };
+  // Background style from branding (only apply if explicitly set)
+  const backgroundStyle = effectiveBranding.background_color
+    ? { backgroundColor: effectiveBranding.background_color }
+    : undefined;
 
   return (
     <>
@@ -221,7 +221,7 @@ export function ACLLoginPage() {
       {customStyles && <style dangerouslySetInnerHTML={customStyles} />}
 
       <div
-        className="flex min-h-screen items-center justify-center px-4 py-8"
+        className="flex min-h-screen items-center justify-center bg-background px-4 py-8"
         style={backgroundStyle}
       >
         <Card className="w-full max-w-md shadow-lg">
