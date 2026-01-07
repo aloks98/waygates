@@ -250,10 +250,11 @@ func (m *MockReloader) TestConnection(ctx context.Context) error {
 
 // MockBuilder implements BuilderInterface for testing
 type MockBuilder struct {
-	BuildMainCaddyfileFunc func(opts caddyfile.MainCaddyfileOptions) string
-	BuildProxyFileFunc     func(proxy *models.Proxy) (string, error)
-	BuildCatchAllFileFunc  func(settings *models.NotFoundSettings) string
-	GetProxyFilenameFunc   func(proxy *models.Proxy) string
+	BuildMainCaddyfileFunc    func(opts caddyfile.MainCaddyfileOptions) string
+	BuildProxyFileFunc        func(proxy *models.Proxy) (string, error)
+	BuildProxyFileWithACLFunc func(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) (string, error)
+	BuildCatchAllFileFunc     func(settings *models.NotFoundSettings) string
+	GetProxyFilenameFunc      func(proxy *models.Proxy) string
 }
 
 func (m *MockBuilder) BuildMainCaddyfile(opts caddyfile.MainCaddyfileOptions) string {
@@ -264,6 +265,17 @@ func (m *MockBuilder) BuildMainCaddyfile(opts caddyfile.MainCaddyfileOptions) st
 }
 
 func (m *MockBuilder) BuildProxyFile(proxy *models.Proxy) (string, error) {
+	if m.BuildProxyFileFunc != nil {
+		return m.BuildProxyFileFunc(proxy)
+	}
+	return "# Proxy config", nil
+}
+
+func (m *MockBuilder) BuildProxyFileWithACL(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) (string, error) {
+	if m.BuildProxyFileWithACLFunc != nil {
+		return m.BuildProxyFileWithACLFunc(proxy, aclAssignments)
+	}
+	// Fall back to BuildProxyFile if no ACL-specific func is set
 	if m.BuildProxyFileFunc != nil {
 		return m.BuildProxyFileFunc(proxy)
 	}

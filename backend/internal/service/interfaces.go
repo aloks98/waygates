@@ -86,6 +86,57 @@ type AuditServiceInterface interface {
 	LogCaddyReload(ctx context.Context, success bool, errMsg string) error
 }
 
+// ACLServiceInterface defines the interface for ACL operations
+type ACLServiceInterface interface {
+	// Group Management
+	CreateGroup(group *models.ACLGroup, createdBy int) error
+	GetGroup(id int) (*models.ACLGroup, error)
+	GetGroupByName(name string) (*models.ACLGroup, error)
+	ListGroups(params ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
+	UpdateGroup(id int, updates *models.ACLGroup) error
+	DeleteGroup(id int) error
+
+	// IP Rules
+	AddIPRule(groupID int, rule *models.ACLIPRule) error
+	UpdateIPRule(id int, rule *models.ACLIPRule) error
+	DeleteIPRule(id int) error
+
+	// Basic Auth
+	AddBasicAuthUser(groupID int, username, password string) error
+	UpdateBasicAuthPassword(id int, password string) error
+	DeleteBasicAuthUser(id int) error
+
+	// External Providers
+	AddExternalProvider(groupID int, provider *models.ACLExternalProvider) error
+	UpdateExternalProvider(id int, provider *models.ACLExternalProvider) error
+	DeleteExternalProvider(id int) error
+
+	// Waygates Auth Config
+	GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error)
+	ConfigureWaygatesAuth(groupID int, config *models.ACLWaygatesAuth) error
+
+	// Proxy Assignment
+	AssignToProxy(proxyID, groupID int, pathPattern string, priority int) error
+	UpdateProxyAssignment(id int, pathPattern string, priority int, enabled bool) error
+	RemoveFromProxy(proxyID, groupID int) error
+	GetProxyACL(proxyID int) ([]models.ProxyACLAssignment, error)
+	GetGroupUsage(groupID int) ([]models.ProxyACLAssignment, error)
+
+	// Branding
+	GetBranding() (*models.ACLBranding, error)
+	UpdateBranding(branding *models.ACLBranding) error
+
+	// Access Verification (for forward_auth)
+	VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse, error)
+
+	// Session Management
+	CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	ValidateSession(token string) (*models.ACLSession, error)
+	RevokeSession(token string) error
+	RevokeUserSessions(userID int) error
+	CleanupExpiredSessions() (int64, error)
+}
+
 // Ensure concrete types implement interfaces
 var (
 	_ ProxyServiceInterface    = (*ProxyService)(nil)
@@ -93,4 +144,5 @@ var (
 	_ SyncServiceInterface     = (*SyncService)(nil)
 	_ ProxySyncer              = (*SyncService)(nil)
 	_ AuditServiceInterface    = (*AuditService)(nil)
+	_ ACLServiceInterface      = (*ACLService)(nil)
 )

@@ -13,13 +13,39 @@ import (
 
 // Builder generates Caddyfile content for different proxy types
 type Builder struct {
-	logger *zap.Logger
+	logger     *zap.Logger
+	aclBuilder *ACLBuilder
+}
+
+// BuilderOptions holds configuration options for creating a new Builder
+type BuilderOptions struct {
+	Logger            *zap.Logger
+	WaygatesVerifyURL string // URL for Waygates forward auth verification
 }
 
 // NewBuilder creates a new Caddyfile builder
 func NewBuilder(logger *zap.Logger) *Builder {
 	return &Builder{
-		logger: logger,
+		logger:     logger,
+		aclBuilder: nil, // No ACL support by default for backward compatibility
+	}
+}
+
+// NewBuilderWithOptions creates a new Caddyfile builder with full options
+func NewBuilderWithOptions(opts BuilderOptions) *Builder {
+	var aclBuilder *ACLBuilder
+	if opts.WaygatesVerifyURL != "" {
+		aclBuilder = NewACLBuilder(opts.WaygatesVerifyURL)
+	}
+
+	logger := opts.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
+	return &Builder{
+		logger:     logger,
+		aclBuilder: aclBuilder,
 	}
 }
 
@@ -108,8 +134,15 @@ func buildACMEDNSConfig(provider string) string {
 	}
 }
 
-// BuildProxyFile generates config content for a single proxy
+// BuildProxyFile generates config content for a single proxy without ACL support.
+// For ACL-enabled proxies, use BuildProxyFileWithACL instead.
 func (b *Builder) BuildProxyFile(proxy *models.Proxy) (string, error) {
+	return b.BuildProxyFileWithACL(proxy, nil)
+}
+
+// BuildProxyFileWithACL generates config content for a single proxy with optional ACL support.
+// If aclAssignments is nil or empty, it generates standard proxy config without ACL.
+func (b *Builder) BuildProxyFileWithACL(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) (string, error) {
 	if proxy == nil {
 		return "", fmt.Errorf("proxy is nil")
 	}
@@ -117,12 +150,21 @@ func (b *Builder) BuildProxyFile(proxy *models.Proxy) (string, error) {
 	var content string
 	var err error
 
+	// Check if we have ACL assignments and ACL builder is configured
+	hasACL := len(aclAssignments) > 0 && b.aclBuilder != nil && HasACLConfig(aclAssignments)
+
 	switch proxy.Type {
 	case models.ProxyTypeReverseProxy:
-		content, err = b.buildReverseProxyBlock(proxy)
+		if hasACL {
+			content, err = b.buildReverseProxyBlockWithACL(proxy, aclAssignments)
+		} else {
+			content, err = b.buildReverseProxyBlock(proxy)
+		}
 	case models.ProxyTypeStatic:
+		// Static proxies currently don't support ACL
 		content, err = b.buildStaticBlock(proxy)
 	case models.ProxyTypeRedirect:
+		// Redirect proxies currently don't support ACL
 		content, err = b.buildRedirectBlock(proxy)
 	default:
 		return "", fmt.Errorf("unknown proxy type: %s", proxy.Type)
@@ -137,6 +179,9 @@ func (b *Builder) BuildProxyFile(proxy *models.Proxy) (string, error) {
 	sb.WriteString(fmt.Sprintf("# Proxy ID: %d\n", proxy.ID))
 	sb.WriteString(fmt.Sprintf("# Name: %s\n", proxy.Name))
 	sb.WriteString(fmt.Sprintf("# Type: %s\n", proxy.Type))
+	if hasACL {
+		sb.WriteString(fmt.Sprintf("# ACL Enabled: true (%d assignments)\n", len(aclAssignments)))
+	}
 	sb.WriteString(fmt.Sprintf("# Updated: %s\n\n", time.Now().Format(time.RFC3339)))
 	sb.WriteString(content)
 

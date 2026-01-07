@@ -1,3 +1,42 @@
+// ACL Hooks
+export {
+  // Branding
+  useACLBranding,
+  useACLGroup,
+  // ACL Groups
+  useACLGroups,
+  useAddBasicAuthUser,
+  useAddExternalProvider,
+  useAddIPRule,
+  useAssignACL,
+  // Basic Auth Users
+  useBasicAuthUsers,
+  useConfigureWaygatesAuth,
+  useCreateACLGroup,
+  useDeleteACLGroup,
+  useDeleteBasicAuthUser,
+  useDeleteExternalProvider,
+  useDeleteIPRule,
+  // External Providers
+  useExternalProviders,
+  // IP Rules
+  useIPRules,
+  // OAuth Providers
+  useOAuthProviders,
+  // Proxy ACL
+  useProxyACL,
+  useRemoveACL,
+  useUpdateACLBranding,
+  useUpdateACLGroup,
+  useUpdateBasicAuthUser,
+  useUpdateExternalProvider,
+  useUpdateIPRule,
+  useUpdateProxyACLAssignment,
+  // Waygates Auth
+  useWaygatesAuth,
+} from './use-acl';
+
+// Audit Hooks
 export {
   useAuditConfig,
   useAuditEventGroups,
@@ -6,6 +45,7 @@ export {
   useAuditStats,
   useExportAuditLogs,
 } from './use-audit-logs';
+
 export { usePermissions } from './use-permissions';
 export { useProxies } from './use-proxies';
 export { useNotFoundSettings } from './use-settings';

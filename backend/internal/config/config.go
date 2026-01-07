@@ -17,6 +17,7 @@ type Config struct {
 	Logging     LoggingConfig
 	DefaultUser DefaultUserConfig
 	UI          UIConfig
+	ACL         ACLConfig
 }
 
 // UIConfig holds UI static file serving configuration
@@ -90,6 +91,19 @@ type DefaultUserConfig struct {
 	Password string
 }
 
+// ACLConfig holds ACL-related configuration
+type ACLConfig struct {
+	CookieDomain string        // Domain for session cookies (e.g., ".company.com")
+	CookieSecure bool          // Whether cookies should be secure-only
+	SessionTTL   time.Duration // Default session TTL
+	OAuth        OAuthConfig   // OAuth provider configuration
+}
+
+// OAuthConfig holds OAuth-related configuration
+type OAuthConfig struct {
+	CallbackBaseURL string // Base URL for OAuth callbacks (e.g., https://waygates.company.com)
+}
+
 // Load reads configuration from environment variables and config files
 func Load() (*Config, error) {
 	// Set default values
@@ -141,6 +155,14 @@ func Load() (*Config, error) {
 			Enabled: viper.GetBool("UI_ENABLED"),
 			Path:    viper.GetString("UI_PATH"),
 		},
+		ACL: ACLConfig{
+			CookieDomain: viper.GetString("ACL_COOKIE_DOMAIN"),
+			CookieSecure: viper.GetBool("ACL_COOKIE_SECURE"),
+			SessionTTL:   viper.GetDuration("ACL_SESSION_TTL"),
+			OAuth: OAuthConfig{
+				CallbackBaseURL: viper.GetString("ACL_OAUTH_CALLBACK_BASE_URL"),
+			},
+		},
 	}
 
 	// Validate critical configuration
@@ -185,6 +207,12 @@ func setDefaults() {
 	// UI static file serving
 	viper.SetDefault("UI_ENABLED", true)
 	viper.SetDefault("UI_PATH", "./ui")
+
+	// ACL configuration
+	viper.SetDefault("ACL_COOKIE_DOMAIN", "")           // Empty means use request host
+	viper.SetDefault("ACL_COOKIE_SECURE", true)         // Default to secure cookies
+	viper.SetDefault("ACL_SESSION_TTL", 24*time.Hour)   // Default 24 hours
+	viper.SetDefault("ACL_OAUTH_CALLBACK_BASE_URL", "") // Must be set if using OAuth
 }
 
 // MinJWTSecretLength is the minimum required length for JWT secret

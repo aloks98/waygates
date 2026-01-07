@@ -78,6 +78,10 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	userRepo := repository.NewUserRepository(db)
 	settingsRepo := repository.NewSettingsRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
+	aclRepo := repository.NewACLRepository(db)
+
+	// OAuth Provider Manager
+	oauthProviderManager := auth.NewOAuthProviderManager()
 
 	// Services - SyncService must be created first as ProxyService depends on it
 	syncService := service.NewSyncService(service.SyncServiceConfig{
@@ -100,6 +104,11 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsService.SetSyncService(syncService) // Wire up sync service for catchall updates
 
 	auditService := service.NewAuditService(auditLogRepo, settingsService, logger)
+	aclService := service.NewACLService(service.ACLServiceConfig{
+		ACLRepo:   aclRepo,
+		ProxyRepo: proxyRepo,
+		Logger:    logger,
+	})
 
 	// Ensure Caddy directories exist
 	if err := caddyFileManager.EnsureDirectories(); err != nil {
@@ -125,6 +134,17 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService)
 	syncHandler := handlers.NewSyncHandler(syncService)
 	auditHandler := handlers.NewAuditHandler(auditService)
+	aclHandler := handlers.NewACLHandler(aclService, aclRepo, auditService)
+	aclVerifyHandler := handlers.NewACLVerifyHandler(aclService, userRepo, auditService)
+	proxyACLHandler := handlers.NewProxyACLHandler(aclService, auditService)
+	oauthHandler := handlers.NewOAuthHandler(handlers.OAuthHandlerConfig{
+		ProviderManager: oauthProviderManager,
+		ACLService:      aclService,
+		UserRepo:        userRepo,
+		AuditService:    auditService,
+		Config:          cfg,
+		Logger:          logger,
+	})
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -133,6 +153,17 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Post("/api/auth/register", authHandler.Register)
 		r.Post("/api/auth/login", authHandler.Login)
 		r.Post("/api/auth/refresh", authHandler.RefreshToken)
+
+		// ACL forward auth routes (called by Caddy, must be public)
+		r.Get("/api/auth/acl/verify", aclVerifyHandler.Verify)
+		r.Post("/api/auth/acl/login", aclVerifyHandler.Login)
+		r.Post("/api/auth/acl/logout", aclVerifyHandler.Logout)
+		r.Get("/api/auth/acl/session", aclVerifyHandler.GetSession)
+
+		// OAuth routes (public - handles OAuth flow)
+		r.Get("/api/auth/oauth/providers", oauthHandler.ListProviders)
+		r.Get("/auth/oauth/{provider}", oauthHandler.StartOAuth)
+		r.Get("/auth/oauth/{provider}/callback", oauthHandler.Callback)
 	})
 
 	// Protected routes
@@ -188,6 +219,61 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/config", auditHandler.UpdateConfig)
 			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/event-groups", auditHandler.GetEventGroups)
 			r.With(chimw.RequirePermission(authAdapter, "audit_logs:read", mwConfig)).Get("/{id}", auditHandler.GetByID)
+		})
+
+		// ACL group management routes
+		r.Route("/api/acl", func(r chi.Router) {
+			// Group management
+			r.Route("/groups", func(r chi.Router) {
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/", aclHandler.ListGroups)
+				r.With(chimw.RequirePermission(authAdapter, "acl:create", mwConfig)).Post("/", aclHandler.CreateGroup)
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}", aclHandler.GetGroup)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{id}", aclHandler.UpdateGroup)
+				r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{id}", aclHandler.DeleteGroup)
+
+				// Group usage (which proxies use this group)
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/usage", aclHandler.GetGroupUsage)
+
+				// IP Rules for a group
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/ip-rules", aclHandler.ListIPRules)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/{id}/ip-rules", aclHandler.AddIPRule)
+
+				// Basic Auth Users for a group
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/basic-auth", aclHandler.ListBasicAuthUsers)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/{id}/basic-auth", aclHandler.AddBasicAuthUser)
+
+				// External Providers for a group
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/providers", aclHandler.ListExternalProviders)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/{id}/providers", aclHandler.AddExternalProvider)
+
+				// Waygates Auth config for a group
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/waygates-auth", aclHandler.GetWaygatesAuth)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{id}/waygates-auth", aclHandler.ConfigureWaygatesAuth)
+			})
+
+			// IP Rules direct access (for update/delete by rule ID)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/ip-rules/{id}", aclHandler.UpdateIPRule)
+			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/ip-rules/{id}", aclHandler.DeleteIPRule)
+
+			// Basic Auth Users direct access (for update/delete by user ID)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/basic-auth/{id}", aclHandler.UpdateBasicAuthUser)
+			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/basic-auth/{id}", aclHandler.DeleteBasicAuthUser)
+
+			// External Providers direct access (for update/delete by provider ID)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/providers/{id}", aclHandler.UpdateExternalProvider)
+			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/providers/{id}", aclHandler.DeleteExternalProvider)
+
+			// Branding configuration
+			r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/branding", aclHandler.GetBranding)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/branding", aclHandler.UpdateBranding)
+		})
+
+		// Proxy ACL assignment routes (nested under proxies)
+		r.Route("/api/proxies/{id}/acl", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/", proxyACLHandler.GetProxyACL)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/", proxyACLHandler.AssignACLToProxy)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{assignmentId}", proxyACLHandler.UpdateProxyACLAssignment)
+			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{groupId}", proxyACLHandler.RemoveACLFromProxy)
 		})
 	})
 
