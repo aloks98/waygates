@@ -25,6 +25,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
+import { type ACLAssignment, ACLSelector } from './acl-selector';
 
 const upstreamSchema = z.object({
   host: z.string().min(1, 'Host is required'),
@@ -54,7 +55,7 @@ type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
 
 interface ReverseProxyFormProps {
   initialData?: ProxyConfig | null;
-  onSubmit: (data: CreateReverseProxyRequest) => void;
+  onSubmit: (data: CreateReverseProxyRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
@@ -68,6 +69,7 @@ export function ReverseProxyForm({
   const [upstreams, setUpstreams] = useState<
     Array<{ host: string; port: number; scheme: 'http' | 'https' }>
   >([{ host: '', port: 8080, scheme: 'http' }]);
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
 
   const form = useForm({
     defaultValues: {
@@ -115,7 +117,7 @@ export function ReverseProxyForm({
         };
       }
 
-      onSubmit(data);
+      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
 
@@ -448,6 +450,8 @@ export function ReverseProxyForm({
           </form.Field>
         </CardContent>
       </Card>
+
+      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>

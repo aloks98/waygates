@@ -180,6 +180,11 @@ type ACLWaygatesAuth struct {
 	SessionTTL           int             `json:"session_ttl" gorm:"default:86400"`
 	CreatedAt            time.Time       `json:"created_at" gorm:"autoCreateTime"`
 
+	// OAuth user restrictions
+	AllowedEmails    JSONStringArray `json:"allowed_emails,omitempty" gorm:"type:text"`    // Specific emails: ["john@example.com"]
+	AllowedDomains   JSONStringArray `json:"allowed_domains,omitempty" gorm:"type:text"`   // Email domains: ["@company.com"]
+	AllowedProviders JSONStringArray `json:"allowed_providers,omitempty" gorm:"type:text"` // OAuth providers: ["google", "github"]
+
 	// Relations
 	ACLGroup *ACLGroup `json:"-" gorm:"foreignKey:ACLGroupID"`
 }
@@ -231,12 +236,16 @@ func (ACLBranding) TableName() string {
 type ACLSession struct {
 	ID           int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	SessionToken string    `json:"-" gorm:"type:varchar(255);uniqueIndex;not null"`
-	UserID       int       `json:"user_id" gorm:"not null;index"`
+	UserID       *int      `json:"user_id,omitempty" gorm:"index"` // Nullable for OAuth-only users
 	ProxyID      *int      `json:"proxy_id,omitempty" gorm:"index"`
 	IPAddress    *string   `json:"ip_address,omitempty" gorm:"type:varchar(50)"`
 	UserAgent    *string   `json:"user_agent,omitempty" gorm:"type:text"`
 	ExpiresAt    time.Time `json:"expires_at" gorm:"not null;index"`
 	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
+
+	// OAuth user info (for OAuth sessions)
+	Email    *string `json:"email,omitempty" gorm:"type:varchar(255);index"`   // OAuth user's email
+	Provider *string `json:"provider,omitempty" gorm:"type:varchar(50);index"` // OAuth provider (google, github, etc.)
 
 	// Relations
 	User  *User  `json:"user,omitempty" gorm:"foreignKey:UserID"`

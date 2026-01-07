@@ -5,15 +5,18 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
+  CardHeading,
   CardTitle,
   Field,
   FieldContent,
   FieldDescription,
   FieldError,
+  FieldGroup,
   FieldLabel,
   Input,
   Skeleton,
   Spinner,
+  Textarea,
 } from '@e412/titanium';
 import { Eye, Lock, Mail, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -166,7 +169,7 @@ function LoginPreview({
       </div>
       <div
         className="relative rounded-lg border shadow-lg overflow-hidden"
-        style={{ backgroundColor, minHeight: '400px' }}
+        style={{ backgroundColor, minHeight: '480px' }}
       >
         {/* Custom CSS injection - required for CSS preview, input is sanitized */}
         {customCss && (
@@ -181,7 +184,7 @@ function LoginPreview({
           />
         )}
 
-        <div className="flex flex-col items-center justify-center min-h-[400px] p-6">
+        <div className="flex flex-col items-center justify-center min-h-[480px] p-6">
           {/* Logo */}
           {logoUrl && !imageError ? (
             <img
@@ -208,10 +211,30 @@ function LoginPreview({
 
           {/* Subtitle */}
           {subtitle && (
-            <p className="text-sm mb-6 text-center" style={{ color: mutedTextColor }}>
+            <p className="text-sm mb-4 text-center" style={{ color: mutedTextColor }}>
               {subtitle}
             </p>
           )}
+
+          {/* App Context Message - Shows what resource the user is accessing */}
+          <div
+            className="flex items-center justify-center gap-2 rounded-lg px-4 py-3 mb-6 w-full max-w-[280px]"
+            style={{
+              backgroundColor:
+                textColor === '#000000' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
+              border: `1px solid ${textColor === '#000000' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'}`,
+            }}
+          >
+            <Lock className="size-4 flex-shrink-0" style={{ color: mutedTextColor }} />
+            <div className="text-center min-w-0">
+              <p className="text-xs" style={{ color: mutedTextColor }}>
+                You are accessing
+              </p>
+              <p className="text-sm font-medium truncate" style={{ color: textColor }}>
+                internal.company.com
+              </p>
+            </div>
+          </div>
 
           {/* Mock form - decorative preview only */}
           <div className="w-full max-w-[280px] space-y-4" aria-hidden="true">
@@ -222,7 +245,8 @@ function LoginPreview({
               <div
                 className="flex items-center gap-2 px-3 py-2 rounded-md border"
                 style={{
-                  borderColor: mutedTextColor,
+                  borderColor:
+                    textColor === '#000000' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
                   backgroundColor:
                     textColor === '#000000' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.1)',
                 }}
@@ -241,7 +265,8 @@ function LoginPreview({
               <div
                 className="flex items-center gap-2 px-3 py-2 rounded-md border"
                 style={{
-                  borderColor: mutedTextColor,
+                  borderColor:
+                    textColor === '#000000' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
                   backgroundColor:
                     textColor === '#000000' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.1)',
                 }}
@@ -373,16 +398,18 @@ export function ACLBrandingSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ACL Login Branding</CardTitle>
-        <CardDescription>
-          Customize the appearance of the ACL login page that users see when accessing protected
-          resources.
-        </CardDescription>
+        <CardHeading>
+          <CardTitle>ACL Login Branding</CardTitle>
+          <CardDescription>
+            Customize the appearance of the ACL login page that users see when accessing protected
+            resources.
+          </CardDescription>
+        </CardHeading>
       </CardHeader>
       <CardContent>
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Form Fields */}
-          <div className="space-y-5">
+          <FieldGroup className="space-y-5">
             {/* Logo URL */}
             <Field data-invalid={!!errors.logo_url}>
               <FieldLabel htmlFor="logo_url">Logo URL</FieldLabel>
@@ -462,12 +489,12 @@ export function ACLBrandingSettings() {
             <Field>
               <FieldLabel htmlFor="custom_css">Custom CSS (Advanced)</FieldLabel>
               <FieldContent>
-                <textarea
+                <Textarea
                   id="custom_css"
                   value={localValues.custom_css}
                   onChange={(e) => handleFieldChange('custom_css', e.target.value)}
                   placeholder={`.login-container {\n  /* Your custom styles */\n}`}
-                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                  className="font-mono min-h-[120px]"
                   rows={5}
                 />
               </FieldContent>
@@ -475,7 +502,7 @@ export function ACLBrandingSettings() {
                 Add custom CSS to further customize the login page appearance.
               </FieldDescription>
             </Field>
-          </div>
+          </FieldGroup>
 
           {/* Live Preview */}
           <div className="lg:sticky lg:top-6">
@@ -491,9 +518,9 @@ export function ACLBrandingSettings() {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
+      <CardFooter className="flex justify-between border-t pt-6">
         <Button variant="ghost" onClick={handleResetToDefaults} disabled={isUpdating}>
-          <RotateCcw className="size-4 mr-2" />
+          <RotateCcw className="size-4" />
           Reset to Defaults
         </Button>
         <div className="flex gap-2">
@@ -503,7 +530,7 @@ export function ACLBrandingSettings() {
           <Button onClick={handleSave} disabled={isUpdating || !hasChanges || !isValid}>
             {isUpdating ? (
               <>
-                <Spinner variant="circle" className="mr-2" />
+                <Spinner variant="circle" />
                 Saving...
               </>
             ) : (

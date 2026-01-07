@@ -75,6 +75,18 @@ type ACLVerifyResponse struct {
 	RedirectURL  string            // URL to redirect for auth
 	Headers      map[string]string // Headers to set on success (X-Auth-User, etc.)
 	User         *models.User      // Authenticated user if any
+
+	// OAuth user info (set when authenticated via OAuth)
+	OAuthEmail    string // OAuth user's email
+	OAuthProvider string // OAuth provider (google, github, etc.)
+}
+
+// groupAccessResult holds the result of evaluating access for a group
+type groupAccessResult struct {
+	Allowed       bool
+	User          *models.User
+	OAuthEmail    string
+	OAuthProvider string
 }
 
 // ACLService handles ACL business logic
@@ -836,7 +848,7 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 		}
 
 		// Evaluate access for this group
-		allowed, user, err := s.evaluateGroupAccess(group, request)
+		accessResult, err := s.evaluateGroupAccess(group, request)
 		if err != nil {
 			s.logger.Warn("Error evaluating group access",
 				zap.Int("group_id", group.ID),
@@ -844,13 +856,21 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 			continue
 		}
 
-		if allowed {
+		if accessResult.Allowed {
 			response.Allowed = true
-			response.User = user
-			if user != nil {
-				response.Headers["X-Auth-User"] = user.Username
-				response.Headers["X-Auth-User-ID"] = fmt.Sprintf("%d", user.ID)
-				response.Headers["X-Auth-User-Email"] = user.Email
+			response.User = accessResult.User
+			response.OAuthEmail = accessResult.OAuthEmail
+			response.OAuthProvider = accessResult.OAuthProvider
+
+			// Set headers based on auth type
+			if accessResult.User != nil {
+				response.Headers["X-Auth-User"] = accessResult.User.Username
+				response.Headers["X-Auth-User-ID"] = fmt.Sprintf("%d", accessResult.User.ID)
+				response.Headers["X-Auth-User-Email"] = accessResult.User.Email
+			} else if accessResult.OAuthEmail != "" {
+				// OAuth user (no Waygates user account)
+				response.Headers["X-Auth-User-Email"] = accessResult.OAuthEmail
+				response.Headers["X-Auth-Provider"] = accessResult.OAuthProvider
 			}
 			return response, nil
 		}
@@ -871,36 +891,54 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 }
 
 // evaluateGroupAccess evaluates access rules for a specific ACL group
-func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVerifyRequest) (bool, *models.User, error) {
+func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVerifyRequest) (*groupAccessResult, error) {
+	result := &groupAccessResult{Allowed: false}
+
 	// First check IP rules (deny rules take priority)
 	ipResult, bypass := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
 
 	// If IP is denied, reject immediately
 	if ipResult == ipRuleDeny {
-		return false, nil, nil
+		return result, nil
 	}
 
 	// If IP bypass and combination mode allows it, grant access without further auth
 	if ipResult == ipRuleBypass && group.CombinationMode == models.ACLCombinationModeIPBypass {
-		return true, nil, nil
+		result.Allowed = true
+		return result, nil
 	}
 
 	// If IP is explicitly allowed (not just bypass), it might be sufficient
 	if ipResult == ipRuleAllow && group.CombinationMode == models.ACLCombinationModeIPBypass {
-		return true, nil, nil
+		result.Allowed = true
+		return result, nil
 	}
 
 	// Check authentication methods based on combination mode
 	var authResults []bool
-	var authenticatedUser *models.User
 
-	// Check session token (Waygates auth)
+	// Check session token (Waygates auth or OAuth)
 	if request.SessionToken != "" && group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
 		session, err := s.aclRepo.GetSessionByToken(request.SessionToken)
-		if err == nil && !session.IsExpired() && session.User != nil {
-			if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
-				authResults = append(authResults, true)
-				authenticatedUser = session.User
+		if err == nil && !session.IsExpired() {
+			// Check if this is an OAuth session (has email and provider)
+			if session.Email != nil && session.Provider != nil {
+				// OAuth session - check OAuth restrictions first
+				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth) {
+					authResults = append(authResults, true)
+					result.OAuthEmail = *session.Email
+					result.OAuthProvider = *session.Provider
+					// Also set user if available (OAuth user may have Waygates account)
+					if session.User != nil {
+						result.User = session.User
+					}
+				}
+			} else if session.User != nil {
+				// Pure Waygates user session (no OAuth info)
+				if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
+					authResults = append(authResults, true)
+					result.User = session.User
+				}
 			}
 		}
 	}
@@ -922,12 +960,14 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 	case models.ACLCombinationModeAny:
 		// If IP is allowed/bypassed, that's enough
 		if bypass || ipResult == ipRuleAllow {
-			return true, nil, nil
+			result.Allowed = true
+			return result, nil
 		}
 		// Or if any auth method passed
-		for _, result := range authResults {
-			if result {
-				return true, authenticatedUser, nil
+		for _, passed := range authResults {
+			if passed {
+				result.Allowed = true
+				return result, nil
 			}
 		}
 
@@ -940,34 +980,37 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 		if !hasAuthRequirements {
 			// No auth requirements, IP check was enough
 			if ipResult != ipRuleDeny {
-				return true, nil, nil
+				result.Allowed = true
+				return result, nil
 			}
 		}
 		// Need all auth results to pass
 		if len(authResults) > 0 {
 			allPassed := true
-			for _, result := range authResults {
-				if !result {
+			for _, passed := range authResults {
+				if !passed {
 					allPassed = false
 					break
 				}
 			}
 			if allPassed {
-				return true, authenticatedUser, nil
+				result.Allowed = true
+				return result, nil
 			}
 		}
 
 	case models.ACLCombinationModeIPBypass:
 		// IP bypass already handled above
 		// Otherwise, need auth
-		for _, result := range authResults {
-			if result {
-				return true, authenticatedUser, nil
+		for _, passed := range authResults {
+			if passed {
+				result.Allowed = true
+				return result, nil
 			}
 		}
 	}
 
-	return false, nil, nil
+	return result, nil
 }
 
 // IP rule evaluation result
@@ -1062,6 +1105,49 @@ func (s *ACLService) isUserAllowedByWaygatesAuth(user *models.User, auth *models
 	return false
 }
 
+// isOAuthUserAllowed checks if an OAuth user (email + provider) is allowed by the WaygatesAuth config
+func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACLWaygatesAuth) bool {
+	// Check provider restriction first
+	if len(auth.AllowedProviders) > 0 {
+		providerAllowed := false
+		for _, allowedProvider := range auth.AllowedProviders {
+			if strings.EqualFold(provider, allowedProvider) {
+				providerAllowed = true
+				break
+			}
+		}
+		if !providerAllowed {
+			return false
+		}
+	}
+
+	// If no email restrictions, allow (provider check already passed)
+	if len(auth.AllowedEmails) == 0 && len(auth.AllowedDomains) == 0 {
+		return true
+	}
+
+	// Check allowed emails (exact match)
+	for _, allowedEmail := range auth.AllowedEmails {
+		if strings.EqualFold(email, allowedEmail) {
+			return true
+		}
+	}
+
+	// Check allowed domains (e.g., "@company.com")
+	for _, domain := range auth.AllowedDomains {
+		// Normalize domain (ensure it starts with @)
+		normalizedDomain := domain
+		if !strings.HasPrefix(domain, "@") {
+			normalizedDomain = "@" + domain
+		}
+		if strings.HasSuffix(strings.ToLower(email), strings.ToLower(normalizedDomain)) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // matchEmailPattern checks if an email matches a pattern (supports wildcard *)
 func matchEmailPattern(email, pattern string) bool {
 	// Simple pattern matching with * wildcard
@@ -1138,8 +1224,43 @@ func matchPath(pattern, path string) bool {
 // Session Management
 // =============================================================================
 
-// CreateSession creates a new ACL session
+// CreateSessionParams holds parameters for creating a session
+type CreateSessionParams struct {
+	UserID    *int   // Waygates user ID (nil for OAuth-only sessions)
+	ProxyID   *int   // Optional proxy ID
+	IP        string // Client IP address
+	UserAgent string // Client user agent
+	TTL       int    // Session TTL in seconds (default 24h)
+	// OAuth fields (for OAuth-only sessions)
+	Email    string // OAuth user's email
+	Provider string // OAuth provider (google, github, etc.)
+}
+
+// CreateSession creates a new ACL session for a Waygates user
 func (s *ACLService) CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+	return s.CreateSessionWithParams(CreateSessionParams{
+		UserID:    &userID,
+		ProxyID:   proxyID,
+		IP:        ip,
+		UserAgent: userAgent,
+		TTL:       ttl,
+	})
+}
+
+// CreateOAuthSession creates a new ACL session for an OAuth user (without Waygates account)
+func (s *ACLService) CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+	return s.CreateSessionWithParams(CreateSessionParams{
+		ProxyID:   proxyID,
+		IP:        ip,
+		UserAgent: userAgent,
+		TTL:       ttl,
+		Email:     email,
+		Provider:  provider,
+	})
+}
+
+// CreateSessionWithParams creates a new ACL session with flexible parameters
+func (s *ACLService) CreateSessionWithParams(params CreateSessionParams) (*models.ACLSession, error) {
 	// Generate secure random token
 	token, err := generateSecureToken(SessionTokenLength)
 	if err != nil {
@@ -1147,31 +1268,47 @@ func (s *ACLService) CreateSession(userID int, proxyID *int, ip, userAgent strin
 	}
 
 	// Set default TTL if not specified
-	if ttl <= 0 {
-		ttl = 86400 // 24 hours
+	if params.TTL <= 0 {
+		params.TTL = 86400 // 24 hours
 	}
 
 	session := &models.ACLSession{
 		SessionToken: token,
-		UserID:       userID,
-		ProxyID:      proxyID,
-		ExpiresAt:    time.Now().Add(time.Duration(ttl) * time.Second),
+		UserID:       params.UserID,
+		ProxyID:      params.ProxyID,
+		ExpiresAt:    time.Now().Add(time.Duration(params.TTL) * time.Second),
 	}
 
-	if ip != "" {
-		session.IPAddress = &ip
+	if params.IP != "" {
+		session.IPAddress = &params.IP
 	}
-	if userAgent != "" {
-		session.UserAgent = &userAgent
+	if params.UserAgent != "" {
+		session.UserAgent = &params.UserAgent
+	}
+
+	// Set OAuth fields if provided
+	if params.Email != "" {
+		session.Email = &params.Email
+	}
+	if params.Provider != "" {
+		session.Provider = &params.Provider
 	}
 
 	if err := s.aclRepo.CreateSession(session); err != nil {
 		return nil, fmt.Errorf("creating session: %w", err)
 	}
 
-	s.logger.Info("ACL session created",
-		zap.Int("user_id", userID),
-		zap.Int("ttl_seconds", ttl))
+	// Log session creation
+	if params.UserID != nil {
+		s.logger.Info("ACL session created for user",
+			zap.Int("user_id", *params.UserID),
+			zap.Int("ttl_seconds", params.TTL))
+	} else if params.Email != "" {
+		s.logger.Info("ACL session created for OAuth user",
+			zap.String("email", params.Email),
+			zap.String("provider", params.Provider),
+			zap.Int("ttl_seconds", params.TTL))
+	}
 
 	return session, nil
 }

@@ -54,12 +54,16 @@ export interface ACLWaygatesAuth {
   id: number;
   acl_group_id: number;
   enabled: boolean;
-  allowed_users?: number[];
+  allowed_users?: string[];
   allowed_roles?: string[];
   allowed_email_patterns?: string[];
   require_2fa: boolean;
   session_ttl: number;
   created_at: string;
+  // OAuth user restrictions
+  allowed_emails?: string[]; // Specific emails: ["john@example.com"]
+  allowed_domains?: string[]; // Email domains: ["@company.com"]
+  allowed_providers?: string[]; // OAuth providers: ["google", "github"]
 }
 
 export interface ProxyACLAssignment {
@@ -146,11 +150,15 @@ export interface UpdateExternalProviderRequest {
 
 export interface ConfigureWaygatesAuthRequest {
   enabled: boolean;
-  allowed_users?: number[];
+  allowed_users?: string[];
   allowed_roles?: string[];
   allowed_email_patterns?: string[];
   require_2fa?: boolean;
   session_ttl?: number;
+  // OAuth user restrictions
+  allowed_emails?: string[];
+  allowed_domains?: string[];
+  allowed_providers?: string[];
 }
 
 export interface AssignACLRequest {

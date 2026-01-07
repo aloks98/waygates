@@ -52,10 +52,13 @@ type ACLLoginResponse struct {
 // ACLSessionResponse is the response body for session info
 type ACLSessionResponse struct {
 	Authenticated bool   `json:"authenticated"`
-	UserID        int    `json:"user_id,omitempty"`
+	UserID        *int   `json:"user_id,omitempty"`
 	Username      string `json:"username,omitempty"`
 	Email         string `json:"email,omitempty"`
 	ExpiresAt     string `json:"expires_at,omitempty"`
+	// OAuth user info (for OAuth-only sessions)
+	OAuthEmail    string `json:"oauth_email,omitempty"`
+	OAuthProvider string `json:"oauth_provider,omitempty"`
 }
 
 // =============================================================================
@@ -317,6 +320,14 @@ func (h *ACLVerifyHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 	if session.User != nil {
 		response.Username = session.User.Username
 		response.Email = session.User.Email
+	}
+
+	// Include OAuth info if available
+	if session.Email != nil {
+		response.OAuthEmail = *session.Email
+	}
+	if session.Provider != nil {
+		response.OAuthProvider = *session.Provider
 	}
 
 	utils.Success(w, response, "")

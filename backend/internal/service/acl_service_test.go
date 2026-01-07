@@ -1338,8 +1338,8 @@ func TestCreateSession_Success(t *testing.T) {
 	if createdSession.SessionToken == "" {
 		t.Error("Expected session token to be generated")
 	}
-	if createdSession.UserID != 1 {
-		t.Error("Expected UserID to be set")
+	if createdSession.UserID == nil || *createdSession.UserID != 1 {
+		t.Error("Expected UserID to be set to 1")
 	}
 }
 
@@ -1822,10 +1822,11 @@ func TestVerifyAccess_WaygatesSession(t *testing.T) {
 			}, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
+			userID := 1
 			return &models.ACLSession{
 				ID:           1,
 				SessionToken: token,
-				UserID:       1,
+				UserID:       &userID,
 				ExpiresAt:    time.Now().Add(1 * time.Hour),
 				User: &models.User{
 					ID:       1,

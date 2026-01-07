@@ -20,6 +20,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import type { CreateStaticRequest, ProxyConfig } from '@/types/proxy';
+import { type ACLAssignment, ACLSelector } from './acl-selector';
 
 const staticSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
@@ -39,13 +40,14 @@ type StaticFormValues = z.infer<typeof staticSchema>;
 
 interface StaticFormProps {
   initialData?: ProxyConfig | null;
-  onSubmit: (data: CreateStaticRequest) => void;
+  onSubmit: (data: CreateStaticRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
 
 export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticFormProps) {
   const [tryFiles, setTryFiles] = useState<string[]>([]);
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
 
   const form = useForm({
     defaultValues: {
@@ -77,7 +79,7 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
         },
       };
 
-      onSubmit(data);
+      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
 
@@ -319,6 +321,8 @@ export function StaticForm({ initialData, onSubmit, loading, onCancel }: StaticF
           )}
         </CardContent>
       </Card>
+
+      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>

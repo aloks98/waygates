@@ -66,11 +66,13 @@ type MockACLService struct {
 	VerifyAccessFunc func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error)
 
 	// Session Management
-	CreateSessionFunc          func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
-	ValidateSessionFunc        func(token string) (*models.ACLSession, error)
-	RevokeSessionFunc          func(token string) error
-	RevokeUserSessionsFunc     func(userID int) error
-	CleanupExpiredSessionsFunc func() (int64, error)
+	CreateSessionFunc           func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateOAuthSessionFunc      func(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateSessionWithParamsFunc func(params service.CreateSessionParams) (*models.ACLSession, error)
+	ValidateSessionFunc         func(token string) (*models.ACLSession, error)
+	RevokeSessionFunc           func(token string) error
+	RevokeUserSessionsFunc      func(userID int) error
+	CleanupExpiredSessionsFunc  func() (int64, error)
 }
 
 // CreateGroup implements ACLServiceInterface.
@@ -282,6 +284,22 @@ func (m *MockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*servi
 func (m *MockACLService) CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
 	if m.CreateSessionFunc != nil {
 		return m.CreateSessionFunc(userID, proxyID, ip, userAgent, ttl)
+	}
+	return nil, nil
+}
+
+// CreateOAuthSession implements ACLServiceInterface.
+func (m *MockACLService) CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+	if m.CreateOAuthSessionFunc != nil {
+		return m.CreateOAuthSessionFunc(email, provider, proxyID, ip, userAgent, ttl)
+	}
+	return nil, nil
+}
+
+// CreateSessionWithParams implements ACLServiceInterface.
+func (m *MockACLService) CreateSessionWithParams(params service.CreateSessionParams) (*models.ACLSession, error) {
+	if m.CreateSessionWithParamsFunc != nil {
+		return m.CreateSessionWithParamsFunc(params)
 	}
 	return nil, nil
 }

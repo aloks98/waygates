@@ -20,10 +20,16 @@ import {
 import type { PaginationState } from '@tanstack/react-table';
 import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
+import {
+  type ACLAssignment,
+  getProxyTypeLabel,
+  ProxyDataGrid,
+  ProxyFormModal,
+} from '@/components/proxy';
+import { useAssignACL } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
-import type { ProxyConfig, ProxyType } from '@/types/proxy';
+import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 
 // Map Titanium filter operators to backend operators
 const operatorMap: Record<string, string> = {
@@ -204,6 +210,8 @@ export function ProxiesPage() {
     isToggling,
   } = useProxies(apiParams);
 
+  const { assignACL } = useAssignACL();
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
@@ -214,14 +222,37 @@ export function ProxiesPage() {
     setCreateModalOpen(true);
   };
 
-  const handleCreate = async (data: Parameters<typeof create>[0]) => {
-    await create(data);
+  const handleCreate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
+    const response = await create(data);
+    const proxyId = response.data?.id;
+
+    // Assign ACLs if provided
+    if (proxyId && aclAssignments && aclAssignments.length > 0) {
+      for (const assignment of aclAssignments) {
+        await assignACL({
+          proxyId,
+          data: {
+            acl_group_id: assignment.acl_group_id,
+            path_pattern: assignment.path_pattern,
+            priority: assignment.priority,
+            enabled: assignment.enabled,
+          },
+        });
+      }
+    }
+
     setCreateModalOpen(false);
   };
 
-  const handleUpdate = async (data: Parameters<typeof create>[0]) => {
+  const handleUpdate = async (data: CreateProxyRequest, _aclAssignments?: ACLAssignment[]) => {
     if (!editingProxy) return;
     await update({ id: editingProxy.id, data });
+
+    // For updates, we would need to handle ACL assignments differently
+    // (remove old ones, add new ones) - for now, ACL changes on edit
+    // can be managed via the ACL group detail page
+    // TODO: implement full ACL sync on proxy edit if needed
+
     setEditingProxy(null);
   };
 

@@ -1,12 +1,12 @@
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@e412/titanium';
 import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 import { getProxyTypeIcon } from './cells';
-import { RedirectForm, ReverseProxyForm, StaticForm } from './forms';
+import { type ACLAssignment, RedirectForm, ReverseProxyForm, StaticForm } from './forms';
 
 interface ProxyFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: CreateProxyRequest) => void;
+  onSubmit: (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => void;
   initialData?: ProxyConfig | null;
   proxyType: ProxyType;
   title: string;

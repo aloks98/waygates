@@ -14,9 +14,10 @@ import {
   Switch,
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import type { CreateRedirectRequest, ProxyConfig } from '@/types/proxy';
+import { type ACLAssignment, ACLSelector } from './acl-selector';
 
 const redirectSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
@@ -38,12 +39,14 @@ type RedirectFormValues = z.infer<typeof redirectSchema>;
 
 interface RedirectFormProps {
   initialData?: ProxyConfig | null;
-  onSubmit: (data: CreateRedirectRequest) => void;
+  onSubmit: (data: CreateRedirectRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
 
 export function RedirectForm({ initialData, onSubmit, loading, onCancel }: RedirectFormProps) {
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>([]);
+
   const form = useForm({
     defaultValues: {
       name: '',
@@ -73,7 +76,7 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
         },
       };
 
-      onSubmit(data);
+      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
 
@@ -252,6 +255,8 @@ export function RedirectForm({ initialData, onSubmit, loading, onCancel }: Redir
           )}
         </form.Field>
       </div>
+
+      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>

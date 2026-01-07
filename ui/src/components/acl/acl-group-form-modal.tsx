@@ -1,4 +1,6 @@
 import {
+  Alert,
+  AlertDescription,
   Button,
   Dialog,
   DialogBody,
@@ -20,7 +22,8 @@ import {
   Textarea,
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
-import { Shield } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Info, Shield } from 'lucide-react';
 import { useEffect } from 'react';
 import { z } from 'zod';
 import { useCreateACLGroup, useUpdateACLGroup } from '@/hooks';
@@ -65,6 +68,7 @@ export function ACLGroupFormModal({
   mode,
   initialData,
 }: ACLGroupFormModalProps) {
+  const navigate = useNavigate();
   const { createGroup, isCreating } = useCreateACLGroup();
   const { updateGroup, isUpdating } = useUpdateACLGroup();
 
@@ -90,14 +94,22 @@ export function ACLGroupFormModal({
             combination_mode: value.combination_mode,
           },
         });
+        onOpenChange(false);
       } else {
-        await createGroup({
+        const response = await createGroup({
           name: value.name,
           description: value.description || undefined,
           combination_mode: value.combination_mode,
         });
+        onOpenChange(false);
+        // Navigate to the newly created group's detail page to configure rules
+        if (response.data?.id) {
+          navigate({
+            to: '/dashboard/acl/$groupId',
+            params: { groupId: String(response.data.id) },
+          });
+        }
       }
-      onOpenChange(false);
     },
   });
 
@@ -135,6 +147,16 @@ export function ACLGroupFormModal({
           }}
         >
           <DialogBody>
+            {!isEditMode && (
+              <Alert className="mb-4">
+                <Info className="size-4" />
+                <AlertDescription>
+                  After creating the group, you will be redirected to configure access rules
+                  including IP restrictions, basic authentication, Waygates auth, and external
+                  providers.
+                </AlertDescription>
+              </Alert>
+            )}
             <FieldGroup>
               <form.Field name="name">
                 {(field) => {
@@ -214,7 +236,7 @@ export function ACLGroupFormModal({
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Group'}
+              {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create & Configure'}
             </Button>
           </DialogFooter>
         </form>

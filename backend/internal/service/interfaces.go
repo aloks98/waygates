@@ -131,6 +131,8 @@ type ACLServiceInterface interface {
 
 	// Session Management
 	CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateSessionWithParams(params CreateSessionParams) (*models.ACLSession, error)
 	ValidateSession(token string) (*models.ACLSession, error)
 	RevokeSession(token string) error
 	RevokeUserSessions(userID int) error

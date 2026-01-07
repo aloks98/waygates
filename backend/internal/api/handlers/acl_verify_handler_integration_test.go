@@ -365,10 +365,11 @@ func TestACLVerifyHandler_Login_Success(t *testing.T) {
 
 	mockACLService := &MockACLService{
 		CreateSessionFunc: func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+			uid := userID
 			return &models.ACLSession{
 				ID:           1,
 				SessionToken: "new-session-token",
-				UserID:       userID,
+				UserID:       &uid,
 				ExpiresAt:    time.Now().Add(24 * time.Hour),
 			}, nil
 		},
@@ -489,10 +490,11 @@ func TestACLVerifyHandler_Login_WithRedirect(t *testing.T) {
 
 	mockACLService := &MockACLService{
 		CreateSessionFunc: func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+			uid := userID
 			return &models.ACLSession{
 				ID:           1,
 				SessionToken: "new-session-token",
-				UserID:       userID,
+				UserID:       &uid,
 				ExpiresAt:    time.Now().Add(24 * time.Hour),
 			}, nil
 		},
@@ -634,10 +636,11 @@ func TestACLVerifyHandler_Logout_RevokeError(t *testing.T) {
 func TestACLVerifyHandler_GetSession_ValidSession(t *testing.T) {
 	mockACLService := &MockACLService{
 		ValidateSessionFunc: func(token string) (*models.ACLSession, error) {
+			userID := 1
 			return &models.ACLSession{
 				ID:           1,
 				SessionToken: token,
-				UserID:       1,
+				UserID:       &userID,
 				ExpiresAt:    time.Now().Add(12 * time.Hour),
 				User: &models.User{
 					ID:       1,

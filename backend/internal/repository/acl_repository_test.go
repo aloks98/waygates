@@ -315,10 +315,12 @@ func TestACLGroupListResponse_Structure(t *testing.T) {
 func TestACLSessionListResponse_Structure(t *testing.T) {
 	t.Parallel()
 
+	userID1 := 1
+	userID2 := 2
 	response := models.ACLSessionListResponse{
 		Items: []models.ACLSession{
-			{ID: 1, UserID: 1},
-			{ID: 2, UserID: 2},
+			{ID: 1, UserID: &userID1},
+			{ID: 2, UserID: &userID2},
 		},
 		Total:      50,
 		Page:       2,
@@ -620,11 +622,12 @@ func TestACLSessionModel_Structure(t *testing.T) {
 	userAgent := "Mozilla/5.0"
 	now := time.Now()
 	expiresAt := now.Add(24 * time.Hour)
+	userID := 1
 
 	session := models.ACLSession{
 		ID:           1,
 		SessionToken: "token123abc",
-		UserID:       1,
+		UserID:       &userID,
 		ProxyID:      &proxyID,
 		IPAddress:    &ipAddress,
 		UserAgent:    &userAgent,
@@ -638,8 +641,8 @@ func TestACLSessionModel_Structure(t *testing.T) {
 	if session.SessionToken != "token123abc" {
 		t.Errorf("Expected SessionToken 'token123abc', got '%s'", session.SessionToken)
 	}
-	if session.UserID != 1 {
-		t.Errorf("Expected UserID 1, got %d", session.UserID)
+	if session.UserID == nil || *session.UserID != 1 {
+		t.Error("Expected UserID to be 1")
 	}
 	if session.ProxyID == nil || *session.ProxyID != 1 {
 		t.Error("Expected ProxyID to be 1")

@@ -252,7 +252,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create ACL session
+	// Create ACL session with OAuth info for proper restriction checks
 	clientIP := getClientIP(r)
 	userAgent := r.UserAgent()
 	sessionTTL := int(h.config.ACL.SessionTTL.Seconds())
@@ -260,7 +260,17 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		sessionTTL = 86400 // Default 24 hours
 	}
 
-	session, err := h.aclService.CreateSession(user.ID, nil, clientIP, userAgent, sessionTTL)
+	// Store both user ID and OAuth info in session
+	// This allows OAuth restrictions to be checked even for users with Waygates accounts
+	session, err := h.aclService.CreateSessionWithParams(service.CreateSessionParams{
+		UserID:    &user.ID,
+		ProxyID:   nil,
+		IP:        clientIP,
+		UserAgent: userAgent,
+		TTL:       sessionTTL,
+		Email:     userInfo.Email,
+		Provider:  providerID,
+	})
 	if err != nil {
 		h.logger.Error("Failed to create session",
 			zap.Int("user_id", user.ID),
