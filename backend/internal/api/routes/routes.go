@@ -169,6 +169,9 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Get("/api/auth/oauth/providers", oauthHandler.ListProviders)
 		r.Get("/auth/oauth/{provider}", oauthHandler.StartOAuth)
 		r.Get("/auth/oauth/{provider}/callback", oauthHandler.Callback)
+
+		// ACL branding (public - needed for login page styling)
+		r.Get("/api/acl/branding", aclHandler.GetBranding)
 	})
 
 	// Protected routes
@@ -268,8 +271,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/providers/{id}", aclHandler.UpdateExternalProvider)
 			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/providers/{id}", aclHandler.DeleteExternalProvider)
 
-			// Branding configuration
-			r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/branding", aclHandler.GetBranding)
+			// Branding configuration (GET is public, PUT requires auth)
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/branding", aclHandler.UpdateBranding)
 		})
 
