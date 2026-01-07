@@ -99,7 +99,7 @@ type ACLIPRule struct {
 	ID          int       `json:"id" gorm:"primaryKey;autoIncrement"`
 	ACLGroupID  int       `json:"acl_group_id" gorm:"not null;index"`
 	RuleType    string    `json:"rule_type" gorm:"type:varchar(20);not null"`
-	CIDR        string    `json:"cidr" gorm:"type:varchar(50);not null"`
+	CIDR        string    `json:"cidr" gorm:"column:cidr;type:varchar(50);not null"`
 	Description *string   `json:"description,omitempty" gorm:"type:text"`
 	Priority    int       `json:"priority" gorm:"not null;default:0"`
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`

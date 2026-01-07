@@ -57,7 +57,7 @@ const waygatesAuthSchema = z.object({
     .number()
     .min(60, 'Minimum session TTL is 60 seconds')
     .max(604800, 'Maximum session TTL is 7 days'),
-  // OAuth restrictions
+  // OAuth settings (independent of Waygates auth)
   allowed_emails: z.array(z.string()).optional(),
   allowed_domains: z.array(z.string()).optional(),
   allowed_providers: z.array(z.string()).optional(),
@@ -90,7 +90,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       allowed_email_patterns: [] as string[],
       require_2fa: false,
       session_ttl: 3600,
-      // OAuth restrictions
+      // OAuth settings
       allowed_emails: [] as string[],
       allowed_domains: [] as string[],
       allowed_providers: [] as string[],
@@ -110,7 +110,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
             : undefined,
           require_2fa: value.require_2fa,
           session_ttl: value.session_ttl,
-          // OAuth restrictions
+          // OAuth settings
           allowed_emails: value.allowed_emails?.length ? value.allowed_emails : undefined,
           allowed_domains: value.allowed_domains?.length ? value.allowed_domains : undefined,
           allowed_providers: value.allowed_providers?.length ? value.allowed_providers : undefined,
@@ -127,7 +127,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       form.setFieldValue('allowed_email_patterns', config.allowed_email_patterns || []);
       form.setFieldValue('require_2fa', config.require_2fa);
       form.setFieldValue('session_ttl', config.session_ttl);
-      // OAuth restrictions
+      // OAuth settings
       form.setFieldValue('allowed_emails', config.allowed_emails || []);
       form.setFieldValue('allowed_domains', config.allowed_domains || []);
       form.setFieldValue('allowed_providers', config.allowed_providers || []);
@@ -197,19 +197,45 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
     return `${Math.round(seconds / 86400)} days`;
   };
 
+  // Get provider list for rendering
+  const providerList =
+    availableProviders.length > 0
+      ? availableProviders.map((p) => ({
+          id: p.id,
+          name: p.name,
+          enabled: p.enabled,
+          description:
+            OAUTH_PROVIDERS.find((op) => op.id === p.id)?.description || `Sign in with ${p.name}`,
+        }))
+      : OAUTH_PROVIDERS.map((p) => ({
+          ...p,
+          enabled: true,
+        }));
+
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-full mt-2" />
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-full mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-full mt-2" />
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -220,7 +246,160 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
         e.stopPropagation();
         form.handleSubmit();
       }}
+      className="space-y-6"
     >
+      {/* OAuth Providers Section - Independent of Waygates Auth */}
+      <Card>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="size-5" />
+              OAuth Providers
+            </CardTitle>
+            <CardDescription>
+              Allow users to authenticate using external OAuth providers. Users don't need a
+              Waygates account - they can sign in directly with their Google, GitHub, or other
+              OAuth accounts.
+            </CardDescription>
+          </CardHeading>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Field>
+            <FieldLabel className="flex items-center gap-2">
+              <Shield className="size-4" />
+              Enabled OAuth Providers
+            </FieldLabel>
+            <FieldDescription className="mb-3">
+              Select which OAuth providers users can use to authenticate. Leave all unchecked to
+              disable OAuth login entirely.
+            </FieldDescription>
+            <form.Subscribe selector={(state) => state.values.allowed_providers}>
+              {(selectedProviders) => (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {providerList.map((provider) => (
+                    <div
+                      key={provider.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border ${
+                        selectedProviders?.includes(provider.id)
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border bg-muted/30'
+                      } ${!provider.enabled ? 'opacity-50' : ''}`}
+                    >
+                      <Checkbox
+                        id={`provider-${provider.id}`}
+                        checked={selectedProviders?.includes(provider.id) || false}
+                        onCheckedChange={(checked) =>
+                          handleProviderToggle(provider.id, checked as boolean)
+                        }
+                        disabled={!provider.enabled}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Label
+                          htmlFor={`provider-${provider.id}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {provider.name}
+                          {!provider.enabled && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              Not Configured
+                            </Badge>
+                          )}
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {provider.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </form.Subscribe>
+          </Field>
+
+          <form.Subscribe selector={(state) => state.values.allowed_providers}>
+            {(selectedProviders) =>
+              selectedProviders &&
+              selectedProviders.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Shield className="size-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">OAuth User Restrictions</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Optionally restrict which OAuth users can access this resource. Leave empty to
+                      allow any user who authenticates via the enabled providers.
+                    </p>
+                  </div>
+
+                  <Field>
+                    <FieldLabel className="flex items-center gap-2">
+                      <Mail className="size-4" />
+                      Allowed Emails
+                    </FieldLabel>
+                    <Textarea
+                      placeholder="e.g., john@example.com, jane@company.com"
+                      value={allowedEmailsInput}
+                      onChange={(e) => handleAllowedEmailsChange(e.target.value)}
+                      rows={2}
+                    />
+                    <FieldDescription>
+                      Comma-separated list of specific email addresses allowed to access
+                    </FieldDescription>
+                    <form.Subscribe selector={(state) => state.values.allowed_emails}>
+                      {(emails) =>
+                        emails &&
+                        emails.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {emails.map((email) => (
+                              <Badge key={email} variant="secondary" className="font-mono text-xs">
+                                {email}
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      }
+                    </form.Subscribe>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel className="flex items-center gap-2">
+                      <Globe className="size-4" />
+                      Allowed Domains
+                    </FieldLabel>
+                    <Input
+                      placeholder="e.g., @company.com, @example.org"
+                      value={allowedDomainsInput}
+                      onChange={(e) => handleAllowedDomainsChange(e.target.value)}
+                    />
+                    <FieldDescription>
+                      Comma-separated email domains (e.g., @company.com). Users with emails ending
+                      in these domains will be allowed.
+                    </FieldDescription>
+                    <form.Subscribe selector={(state) => state.values.allowed_domains}>
+                      {(domains) =>
+                        domains &&
+                        domains.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {domains.map((domain) => (
+                              <Badge key={domain} variant="outline" className="font-mono text-xs">
+                                {domain}
+                              </Badge>
+                            ))}
+                          </div>
+                        )
+                      }
+                    </form.Subscribe>
+                  </Field>
+                </>
+              )
+            }
+          </form.Subscribe>
+        </CardContent>
+      </Card>
+
+      {/* Waygates Authentication Section - Separate from OAuth */}
       <Card>
         <CardHeader>
           <CardHeading>
@@ -229,8 +408,8 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
               Waygates Authentication
             </CardTitle>
             <CardDescription>
-              Allow Waygates users to authenticate using their platform credentials. Configure which
-              users, roles, or email patterns are permitted.
+              Allow users with Waygates accounts to authenticate using their platform credentials.
+              This is separate from OAuth - users need an account in Waygates to use this method.
             </CardDescription>
           </CardHeading>
         </CardHeader>
@@ -248,7 +427,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                     Enable Waygates Authentication
                   </FieldLabel>
                   <FieldDescription>
-                    Allow users to sign in with their Waygates account
+                    Allow users to sign in with their Waygates account credentials
                   </FieldDescription>
                 </FieldContent>
                 <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
@@ -376,162 +555,19 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                       );
                     }}
                   </form.Field>
-
-                  <Separator className="my-6" />
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="size-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">OAuth User Restrictions</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Control which OAuth users can access this resource. Leave empty to allow all
-                      OAuth users.
-                    </p>
-                  </div>
-
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Mail className="size-4" />
-                      Allowed Emails
-                    </FieldLabel>
-                    <Textarea
-                      placeholder="e.g., john@example.com, jane@company.com"
-                      value={allowedEmailsInput}
-                      onChange={(e) => handleAllowedEmailsChange(e.target.value)}
-                      rows={2}
-                    />
-                    <FieldDescription>
-                      Comma-separated list of specific email addresses allowed to access
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_emails}>
-                      {(emails) =>
-                        emails &&
-                        emails.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {emails.map((email) => (
-                              <Badge key={email} variant="secondary" className="font-mono text-xs">
-                                {email}
-                              </Badge>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Globe className="size-4" />
-                      Allowed Domains
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g., @company.com, @example.org"
-                      value={allowedDomainsInput}
-                      onChange={(e) => handleAllowedDomainsChange(e.target.value)}
-                    />
-                    <FieldDescription>
-                      Comma-separated email domains (e.g., @company.com). Users with emails ending
-                      in these domains will be allowed.
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_domains}>
-                      {(domains) =>
-                        domains &&
-                        domains.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {domains.map((domain) => (
-                              <Badge key={domain} variant="outline" className="font-mono text-xs">
-                                {domain}
-                              </Badge>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Shield className="size-4" />
-                      Allowed OAuth Providers
-                    </FieldLabel>
-                    <FieldDescription className="mb-3">
-                      Select which OAuth providers are allowed for authentication. Leave all
-                      unchecked to allow any enabled provider.
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_providers}>
-                      {(selectedProviders) => {
-                        // Merge backend providers with static list, preferring backend data
-                        const providerList =
-                          availableProviders.length > 0
-                            ? availableProviders.map((p) => ({
-                                id: p.id,
-                                name: p.name,
-                                enabled: p.enabled,
-                                description:
-                                  OAUTH_PROVIDERS.find((op) => op.id === p.id)?.description ||
-                                  `Sign in with ${p.name}`,
-                              }))
-                            : OAUTH_PROVIDERS.map((p) => ({
-                                ...p,
-                                enabled: true,
-                              }));
-
-                        return (
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            {providerList.map((provider) => (
-                              <div
-                                key={provider.id}
-                                className={`flex items-start gap-3 p-3 rounded-lg border ${
-                                  selectedProviders?.includes(provider.id)
-                                    ? 'border-primary bg-primary/5'
-                                    : 'border-border bg-muted/30'
-                                } ${!provider.enabled ? 'opacity-50' : ''}`}
-                              >
-                                <Checkbox
-                                  id={`provider-${provider.id}`}
-                                  checked={selectedProviders?.includes(provider.id) || false}
-                                  onCheckedChange={(checked) =>
-                                    handleProviderToggle(provider.id, checked as boolean)
-                                  }
-                                  disabled={!provider.enabled}
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <Label
-                                    htmlFor={`provider-${provider.id}`}
-                                    className="text-sm font-medium cursor-pointer"
-                                  >
-                                    {provider.name}
-                                    {!provider.enabled && (
-                                      <Badge variant="outline" className="ml-2 text-xs">
-                                        Not Configured
-                                      </Badge>
-                                    )}
-                                  </Label>
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {provider.description}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      }}
-                    </form.Subscribe>
-                  </Field>
                 </FieldGroup>
               )
             }
           </form.Subscribe>
-
-          <div className="flex justify-end pt-4 border-t">
-            <Button type="submit" disabled={isConfiguring}>
-              <Save className="size-4" />
-              {isConfiguring ? 'Saving...' : 'Save Configuration'}
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={isConfiguring}>
+          <Save className="size-4" />
+          {isConfiguring ? 'Saving...' : 'Save Configuration'}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -1,6 +1,3 @@
-//go:build integration
-// +build integration
-
 package repository
 
 import (
@@ -111,7 +108,7 @@ func CreateTestSession(t *testing.T, db *gorm.DB, userID int, token string, expi
 	t.Helper()
 	session := &models.ACLSession{
 		SessionToken: token,
-		UserID:       userID,
+		UserID:       &userID,
 		ExpiresAt:    expiresAt,
 	}
 	if err := db.Create(session).Error; err != nil {
@@ -899,7 +896,7 @@ func TestACLRepository_Sessions(t *testing.T) {
 		// Create
 		session := &models.ACLSession{
 			SessionToken: "test-token-123",
-			UserID:       user.ID,
+			UserID:       &user.ID,
 			ExpiresAt:    time.Now().Add(24 * time.Hour),
 		}
 		err := repo.CreateSession(session)
@@ -909,7 +906,7 @@ func TestACLRepository_Sessions(t *testing.T) {
 		// Read
 		fetched, err := repo.GetSessionByToken("test-token-123")
 		require.NoError(t, err)
-		assert.Equal(t, user.ID, fetched.UserID)
+		assert.Equal(t, &user.ID, fetched.UserID)
 		assert.NotNil(t, fetched.User)
 
 		// Delete
@@ -971,7 +968,7 @@ func TestACLRepository_Sessions(t *testing.T) {
 		proxyID := proxy.ID
 		session := &models.ACLSession{
 			SessionToken: "proxy-session-1",
-			UserID:       user.ID,
+			UserID:       &user.ID,
 			ProxyID:      &proxyID,
 			ExpiresAt:    time.Now().Add(1 * time.Hour),
 		}
@@ -1002,7 +999,7 @@ func TestACLRepository_Sessions(t *testing.T) {
 		// Try to create another with same token
 		duplicate := &models.ACLSession{
 			SessionToken: "duplicate-token",
-			UserID:       user.ID,
+			UserID:       &user.ID,
 			ExpiresAt:    time.Now().Add(2 * time.Hour),
 		}
 		err := repo.CreateSession(duplicate)
@@ -1103,7 +1100,7 @@ func TestACLRepository_FullWorkflow(t *testing.T) {
 	// 9. Create a session
 	session := &models.ACLSession{
 		SessionToken: "workflow-session",
-		UserID:       user.ID,
+		UserID:       &user.ID,
 		ExpiresAt:    time.Now().Add(1 * time.Hour),
 	}
 	err = repo.CreateSession(session)
