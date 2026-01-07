@@ -30,7 +30,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Check, Globe, Pencil, Plus, Search, Shield, Trash2, X } from 'lucide-react';
+import { Check, Globe, Plus, Search, Shield, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { useACLGroups, useDeleteACLGroup } from '@/hooks';
@@ -75,7 +75,6 @@ export function ACLGroupsPage() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<ACLGroup | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<ACLGroup | null>(null);
 
   // Debounce search input
@@ -236,23 +235,6 @@ export function ACLGroupsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="size-8 p-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingGroup(row.original);
-                  }}
-                >
-                  <Pencil className="size-4" />
-                  <span className="sr-only">Edit</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit group</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
                   className="size-8 p-0 text-destructive hover:text-destructive"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -271,7 +253,6 @@ export function ACLGroupsPage() {
         meta: {
           skeleton: (
             <div className="flex justify-end gap-1">
-              <Skeleton className="size-8" />
               <Skeleton className="size-8" />
             </div>
           ),
@@ -337,15 +318,6 @@ export function ACLGroupsPage() {
       </DataGrid>
 
       <ACLGroupFormModal open={createModalOpen} onOpenChange={setCreateModalOpen} mode="create" />
-
-      {editingGroup && (
-        <ACLGroupFormModal
-          open={!!editingGroup}
-          onOpenChange={(open) => !open && setEditingGroup(null)}
-          mode="edit"
-          initialData={editingGroup}
-        />
-      )}
 
       <AlertDialog open={!!deletingGroup} onOpenChange={(open) => !open && setDeletingGroup(null)}>
         <AlertDialogContent>

@@ -22,18 +22,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { ExternalLink, Globe, Link2, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
+import type { ProxyACLAssignment } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';
-import type { ProxyConfig } from '@/types/proxy';
-
-interface ProxyWithACL extends ProxyConfig {
-  acl_assignments?: Array<{
-    id: number;
-    path_pattern: string;
-    priority: number;
-    enabled: boolean;
-    acl_group_id: number;
-  }>;
-}
 
 interface GroupUsageTabProps {
   groupId: number;
@@ -42,28 +32,14 @@ interface GroupUsageTabProps {
 export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
   const navigate = useNavigate();
 
-  // Fetch proxies that use this ACL group
-  // This assumes the API supports filtering by acl_group_id or returns ACL info with proxies
-  const { data: proxies, isLoading } = useQuery({
-    queryKey: ['proxies', 'acl-usage', groupId],
+  // Fetch proxy ACL assignments for this group using the dedicated endpoint
+  const { data: assignments, isLoading } = useQuery({
+    queryKey: ['acl-groups', groupId, 'usage'],
     queryFn: async () => {
-      // Try to get proxies filtered by ACL group
-      // If that doesn't work, we'll need to fetch all proxies and filter client-side
-      try {
-        const response = await api
-          .get('proxies', {
-            searchParams: {
-              acl_group_id: String(groupId),
-              limit: '100',
-            },
-          })
-          .json<ApiResponse<{ items: ProxyWithACL[]; total: number }>>();
-        return response.data?.items ?? [];
-      } catch {
-        // Fallback: API might not support this filter yet
-        // Return empty array - the feature will show "no proxies using this group"
-        return [];
-      }
+      const response = await api
+        .get(`acl/groups/${groupId}/usage`)
+        .json<ApiResponse<ProxyACLAssignment[]>>();
+      return response.data ?? [];
     },
     staleTime: 30000, // Cache for 30 seconds
   });
@@ -99,7 +75,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
               </div>
             ))}
           </div>
-        ) : !proxies || proxies.length === 0 ? (
+        ) : !assignments || assignments.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Shield className="size-12 mx-auto mb-4 opacity-50" />
             <p>No proxies using this group</p>
@@ -128,10 +104,12 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {proxies.map((proxy) => {
-                const assignment = proxy.acl_assignments?.find((a) => a.acl_group_id === groupId);
+              {assignments.map((assignment) => {
+                const proxy = assignment.proxy;
+                if (!proxy) return null;
+
                 return (
-                  <TableRow key={proxy.id}>
+                  <TableRow key={assignment.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="flex items-center justify-center size-8 rounded bg-muted">
@@ -154,25 +132,17 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
                       </a>
                     </TableCell>
                     <TableCell>
-                      {assignment?.path_pattern ? (
-                        <code className="text-xs bg-muted px-2 py-0.5 rounded">
-                          {assignment.path_pattern}
-                        </code>
-                      ) : (
-                        <code className="text-xs bg-muted px-2 py-0.5 rounded">/*</code>
-                      )}
+                      <code className="text-xs bg-muted px-2 py-0.5 rounded">
+                        {assignment.path_pattern || '/*'}
+                      </code>
                     </TableCell>
                     <TableCell>
-                      {assignment?.priority !== undefined ? (
-                        <Badge variant="outline" className="font-mono">
-                          {assignment.priority}
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      <Badge variant="outline" className="font-mono">
+                        {assignment.priority}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      {assignment?.enabled !== false ? (
+                      {assignment.enabled ? (
                         <Badge variant="default">Active</Badge>
                       ) : (
                         <Badge variant="secondary">Disabled</Badge>

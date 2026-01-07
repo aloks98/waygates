@@ -75,6 +75,12 @@ export interface ProxyACLAssignment {
   enabled: boolean;
   created_at: string;
   acl_group?: ACLGroup;
+  proxy?: {
+    id: number;
+    name: string;
+    hostname: string;
+    type: string;
+  };
 }
 
 export interface ACLBranding {

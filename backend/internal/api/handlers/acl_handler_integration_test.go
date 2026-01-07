@@ -434,7 +434,7 @@ var _ service.ACLServiceInterface = (*MockACLService)(nil)
 
 // setupACLTestRouter creates a router with ACL handler for testing
 func setupACLTestRouter(mockService *MockACLService, mockRepo *MockACLRepository) *chi.Mux {
-	handler := NewACLHandler(mockService, mockRepo, nil)
+	handler := NewACLHandler(mockService, mockRepo, nil, nil)
 	r := chi.NewRouter()
 
 	// Group routes

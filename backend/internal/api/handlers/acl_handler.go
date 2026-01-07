@@ -8,6 +8,7 @@ import (
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -20,13 +21,18 @@ type ACLHandler struct {
 	aclService   service.ACLServiceInterface
 	aclRepo      repository.ACLRepositoryInterface
 	auditService service.AuditServiceInterface
+	logger       *zap.Logger
 }
 
 // NewACLHandler creates a new ACL handler
-func NewACLHandler(aclService service.ACLServiceInterface, aclRepo repository.ACLRepositoryInterface, auditService service.AuditServiceInterface) *ACLHandler {
+func NewACLHandler(aclService service.ACLServiceInterface, aclRepo repository.ACLRepositoryInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ACLHandler {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &ACLHandler{
 		aclService:   aclService,
 		aclRepo:      aclRepo,
+		logger:       logger.Named("acl-handler"),
 		auditService: auditService,
 	}
 }
@@ -433,6 +439,10 @@ func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
 			utils.BadRequest(w, err.Error(), nil)
 			return
 		}
+		h.logger.Error("Failed to add IP rule",
+			zap.Int("group_id", groupID),
+			zap.String("cidr", req.CIDR),
+			zap.Error(err))
 		utils.InternalError(w, "Failed to add IP rule")
 		return
 	}

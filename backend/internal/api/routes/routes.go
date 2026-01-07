@@ -134,7 +134,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService)
 	syncHandler := handlers.NewSyncHandler(syncService)
 	auditHandler := handlers.NewAuditHandler(auditService)
-	aclHandler := handlers.NewACLHandler(aclService, aclRepo, auditService)
+	aclHandler := handlers.NewACLHandler(aclService, aclRepo, auditService, logger)
 	aclVerifyHandler := handlers.NewACLVerifyHandler(aclService, userRepo, auditService)
 	proxyACLHandler := handlers.NewProxyACLHandler(aclService, auditService)
 	oauthHandler := handlers.NewOAuthHandler(handlers.OAuthHandlerConfig{

@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardHeading,
   CardTitle,
+  Checkbox,
   Field,
   FieldContent,
   FieldDescription,
@@ -16,6 +17,7 @@ import {
   FieldGroup,
   FieldLabel,
   Input,
+  Label,
   Separator,
   Skeleton,
   Switch,
@@ -35,7 +37,15 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { useConfigureWaygatesAuth, useWaygatesAuth } from '@/hooks';
+import { useConfigureWaygatesAuth, useOAuthProviders, useWaygatesAuth } from '@/hooks';
+
+// Available OAuth providers that can be configured
+const OAUTH_PROVIDERS = [
+  { id: 'google', name: 'Google', description: 'Sign in with Google accounts' },
+  { id: 'github', name: 'GitHub', description: 'Sign in with GitHub accounts' },
+  { id: 'microsoft', name: 'Microsoft', description: 'Sign in with Microsoft accounts' },
+  { id: 'gitlab', name: 'GitLab', description: 'Sign in with GitLab accounts' },
+] as const;
 
 const waygatesAuthSchema = z.object({
   enabled: z.boolean(),
@@ -68,7 +78,9 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
   // OAuth restriction inputs
   const [allowedEmailsInput, setAllowedEmailsInput] = useState('');
   const [allowedDomainsInput, setAllowedDomainsInput] = useState('');
-  const [allowedProvidersInput, setAllowedProvidersInput] = useState('');
+
+  // Fetch available OAuth providers from the backend
+  const { providers: availableProviders } = useOAuthProviders();
 
   const form = useForm({
     defaultValues: {
@@ -125,7 +137,6 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       // OAuth restriction inputs
       setAllowedEmailsInput((config.allowed_emails || []).join(', '));
       setAllowedDomainsInput((config.allowed_domains || []).join(', '));
-      setAllowedProvidersInput((config.allowed_providers || []).join(', '));
     }
   }, [config, form.setFieldValue]);
 
@@ -166,13 +177,17 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
     form.setFieldValue('allowed_domains', domains);
   };
 
-  const handleAllowedProvidersChange = (value: string) => {
-    setAllowedProvidersInput(value);
-    const providers = value
-      .split(',')
-      .map((p) => p.trim().toLowerCase())
-      .filter(Boolean);
-    form.setFieldValue('allowed_providers', providers);
+  // Toggle OAuth provider selection
+  const handleProviderToggle = (providerId: string, checked: boolean) => {
+    const currentProviders = form.getFieldValue('allowed_providers') || [];
+    if (checked) {
+      form.setFieldValue('allowed_providers', [...currentProviders, providerId]);
+    } else {
+      form.setFieldValue(
+        'allowed_providers',
+        currentProviders.filter((p: string) => p !== providerId),
+      );
+    }
   };
 
   const formatTTL = (seconds: number): string => {
@@ -440,28 +455,68 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                       <Shield className="size-4" />
                       Allowed OAuth Providers
                     </FieldLabel>
-                    <Input
-                      placeholder="e.g., google, github, microsoft, gitlab"
-                      value={allowedProvidersInput}
-                      onChange={(e) => handleAllowedProvidersChange(e.target.value)}
-                    />
-                    <FieldDescription>
-                      Comma-separated OAuth providers. Only users authenticated via these providers
-                      will be allowed.
+                    <FieldDescription className="mb-3">
+                      Select which OAuth providers are allowed for authentication. Leave all
+                      unchecked to allow any enabled provider.
                     </FieldDescription>
                     <form.Subscribe selector={(state) => state.values.allowed_providers}>
-                      {(providers) =>
-                        providers &&
-                        providers.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {providers.map((provider) => (
-                              <Badge key={provider} variant="secondary">
-                                {provider}
-                              </Badge>
+                      {(selectedProviders) => {
+                        // Merge backend providers with static list, preferring backend data
+                        const providerList =
+                          availableProviders.length > 0
+                            ? availableProviders.map((p) => ({
+                                id: p.id,
+                                name: p.name,
+                                enabled: p.enabled,
+                                description:
+                                  OAUTH_PROVIDERS.find((op) => op.id === p.id)?.description ||
+                                  `Sign in with ${p.name}`,
+                              }))
+                            : OAUTH_PROVIDERS.map((p) => ({
+                                ...p,
+                                enabled: true,
+                              }));
+
+                        return (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {providerList.map((provider) => (
+                              <div
+                                key={provider.id}
+                                className={`flex items-start gap-3 p-3 rounded-lg border ${
+                                  selectedProviders?.includes(provider.id)
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border bg-muted/30'
+                                } ${!provider.enabled ? 'opacity-50' : ''}`}
+                              >
+                                <Checkbox
+                                  id={`provider-${provider.id}`}
+                                  checked={selectedProviders?.includes(provider.id) || false}
+                                  onCheckedChange={(checked) =>
+                                    handleProviderToggle(provider.id, checked as boolean)
+                                  }
+                                  disabled={!provider.enabled}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <Label
+                                    htmlFor={`provider-${provider.id}`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {provider.name}
+                                    {!provider.enabled && (
+                                      <Badge variant="outline" className="ml-2 text-xs">
+                                        Not Configured
+                                      </Badge>
+                                    )}
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {provider.description}
+                                  </p>
+                                </div>
+                              </div>
                             ))}
                           </div>
-                        )
-                      }
+                        );
+                      }}
                     </form.Subscribe>
                   </Field>
                 </FieldGroup>
