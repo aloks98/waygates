@@ -79,6 +79,11 @@ type ACLVerifyResponse struct {
 	// OAuth user info (set when authenticated via OAuth)
 	OAuthEmail    string // OAuth user's email
 	OAuthProvider string // OAuth provider (google, github, etc.)
+
+	// Set when user IS authenticated but fails authorization (e.g., email not in allowed list)
+	// In this case, RequiresAuth should be false and we should return 403, not 401
+	AuthenticatedButUnauthorized bool
+	DenialDetails                string // Human-readable explanation of why access was denied
 }
 
 // groupAccessResult holds the result of evaluating access for a group
@@ -87,6 +92,10 @@ type groupAccessResult struct {
 	User          *models.User
 	OAuthEmail    string
 	OAuthProvider string
+	// Set when user has valid session but fails restrictions
+	HasValidSession              bool
+	AuthenticatedButUnauthorized bool
+	DenialReason                 string
 }
 
 // ACLService handles ACL business logic
@@ -874,17 +883,40 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 			}
 			return response, nil
 		}
+
+		// Track if user was authenticated but unauthorized
+		// This is important for providing proper feedback instead of a redirect loop
+		if accessResult.AuthenticatedButUnauthorized {
+			response.AuthenticatedButUnauthorized = true
+			response.OAuthEmail = accessResult.OAuthEmail
+			response.OAuthProvider = accessResult.OAuthProvider
+			response.User = accessResult.User
+			if accessResult.DenialReason != "" {
+				response.DenialDetails = accessResult.DenialReason
+			}
+		}
 	}
 
 	// No access granted
 	response.Reason = "access denied by ACL rules"
-	response.RequiresAuth = true
 
-	// Get branding for redirect URL
-	branding, _ := s.aclRepo.GetBranding()
-	if branding != nil {
-		// Construct login redirect URL
-		response.RedirectURL = fmt.Sprintf("/auth/login?redirect=%s%s", request.Host, request.Path)
+	// If user is authenticated but unauthorized, don't redirect to login (it would be a loop)
+	// Instead, return 403 with the denial details
+	if response.AuthenticatedButUnauthorized {
+		response.RequiresAuth = false
+		if response.DenialDetails == "" {
+			response.DenialDetails = "Your account is not authorized to access this resource"
+		}
+	} else {
+		// User is not authenticated - redirect to login
+		response.RequiresAuth = true
+
+		// Get branding for redirect URL
+		branding, _ := s.aclRepo.GetBranding()
+		if branding != nil {
+			// Construct login redirect URL
+			response.RedirectURL = fmt.Sprintf("/auth/login?redirect=%s%s", request.Host, request.Path)
+		}
 	}
 
 	return response, nil
@@ -921,23 +953,34 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 	if request.SessionToken != "" && group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
 		session, err := s.aclRepo.GetSessionByToken(request.SessionToken)
 		if err == nil && !session.IsExpired() {
+			result.HasValidSession = true
+
 			// Check if this is an OAuth session (has email and provider)
 			if session.Email != nil && session.Provider != nil {
-				// OAuth session - check OAuth restrictions first
+				result.OAuthEmail = *session.Email
+				result.OAuthProvider = *session.Provider
+				// Also set user if available (OAuth user may have Waygates account)
+				if session.User != nil {
+					result.User = session.User
+				}
+
+				// OAuth session - check OAuth restrictions
 				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth) {
 					authResults = append(authResults, true)
-					result.OAuthEmail = *session.Email
-					result.OAuthProvider = *session.Provider
-					// Also set user if available (OAuth user may have Waygates account)
-					if session.User != nil {
-						result.User = session.User
-					}
+				} else {
+					// User is authenticated but fails OAuth restrictions
+					result.AuthenticatedButUnauthorized = true
+					result.DenialReason = s.buildOAuthDenialReason(*session.Email, *session.Provider, group.WaygatesAuth)
 				}
 			} else if session.User != nil {
+				result.User = session.User
 				// Pure Waygates user session (no OAuth info)
 				if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
 					authResults = append(authResults, true)
-					result.User = session.User
+				} else {
+					// User is authenticated but fails restrictions
+					result.AuthenticatedButUnauthorized = true
+					result.DenialReason = "Your account is not authorized to access this resource"
 				}
 			}
 		}
@@ -1146,6 +1189,39 @@ func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACL
 	}
 
 	return false
+}
+
+// buildOAuthDenialReason creates a human-readable explanation for why an OAuth user was denied
+func (s *ACLService) buildOAuthDenialReason(email, provider string, auth *models.ACLWaygatesAuth) string {
+	// Check if provider is restricted
+	if len(auth.AllowedProviders) > 0 {
+		providerAllowed := false
+		for _, allowedProvider := range auth.AllowedProviders {
+			if strings.EqualFold(provider, allowedProvider) {
+				providerAllowed = true
+				break
+			}
+		}
+		if !providerAllowed {
+			return fmt.Sprintf("OAuth provider '%s' is not allowed for this resource. Allowed providers: %s",
+				provider, strings.Join(auth.AllowedProviders, ", "))
+		}
+	}
+
+	// Provider is allowed, so the issue is with email/domain
+	if len(auth.AllowedEmails) > 0 || len(auth.AllowedDomains) > 0 {
+		var restrictions []string
+		if len(auth.AllowedEmails) > 0 {
+			restrictions = append(restrictions, fmt.Sprintf("specific emails (%d configured)", len(auth.AllowedEmails)))
+		}
+		if len(auth.AllowedDomains) > 0 {
+			restrictions = append(restrictions, fmt.Sprintf("email domains: %s", strings.Join(auth.AllowedDomains, ", ")))
+		}
+		return fmt.Sprintf("Your email (%s) is not authorized to access this resource. Access is restricted to: %s",
+			email, strings.Join(restrictions, " or "))
+	}
+
+	return fmt.Sprintf("Your account (%s via %s) is not authorized to access this resource", email, provider)
 }
 
 // matchEmailPattern checks if an email matches a pattern (supports wildcard *)

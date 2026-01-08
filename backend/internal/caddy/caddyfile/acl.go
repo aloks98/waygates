@@ -658,13 +658,25 @@ func (b *ACLBuilder) buildWaygatesForwardAuth(indent string) string {
 	}
 	sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 
-	// Handle 403 response with a proper error page
+	// Handle 403 response - redirect to error page with denial details
 	sb.WriteString(fmt.Sprintf("%s\t@forbidden status 403\n", indent))
 	sb.WriteString(fmt.Sprintf("%s\thandle_response @forbidden {\n", indent))
-	sb.WriteString(fmt.Sprintf("%s\t\theader Content-Type text/html\n", indent))
-	sb.WriteString(fmt.Sprintf("%s\t\trespond <<HTML\n", indent))
-	sb.WriteString(forbiddenHTML)
-	sb.WriteString(fmt.Sprintf("\n%s\t\tHTML 403\n", indent))
+	if b.waygatesLoginURL != "" {
+		// Extract base URL from login URL (remove /auth/login path)
+		errorPageBase := b.waygatesLoginURL
+		if idx := strings.Index(errorPageBase, "/auth/login"); idx != -1 {
+			errorPageBase = errorPageBase[:idx]
+		}
+		// Redirect to error page with reason from upstream header
+		// The {rp.header.X-Auth-Denial-Reason} placeholder captures the denial reason
+		sb.WriteString(fmt.Sprintf("%s\t\tredir %s/auth/forbidden?reason={rp.header.X-Auth-Denial-Reason}&email={rp.header.X-Auth-User-Email}&provider={rp.header.X-Auth-Provider}&url={scheme}://{host}{uri} 302\n", indent, errorPageBase))
+	} else {
+		// No login URL configured, show static error page
+		sb.WriteString(fmt.Sprintf("%s\t\theader Content-Type text/html\n", indent))
+		sb.WriteString(fmt.Sprintf("%s\t\trespond <<HTML\n", indent))
+		sb.WriteString(forbiddenHTML)
+		sb.WriteString(fmt.Sprintf("\n%s\t\tHTML 403\n", indent))
+	}
 	sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))

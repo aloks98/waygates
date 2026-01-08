@@ -7,6 +7,7 @@ import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
 import { ProxiesPage } from '@/routes/_dashboard/proxies';
 import { DashboardLayout } from '@/routes/_dashboard/route';
 import { SettingsPage } from '@/routes/_dashboard/settings';
+import { ACLForbiddenPage } from '@/routes/auth/acl-forbidden';
 import { ACLLoginPage } from '@/routes/auth/acl-login';
 import { LoginPage } from '@/routes/login';
 import { SignupPage } from '@/routes/signup';
@@ -58,6 +59,13 @@ const aclLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/auth/login',
   component: ACLLoginPage,
+});
+
+// ACL Forbidden route - shown when user is authenticated but not authorized
+const aclForbiddenRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/forbidden',
+  component: ACLForbiddenPage,
 });
 
 const dashboardRoute = createRoute({
@@ -113,6 +121,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
   aclLoginRoute,
+  aclForbiddenRoute,
   dashboardRoute.addChildren([
     dashboardIndexRoute,
     proxiesRoute,

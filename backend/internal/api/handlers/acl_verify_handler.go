@@ -171,7 +171,18 @@ func (h *ACLVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Access explicitly denied (e.g., IP blocked)
+	// Access explicitly denied
+	// Include denial details in headers for the error page to display
+	if response.DenialDetails != "" {
+		w.Header().Set("X-Auth-Denial-Reason", response.DenialDetails)
+	}
+	if response.OAuthEmail != "" {
+		w.Header().Set("X-Auth-User-Email", response.OAuthEmail)
+	}
+	if response.OAuthProvider != "" {
+		w.Header().Set("X-Auth-Provider", response.OAuthProvider)
+	}
+
 	w.WriteHeader(http.StatusForbidden)
 }
 
