@@ -45,19 +45,21 @@ type OAuthProvider struct {
 
 // OAuthProviderPublic is the public representation of a provider (for API responses)
 type OAuthProviderPublic struct {
-	ID      OAuthProviderID `json:"id"`
-	Name    string          `json:"name"`
-	Enabled bool            `json:"enabled"`
-	AuthURL string          `json:"auth_url,omitempty"`
+	ID        OAuthProviderID `json:"id"`
+	Name      string          `json:"name"`
+	Available bool            `json:"available"` // Env vars are configured
+	Enabled   bool            `json:"enabled"`   // Admin has enabled it (set externally)
+	AuthURL   string          `json:"auth_url,omitempty"`
 }
 
 // ToPublic converts an OAuthProvider to its public representation
 func (p *OAuthProvider) ToPublic() OAuthProviderPublic {
 	return OAuthProviderPublic{
-		ID:      p.ID,
-		Name:    p.Name,
-		Enabled: p.Enabled,
-		AuthURL: p.AuthURL,
+		ID:        p.ID,
+		Name:      p.Name,
+		Available: p.Enabled, // p.Enabled means env vars are present (available)
+		Enabled:   false,     // Will be set by caller based on DB settings
+		AuthURL:   p.AuthURL,
 	}
 }
 
@@ -179,28 +181,69 @@ func (m *OAuthProviderManager) loadGitLabProvider() *OAuthProvider {
 	}
 }
 
-// GetEnabledProviders returns all enabled OAuth providers
-func (m *OAuthProviderManager) GetEnabledProviders() []*OAuthProvider {
+// GetAvailableProviders returns all providers that have env vars configured
+func (m *OAuthProviderManager) GetAvailableProviders() []*OAuthProvider {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var enabled []*OAuthProvider
+	var available []*OAuthProvider
 	for _, p := range m.providers {
-		if p.Enabled {
-			enabled = append(enabled, p)
+		if p.Enabled { // Enabled here means env vars are configured
+			available = append(available, p)
 		}
 	}
-	return enabled
+	return available
 }
 
-// GetEnabledProvidersPublic returns public info for all enabled OAuth providers
-func (m *OAuthProviderManager) GetEnabledProvidersPublic() []OAuthProviderPublic {
-	enabled := m.GetEnabledProviders()
-	result := make([]OAuthProviderPublic, 0, len(enabled))
-	for _, p := range enabled {
+// GetAllProviders returns all supported providers with their availability status
+func (m *OAuthProviderManager) GetAllProviders() []*OAuthProvider {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]*OAuthProvider, 0, len(m.providers))
+	for _, p := range m.providers {
+		result = append(result, p)
+	}
+	return result
+}
+
+// GetAllProvidersPublic returns public info for all providers (with availability status)
+func (m *OAuthProviderManager) GetAllProvidersPublic() []OAuthProviderPublic {
+	providers := m.GetAllProviders()
+	result := make([]OAuthProviderPublic, 0, len(providers))
+	for _, p := range providers {
 		result = append(result, p.ToPublic())
 	}
 	return result
+}
+
+// GetAvailableProvidersPublic returns public info for available providers
+func (m *OAuthProviderManager) GetAvailableProvidersPublic() []OAuthProviderPublic {
+	available := m.GetAvailableProviders()
+	result := make([]OAuthProviderPublic, 0, len(available))
+	for _, p := range available {
+		result = append(result, p.ToPublic())
+	}
+	return result
+}
+
+// IsAvailable checks if a provider has env vars configured
+func (m *OAuthProviderManager) IsAvailable(id OAuthProviderID) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	p, ok := m.providers[id]
+	return ok && p.Enabled // Enabled means env vars are present
+}
+
+// Deprecated: Use GetAvailableProviders instead
+func (m *OAuthProviderManager) GetEnabledProviders() []*OAuthProvider {
+	return m.GetAvailableProviders()
+}
+
+// Deprecated: Use GetAvailableProvidersPublic instead
+func (m *OAuthProviderManager) GetEnabledProvidersPublic() []OAuthProviderPublic {
+	return m.GetAvailableProvidersPublic()
 }
 
 // GetProvider returns a provider by ID

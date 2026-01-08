@@ -98,7 +98,9 @@ export interface ACLBranding {
 export interface OAuthProvider {
   id: string;
   name: string;
-  enabled: boolean;
+  available: boolean; // Env vars are configured on the server
+  enabled: boolean; // Admin has enabled this provider
+  auth_url?: string;
 }
 
 // Request Types

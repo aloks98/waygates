@@ -743,6 +743,9 @@ export function useUpdateACLBranding() {
 // OAuth Providers
 // =============================================================================
 
+const ADMIN_OAUTH_PROVIDERS_KEY = ['admin-oauth-providers'] as const;
+
+// Public endpoint - returns only providers that are both available AND enabled
 export function useOAuthProviders() {
   const query = useQuery({
     queryKey: OAUTH_PROVIDERS_KEY,
@@ -759,5 +762,52 @@ export function useOAuthProviders() {
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,
+  };
+}
+
+// Admin endpoint - returns all providers with their available/enabled status
+export function useAdminOAuthProviders() {
+  const query = useQuery({
+    queryKey: ADMIN_OAUTH_PROVIDERS_KEY,
+    queryFn: async () => {
+      const response = await api.get('acl/oauth/providers').json<ApiResponse<OAuthProvider[]>>();
+      return response.data;
+    },
+  });
+
+  return {
+    providers: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+// Enable or disable an OAuth provider
+export function useUpdateOAuthProvider() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      return await api
+        .put(`acl/oauth/providers/${id}`, { json: { enabled } })
+        .json<ApiResponse<OAuthProvider>>();
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_OAUTH_PROVIDERS_KEY });
+      queryClient.invalidateQueries({ queryKey: OAUTH_PROVIDERS_KEY });
+      const action = response.data?.enabled ? 'enabled' : 'disabled';
+      toast.success(`${response.data?.name} OAuth provider ${action}`);
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to update OAuth provider', { description: message });
+    },
+  });
+
+  return {
+    updateProvider: mutation.mutateAsync,
+    isUpdating: mutation.isPending,
   };
 }

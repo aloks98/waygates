@@ -26,4 +26,16 @@ type NotFoundSettings struct {
 const (
 	SettingNotFoundMode        = "not_found.mode"
 	SettingNotFoundRedirectURL = "not_found.redirect_url"
+	SettingOAuthProviders      = "oauth_providers" // JSON map of provider_id -> enabled
 )
+
+// OAuthProviderSettings represents the enabled state of OAuth providers
+type OAuthProviderSettings map[string]bool
+
+// OAuthProviderInfo represents public info about an OAuth provider
+type OAuthProviderInfo struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Available bool   `json:"available"` // Env vars are configured
+	Enabled   bool   `json:"enabled"`   // Admin has enabled it
+}

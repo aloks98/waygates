@@ -10,9 +10,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
@@ -32,6 +34,7 @@ type OAuthHandler struct {
 	aclService      service.ACLServiceInterface
 	userRepo        repository.UserRepositoryInterface
 	auditService    service.AuditServiceInterface
+	settingsRepo    repository.SettingsRepositoryInterface
 	config          *config.Config
 	logger          *zap.Logger
 }
@@ -42,6 +45,7 @@ type OAuthHandlerConfig struct {
 	ACLService      service.ACLServiceInterface
 	UserRepo        repository.UserRepositoryInterface
 	AuditService    service.AuditServiceInterface
+	SettingsRepo    repository.SettingsRepositoryInterface
 	Config          *config.Config
 	Logger          *zap.Logger
 }
@@ -58,6 +62,7 @@ func NewOAuthHandler(cfg OAuthHandlerConfig) *OAuthHandler {
 		aclService:      cfg.ACLService,
 		userRepo:        cfg.UserRepo,
 		auditService:    cfg.AuditService,
+		settingsRepo:    cfg.SettingsRepo,
 		config:          cfg.Config,
 		logger:          logger.Named("oauth-handler"),
 	}
@@ -79,16 +84,154 @@ type OAuthProvidersResponse struct {
 }
 
 // =============================================================================
-// List Providers Handler
+// List Providers Handler (Public)
 // =============================================================================
 
 // ListProviders handles GET /api/auth/oauth/providers
-// Returns a list of enabled OAuth providers (public endpoint)
+// Returns a list of OAuth providers that are both available AND enabled (public endpoint for login page)
 func (h *OAuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
-	providers := h.providerManager.GetEnabledProvidersPublic()
+	// Get all available providers (env vars configured)
+	allProviders := h.providerManager.GetAvailableProvidersPublic()
+
+	// Get enabled state from settings
+	enabledMap := h.getEnabledProvidersMap()
+
+	// Filter to only return providers that are both available AND enabled
+	var enabledProviders []auth.OAuthProviderPublic
+	for _, p := range allProviders {
+		if p.Available && enabledMap[string(p.ID)] {
+			p.Enabled = true
+			enabledProviders = append(enabledProviders, p)
+		}
+	}
 
 	// Return array directly for frontend compatibility
-	utils.Success(w, providers, "")
+	utils.Success(w, enabledProviders, "")
+}
+
+// =============================================================================
+// Admin Providers Management (Protected)
+// =============================================================================
+
+// GetOAuthProviders handles GET /api/acl/oauth/providers
+// Returns all OAuth providers with their available and enabled status (protected endpoint for admin)
+func (h *OAuthHandler) GetOAuthProviders(w http.ResponseWriter, r *http.Request) {
+	// Get all providers (not just available ones)
+	allProviders := h.providerManager.GetAllProvidersPublic()
+
+	// Get enabled state from settings
+	enabledMap := h.getEnabledProvidersMap()
+
+	// Set the enabled status for each provider
+	for i := range allProviders {
+		allProviders[i].Enabled = enabledMap[string(allProviders[i].ID)]
+	}
+
+	utils.Success(w, allProviders, "")
+}
+
+// UpdateOAuthProviderRequest is the request body for updating an OAuth provider
+type UpdateOAuthProviderRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UpdateOAuthProvider handles PUT /api/acl/oauth/providers/{id}
+// Enables or disables an OAuth provider (protected endpoint for admin)
+func (h *OAuthHandler) UpdateOAuthProvider(w http.ResponseWriter, r *http.Request) {
+	providerID := chi.URLParam(r, "id")
+
+	// Validate provider ID
+	if !auth.ValidateProviderID(providerID) {
+		utils.BadRequest(w, "Invalid OAuth provider ID", nil)
+		return
+	}
+
+	// Check if provider is available (env vars configured)
+	if !h.providerManager.IsAvailable(auth.OAuthProviderID(providerID)) {
+		utils.BadRequest(w, "OAuth provider is not available (environment variables not configured)", nil)
+		return
+	}
+
+	// Parse request body
+	var req UpdateOAuthProviderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body", nil)
+		return
+	}
+
+	// Get current enabled map
+	enabledMap := h.getEnabledProvidersMap()
+
+	// Update the provider's enabled state
+	enabledMap[providerID] = req.Enabled
+
+	// Save to settings
+	if err := h.saveEnabledProvidersMap(enabledMap); err != nil {
+		h.logger.Error("Failed to save OAuth provider settings", zap.Error(err))
+		utils.InternalError(w, "Failed to save settings")
+		return
+	}
+
+	// Log the action
+	if h.auditService != nil {
+		userIDStr := chimw.UserID(r)
+		userID, _ := strconv.Atoi(userIDStr)
+		if userID > 0 {
+			oldVal := "disabled"
+			newVal := "enabled"
+			if !req.Enabled {
+				oldVal = "enabled"
+				newVal = "disabled"
+			}
+			_ = h.auditService.LogSettingsUpdate(r.Context(), userID, "oauth_provider."+providerID, oldVal, newVal, getClientIP(r), r.UserAgent())
+		}
+	}
+
+	// Return updated provider info
+	provider, _ := h.providerManager.GetProviderByString(providerID)
+	result := provider.ToPublic()
+	result.Enabled = req.Enabled
+
+	utils.Success(w, result, fmt.Sprintf("OAuth provider %s", map[bool]string{true: "enabled", false: "disabled"}[req.Enabled]))
+}
+
+// =============================================================================
+// Helper functions for OAuth provider settings
+// =============================================================================
+
+// getEnabledProvidersMap retrieves the enabled state map from settings
+func (h *OAuthHandler) getEnabledProvidersMap() map[string]bool {
+	enabledMap := make(map[string]bool)
+
+	if h.settingsRepo == nil {
+		return enabledMap
+	}
+
+	setting, err := h.settingsRepo.Get(models.SettingOAuthProviders)
+	if err != nil || setting == nil {
+		return enabledMap
+	}
+
+	if err := json.Unmarshal([]byte(setting.Value), &enabledMap); err != nil {
+		h.logger.Warn("Failed to parse OAuth providers settings", zap.Error(err))
+		return make(map[string]bool)
+	}
+
+	return enabledMap
+}
+
+// saveEnabledProvidersMap saves the enabled state map to settings
+func (h *OAuthHandler) saveEnabledProvidersMap(enabledMap map[string]bool) error {
+	if h.settingsRepo == nil {
+		return fmt.Errorf("settings repository not configured")
+	}
+
+	data, err := json.Marshal(enabledMap)
+	if err != nil {
+		return err
+	}
+
+	return h.settingsRepo.Set(models.SettingOAuthProviders, string(data))
 }
 
 // =============================================================================

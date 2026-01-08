@@ -209,7 +209,10 @@ func TestOAuthProviderManager_GetEnabledProvidersPublic(t *testing.T) {
 	require.Len(t, public, 1)
 	assert.Equal(t, OAuthProviderGoogle, public[0].ID)
 	assert.Equal(t, "Google", public[0].Name)
-	assert.True(t, public[0].Enabled)
+	// Available is true when env vars are configured
+	// Enabled is false by default (needs to be set by caller based on DB settings)
+	assert.True(t, public[0].Available)
+	assert.False(t, public[0].Enabled) // Will be set by caller
 	assert.NotEmpty(t, public[0].AuthURL)
 }
 
@@ -311,7 +314,7 @@ func TestOAuthProvider_ToPublic(t *testing.T) {
 		Name:         "Google",
 		ClientID:     "secret-client-id",
 		ClientSecret: "secret-client-secret",
-		Enabled:      true,
+		Enabled:      true, // In OAuthProvider, Enabled means env vars are configured
 		AuthURL:      "https://example.com/auth",
 		TokenURL:     "https://example.com/token",
 		UserInfoURL:  "https://example.com/userinfo",
@@ -322,7 +325,10 @@ func TestOAuthProvider_ToPublic(t *testing.T) {
 
 	assert.Equal(t, OAuthProviderGoogle, public.ID)
 	assert.Equal(t, "Google", public.Name)
-	assert.True(t, public.Enabled)
+	// Available reflects whether env vars are configured (from provider.Enabled)
+	assert.True(t, public.Available)
+	// Enabled is false by default - will be set by caller based on DB settings
+	assert.False(t, public.Enabled)
 	assert.Equal(t, "https://example.com/auth", public.AuthURL)
 }
 
