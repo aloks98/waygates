@@ -79,8 +79,8 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
   const [allowedEmailsInput, setAllowedEmailsInput] = useState('');
   const [allowedDomainsInput, setAllowedDomainsInput] = useState('');
 
-  // Fetch available OAuth providers from the backend
-  const { providers: availableProviders } = useOAuthProviders();
+  // Fetch OAuth providers from the backend (with availability status)
+  const { providers: backendProviders, isLoading: isLoadingProviders } = useOAuthProviders();
 
   const form = useForm({
     defaultValues: {
@@ -197,20 +197,19 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
     return `${Math.round(seconds / 86400)} days`;
   };
 
-  // Get provider list for rendering
-  const providerList =
-    availableProviders.length > 0
-      ? availableProviders.map((p) => ({
-          id: p.id,
-          name: p.name,
-          enabled: p.enabled,
-          description:
-            OAUTH_PROVIDERS.find((op) => op.id === p.id)?.description || `Sign in with ${p.name}`,
-        }))
-      : OAUTH_PROVIDERS.map((p) => ({
-          ...p,
-          enabled: true,
-        }));
+  // Get provider list for rendering - only show providers that are available (env vars configured)
+  const providerList = backendProviders
+    .filter((p) => p.available) // Only show providers with env vars configured
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      available: p.available,
+      description:
+        OAUTH_PROVIDERS.find((op) => op.id === p.id)?.description || `Sign in with ${p.name}`,
+    }));
+
+  // Check if no OAuth providers are configured
+  const hasNoAvailableProviders = !isLoadingProviders && providerList.length === 0;
 
   if (isLoading) {
     return (
@@ -258,8 +257,8 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
             </CardTitle>
             <CardDescription>
               Allow users to authenticate using external OAuth providers. Users don't need a
-              Waygates account - they can sign in directly with their Google, GitHub, or other
-              OAuth accounts.
+              Waygates account - they can sign in directly with their Google, GitHub, or other OAuth
+              accounts.
             </CardDescription>
           </CardHeading>
         </CardHeader>
@@ -273,47 +272,57 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
               Select which OAuth providers users can use to authenticate. Leave all unchecked to
               disable OAuth login entirely.
             </FieldDescription>
-            <form.Subscribe selector={(state) => state.values.allowed_providers}>
-              {(selectedProviders) => (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {providerList.map((provider) => (
-                    <div
-                      key={provider.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        selectedProviders?.includes(provider.id)
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border bg-muted/30'
-                      } ${!provider.enabled ? 'opacity-50' : ''}`}
-                    >
-                      <Checkbox
-                        id={`provider-${provider.id}`}
-                        checked={selectedProviders?.includes(provider.id) || false}
-                        onCheckedChange={(checked) =>
-                          handleProviderToggle(provider.id, checked as boolean)
-                        }
-                        disabled={!provider.enabled}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <Label
-                          htmlFor={`provider-${provider.id}`}
-                          className="text-sm font-medium cursor-pointer"
-                        >
-                          {provider.name}
-                          {!provider.enabled && (
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              Not Configured
-                            </Badge>
-                          )}
-                        </Label>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {provider.description}
-                        </p>
+            {isLoadingProviders ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ) : hasNoAvailableProviders ? (
+              <Alert>
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  No OAuth providers are configured on the server. To enable OAuth login, configure
+                  the environment variables (e.g., GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) on the
+                  backend server.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <form.Subscribe selector={(state) => state.values.allowed_providers}>
+                {(selectedProviders) => (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {providerList.map((provider) => (
+                      <div
+                        key={provider.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg border ${
+                          selectedProviders?.includes(provider.id)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border bg-muted/30'
+                        }`}
+                      >
+                        <Checkbox
+                          id={`provider-${provider.id}`}
+                          checked={selectedProviders?.includes(provider.id) || false}
+                          onCheckedChange={(checked) =>
+                            handleProviderToggle(provider.id, checked as boolean)
+                          }
+                        />
+                        <div className="flex-1 min-w-0">
+                          <Label
+                            htmlFor={`provider-${provider.id}`}
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            {provider.name}
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {provider.description}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </form.Subscribe>
+                    ))}
+                  </div>
+                )}
+              </form.Subscribe>
+            )}
           </Field>
 
           <form.Subscribe selector={(state) => state.values.allowed_providers}>

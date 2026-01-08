@@ -8,8 +8,6 @@ export {
   useAddBasicAuthUser,
   useAddExternalProvider,
   useAddIPRule,
-  // OAuth Providers (Admin)
-  useAdminOAuthProviders,
   useAssignACL,
   // Basic Auth Users
   useBasicAuthUsers,
@@ -23,7 +21,7 @@ export {
   useExternalProviders,
   // IP Rules
   useIPRules,
-  // OAuth Providers (Public)
+  // OAuth Providers
   useOAuthProviders,
   // Proxy ACL
   useProxyACL,
@@ -33,8 +31,6 @@ export {
   useUpdateBasicAuthUser,
   useUpdateExternalProvider,
   useUpdateIPRule,
-  // OAuth Providers (Admin mutation)
-  useUpdateOAuthProvider,
   useUpdateProxyACLAssignment,
   // Waygates Auth
   useWaygatesAuth,

@@ -153,7 +153,6 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		ACLService:      aclService,
 		UserRepo:        userRepo,
 		AuditService:    auditService,
-		SettingsRepo:    settingsRepo,
 		Config:          cfg,
 		Logger:          logger,
 	})
@@ -280,12 +279,6 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 			// Branding configuration (GET is public, PUT requires auth)
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/branding", aclHandler.UpdateBranding)
-
-			// OAuth provider management (admin can enable/disable available providers)
-			r.Route("/oauth/providers", func(r chi.Router) {
-				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/", oauthHandler.GetOAuthProviders)
-				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{id}", oauthHandler.UpdateOAuthProvider)
-			})
 		})
 
 		// Proxy ACL assignment routes (nested under proxies)

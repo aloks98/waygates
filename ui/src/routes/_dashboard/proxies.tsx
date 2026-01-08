@@ -377,6 +377,7 @@ export function ProxiesPage() {
 
       {editingProxy && (
         <ProxyFormModal
+          key={editingProxy.id}
           open={!!editingProxy}
           onOpenChange={(open) => !open && setEditingProxy(null)}
           onSubmit={handleUpdate}

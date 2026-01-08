@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@e412/titanium';
 import { AuditConfigPanel } from '@/components/audit-logs';
-import { ACLBrandingSettings, ACLOAuthSettings, CatchallSettings } from '@/components/settings';
+import { ACLBrandingSettings, CatchallSettings } from '@/components/settings';
 
 export function SettingsPage() {
   return (
@@ -12,7 +12,6 @@ export function SettingsPage() {
           <TabsTrigger value="catchall">Catchall</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
           <TabsTrigger value="acl-branding">ACL Branding</TabsTrigger>
-          <TabsTrigger value="oauth-providers">OAuth Providers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="catchall" className="mt-6">
@@ -25,10 +24,6 @@ export function SettingsPage() {
 
         <TabsContent value="acl-branding" className="mt-6">
           <ACLBrandingSettings />
-        </TabsContent>
-
-        <TabsContent value="oauth-providers" className="mt-6">
-          <ACLOAuthSettings />
         </TabsContent>
       </Tabs>
     </div>
