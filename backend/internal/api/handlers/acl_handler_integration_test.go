@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -25,12 +26,13 @@ import (
 // MockACLService is a mock implementation of ACLServiceInterface for testing
 type MockACLService struct {
 	// Group Management
-	CreateGroupFunc    func(group *models.ACLGroup, createdBy int) error
-	GetGroupFunc       func(id int) (*models.ACLGroup, error)
-	GetGroupByNameFunc func(name string) (*models.ACLGroup, error)
-	ListGroupsFunc     func(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
-	UpdateGroupFunc    func(id int, updates *models.ACLGroup) error
-	DeleteGroupFunc    func(id int) error
+	CreateGroupFunc         func(group *models.ACLGroup, createdBy int) error
+	GetGroupFunc            func(id int) (*models.ACLGroup, error)
+	GetGroupByNameFunc      func(name string) (*models.ACLGroup, error)
+	ListGroupsFunc          func(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
+	UpdateGroupFunc         func(id int, updates *models.ACLGroup) error
+	DeleteGroupFunc         func(id int) error
+	DeleteGroupWithSyncFunc func(id int, syncFn service.SyncCallback) error
 
 	// IP Rules
 	AddIPRuleFunc    func(groupID int, rule *models.ACLIPRule) error
@@ -127,6 +129,14 @@ func (m *MockACLService) UpdateGroup(id int, updates *models.ACLGroup) error {
 func (m *MockACLService) DeleteGroup(id int) error {
 	if m.DeleteGroupFunc != nil {
 		return m.DeleteGroupFunc(id)
+	}
+	return nil
+}
+
+// DeleteGroupWithSync implements ACLServiceInterface.
+func (m *MockACLService) DeleteGroupWithSync(id int, syncFn service.SyncCallback) error {
+	if m.DeleteGroupWithSyncFunc != nil {
+		return m.DeleteGroupWithSyncFunc(id, syncFn)
 	}
 	return nil
 }
@@ -500,6 +510,17 @@ func (m *MockACLRepository) DeleteExpiredSessions() (int64, error) { return 0, n
 func (m *MockACLRepository) DeleteUserSessions(userID int) error   { return nil }
 func (m *MockACLRepository) DeleteProxySessions(proxyID int) error { return nil }
 
+// GetDB implements ACLRepositoryInterface.
+func (m *MockACLRepository) GetDB() *gorm.DB { return nil }
+
+// DeleteGroupWithTx implements ACLRepositoryInterface.
+func (m *MockACLRepository) DeleteGroupWithTx(tx *gorm.DB, id int) error { return nil }
+
+// GetProxyACLAssignmentsByGroupWithTx implements ACLRepositoryInterface.
+func (m *MockACLRepository) GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error) {
+	return nil, nil
+}
+
 // Ensure mock implements interface
 var _ service.ACLServiceInterface = (*MockACLService)(nil)
 
@@ -803,7 +824,7 @@ func TestACLHandler_DeleteGroup_Success(t *testing.T) {
 
 func TestACLHandler_DeleteGroup_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteGroupFunc: func(id int) error {
+		DeleteGroupWithSyncFunc: func(id int, syncFn service.SyncCallback) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -1643,4 +1664,392 @@ func (src *stringReadCloser) Read(p []byte) (int, error) {
 
 func (src *stringReadCloser) Close() error {
 	return nil
+}
+
+// =============================================================================
+// GetAuthOptions Tests (Priority 1 - 0% coverage)
+// =============================================================================
+
+// MockSyncService is a mock implementation of SyncServiceInterface for handler tests
+type MockSyncService struct {
+	SyncProxyByIDFunc  func(proxyID int) error
+	SyncProxyByIDCalls []int // Track calls for verification
+}
+
+func (m *MockSyncService) GetStatus() service.SyncStatus {
+	return service.SyncStatus{}
+}
+
+func (m *MockSyncService) FullSync() error {
+	return nil
+}
+
+func (m *MockSyncService) SyncProxyByID(proxyID int) error {
+	m.SyncProxyByIDCalls = append(m.SyncProxyByIDCalls, proxyID)
+	if m.SyncProxyByIDFunc != nil {
+		return m.SyncProxyByIDFunc(proxyID)
+	}
+	return nil
+}
+
+// setupACLTestRouterWithSync creates a router with ACL handler including sync service for testing
+func setupACLTestRouterWithSync(mockService *MockACLService, mockRepo *MockACLRepository, mockSync *MockSyncService) *chi.Mux {
+	// Handle nil sync service properly - pass nil interface, not nil pointer wrapped in interface
+	var syncService service.SyncServiceInterface
+	if mockSync != nil {
+		syncService = mockSync
+	}
+	handler := NewACLHandler(mockService, mockRepo, syncService, nil, nil)
+	r := chi.NewRouter()
+
+	// Group routes
+	r.Get("/api/acl/groups", handler.ListGroups)
+	r.Post("/api/acl/groups", handler.CreateGroup)
+	r.Get("/api/acl/groups/{id}", handler.GetGroup)
+	r.Put("/api/acl/groups/{id}", handler.UpdateGroup)
+	r.Delete("/api/acl/groups/{id}", handler.DeleteGroup)
+	r.Get("/api/acl/groups/{id}/usage", handler.GetGroupUsage)
+
+	// IP Rules
+	r.Get("/api/acl/groups/{id}/ip-rules", handler.ListIPRules)
+	r.Post("/api/acl/groups/{id}/ip-rules", handler.AddIPRule)
+	r.Put("/api/acl/ip-rules/{id}", handler.UpdateIPRule)
+	r.Delete("/api/acl/ip-rules/{id}", handler.DeleteIPRule)
+
+	// Basic Auth
+	r.Get("/api/acl/groups/{id}/basic-auth", handler.ListBasicAuthUsers)
+	r.Post("/api/acl/groups/{id}/basic-auth", handler.AddBasicAuthUser)
+	r.Put("/api/acl/basic-auth/{id}", handler.UpdateBasicAuthUser)
+	r.Delete("/api/acl/basic-auth/{id}", handler.DeleteBasicAuthUser)
+
+	// External Providers
+	r.Get("/api/acl/groups/{id}/providers", handler.ListExternalProviders)
+	r.Post("/api/acl/groups/{id}/providers", handler.AddExternalProvider)
+	r.Put("/api/acl/providers/{id}", handler.UpdateExternalProvider)
+	r.Delete("/api/acl/providers/{id}", handler.DeleteExternalProvider)
+
+	// Waygates Auth
+	r.Get("/api/acl/groups/{id}/waygates-auth", handler.GetWaygatesAuth)
+	r.Put("/api/acl/groups/{id}/waygates-auth", handler.ConfigureWaygatesAuth)
+
+	// Branding
+	r.Get("/api/acl/branding", handler.GetBranding)
+	r.Put("/api/acl/branding", handler.UpdateBranding)
+
+	// Auth Options (PUBLIC endpoint)
+	r.Get("/api/acl/options", handler.GetAuthOptions)
+
+	return r
+}
+
+func TestACLHandler_GetAuthOptions_Success(t *testing.T) {
+	mockService := &MockACLService{
+		GetAuthOptionsForProxyFunc: func(hostname string) (*service.AuthOptionsResponse, error) {
+			return &service.AuthOptionsResponse{
+				Hostname:     hostname,
+				ProxyID:      1,
+				RequiresAuth: true,
+				WaygatesAuth: &service.UnionWaygatesAuth{Enabled: true},
+				OAuthProviders: []service.UnionOAuthProvider{
+					{ID: "google", Name: "Google", Enabled: true},
+				},
+				BasicAuthEnabled: false,
+			}, nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options?hostname=example.com", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, true, response["success"])
+
+	// Verify data structure
+	data := response["data"].(map[string]interface{})
+	assert.Equal(t, "example.com", data["hostname"])
+	assert.Equal(t, float64(1), data["proxy_id"])
+	assert.Equal(t, true, data["requires_auth"])
+}
+
+func TestACLHandler_GetAuthOptions_MissingHostname(t *testing.T) {
+	r := setupACLTestRouterWithSync(&MockACLService{}, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, false, response["success"])
+
+	// Error response uses structured format with code and message
+	errData := response["error"].(map[string]interface{})
+	assert.Equal(t, "VALIDATION_ERROR", errData["code"])
+	assert.Contains(t, errData["message"], "hostname")
+}
+
+func TestACLHandler_GetAuthOptions_EmptyHostname(t *testing.T) {
+	r := setupACLTestRouterWithSync(&MockACLService{}, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options?hostname=", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestACLHandler_GetAuthOptions_ProxyNotFound(t *testing.T) {
+	mockService := &MockACLService{
+		GetAuthOptionsForProxyFunc: func(hostname string) (*service.AuthOptionsResponse, error) {
+			return nil, fmt.Errorf("proxy not found")
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options?hostname=unknown.com", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, false, response["success"])
+
+	// Error response uses structured format with code and message
+	errData := response["error"].(map[string]interface{})
+	assert.Equal(t, "NOT_FOUND", errData["code"])
+	assert.Contains(t, errData["message"], "proxy not found")
+}
+
+func TestACLHandler_GetAuthOptions_NoAuthRequired(t *testing.T) {
+	mockService := &MockACLService{
+		GetAuthOptionsForProxyFunc: func(hostname string) (*service.AuthOptionsResponse, error) {
+			return &service.AuthOptionsResponse{
+				Hostname:     hostname,
+				ProxyID:      2,
+				RequiresAuth: false,
+			}, nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options?hostname=public.example.com", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, true, response["success"])
+
+	data := response["data"].(map[string]interface{})
+	assert.Equal(t, false, data["requires_auth"])
+}
+
+func TestACLHandler_GetAuthOptions_BasicAuthOnly(t *testing.T) {
+	mockService := &MockACLService{
+		GetAuthOptionsForProxyFunc: func(hostname string) (*service.AuthOptionsResponse, error) {
+			return &service.AuthOptionsResponse{
+				Hostname:         hostname,
+				ProxyID:          3,
+				RequiresAuth:     true,
+				BasicAuthEnabled: true,
+			}, nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/acl/options?hostname=basic.example.com", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data := response["data"].(map[string]interface{})
+	assert.Equal(t, true, data["basic_auth_enabled"])
+	assert.Equal(t, true, data["requires_auth"])
+}
+
+// =============================================================================
+// syncProxiesUsingGroup Tests (Priority 1 - 0% coverage)
+// =============================================================================
+
+func TestACLHandler_SyncProxiesUsingGroup_MultipleProxies(t *testing.T) {
+	mockSync := &MockSyncService{}
+	mockService := &MockACLService{
+		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: 10, ACLGroupID: groupID},
+				{ID: 2, ProxyID: 20, ACLGroupID: groupID},
+				{ID: 3, ProxyID: 30, ACLGroupID: groupID},
+			}, nil
+		},
+		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+			rule.ID = 1
+			return nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, mockSync)
+	body := `{"rule_type": "allow", "cidr": "192.168.1.0/24", "priority": 10}`
+	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// Verify that all 3 proxies were synced
+	assert.Equal(t, 3, len(mockSync.SyncProxyByIDCalls))
+	assert.Contains(t, mockSync.SyncProxyByIDCalls, 10)
+	assert.Contains(t, mockSync.SyncProxyByIDCalls, 20)
+	assert.Contains(t, mockSync.SyncProxyByIDCalls, 30)
+}
+
+func TestACLHandler_SyncProxiesUsingGroup_SyncErrors_ContinuesWithOthers(t *testing.T) {
+	syncErrorCount := 0
+	mockSync := &MockSyncService{
+		SyncProxyByIDFunc: func(proxyID int) error {
+			// First proxy fails, but we continue
+			if proxyID == 10 {
+				syncErrorCount++
+				return fmt.Errorf("sync failed for proxy %d", proxyID)
+			}
+			return nil
+		},
+	}
+	mockService := &MockACLService{
+		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: 10, ACLGroupID: groupID}, // This one will fail
+				{ID: 2, ProxyID: 20, ACLGroupID: groupID}, // Should still sync
+				{ID: 3, ProxyID: 30, ACLGroupID: groupID}, // Should still sync
+			}, nil
+		},
+		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+			rule.ID = 1
+			return nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, mockSync)
+	body := `{"rule_type": "deny", "cidr": "10.0.0.0/8", "priority": 5}`
+	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	// Request should still succeed even though one proxy sync failed
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// All 3 proxies should have been attempted
+	assert.Equal(t, 3, len(mockSync.SyncProxyByIDCalls))
+
+	// One error should have occurred
+	assert.Equal(t, 1, syncErrorCount)
+}
+
+func TestACLHandler_SyncProxiesUsingGroup_NilSyncService(t *testing.T) {
+	// When syncService is nil, we should not panic and operations should still work
+	mockService := &MockACLService{
+		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: 10, ACLGroupID: groupID},
+			}, nil
+		},
+		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+			rule.ID = 1
+			return nil
+		},
+	}
+
+	// Pass nil for sync service
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, nil)
+	body := `{"rule_type": "allow", "cidr": "172.16.0.0/12", "priority": 10}`
+	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	// Should not panic and should complete successfully
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+}
+
+func TestACLHandler_SyncProxiesUsingGroup_GetGroupUsageError(t *testing.T) {
+	mockSync := &MockSyncService{}
+	mockService := &MockACLService{
+		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+			// Error getting group usage - should be handled gracefully
+			return nil, fmt.Errorf("database error")
+		},
+		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+			rule.ID = 1
+			return nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, mockSync)
+	body := `{"rule_type": "bypass", "cidr": "192.168.100.0/24", "priority": 1}`
+	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	// Request should still succeed (sync is best-effort, not blocking)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// No proxies should have been synced due to the error
+	assert.Equal(t, 0, len(mockSync.SyncProxyByIDCalls))
+}
+
+func TestACLHandler_SyncProxiesUsingGroup_NoProxiesUsing(t *testing.T) {
+	mockSync := &MockSyncService{}
+	mockService := &MockACLService{
+		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+			// No proxies using this group
+			return []models.ProxyACLAssignment{}, nil
+		},
+		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+			rule.ID = 1
+			return nil
+		},
+	}
+
+	r := setupACLTestRouterWithSync(mockService, &MockACLRepository{}, mockSync)
+	body := `{"rule_type": "allow", "cidr": "10.10.0.0/16", "priority": 100}`
+	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	// No proxies should have been synced
+	assert.Equal(t, 0, len(mockSync.SyncProxyByIDCalls))
 }

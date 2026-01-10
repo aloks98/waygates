@@ -92,6 +92,16 @@ type ACLRepositoryInterface interface {
 	DeleteExpiredSessions() (int64, error)
 	DeleteUserSessions(userID int) error
 	DeleteProxySessions(proxyID int) error
+
+	// Transaction Support
+	// GetDB returns the underlying GORM DB instance for transaction support.
+	// Use this to create transactions when atomic operations are needed across multiple repository calls.
+	GetDB() *gorm.DB
+	// DeleteGroupWithTx deletes an ACL group within an existing transaction.
+	// This is used for atomic delete operations where proxy IDs need to be collected first.
+	DeleteGroupWithTx(tx *gorm.DB, id int) error
+	// GetProxyACLAssignmentsByGroupWithTx returns all ACL assignments for a group within a transaction.
+	GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error)
 }
 
 // ACLRepository handles database operations for ACL
@@ -553,4 +563,55 @@ func (r *ACLRepository) DeleteUserSessions(userID int) error {
 // DeleteProxySessions deletes all sessions for a proxy
 func (r *ACLRepository) DeleteProxySessions(proxyID int) error {
 	return r.db.Where("proxy_id = ?", proxyID).Delete(&models.ACLSession{}).Error
+}
+
+// =============================================================================
+// Transaction Support
+// =============================================================================
+
+// GetDB returns the underlying GORM DB instance for transaction support.
+// Use this to create transactions when atomic operations are needed across multiple repository calls.
+func (r *ACLRepository) GetDB() *gorm.DB {
+	return r.db
+}
+
+// DeleteGroupWithTx deletes an ACL group within an existing transaction.
+// This performs the same cascade delete as DeleteGroup but uses the provided transaction.
+func (r *ACLRepository) DeleteGroupWithTx(tx *gorm.DB, id int) error {
+	// Delete related records first
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLIPRule{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLBasicAuthUser{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLExternalProvider{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLWaygatesAuth{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLOAuthProviderRestriction{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("acl_group_id = ?", id).Delete(&models.ProxyACLAssignment{}).Error; err != nil {
+		return err
+	}
+
+	// Delete the group
+	return tx.Delete(&models.ACLGroup{}, id).Error
+}
+
+// GetProxyACLAssignmentsByGroupWithTx returns all ACL assignments for a group within a transaction.
+// This is used for atomic operations where we need to get proxy IDs before deleting the group.
+func (r *ACLRepository) GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error) {
+	var assignments []models.ProxyACLAssignment
+	if err := tx.
+		Preload("Proxy").
+		Where("acl_group_id = ?", groupID).
+		Order("priority ASC, id ASC").
+		Find(&assignments).Error; err != nil {
+		return nil, err
+	}
+	return assignments, nil
 }

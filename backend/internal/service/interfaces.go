@@ -87,6 +87,10 @@ type AuditServiceInterface interface {
 	LogCaddyReload(ctx context.Context, success bool, errMsg string) error
 }
 
+// SyncCallback is a function type for syncing proxies after group deletion.
+// It receives a slice of proxy IDs that need to be synced.
+type SyncCallback func(proxyIDs []int)
+
 // ACLServiceInterface defines the interface for ACL operations
 type ACLServiceInterface interface {
 	// Group Management
@@ -96,6 +100,11 @@ type ACLServiceInterface interface {
 	ListGroups(params ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
 	UpdateGroup(id int, updates *models.ACLGroup) error
 	DeleteGroup(id int) error
+	// DeleteGroupWithSync atomically deletes an ACL group and returns the proxy IDs that were using it.
+	// The sync callback is called AFTER the transaction commits successfully with the list of proxy IDs
+	// that need to be synced. This prevents the TOCTOU race condition where a new assignment could be
+	// created between fetching assignments and deleting the group.
+	DeleteGroupWithSync(id int, syncFn SyncCallback) error
 
 	// IP Rules
 	AddIPRule(groupID int, rule *models.ACLIPRule) error

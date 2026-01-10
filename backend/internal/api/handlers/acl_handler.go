@@ -9,6 +9,7 @@ import (
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -76,27 +77,9 @@ func (h *ACLHandler) syncProxiesUsingGroup(groupID int) {
 // Request/Response Types
 // =============================================================================
 
-// AuthOptionsResponse contains union of auth options from all ACL groups for a proxy
-type AuthOptionsResponse struct {
-	Hostname         string               `json:"hostname"`
-	ProxyID          int64                `json:"proxy_id"`
-	WaygatesAuth     *UnionWaygatesAuth   `json:"waygates_auth,omitempty"`
-	OAuthProviders   []UnionOAuthProvider `json:"oauth_providers,omitempty"`
-	BasicAuthEnabled bool                 `json:"basic_auth_enabled"`
-	RequiresAuth     bool                 `json:"requires_auth"`
-}
-
-// UnionWaygatesAuth represents Waygates auth configuration in the union response
-type UnionWaygatesAuth struct {
-	Enabled bool `json:"enabled"`
-}
-
-// UnionOAuthProvider represents an OAuth provider in the union response
-type UnionOAuthProvider struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"`
-}
+// Note: AuthOptionsResponse, UnionWaygatesAuth, and UnionOAuthProvider are defined
+// in the service package (service.AuthOptionsResponse, etc.) and should be used
+// from there to avoid duplication.
 
 // CreateGroupRequest is the request body for creating an ACL group
 type CreateGroupRequest struct {
@@ -399,45 +382,43 @@ func (h *ACLHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get proxies using this ACL group BEFORE deletion so we can sync them after
-	var proxyIDsToSync []int
-	if h.syncService != nil {
-		assignments, err := h.aclService.GetGroupUsage(id)
-		if err != nil {
-			h.logger.Warn("Failed to get proxies using ACL group before deletion",
-				zap.Int("group_id", id),
-				zap.Error(err))
-		} else {
-			for _, assignment := range assignments {
-				proxyIDsToSync = append(proxyIDsToSync, assignment.ProxyID)
+	// Create sync callback that will be called after the transaction commits.
+	// This callback receives the proxy IDs that were atomically collected before deletion.
+	// Using DeleteGroupWithSync prevents the TOCTOU race condition where a new proxy could
+	// be assigned to the group between fetching assignments and deleting the group.
+	syncCallback := func(proxyIDs []int) {
+		if h.syncService == nil {
+			return
+		}
+
+		for _, proxyID := range proxyIDs {
+			if err := h.syncService.SyncProxyByID(proxyID); err != nil {
+				h.logger.Warn("Failed to sync proxy after ACL group deletion",
+					zap.Int("proxy_id", proxyID),
+					zap.Int("group_id", id),
+					zap.Error(err))
+				// Continue syncing other proxies even if one fails
 			}
+		}
+
+		if len(proxyIDs) > 0 {
+			h.logger.Info("Synced proxies after ACL group deletion",
+				zap.Int("group_id", id),
+				zap.Int("proxy_count", len(proxyIDs)))
 		}
 	}
 
-	if err := h.aclService.DeleteGroup(id); err != nil {
+	// Use DeleteGroupWithSync which atomically:
+	// 1. Gets all proxy IDs using this group (within a transaction)
+	// 2. Deletes the group (cascades to assignments)
+	// 3. Calls the sync callback with the collected proxy IDs after commit
+	if err := h.aclService.DeleteGroupWithSync(id, syncCallback); err != nil {
 		if errors.Is(err, service.ErrACLGroupNotFound) {
 			utils.NotFound(w, "ACL group not found")
 			return
 		}
 		utils.InternalError(w, "Failed to delete ACL group")
 		return
-	}
-
-	// Sync all proxies that were using this ACL group to remove ACL config from Caddyfiles
-	for _, proxyID := range proxyIDsToSync {
-		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
-			h.logger.Warn("Failed to sync proxy after ACL group deletion",
-				zap.Int("proxy_id", proxyID),
-				zap.Int("group_id", id),
-				zap.Error(err))
-			// Continue syncing other proxies even if one fails
-		}
-	}
-
-	if len(proxyIDsToSync) > 0 {
-		h.logger.Info("Synced proxies after ACL group deletion",
-			zap.Int("group_id", id),
-			zap.Int("proxy_count", len(proxyIDsToSync)))
 	}
 
 	utils.Success(w, nil, "ACL group deleted successfully")
@@ -558,7 +539,12 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 	// Get existing rule to obtain groupID for sync
 	existingRule, err := h.aclRepo.GetIPRuleByID(id)
 	if err != nil {
-		utils.NotFound(w, "IP rule not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "IP rule not found")
+		} else {
+			h.logger.Error("Failed to get IP rule", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get IP rule")
+		}
 		return
 	}
 	groupID := existingRule.ACLGroupID
@@ -631,7 +617,12 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 	// Get existing rule to obtain groupID for sync before deletion
 	existingRule, err := h.aclRepo.GetIPRuleByID(id)
 	if err != nil {
-		utils.NotFound(w, "IP rule not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "IP rule not found")
+		} else {
+			h.logger.Error("Failed to get IP rule", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get IP rule")
+		}
 		return
 	}
 	groupID := existingRule.ACLGroupID
@@ -751,7 +742,12 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 	// Get existing user to obtain groupID for sync
 	existingUser, err := h.aclRepo.GetBasicAuthUserByID(id)
 	if err != nil {
-		utils.NotFound(w, "Basic auth user not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "Basic auth user not found")
+		} else {
+			h.logger.Error("Failed to get basic auth user", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get basic auth user")
+		}
 		return
 	}
 	groupID := existingUser.ACLGroupID
@@ -805,7 +801,12 @@ func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request)
 	// Get existing user to obtain groupID for sync before deletion
 	existingUser, err := h.aclRepo.GetBasicAuthUserByID(id)
 	if err != nil {
-		utils.NotFound(w, "Basic auth user not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "Basic auth user not found")
+		} else {
+			h.logger.Error("Failed to get basic auth user", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get basic auth user")
+		}
 		return
 	}
 	groupID := existingUser.ACLGroupID
@@ -937,7 +938,12 @@ func (h *ACLHandler) UpdateExternalProvider(w http.ResponseWriter, r *http.Reque
 	// Get existing provider to obtain groupID for sync
 	existingProvider, err := h.aclRepo.GetExternalProviderByID(id)
 	if err != nil {
-		utils.NotFound(w, "External provider not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "External provider not found")
+		} else {
+			h.logger.Error("Failed to get external provider", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get external provider")
+		}
 		return
 	}
 	groupID := existingProvider.ACLGroupID
@@ -1011,7 +1017,12 @@ func (h *ACLHandler) DeleteExternalProvider(w http.ResponseWriter, r *http.Reque
 	// Get existing provider to obtain groupID for sync before deletion
 	existingProvider, err := h.aclRepo.GetExternalProviderByID(id)
 	if err != nil {
-		utils.NotFound(w, "External provider not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.NotFound(w, "External provider not found")
+		} else {
+			h.logger.Error("Failed to get external provider", zap.Int("id", id), zap.Error(err))
+			utils.InternalError(w, "Failed to get external provider")
+		}
 		return
 	}
 	groupID := existingProvider.ACLGroupID

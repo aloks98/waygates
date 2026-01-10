@@ -80,6 +80,11 @@ type MockACLRepository struct {
 	DeleteExpiredSessionsFunc func() (int64, error)
 	DeleteUserSessionsFunc    func(userID int) error
 	DeleteProxySessionsFunc   func(proxyID int) error
+
+	// Transaction Support methods
+	GetDBFunc                               func() *gorm.DB
+	DeleteGroupWithTxFunc                   func(tx *gorm.DB, id int) error
+	GetProxyACLAssignmentsByGroupWithTxFunc func(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error)
 }
 
 // ACL Group methods
@@ -123,6 +128,35 @@ func (m *MockACLRepository) DeleteGroup(id int) error {
 		return m.DeleteGroupFunc(id)
 	}
 	return nil
+}
+
+func (m *MockACLRepository) DeleteGroupWithTx(tx *gorm.DB, id int) error {
+	if m.DeleteGroupWithTxFunc != nil {
+		return m.DeleteGroupWithTxFunc(tx, id)
+	}
+	// Fall back to non-tx version for tests that don't need specific behavior
+	if m.DeleteGroupFunc != nil {
+		return m.DeleteGroupFunc(id)
+	}
+	return nil
+}
+
+func (m *MockACLRepository) GetDB() *gorm.DB {
+	if m.GetDBFunc != nil {
+		return m.GetDBFunc()
+	}
+	return nil
+}
+
+func (m *MockACLRepository) GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentsByGroupWithTxFunc != nil {
+		return m.GetProxyACLAssignmentsByGroupWithTxFunc(tx, groupID)
+	}
+	// Fall back to non-tx version for tests that don't need specific behavior
+	if m.GetProxyACLAssignmentsByGroupFunc != nil {
+		return m.GetProxyACLAssignmentsByGroupFunc(groupID)
+	}
+	return []models.ProxyACLAssignment{}, nil
 }
 
 // IP Rule methods
@@ -1634,20 +1668,23 @@ func TestVerifyAccess_IPDeny(t *testing.T) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
 		},
 	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		CombinationMode: models.ACLCombinationModeAny,
+		IPRules: []models.ACLIPRule{
+			{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "192.168.1.0/24"},
+		},
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				CombinationMode: models.ACLCombinationModeAny,
-				IPRules: []models.ACLIPRule{
-					{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "192.168.1.0/24"},
-				},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -1806,6 +1843,12 @@ func TestVerifyAccess_BasicAuth_WrongPassword(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("correctpassword", 10)
 
+	group := &models.ACLGroup{
+		ID:              1,
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -1814,15 +1857,11 @@ func TestVerifyAccess_BasicAuth_WrongPassword(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -1857,20 +1896,23 @@ func TestVerifyAccess_WaygatesSession(t *testing.T) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
 		},
 	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			Enabled: true,
+		},
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				CombinationMode: models.ACLCombinationModeAny,
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					Enabled: true,
-				},
-			}, nil
+			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
 			userID := 1
@@ -2120,31 +2162,130 @@ func TestValidatePathPattern(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		name    string
 		pattern string
 		isValid bool
 	}{
 		// Valid patterns
-		{"", true}, // Empty is valid (defaults to /*)
-		{"/*", true},
-		{"/api/*", true},
-		{"/api/v1/users", true},
-		{"/api/*/users", true},
-		{"*", true},
+		{"empty pattern", "", true}, // Empty is valid (defaults to /*)
+		{"wildcard root", "/*", true},
+		{"api wildcard", "/api/*", true},
+		{"specific path", "/api/v1/users", true},
+		{"middle wildcard", "/api/*/users", true},
+		{"star only", "*", true},
+		{"path with numbers", "/api/v2/users/123", true},
+		{"path with hyphens", "/my-api/user-service", true},
+		{"path with underscores", "/my_api/user_service", true},
+		{"deeply nested path", "/a/b/c/d/e/f/g", true},
 
-		// Invalid patterns
-		{"api/users", false},    // Doesn't start with /
-		{"/api?query=1", false}, // Contains ?
-		{"/api#hash", false},    // Contains #
+		// Invalid patterns - doesn't start with /
+		{"no leading slash", "api/users", false},
+		{"relative path", "relative/path", false},
+
+		// Invalid patterns - URL special characters
+		{"query string", "/api?query=1", false},
+		{"hash fragment", "/api#hash", false},
+
+		// Invalid patterns - path traversal
+		{"path traversal", "/api/../etc/passwd", false},
+		{"double dot only", "/..", false},
+		{"traversal in middle", "/api/v1/../../secret", false},
+		{"traversal at end", "/api/users/..", false},
+
+		// Invalid patterns - Caddyfile injection (newlines/control chars)
+		{"newline injection", "/api\nreverse_proxy malicious:8080", false},
+		{"carriage return", "/api\rmalicious", false},
+		{"tab character", "/api\tmalicious", false},
+		{"null byte", "/api\x00malicious", false},
+		{"bell character", "/api\x07malicious", false},
+		{"escape character", "/api\x1bmalicious", false},
+		{"delete character", "/api\x7fmalicious", false},
+
+		// Invalid patterns - Caddyfile block delimiters
+		{"open brace", "/api/{malicious}", false},
+		{"close brace", "/api/malicious}", false},
+		{"braces only", "/{}", false},
+
+		// Invalid patterns - command/directive injection
+		{"backtick", "/api`id`", false},
+		{"semicolon", "/api;malicious", false},
+		{"double quote", "/api/\"malicious\"", false},
+		{"single quote", "/api/'malicious'", false},
+		{"less than", "/api/<malicious", false},
+		{"greater than", "/api/>malicious", false},
+		{"redirect injection", "/api</etc/passwd", false},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.pattern, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			err := validatePathPattern(tc.pattern)
 			if tc.isValid && err != nil {
-				t.Errorf("Expected %q to be valid, got error: %v", tc.pattern, err)
+				t.Errorf("Expected pattern %q to be valid, got error: %v", tc.pattern, err)
 			}
 			if !tc.isValid && err == nil {
-				t.Errorf("Expected %q to be invalid", tc.pattern)
+				t.Errorf("Expected pattern %q to be invalid, but it was accepted", tc.pattern)
+			}
+			if !tc.isValid && err != nil && err != ErrInvalidPathPattern {
+				t.Errorf("Expected ErrInvalidPathPattern for %q, got: %v", tc.pattern, err)
+			}
+		})
+	}
+}
+
+func TestValidatePathPattern_CaddyfileInjection(t *testing.T) {
+	t.Parallel()
+
+	// Test specific Caddyfile injection payloads that could be used in attacks
+	injectionPayloads := []struct {
+		name    string
+		pattern string
+	}{
+		{
+			name:    "inject reverse_proxy directive",
+			pattern: "/api\nreverse_proxy attacker.com:8080",
+		},
+		{
+			name:    "inject respond directive",
+			pattern: "/api\nrespond \"hacked\" 200",
+		},
+		{
+			name:    "inject file_server directive",
+			pattern: "/api\nfile_server browse",
+		},
+		{
+			name:    "inject redir directive",
+			pattern: "/api\nredir https://attacker.com",
+		},
+		{
+			name:    "inject block with braces",
+			pattern: "/api {\n    respond \"hacked\"\n}",
+		},
+		{
+			name:    "CRLF injection",
+			pattern: "/api\r\nX-Injected: header",
+		},
+		{
+			name:    "path traversal to read files",
+			pattern: "/../../../etc/passwd",
+		},
+		{
+			name:    "backtick command execution",
+			pattern: "/api/`whoami`",
+		},
+		{
+			name:    "quoted string breakout",
+			pattern: "/api\" malicious \"path",
+		},
+	}
+
+	for _, tc := range injectionPayloads {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePathPattern(tc.pattern)
+			if err == nil {
+				t.Errorf("Security vulnerability: injection payload %q was accepted", tc.pattern)
+			}
+			if err != nil && err != ErrInvalidPathPattern {
+				t.Errorf("Expected ErrInvalidPathPattern for injection payload, got: %v", err)
 			}
 		})
 	}
@@ -2284,8 +2425,8 @@ func TestVerifyAccess_IPDenyUnion(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Priority: 0, Enabled: true},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Priority: 1, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2347,7 +2488,7 @@ func TestVerifyAccess_IPDenyBlocksWithinGroup(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2374,7 +2515,8 @@ func TestVerifyAccess_IPDenyBlocksWithinGroup(t *testing.T) {
 		t.Error("IP in deny range should be blocked even when broader allow rule exists")
 	}
 
-	// IP in allow range but not deny range should be allowed
+	// IP in allow range but not deny range should be allowed with ACLCombinationModeAny
+	// With CombinationModeAny, an IP matching an allow rule grants access directly
 	response, err = svc.VerifyAccess(&ACLVerifyRequest{
 		Host:     "example.com",
 		Path:     "/api",
@@ -2384,8 +2526,9 @@ func TestVerifyAccess_IPDenyBlocksWithinGroup(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
+	// With ACLCombinationModeAny, an IP allow rule is sufficient to grant access
 	if !response.Allowed {
-		t.Error("IP only in allow range should be allowed")
+		t.Error("IP in allow range (not in deny range) should be allowed with CombinationModeAny")
 	}
 }
 
@@ -2465,8 +2608,8 @@ func TestVerifyAccess_IPBypassUnion(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Priority: 0, Enabled: true},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Priority: 1, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2564,7 +2707,7 @@ func TestVerifyAccess_DenyTakesPrecedenceWithinGroup(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2628,8 +2771,8 @@ func TestVerifyAccess_CrossGroupEvaluation(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: groupA, PathPattern: "/*", Priority: 0, Enabled: true},
+				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: groupB, PathPattern: "/*", Priority: 1, Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2741,8 +2884,8 @@ func TestVerifyAccess_BasicAuthUnion(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Priority: 0, Enabled: true},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Priority: 1, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -2859,8 +3002,8 @@ func TestVerifyAccess_OAuthUnion(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Priority: 0, Enabled: true},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Priority: 1, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -3004,8 +3147,8 @@ func TestVerifyAccess_MultipleGroupsWithDifferentPaths(t *testing.T) {
 			aclRepo := &MockACLRepository{
 				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 					return []models.ProxyACLAssignment{
-						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/api/*", Priority: 0, Enabled: true},
-						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/admin/*", Priority: 0, Enabled: true},
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: apiGroup, PathPattern: "/api/*", Priority: 0, Enabled: true},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: adminGroup, PathPattern: "/admin/*", Priority: 0, Enabled: true},
 					}, nil
 				},
 				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -3097,9 +3240,9 @@ func TestVerifyAccess_MixedAuthMethodsUnion(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 1, Enabled: true},
-				{ID: 3, ProxyID: proxyID, ACLGroupID: 3, PathPattern: "/*", Priority: 2, Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Priority: 0, Enabled: true},
+				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Priority: 1, Enabled: true},
+				{ID: 3, ProxyID: proxyID, ACLGroupID: 3, ACLGroup: group3, PathPattern: "/*", Priority: 2, Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -3238,8 +3381,8 @@ func TestVerifyAccess_PriorityOrdering(t *testing.T) {
 			GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 				// Return in non-priority order to test sorting
 				return []models.ProxyACLAssignment{
-					{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 10, Enabled: true},
-					{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
+					{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: lowPriorityGroup, PathPattern: "/*", Priority: 10, Enabled: true},
+					{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: highPriorityGroup, PathPattern: "/*", Priority: 0, Enabled: true},
 				}, nil
 			},
 			GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -3305,8 +3448,8 @@ func TestVerifyAccess_PriorityOrdering(t *testing.T) {
 		aclRepo := &MockACLRepository{
 			GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 				return []models.ProxyACLAssignment{
-					{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Priority: 0, Enabled: true},
-					{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Priority: 10, Enabled: true},
+					{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: highPriorityGroup, PathPattern: "/*", Priority: 0, Enabled: true},
+					{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: lowPriorityGroup, PathPattern: "/*", Priority: 10, Enabled: true},
 				}, nil
 			},
 			GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
@@ -3357,25 +3500,28 @@ func TestGetAuthOptionsForProxy_BasicAuthOnlyEnabled(t *testing.T) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
 		},
 	}
+
+	// Create a user with basic auth configured
+	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
+	_ = testUser.SetPassword("password123", 10)
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-auth-only",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		// No WaygatesAuth - nil
+		// No OAuthProviderRestrictions - empty
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			// Create a user with basic auth configured
-			testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
-			_ = testUser.SetPassword("password123", 10)
-
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "basic-auth-only",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				// No WaygatesAuth - nil
-				// No OAuthProviderRestrictions - empty
-			}, nil
+			return group, nil
 		},
 	}
 
@@ -3407,28 +3553,31 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenWaygatesEnabled(t *testing.
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
 		},
 	}
+
+	// Create a user with basic auth configured
+	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
+	_ = testUser.SetPassword("password123", 10)
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-plus-waygates",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			// Create a user with basic auth configured
-			testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
-			_ = testUser.SetPassword("password123", 10)
-
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "basic-plus-waygates",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         1,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group, nil
 		},
 	}
 
@@ -3457,32 +3606,35 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenOAuthEnabled(t *testing.T) 
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
 		},
 	}
+
+	// Create a user with basic auth configured
+	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
+	_ = testUser.SetPassword("password123", 10)
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-plus-oauth",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:             1,
+				ACLGroupID:     1,
+				Provider:       "google",
+				AllowedDomains: []string{"example.com"},
+				Enabled:        true,
+			},
+		},
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			// Create a user with basic auth configured
-			testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
-			_ = testUser.SetPassword("password123", 10)
-
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "basic-plus-oauth",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
-					{
-						ID:             1,
-						ACLGroupID:     id,
-						Provider:       "google",
-						AllowedDomains: []string{"example.com"},
-						Enabled:        true,
-					},
-				},
-			}, nil
+			return group, nil
 		},
 	}
 
@@ -3506,6 +3658,33 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenOAuthEnabled(t *testing.T) 
 func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenBothWaygatesAndOAuthEnabled(t *testing.T) {
 	t.Parallel()
 
+	// Create a user with basic auth configured
+	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
+	_ = testUser.SetPassword("password123", 10)
+
+	// Create the group first so we can reference it in the assignment
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "all-auth-methods",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:               1,
+			ACLGroupID:       1,
+			Enabled:          true,
+			AllowedProviders: []string{"google", "github"},
+		},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:             1,
+				ACLGroupID:     1,
+				Provider:       "google",
+				AllowedDomains: []string{"example.com"},
+				Enabled:        true,
+			},
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -3514,35 +3693,11 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenBothWaygatesAndOAuthEnabled
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			// Create a user with basic auth configured
-			testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
-			_ = testUser.SetPassword("password123", 10)
-
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "all-auth-methods",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:               1,
-					ACLGroupID:       id,
-					Enabled:          true,
-					AllowedProviders: []string{"google", "github"},
-				},
-				OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
-					{
-						ID:             1,
-						ACLGroupID:     id,
-						Provider:       "google",
-						AllowedDomains: []string{"example.com"},
-						Enabled:        true,
-					},
-				},
-			}, nil
+			return group, nil
 		},
 	}
 
@@ -3579,34 +3734,36 @@ func TestGetAuthOptionsForProxy_MultipleGroupsWithMixedAuth(t *testing.T) {
 	basicAuthUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = basicAuthUser.SetPassword("password123", 10)
 
+	group1 := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-auth-only",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*basicAuthUser},
+	}
+
+	group2 := &models.ACLGroup{
+		ID:              2,
+		Name:            "waygates-auth",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         2,
+			ACLGroupID: 2,
+			Enabled:    true,
+		},
+	}
+
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
-				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Enabled: true},
+				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			if id == 1 {
-				// Group 1: Only basic auth
-				return &models.ACLGroup{
-					ID:              id,
-					Name:            "basic-auth-only",
-					CombinationMode: models.ACLCombinationModeAny,
-					BasicAuthUsers:  []models.ACLBasicAuthUser{*basicAuthUser},
-				}, nil
+				return group1, nil
 			}
-			// Group 2: Waygates auth enabled
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "waygates-auth",
-				CombinationMode: models.ACLCombinationModeAny,
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         2,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group2, nil
 		},
 	}
 
@@ -3639,6 +3796,18 @@ func TestVerifyAccess_BasicAuthSkippedWhenWaygatesEnabled(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("password123", 10)
 
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "mixed-auth",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -3647,21 +3816,11 @@ func TestVerifyAccess_BasicAuthSkippedWhenWaygatesEnabled(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "mixed-auth",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         1,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -3702,6 +3861,22 @@ func TestVerifyAccess_BasicAuthSkippedWhenOAuthEnabled(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("password123", 10)
 
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-auth",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:             1,
+				ACLGroupID:     1,
+				Provider:       "google",
+				AllowedDomains: []string{"example.com"},
+				Enabled:        true,
+			},
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -3710,25 +3885,11 @@ func TestVerifyAccess_BasicAuthSkippedWhenOAuthEnabled(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "oauth-auth",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
-					{
-						ID:             1,
-						ACLGroupID:     id,
-						Provider:       "google",
-						AllowedDomains: []string{"example.com"},
-						Enabled:        true,
-					},
-				},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -3823,6 +3984,16 @@ func TestVerifyAccess_BasicAuthInvalidWhenOnlyAuthMethod(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("password123", 10)
 
+	// Create group first so we can reference it in assignment
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-auth-only",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		// No WaygatesAuth
+		// No OAuthProviderRestrictions
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -3831,18 +4002,11 @@ func TestVerifyAccess_BasicAuthInvalidWhenOnlyAuthMethod(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "basic-auth-only",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				// No WaygatesAuth
-				// No OAuthProviderRestrictions
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -3964,6 +4128,18 @@ func TestVerifyAccess_BasicAuthOverrideInSameGroup(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("password123", 10)
 
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "mixed-auth-in-same-group",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -3972,21 +4148,11 @@ func TestVerifyAccess_BasicAuthOverrideInSameGroup(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "mixed-auth-in-same-group",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         1,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -4028,6 +4194,18 @@ func TestVerifyAccess_BasicAuthAllModeSkippedWithSecureAuth(t *testing.T) {
 	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
 	_ = testUser.SetPassword("password123", 10)
 
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "all-mode-mixed-auth",
+		CombinationMode: models.ACLCombinationModeAll, // All auth methods must pass
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -4036,21 +4214,11 @@ func TestVerifyAccess_BasicAuthAllModeSkippedWithSecureAuth(t *testing.T) {
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "all-mode-mixed-auth",
-				CombinationMode: models.ACLCombinationModeAll, // All auth methods must pass
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         1,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
 			return &models.ACLBranding{}, nil
@@ -4096,6 +4264,18 @@ func TestVerifyAccess_WaygatesSessionStillWorksWithBasicAuthConfigured(t *testin
 		Email:    "user@example.com",
 	}
 
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "mixed-auth",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testBasicUser},
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
 	proxyRepo := &MockProxyRepository{
 		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Hostname: hostname}, nil
@@ -4104,21 +4284,11 @@ func TestVerifyAccess_WaygatesSessionStillWorksWithBasicAuthConfigured(t *testin
 	aclRepo := &MockACLRepository{
 		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{
-				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true},
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
-			return &models.ACLGroup{
-				ID:              id,
-				Name:            "mixed-auth",
-				CombinationMode: models.ACLCombinationModeAny,
-				BasicAuthUsers:  []models.ACLBasicAuthUser{*testBasicUser},
-				WaygatesAuth: &models.ACLWaygatesAuth{
-					ID:         1,
-					ACLGroupID: id,
-					Enabled:    true,
-				},
-			}, nil
+			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
 			return &models.ACLSession{
@@ -4150,5 +4320,709 @@ func TestVerifyAccess_WaygatesSessionStillWorksWithBasicAuthConfigured(t *testin
 	}
 	if response.User == nil || response.User.Username != "waygates-user" {
 		t.Error("Expected user information to be set from session")
+	}
+}
+
+// =============================================================================
+// checkIPDenyAcrossGroups Edge Case Tests (Priority 2)
+// =============================================================================
+
+func TestCheckIPDenyAcrossGroups_EmptyGroups(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with empty groups list
+	groups := []*models.ACLGroup{}
+	result := svc.checkIPDenyAcrossGroups(groups, "192.168.1.100")
+
+	// Should return nil (no deny) when groups list is empty
+	if result != nil {
+		t.Error("Expected nil result for empty groups list")
+	}
+}
+
+func TestCheckIPDenyAcrossGroups_GroupsWithNoIPRules(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with groups that have no IP rules
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Group 1",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules:         []models.ACLIPRule{}, // Empty IP rules
+		},
+		{
+			ID:              2,
+			Name:            "Group 2",
+			CombinationMode: models.ACLCombinationModeAll,
+			IPRules:         nil, // Nil IP rules
+		},
+	}
+
+	result := svc.checkIPDenyAcrossGroups(groups, "192.168.1.100")
+
+	// Should return nil (no deny) when groups have no IP rules
+	if result != nil {
+		t.Error("Expected nil result when groups have no IP rules")
+	}
+}
+
+func TestCheckIPDenyAcrossGroups_InvalidCIDR_ShouldSkip(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with invalid CIDR - should be skipped without error
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Group with invalid CIDR",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "invalid-cidr"},
+				{ID: 2, RuleType: models.ACLIPRuleTypeDeny, CIDR: "not-an-ip/24"},
+				{ID: 3, RuleType: models.ACLIPRuleTypeDeny, CIDR: "256.256.256.256/32"},
+			},
+		},
+	}
+
+	result := svc.checkIPDenyAcrossGroups(groups, "192.168.1.100")
+
+	// Should return nil (no deny) as invalid CIDRs are skipped
+	if result != nil {
+		t.Error("Expected nil result when all CIDRs are invalid")
+	}
+}
+
+func TestCheckIPDenyAcrossGroups_MultipleGroupsWithOverlappingDenyRules(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with multiple groups having overlapping deny rules
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Group 1",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "10.0.0.0/8"},      // Does not match
+				{ID: 2, RuleType: models.ACLIPRuleTypeAllow, CIDR: "192.168.0.0/16"}, // Allow (not deny)
+			},
+		},
+		{
+			ID:              2,
+			Name:            "Group 2",
+			CombinationMode: models.ACLCombinationModeAll,
+			IPRules: []models.ACLIPRule{
+				{ID: 3, RuleType: models.ACLIPRuleTypeDeny, CIDR: "192.168.1.0/24"}, // This should match and deny
+			},
+		},
+	}
+
+	result := svc.checkIPDenyAcrossGroups(groups, "192.168.1.100")
+
+	// Should return the group that denied
+	if result == nil {
+		t.Error("Expected a group to deny the IP")
+	}
+	if result.ID != 2 {
+		t.Errorf("Expected Group 2 to deny, got group ID: %d", result.ID)
+	}
+}
+
+func TestCheckIPDenyAcrossGroups_DenyTakesPrecedenceOverAllow(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Deny from ANY group should block, even if another group allows
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Allow Group",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeAllow, CIDR: "192.168.1.0/24"},
+			},
+		},
+		{
+			ID:              2,
+			Name:            "Deny Group",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 2, RuleType: models.ACLIPRuleTypeDeny, CIDR: "192.168.1.100/32"}, // Specific deny
+			},
+		},
+	}
+
+	result := svc.checkIPDenyAcrossGroups(groups, "192.168.1.100")
+
+	// Deny should take precedence
+	if result == nil {
+		t.Error("Expected deny to take precedence over allow")
+	}
+	if result.ID != 2 {
+		t.Errorf("Expected Group 2 (deny) to be returned, got group ID: %d", result.ID)
+	}
+}
+
+func TestCheckIPDenyAcrossGroups_IPv6(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with IPv6 addresses
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IPv6 Deny",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "2001:db8::/32"},
+			},
+		},
+	}
+
+	result := svc.checkIPDenyAcrossGroups(groups, "2001:db8::1")
+
+	// IPv6 should be matched correctly
+	if result == nil {
+		t.Error("Expected IPv6 deny to match")
+	}
+}
+
+// =============================================================================
+// checkIPBypassAcrossGroups Edge Case Tests (Priority 2)
+// =============================================================================
+
+func TestCheckIPBypassAcrossGroups_EmptyGroups(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with empty groups list
+	groups := []*models.ACLGroup{}
+	result := svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Should return nil (no bypass) when groups list is empty
+	if result != nil {
+		t.Error("Expected nil result for empty groups list")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_GroupsWithIPBypassMode(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Test with group that has ip_bypass mode
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IP Bypass Group",
+			CombinationMode: models.ACLCombinationModeIPBypass, // Important: ip_bypass mode
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeBypass, CIDR: "192.168.1.0/24"},
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Should return the group that granted bypass
+	if result == nil {
+		t.Error("Expected bypass to be granted")
+	}
+	if result.ID != 1 {
+		t.Errorf("Expected Group 1 to grant bypass, got: %d", result.ID)
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_GroupsWithoutIPBypassMode_ShouldNotBypass(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Groups with bypass rules BUT NOT ip_bypass combination mode
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Any Mode Group",
+			CombinationMode: models.ACLCombinationModeAny, // NOT ip_bypass
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeBypass, CIDR: "192.168.1.0/24"},
+			},
+		},
+		{
+			ID:              2,
+			Name:            "All Mode Group",
+			CombinationMode: models.ACLCombinationModeAll, // NOT ip_bypass
+			IPRules: []models.ACLIPRule{
+				{ID: 2, RuleType: models.ACLIPRuleTypeBypass, CIDR: "192.168.1.0/24"},
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Should NOT bypass because groups don't have ip_bypass mode
+	if result != nil {
+		t.Error("Expected no bypass for groups without ip_bypass mode")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_AllowRuleInIPBypassMode(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// In ip_bypass mode, 'allow' rules also trigger bypass
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IP Bypass Group with Allow",
+			CombinationMode: models.ACLCombinationModeIPBypass,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeAllow, CIDR: "10.0.0.0/8"}, // Allow rule
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "10.0.0.50")
+
+	// Allow rules in ip_bypass mode should also grant bypass
+	if result == nil {
+		t.Error("Expected bypass to be granted by allow rule in ip_bypass mode")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_InvalidCIDR_ShouldSkip(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IP Bypass with Invalid CIDR",
+			CombinationMode: models.ACLCombinationModeIPBypass,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeBypass, CIDR: "invalid-cidr"},
+				{ID: 2, RuleType: models.ACLIPRuleTypeAllow, CIDR: "not-valid"},
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Should return nil as invalid CIDRs are skipped
+	if result != nil {
+		t.Error("Expected nil result when all CIDRs are invalid")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_DenyRulesIgnored(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Deny rules should not grant bypass
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IP Bypass Group with Deny",
+			CombinationMode: models.ACLCombinationModeIPBypass,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeDeny, CIDR: "192.168.1.0/24"}, // Deny, not allow/bypass
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Deny rules should NOT grant bypass
+	if result != nil {
+		t.Error("Expected no bypass for deny rules")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_IPv6(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "IPv6 Bypass Group",
+			CombinationMode: models.ACLCombinationModeIPBypass,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeBypass, CIDR: "2001:db8::/32"},
+			},
+		},
+	}
+
+	result := svc.checkIPBypassAcrossGroups(groups, "2001:db8::1")
+
+	// IPv6 should be matched correctly
+	if result == nil {
+		t.Error("Expected IPv6 bypass to match")
+	}
+}
+
+func TestCheckIPBypassAcrossGroups_MixedModes(t *testing.T) {
+	t.Parallel()
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	// Mix of ip_bypass and other modes - only ip_bypass should be checked
+	groups := []*models.ACLGroup{
+		{
+			ID:              1,
+			Name:            "Any Mode (should skip)",
+			CombinationMode: models.ACLCombinationModeAny,
+			IPRules: []models.ACLIPRule{
+				{ID: 1, RuleType: models.ACLIPRuleTypeBypass, CIDR: "10.0.0.0/8"},
+			},
+		},
+		{
+			ID:              2,
+			Name:            "IP Bypass Mode (should check)",
+			CombinationMode: models.ACLCombinationModeIPBypass,
+			IPRules: []models.ACLIPRule{
+				{ID: 2, RuleType: models.ACLIPRuleTypeBypass, CIDR: "192.168.1.0/24"},
+			},
+		},
+	}
+
+	// Test with IP that matches first group's rule (but should be skipped)
+	result := svc.checkIPBypassAcrossGroups(groups, "10.0.0.50")
+
+	// Should NOT bypass because Group 1 is not ip_bypass mode
+	if result != nil {
+		t.Error("Expected no bypass for IP matching non-ip_bypass group")
+	}
+
+	// Test with IP that matches second group's rule
+	result = svc.checkIPBypassAcrossGroups(groups, "192.168.1.100")
+
+	// Should bypass because Group 2 is ip_bypass mode
+	if result == nil {
+		t.Error("Expected bypass for IP matching ip_bypass group")
+	}
+	if result.ID != 2 {
+		t.Errorf("Expected Group 2, got: %d", result.ID)
+	}
+}
+
+// =============================================================================
+// Bug Fix Tests
+// =============================================================================
+
+// TestVerifyAccess_UnparseableIP_FailClosed tests that when the remote IP cannot be
+// parsed, access is denied (fail-closed behavior). This is a security measure to
+// prevent bypass via malformed IP addresses.
+//
+// Bug: Previously, checkIPDenyAcrossGroups returned nil when IP couldn't be parsed,
+// allowing access (fail-open). This was a security vulnerability.
+// Fix: Now returns a synthetic deny group when IP cannot be parsed (fail-closed).
+func TestVerifyAccess_UnparseableIP_FailClosed(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		remoteIP string
+	}{
+		{
+			name:     "empty IP string",
+			remoteIP: "",
+		},
+		{
+			name:     "invalid IP format",
+			remoteIP: "not-an-ip",
+		},
+		{
+			name:     "partial IP address",
+			remoteIP: "192.168",
+		},
+		{
+			name:     "IP with invalid characters",
+			remoteIP: "192.168.1.abc",
+		},
+		{
+			name:     "malformed IPv6",
+			remoteIP: "::gg:1",
+		},
+		{
+			name:     "IP with trailing space",
+			remoteIP: "192.168.1.1 ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proxyRepo := &MockProxyRepository{
+				GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+					return &models.Proxy{ID: 1, Hostname: hostname}, nil
+				},
+			}
+
+			// Group with allow-all IP rules - would normally allow access
+			group := &models.ACLGroup{
+				ID:              1,
+				Name:            "AllowAll",
+				CombinationMode: models.ACLCombinationModeAny,
+				IPRules: []models.ACLIPRule{
+					{ID: 1, RuleType: models.ACLIPRuleTypeAllow, CIDR: "0.0.0.0/0"},
+				},
+			}
+
+			aclRepo := &MockACLRepository{
+				GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true, ACLGroup: group},
+					}, nil
+				},
+				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+					return group, nil
+				},
+				GetBrandingFunc: func() (*models.ACLBranding, error) {
+					return &models.ACLBranding{}, nil
+				},
+			}
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+			response, err := svc.VerifyAccess(&ACLVerifyRequest{
+				Host:     "example.com",
+				Path:     "/api",
+				RemoteIP: tt.remoteIP,
+			})
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// SECURITY: Access should be DENIED when IP cannot be parsed (fail-closed)
+			if response.Allowed {
+				t.Errorf("SECURITY ISSUE: Access was ALLOWED for unparseable IP %q - should be DENIED (fail-closed)", tt.remoteIP)
+			}
+		})
+	}
+}
+
+// TestMatchPath_PrefixBoundary tests that path patterns like /api/* correctly
+// handle path boundaries and don't match paths like /apikey that happen to
+// share a prefix but are not under the /api/ path.
+//
+// Bug: Previously, /api/* incorrectly matched /apikey because
+// strings.HasPrefix("/apikey", "/api") is true.
+// Fix: Now requires path == prefix OR path starts with prefix+"/"
+func TestMatchPath_PrefixBoundary(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		pattern     string
+		path        string
+		shouldMatch bool
+		description string
+	}{
+		// Test cases for the fixed bug: /api/* should NOT match /apikey
+		{
+			name:        "prefix pattern should NOT match path with shared prefix but no boundary",
+			pattern:     "/api/*",
+			path:        "/apikey",
+			shouldMatch: false,
+			description: "/api/* should NOT match /apikey - they share prefix but /apikey is not under /api/",
+		},
+		{
+			name:        "prefix pattern should NOT match longer path without slash",
+			pattern:     "/api/*",
+			path:        "/api-docs",
+			shouldMatch: false,
+			description: "/api/* should NOT match /api-docs",
+		},
+		{
+			name:        "prefix pattern should NOT match suffixed path",
+			pattern:     "/api/*",
+			path:        "/apiv2",
+			shouldMatch: false,
+			description: "/api/* should NOT match /apiv2",
+		},
+
+		// Test cases that SHOULD match
+		{
+			name:        "prefix pattern should match exact prefix path",
+			pattern:     "/api/*",
+			path:        "/api",
+			shouldMatch: true,
+			description: "/api/* should match /api exactly",
+		},
+		{
+			name:        "prefix pattern should match path with trailing slash",
+			pattern:     "/api/*",
+			path:        "/api/",
+			shouldMatch: true,
+			description: "/api/* should match /api/",
+		},
+		{
+			name:        "prefix pattern should match subpath",
+			pattern:     "/api/*",
+			path:        "/api/users",
+			shouldMatch: true,
+			description: "/api/* should match /api/users",
+		},
+		{
+			name:        "prefix pattern should match deep subpath",
+			pattern:     "/api/*",
+			path:        "/api/v1/users/123",
+			shouldMatch: true,
+			description: "/api/* should match /api/v1/users/123",
+		},
+		{
+			name:        "prefix pattern with nested prefix",
+			pattern:     "/api/v1/*",
+			path:        "/api/v1/users",
+			shouldMatch: true,
+			description: "/api/v1/* should match /api/v1/users",
+		},
+		{
+			name:        "prefix pattern with nested prefix should not match different version",
+			pattern:     "/api/v1/*",
+			path:        "/api/v2/users",
+			shouldMatch: false,
+			description: "/api/v1/* should NOT match /api/v2/users",
+		},
+
+		// Edge cases
+		{
+			name:        "root wildcard should match everything",
+			pattern:     "/*",
+			path:        "/anything/here",
+			shouldMatch: true,
+			description: "/* should match any path",
+		},
+		{
+			name:        "exact match",
+			pattern:     "/api/users",
+			path:        "/api/users",
+			shouldMatch: true,
+			description: "exact patterns should match exactly",
+		},
+		{
+			name:        "exact match should not match subpath",
+			pattern:     "/api/users",
+			path:        "/api/users/123",
+			shouldMatch: false,
+			description: "exact patterns should not match subpaths",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := matchPath(tt.pattern, tt.path)
+			if result != tt.shouldMatch {
+				t.Errorf("%s: matchPath(%q, %q) = %v, want %v",
+					tt.description, tt.pattern, tt.path, result, tt.shouldMatch)
+			}
+		})
+	}
+}
+
+// TestVerifyAccess_PathMatchingBoundary is an integration test that verifies
+// the path matching fix works correctly in the context of access verification.
+func TestVerifyAccess_PathMatchingBoundary(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// Group protecting /api/* path only
+	apiGroup := &models.ACLGroup{
+		ID:              1,
+		Name:            "API Group",
+		CombinationMode: models.ACLCombinationModeAny,
+		IPRules: []models.ACLIPRule{
+			{ID: 1, RuleType: models.ACLIPRuleTypeAllow, CIDR: "10.0.0.0/8"},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/api/*", Enabled: true, ACLGroup: apiGroup},
+			}, nil
+		},
+		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+			return apiGroup, nil
+		},
+		GetBrandingFunc: func() (*models.ACLBranding, error) {
+			return &models.ACLBranding{}, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	tests := []struct {
+		name        string
+		path        string
+		remoteIP    string
+		wantAllowed bool
+		reason      string
+	}{
+		{
+			name:        "path under /api/ from allowed IP",
+			path:        "/api/users",
+			remoteIP:    "10.0.0.1",
+			wantAllowed: true,
+			reason:      "/api/users matches /api/* and IP is in allowed range",
+		},
+		{
+			name:        "path /apikey from allowed IP should NOT be restricted",
+			path:        "/apikey",
+			remoteIP:    "10.0.0.1",
+			wantAllowed: true,
+			reason:      "/apikey does NOT match /api/*, so no ACL applies, access allowed by default",
+		},
+		{
+			name:        "path /apikey from external IP should NOT be restricted",
+			path:        "/apikey",
+			remoteIP:    "192.168.1.1",
+			wantAllowed: true,
+			reason:      "/apikey does NOT match /api/*, so no ACL applies even for external IP",
+		},
+		{
+			name:        "path under /api/ from denied IP",
+			path:        "/api/users",
+			remoteIP:    "192.168.1.1",
+			wantAllowed: false,
+			reason:      "/api/users matches /api/* but IP is not in allowed range",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response, err := svc.VerifyAccess(&ACLVerifyRequest{
+				Host:     "example.com",
+				Path:     tt.path,
+				RemoteIP: tt.remoteIP,
+			})
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if response.Allowed != tt.wantAllowed {
+				t.Errorf("%s: got Allowed=%v, want Allowed=%v",
+					tt.reason, response.Allowed, tt.wantAllowed)
+			}
+		})
 	}
 }

@@ -47,6 +47,9 @@ func (m *oauthMockACLService) UpdateGroup(id int, updates *models.ACLGroup) erro
 	return nil
 }
 func (m *oauthMockACLService) DeleteGroup(id int) error { return nil }
+func (m *oauthMockACLService) DeleteGroupWithSync(id int, syncFn service.SyncCallback) error {
+	return nil
+}
 
 // IP Rules
 func (m *oauthMockACLService) AddIPRule(groupID int, rule *models.ACLIPRule) error {

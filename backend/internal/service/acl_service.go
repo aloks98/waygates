@@ -287,6 +287,73 @@ func (s *ACLService) DeleteGroup(id int) error {
 	return nil
 }
 
+// DeleteGroupWithSync atomically deletes an ACL group and invokes the sync callback
+// with all proxy IDs that were using the group. This prevents the TOCTOU race condition
+// where a new assignment could be created between fetching assignments and deleting the group.
+//
+// The operation uses a database transaction to ensure that:
+// 1. We get the list of proxy IDs using this group
+// 2. We delete the group (which cascades to delete all assignments)
+// 3. Both operations are atomic - no new assignments can be created during this window
+//
+// After the transaction commits successfully, the sync callback is invoked with the
+// collected proxy IDs so their Caddy configurations can be regenerated.
+func (s *ACLService) DeleteGroupWithSync(id int, syncFn SyncCallback) error {
+	// Check if group exists first (before starting transaction)
+	_, err := s.aclRepo.GetGroupByID(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrACLGroupNotFound
+		}
+		return fmt.Errorf("getting ACL group: %w", err)
+	}
+
+	// Collect proxy IDs within the transaction
+	var proxyIDs []int
+
+	// Execute within a transaction to prevent TOCTOU race
+	db := s.aclRepo.GetDB()
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// Step 1: Get all proxy IDs using this group (within transaction)
+		assignments, err := s.aclRepo.GetProxyACLAssignmentsByGroupWithTx(tx, id)
+		if err != nil {
+			return fmt.Errorf("getting group assignments: %w", err)
+		}
+
+		// Collect unique proxy IDs
+		seen := make(map[int]bool)
+		for _, assignment := range assignments {
+			if !seen[assignment.ProxyID] {
+				proxyIDs = append(proxyIDs, assignment.ProxyID)
+				seen[assignment.ProxyID] = true
+			}
+		}
+
+		// Step 2: Delete the group (cascades to assignments) within transaction
+		if err := s.aclRepo.DeleteGroupWithTx(tx, id); err != nil {
+			return fmt.Errorf("deleting ACL group: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	s.logger.Info("ACL group deleted with sync",
+		zap.Int("id", id),
+		zap.Int("affected_proxies", len(proxyIDs)))
+
+	// Step 3: Call sync callback AFTER transaction commits
+	// This ensures all proxies that were using this group get their configs regenerated
+	if syncFn != nil && len(proxyIDs) > 0 {
+		syncFn(proxyIDs)
+	}
+
+	return nil
+}
+
 // =============================================================================
 // IP Rules
 // =============================================================================
@@ -862,12 +929,12 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 			continue
 		}
 
-		// Load full group data
-		group, err := s.aclRepo.GetGroupByID(assignment.ACLGroupID)
-		if err != nil {
-			s.logger.Warn("failed to get ACL group for auth options",
-				zap.Int("group_id", assignment.ACLGroupID),
-				zap.Error(err))
+		// Use preloaded ACLGroup data (GetProxyACLAssignments already preloads all relations)
+		group := assignment.ACLGroup
+		if group == nil {
+			s.logger.Warn("ACL group not preloaded for auth options",
+				zap.Int("assignment_id", assignment.ID),
+				zap.Int("group_id", assignment.ACLGroupID))
 			continue
 		}
 
@@ -1117,21 +1184,22 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 		return response, nil
 	}
 
-	// 4. Load ALL matching groups (for union logic evaluation)
-	// We need to load all groups first so we can check IP deny rules across ALL groups
+	// 4. Collect ALL matching groups (for union logic evaluation)
+	// We need to collect all groups first so we can check IP deny rules across ALL groups
 	// before allowing access based on any single group's rules.
+	// Note: GetProxyACLAssignments already preloads ACLGroup with all relations.
 	var groups []*models.ACLGroup
 	for _, assignment := range matchingAssignments {
 		if !assignment.Enabled {
 			continue
 		}
 
-		group, err := s.aclRepo.GetGroupByID(assignment.ACLGroupID)
-		if err != nil {
-			s.logger.Warn("Failed to get ACL group for assignment",
+		// Use preloaded ACLGroup data (GetProxyACLAssignments already preloads all relations)
+		group := assignment.ACLGroup
+		if group == nil {
+			s.logger.Warn("ACL group not preloaded for assignment",
 				zap.Int("assignment_id", assignment.ID),
-				zap.Int("group_id", assignment.ACLGroupID),
-				zap.Error(err))
+				zap.Int("group_id", assignment.ACLGroupID))
 			continue
 		}
 		groups = append(groups, group)
@@ -1549,9 +1617,15 @@ func matchPath(pattern, path string) bool {
 	}
 
 	// Handle prefix patterns like /api/*
+	// The pattern should match:
+	// - Exact prefix match: /api/* matches /api
+	// - Paths under prefix: /api/* matches /api/, /api/users, /api/v1/users
+	// The pattern should NOT match:
+	// - Paths that share prefix but aren't under it: /api/* should NOT match /apikey
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
-		return strings.HasPrefix(path, prefix)
+		// Match exact prefix path or paths that continue with /
+		return path == prefix || strings.HasPrefix(path, prefix+"/")
 	}
 
 	// Handle patterns like /api/*/users
@@ -1754,7 +1828,9 @@ func validateCIDR(cidr string) error {
 	return nil
 }
 
-// validatePathPattern validates a path pattern
+// validatePathPattern validates a path pattern and prevents Caddyfile injection.
+// It rejects patterns containing characters that could be used to inject
+// malicious Caddyfile directives or perform path traversal attacks.
 func validatePathPattern(pattern string) error {
 	if pattern == "" {
 		return nil // Empty is valid, will default to /*
@@ -1765,9 +1841,29 @@ func validatePathPattern(pattern string) error {
 		return ErrInvalidPathPattern
 	}
 
-	// Check for invalid characters
-	if strings.ContainsAny(pattern, "?#") {
+	// Reject path traversal attempts
+	if strings.Contains(pattern, "..") {
 		return ErrInvalidPathPattern
+	}
+
+	// Reject characters that could affect Caddyfile parsing or inject directives:
+	// - ? and # are URL special characters
+	// - \n, \r, \t are control characters that could inject new directives
+	// - { and } are Caddyfile block delimiters
+	// - ` (backtick) could be used for command injection in some contexts
+	// - ; could be used to separate directives
+	// - < and > could be used for redirects or other injection
+	// - " and ' could be used to break out of quoted contexts
+	invalidChars := "?#\n\r\t{}`;\"'<>"
+	if strings.ContainsAny(pattern, invalidChars) {
+		return ErrInvalidPathPattern
+	}
+
+	// Reject any non-printable ASCII control characters (0x00-0x1F, 0x7F)
+	for _, r := range pattern {
+		if r < 0x20 || r == 0x7F {
+			return ErrInvalidPathPattern
+		}
 	}
 
 	return nil
@@ -1815,13 +1911,26 @@ func (s *ACLService) singleIPToNetwork(ipStr string) *net.IPNet {
 	return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}
 }
 
-// checkIPDenyAcrossGroups checks if the IP matches any deny rule in ANY of the given groups.
+// checkIPDenyAcrossGroups checks if the IP is denied by any group's deny rules.
 // This implements the union logic where deny from ANY group blocks access.
-// Returns true if access should be denied.
-func (s *ACLService) checkIPDenyAcrossGroups(groups []*models.ACLGroup, remoteIP string) bool {
+// Returns the group that denied access (for debugging/client info), or nil if not denied.
+//
+// SECURITY: This function implements fail-closed behavior. If the remote IP cannot
+// be parsed, we treat it as denied to prevent unauthorized access due to malformed
+// IP addresses. This is intentional - we should never allow access when we cannot
+// properly validate the source IP.
+func (s *ACLService) checkIPDenyAcrossGroups(groups []*models.ACLGroup, remoteIP string) *models.ACLGroup {
 	ip := s.parseRemoteIP(remoteIP)
 	if ip == nil {
-		return false
+		// Fail-closed: deny access when IP cannot be parsed
+		// This prevents potential bypass via malformed IP addresses
+		s.logger.Warn("Denying access due to unparseable remote IP (fail-closed)",
+			zap.String("remote_ip", remoteIP))
+		// Return a synthetic group to indicate denial
+		return &models.ACLGroup{
+			ID:   -1,
+			Name: "_ip_parse_failure",
+		}
 	}
 
 	for _, group := range groups {
@@ -1841,12 +1950,12 @@ func (s *ACLService) checkIPDenyAcrossGroups(groups []*models.ACLGroup, remoteIP
 						zap.String("cidr", rule.CIDR),
 						zap.Int("group_id", group.ID),
 						zap.String("group_name", group.Name))
-					return true
+					return group
 				}
 			}
 		}
 	}
-	return false
+	return nil
 }
 
 // checkIPBypassAcrossGroups checks if the IP matches any bypass rule in ANY group
@@ -2030,11 +2139,13 @@ func (s *ACLService) evaluateUnionAccess(groups []*models.ACLGroup, request *ACL
 
 	// Phase 1: Check ALL IP deny rules from ALL groups first
 	// Deny rules have global precedence - if ANY group denies the IP, block access
-	if s.checkIPDenyAcrossGroups(groups, request.RemoteIP) {
+	if denyGroup := s.checkIPDenyAcrossGroups(groups, request.RemoteIP); denyGroup != nil {
 		response.Reason = "access denied by IP deny rule"
+		// Don't expose group name to client for security reasons
 		s.logger.Debug("Union access denied by IP deny rule",
 			zap.String("remote_ip", request.RemoteIP),
-			zap.String("host", request.Host))
+			zap.String("host", request.Host),
+			zap.String("denied_by_group", denyGroup.Name))
 		return response, nil
 	}
 
