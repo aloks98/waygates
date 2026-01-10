@@ -31,6 +31,22 @@ var waygatesDefaultHeaders = []string{
 	"X-Auth-User-Email",
 }
 
+// Static asset extensions that bypass ACL authentication
+// These are common static files that don't need authentication
+var staticAssetExtensions = []string{
+	".ico", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif",
+	".css", ".js", ".mjs",
+	".woff", ".woff2", ".ttf", ".eot", ".otf",
+	".webmanifest", ".map",
+}
+
+// Static asset paths that bypass ACL authentication
+var staticAssetPaths = []string{
+	"/favicon.ico",
+	"/robots.txt",
+	"/sitemap.xml",
+}
+
 // Provider-specific default headers
 var providerDefaultHeaders = map[string][]string{
 	models.ACLProviderTypeAuthelia: {
@@ -330,7 +346,10 @@ func (b *ACLBuilder) buildAnyModeConfig(proxy *models.Proxy, group *models.ACLGr
 		sb.WriteString(b.buildIPAllowBlock(proxy, pathPattern, matcherPrefix, allowIPs))
 	}
 
-	// 4. Handle remaining requests with authentication
+	// 4. Handle static assets bypass (skip auth for common static files)
+	sb.WriteString(b.buildStaticAssetsBypassBlock(proxy, matcherPrefix))
+
+	// 5. Handle remaining requests with authentication
 	hasForwardAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
 	hasOAuthRestrictions := len(group.OAuthProviderRestrictions) > 0
 	hasExternalAuth := len(group.ExternalProviders) > 0
@@ -478,6 +497,34 @@ func (b *ACLBuilder) buildIPAllowBlock(proxy *models.Proxy, pathPattern, matcher
 		sb.WriteString(fmt.Sprintf("\t\tpath %s\n", pathPattern))
 	}
 	sb.WriteString(fmt.Sprintf("\t\tremote_ip %s\n", strings.Join(allowIPs, " ")))
+	sb.WriteString("\t}\n")
+	sb.WriteString(fmt.Sprintf("\thandle %s {\n", matcherName))
+	sb.WriteString(b.buildReverseProxyDirective(proxy, "\t\t"))
+	sb.WriteString("\t}\n\n")
+
+	return sb.String()
+}
+
+// buildStaticAssetsBypassBlock generates configuration to bypass auth for static assets
+// This allows common static files (images, CSS, JS, fonts, etc.) to be served without authentication
+func (b *ACLBuilder) buildStaticAssetsBypassBlock(proxy *models.Proxy, matcherPrefix string) string {
+	var sb strings.Builder
+
+	matcherName := fmt.Sprintf("@%s_static_assets", matcherPrefix)
+
+	// Build path patterns for static assets
+	var pathPatterns []string
+
+	// Add file extension patterns
+	for _, ext := range staticAssetExtensions {
+		pathPatterns = append(pathPatterns, fmt.Sprintf("*%s", ext))
+	}
+
+	// Add specific paths
+	pathPatterns = append(pathPatterns, staticAssetPaths...)
+
+	sb.WriteString(fmt.Sprintf("\t%s {\n", matcherName))
+	sb.WriteString(fmt.Sprintf("\t\tpath %s\n", strings.Join(pathPatterns, " ")))
 	sb.WriteString("\t}\n")
 	sb.WriteString(fmt.Sprintf("\thandle %s {\n", matcherName))
 	sb.WriteString(b.buildReverseProxyDirective(proxy, "\t\t"))
