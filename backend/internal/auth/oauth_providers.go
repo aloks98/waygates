@@ -148,7 +148,7 @@ func (m *OAuthProviderManager) loadMicrosoftProvider() *OAuthProvider {
 		AuthURL:      fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/authorize", tenantID),
 		TokenURL:     fmt.Sprintf("https://login.microsoftonline.com/%s/oauth2/v2.0/token", tenantID),
 		UserInfoURL:  "https://graph.microsoft.com/v1.0/me",
-		Scopes:       []string{"openid", "email", "profile"},
+		Scopes:       []string{"openid", "email", "profile", "User.Read"},
 		TenantID:     tenantID,
 	}
 }
