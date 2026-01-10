@@ -115,6 +115,19 @@ func (h *ACLVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	var sessionToken string
 	if cookie, err := r.Cookie(ACLSessionCookieName); err == nil {
 		sessionToken = cookie.Value
+		if h.logger != nil {
+			tokenPreview := sessionToken
+			if len(tokenPreview) > 8 {
+				tokenPreview = tokenPreview[:8] + "..."
+			}
+			h.logger.Debug("ACL session cookie found",
+				zap.String("host", host),
+				zap.String("token_prefix", tokenPreview))
+		}
+	} else if h.logger != nil {
+		h.logger.Debug("No ACL session cookie found",
+			zap.String("host", host),
+			zap.Error(err))
 	}
 
 	// Extract basic auth credentials if present

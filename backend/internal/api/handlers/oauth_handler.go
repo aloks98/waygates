@@ -364,7 +364,11 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	h.logger.Info("OAuth login successful",
 		zap.String("provider", providerID),
 		zap.Int("user_id", user.ID),
-		zap.String("username", user.Username))
+		zap.String("username", user.Username),
+		zap.String("email", userInfo.Email),
+		zap.String("cookie_domain", cookieDomain),
+		zap.String("redirect_url", redirectURL),
+		zap.String("session_token_prefix", session.SessionToken[:8]+"..."))
 
 	// Redirect to original URL (already validated above)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
