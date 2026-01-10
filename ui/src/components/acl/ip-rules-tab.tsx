@@ -73,10 +73,10 @@ type IPRuleFormValues = z.infer<typeof ipRuleSchema>;
 
 function getRuleTypeBadgeVariant(
   type: IPRuleType,
-): 'default' | 'secondary' | 'outline' | 'destructive' {
+): 'primary' | 'secondary' | 'outline' | 'destructive' {
   switch (type) {
     case 'allow':
-      return 'default';
+      return 'primary';
     case 'deny':
       return 'destructive';
     case 'bypass':

@@ -1,9 +1,10 @@
 import { Button } from '@e412/titanium';
+import type { ReactNode } from 'react';
 import type { OAuthProvider } from '@/types/acl';
 
 // Provider icons as inline SVGs for better control
 // Using aria-hidden since these are decorative icons next to text labels
-const providerIcons: Record<string, React.ReactNode> = {
+const providerIcons: Record<string, ReactNode> = {
   google: (
     <svg className="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path
@@ -108,8 +109,7 @@ export function OAuthProviderButton({
       params.set('redirect', redirectUrl);
     }
     const queryString = params.toString();
-    const url = `/auth/oauth/${provider.id}${queryString ? `?${queryString}` : ''}`;
-    window.location.href = url;
+    window.location.href = `/auth/oauth/${provider.id}${queryString ? `?${queryString}` : ''}`;
   };
 
   const icon = providerIcons[provider.id.toLowerCase()] || defaultIcon;

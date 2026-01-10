@@ -38,7 +38,6 @@ import {
 import { useState } from 'react';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { BasicAuthTab } from '@/components/acl/basic-auth-tab';
-import { ExternalProvidersTab } from '@/components/acl/external-providers-tab';
 import { GroupUsageTab } from '@/components/acl/group-usage-tab';
 import { IPRulesTab } from '@/components/acl/ip-rules-tab';
 import { WaygatesAuthTab } from '@/components/acl/waygates-auth-tab';
@@ -319,7 +318,8 @@ export function ACLGroupDetailPage() {
           <TabsTrigger value="ip-rules">IP Rules</TabsTrigger>
           <TabsTrigger value="basic-auth">Basic Auth</TabsTrigger>
           <TabsTrigger value="waygates-auth">Waygates Auth</TabsTrigger>
-          <TabsTrigger value="external">External Providers</TabsTrigger>
+          {/*Will enable later when properly implemented and tested*/}
+          {/*<TabsTrigger value="external">External Providers</TabsTrigger>*/}
           <TabsTrigger value="usage">Usage</TabsTrigger>
         </TabsList>
 
@@ -339,9 +339,10 @@ export function ACLGroupDetailPage() {
           <WaygatesAuthTab groupId={groupId} />
         </TabsContent>
 
-        <TabsContent value="external" className="mt-6">
-          <ExternalProvidersTab groupId={groupId} />
-        </TabsContent>
+        {/*Will enable later when properly implemented and tested*/}
+        {/*<TabsContent value="external" className="mt-6">*/}
+        {/*  <ExternalProvidersTab groupId={groupId} />*/}
+        {/*</TabsContent>*/}
 
         <TabsContent value="usage" className="mt-6">
           <GroupUsageTab groupId={groupId} />

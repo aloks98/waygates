@@ -10,7 +10,7 @@ import {
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
 import { XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { type CSSProperties, useState } from 'react';
 import { z } from 'zod';
 import { publicApi } from '@/lib/api';
 import type { ApiResponse } from '@/types/api';
@@ -83,7 +83,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
     ? ({
         '--primary': primaryColor,
         backgroundColor: primaryColor,
-      } as React.CSSProperties)
+      } as CSSProperties)
     : undefined;
 
   return (

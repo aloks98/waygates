@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
-import { sanitizeCSS } from '@/lib/css-sanitizer';
 import { publicApi } from '@/lib/api';
+import { sanitizeCSS } from '@/lib/css-sanitizer';
 import type { ACLBranding, OAuthProvider } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';
 

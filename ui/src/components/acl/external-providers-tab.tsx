@@ -83,10 +83,10 @@ function getProviderTypeLabel(type: ProviderType): string {
 
 function getProviderTypeBadgeVariant(
   type: ProviderType,
-): 'default' | 'secondary' | 'outline' | 'destructive' {
+): 'primary' | 'secondary' | 'outline' | 'destructive' {
   switch (type) {
     case 'authelia':
-      return 'default';
+      return 'primary';
     case 'authentik':
       return 'secondary';
     case 'custom':

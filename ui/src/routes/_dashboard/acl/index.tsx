@@ -51,12 +51,12 @@ function getCombinationModeLabel(mode: CombinationMode): string {
 
 function getCombinationModeBadgeVariant(
   mode: CombinationMode,
-): 'default' | 'secondary' | 'outline' | 'destructive' {
+): 'primary' | 'secondary' | 'outline' | 'destructive' {
   switch (mode) {
     case 'any':
       return 'secondary';
     case 'all':
-      return 'default';
+      return 'primary';
     case 'ip_bypass':
       return 'outline';
     default:

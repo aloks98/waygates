@@ -322,7 +322,7 @@ function ProfileDialog({
   );
 }
 
-export function AppSidebar({ children }: { children: React.ReactNode }) {
+export function AppSidebar({ children }: { children: ReactNode }) {
   const location = useLocation();
   const router = useRouter();
   const { user, logout } = useAuthStore();
