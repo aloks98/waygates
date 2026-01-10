@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -68,6 +69,9 @@ func NewOAuthHandler(cfg OAuthHandlerConfig) *OAuthHandler {
 
 // OAuth state cookie name
 const oauthStateCookieName = "waygates_oauth_state"
+
+// PKCE verifier cookie name
+const oauthPKCECookieName = "waygates_oauth_pkce"
 
 // State expiration time
 const stateExpiration = 10 * time.Minute
@@ -151,11 +155,35 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// Generate PKCE code verifier and challenge
+	codeVerifier, err := generateCodeVerifier()
+	if err != nil {
+		h.logger.Error("Failed to generate PKCE code verifier", zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	codeChallenge := generateCodeChallenge(codeVerifier)
+
+	// Store PKCE verifier in cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthPKCECookieName,
+		Value:    codeVerifier,
+		Path:     "/",
+		MaxAge:   int(stateExpiration.Seconds()),
+		HttpOnly: true,
+		Secure:   h.config.ACL.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	// Build OAuth2 config
 	oauth2Config := h.buildOAuth2Config(provider)
 
-	// Generate authorization URL
-	authURL := oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	// Generate authorization URL with PKCE
+	authURL := oauth2Config.AuthCodeURL(state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	)
 
 	// Redirect to provider
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
@@ -217,6 +245,14 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	// Extract redirect URL from state and validate it
 	redirectURL := h.validateRedirectURL(h.extractRedirectFromState(stateParam))
 
+	// Get PKCE verifier from cookie
+	pkceCookie, err := r.Cookie(oauthPKCECookieName)
+	if err != nil || pkceCookie.Value == "" {
+		h.handleOAuthError(w, r, "Invalid or missing PKCE verifier", redirectURL)
+		return
+	}
+	codeVerifier := pkceCookie.Value
+
 	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookieName,
@@ -228,14 +264,25 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// Clear PKCE cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthPKCECookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.config.ACL.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	// Build OAuth2 config
 	oauth2Config := h.buildOAuth2Config(provider)
 
-	// Exchange code for token
+	// Exchange code for token with PKCE verifier
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
-	token, err := oauth2Config.Exchange(ctx, code)
+	token, err := oauth2Config.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", codeVerifier))
 	if err != nil {
 		h.logger.Error("Failed to exchange OAuth code",
 			zap.String("provider", providerID),
@@ -398,6 +445,23 @@ func (h *OAuthHandler) generateState(redirectURL string) (string, error) {
 	encodedRedirect := base64.URLEncoding.EncodeToString([]byte(redirectURL))
 
 	return randomPart + "|" + encodedRedirect, nil
+}
+
+// generateCodeVerifier generates a PKCE code verifier (43-128 chars, URL-safe)
+func generateCodeVerifier() (string, error) {
+	// Generate 32 random bytes (will become 43 chars when base64url encoded)
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use RawURLEncoding to avoid padding characters
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+// generateCodeChallenge generates a PKCE code challenge from a verifier using S256
+func generateCodeChallenge(verifier string) string {
+	hash := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
 // extractRedirectFromState extracts the redirect URL from the state parameter
@@ -726,6 +790,17 @@ func (h *OAuthHandler) handleOAuthError(w http.ResponseWriter, r *http.Request, 
 	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.config.ACL.CookieSecure,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// Clear PKCE cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthPKCECookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
