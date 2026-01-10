@@ -5,7 +5,7 @@ import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
 import { publicApi } from '@/lib/api';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
-import type { ACLBranding, OAuthProvider } from '@/types/acl';
+import type { ACLBranding, AuthOptionsResponse, OAuthProvider } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';
 
 // Default branding values
@@ -20,7 +20,7 @@ const defaultBranding: ACLBranding = {
 
 // Query keys for public APIs
 const PUBLIC_BRANDING_KEY = ['public', 'acl-branding'] as const;
-const PUBLIC_OAUTH_PROVIDERS_KEY = ['public', 'oauth-providers'] as const;
+const AUTH_OPTIONS_KEY = ['public', 'auth-options'] as const;
 
 // Custom hooks for public API endpoints (no auth required)
 function usePublicBranding() {
@@ -35,17 +35,20 @@ function usePublicBranding() {
   });
 }
 
-function usePublicOAuthProviders() {
+// Fetch auth options for a specific hostname (union of all ACL groups)
+function useAuthOptions(hostname?: string) {
   return useQuery({
-    queryKey: PUBLIC_OAUTH_PROVIDERS_KEY,
+    queryKey: [...AUTH_OPTIONS_KEY, hostname],
     queryFn: async () => {
+      if (!hostname) return null;
       const response = await publicApi
-        .get('auth/oauth/providers')
-        .json<ApiResponse<OAuthProvider[]>>();
+        .get('acl/options', { searchParams: { hostname } })
+        .json<ApiResponse<AuthOptionsResponse>>();
       return response.data;
     },
     staleTime: 5 * 60 * 1000,
     retry: 1,
+    enabled: !!hostname,
   });
 }
 
@@ -119,17 +122,28 @@ function Divider({ text }: { text: string }) {
 // Main ACL Login Page content
 function ACLLoginContent({
   branding,
-  providers,
+  authOptions,
   redirectUrl,
   host,
 }: {
   branding: ACLBranding;
-  providers: OAuthProvider[];
+  authOptions: AuthOptionsResponse | null;
   redirectUrl?: string;
   host?: string;
 }) {
-  const enabledProviders = providers.filter((p) => p.enabled);
-  const hasOAuthProviders = enabledProviders.length > 0;
+  // Check what auth methods are available from auth options
+  // If no authOptions (e.g., no host param), default to showing Waygates form
+  const showWaygatesAuth = authOptions?.waygates_auth?.enabled ?? !authOptions;
+  const hasBasicAuth = authOptions?.basic_auth_enabled ?? false;
+  const oauthProviders: OAuthProvider[] = (authOptions?.oauth_providers ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    available: true,
+    enabled: p.enabled,
+  }));
+  const hasOAuthProviders = oauthProviders.length > 0;
+  // Consider basic auth as an available method (handled by browser, not this form)
+  const hasAnyAuthMethod = showWaygatesAuth || hasOAuthProviders || hasBasicAuth;
 
   return (
     <div className="space-y-6">
@@ -153,14 +167,48 @@ function ACLLoginContent({
       {/* Host badge */}
       {host && <HostBadge host={host} />}
 
-      {/* Login form */}
-      <ACLLoginForm redirectUrl={redirectUrl} primaryColor={branding.primary_color} />
+      {/* Show message if no auth required */}
+      {authOptions && !authOptions.requires_auth && (
+        <Alert>
+          <AlertCircle className="size-4" />
+          <AlertDescription>
+            No authentication is required for this resource. You can access it directly.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Show message if no auth methods available */}
+      {authOptions?.requires_auth && !hasAnyAuthMethod && (
+        <Alert variant="destructive">
+          <AlertCircle className="size-4" />
+          <AlertDescription>
+            No authentication methods are configured for this resource. Please contact the
+            administrator.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Basic auth info - show when only basic auth is available */}
+      {hasBasicAuth && !showWaygatesAuth && !hasOAuthProviders && (
+        <Alert>
+          <Lock className="size-4" />
+          <AlertDescription>
+            This resource uses HTTP Basic Authentication. Your browser will prompt you for
+            credentials when you access the protected resource.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Waygates login form */}
+      {showWaygatesAuth && (
+        <ACLLoginForm redirectUrl={redirectUrl} primaryColor={branding.primary_color} />
+      )}
 
       {/* OAuth providers */}
       {hasOAuthProviders && (
         <>
-          <Divider text="or" />
-          <OAuthProvidersList providers={providers} redirectUrl={redirectUrl} />
+          {showWaygatesAuth && <Divider text="or" />}
+          <OAuthProvidersList providers={oauthProviders} redirectUrl={redirectUrl} />
         </>
       )}
 
@@ -186,7 +234,7 @@ export function ACLLoginPage() {
   const host = search.host;
   const errorParam = search.error;
 
-  // Fetch branding and providers
+  // Fetch branding and auth options for the hostname
   const {
     data: branding,
     isLoading: isBrandingLoading,
@@ -196,14 +244,13 @@ export function ACLLoginPage() {
   } = usePublicBranding();
 
   const {
-    data: providers,
-    isLoading: isProvidersLoading,
-    isError: isProvidersError,
-  } = usePublicOAuthProviders();
+    data: authOptions,
+    isLoading: isAuthOptionsLoading,
+    isError: isAuthOptionsError,
+  } = useAuthOptions(host);
 
-  const isLoading = isBrandingLoading || isProvidersLoading;
+  const isLoading = isBrandingLoading || isAuthOptionsLoading;
   const effectiveBranding = branding || defaultBranding;
-  const effectiveProviders = providers || [];
 
   // Apply custom CSS if provided (sanitized to prevent XSS and data exfiltration)
   const customStyles = effectiveBranding.custom_css
@@ -245,18 +292,18 @@ export function ACLLoginPage() {
             ) : (
               <ACLLoginContent
                 branding={effectiveBranding}
-                providers={effectiveProviders}
+                authOptions={authOptions ?? null}
                 redirectUrl={redirectUrl}
                 host={host}
               />
             )}
 
-            {/* Show warning if providers failed to load but branding is OK */}
-            {!isLoading && !isBrandingError && isProvidersError && (
+            {/* Show warning if auth options failed to load but branding is OK */}
+            {!isLoading && !isBrandingError && isAuthOptionsError && (
               <Alert variant="warning" className="mt-4">
                 <AlertCircle className="size-4" />
                 <AlertDescription>
-                  Some sign-in options may be unavailable. Please try again later.
+                  Could not load authentication options. Some sign-in methods may be unavailable.
                 </AlertDescription>
               </Alert>
             )}

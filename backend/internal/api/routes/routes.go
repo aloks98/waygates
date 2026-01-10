@@ -179,6 +179,9 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 		// ACL branding (public - needed for login page styling)
 		r.Get("/api/acl/branding", aclHandler.GetBranding)
+
+		// ACL auth options (public - needed for login page to determine available auth methods)
+		r.Get("/api/acl/options", aclHandler.GetAuthOptions)
 	})
 
 	// Protected routes

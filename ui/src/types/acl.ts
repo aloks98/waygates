@@ -223,3 +223,21 @@ export interface ACLGroupListParams {
   sort?: 'name' | 'created_at' | 'updated_at';
   order?: 'asc' | 'desc';
 }
+
+// Auth Options Response (union of auth options from all ACL groups for a proxy)
+export interface AuthOptionsResponse {
+  hostname: string;
+  proxy_id: number;
+  waygates_auth?: {
+    enabled: boolean;
+  };
+  oauth_providers?: AuthOptionsOAuthProvider[];
+  basic_auth_enabled: boolean;
+  requires_auth: boolean;
+}
+
+export interface AuthOptionsOAuthProvider {
+  id: string;
+  name: string;
+  enabled: boolean;
+}

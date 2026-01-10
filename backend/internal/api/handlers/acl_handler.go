@@ -76,6 +76,28 @@ func (h *ACLHandler) syncProxiesUsingGroup(groupID int) {
 // Request/Response Types
 // =============================================================================
 
+// AuthOptionsResponse contains union of auth options from all ACL groups for a proxy
+type AuthOptionsResponse struct {
+	Hostname         string               `json:"hostname"`
+	ProxyID          int64                `json:"proxy_id"`
+	WaygatesAuth     *UnionWaygatesAuth   `json:"waygates_auth,omitempty"`
+	OAuthProviders   []UnionOAuthProvider `json:"oauth_providers,omitempty"`
+	BasicAuthEnabled bool                 `json:"basic_auth_enabled"`
+	RequiresAuth     bool                 `json:"requires_auth"`
+}
+
+// UnionWaygatesAuth represents Waygates auth configuration in the union response
+type UnionWaygatesAuth struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UnionOAuthProvider represents an OAuth provider in the union response
+type UnionOAuthProvider struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
 // CreateGroupRequest is the request body for creating an ACL group
 type CreateGroupRequest struct {
 	Name            string  `json:"name"`
@@ -377,6 +399,21 @@ func (h *ACLHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get proxies using this ACL group BEFORE deletion so we can sync them after
+	var proxyIDsToSync []int
+	if h.syncService != nil {
+		assignments, err := h.aclService.GetGroupUsage(id)
+		if err != nil {
+			h.logger.Warn("Failed to get proxies using ACL group before deletion",
+				zap.Int("group_id", id),
+				zap.Error(err))
+		} else {
+			for _, assignment := range assignments {
+				proxyIDsToSync = append(proxyIDsToSync, assignment.ProxyID)
+			}
+		}
+	}
+
 	if err := h.aclService.DeleteGroup(id); err != nil {
 		if errors.Is(err, service.ErrACLGroupNotFound) {
 			utils.NotFound(w, "ACL group not found")
@@ -384,6 +421,23 @@ func (h *ACLHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		}
 		utils.InternalError(w, "Failed to delete ACL group")
 		return
+	}
+
+	// Sync all proxies that were using this ACL group to remove ACL config from Caddyfiles
+	for _, proxyID := range proxyIDsToSync {
+		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
+			h.logger.Warn("Failed to sync proxy after ACL group deletion",
+				zap.Int("proxy_id", proxyID),
+				zap.Int("group_id", id),
+				zap.Error(err))
+			// Continue syncing other proxies even if one fails
+		}
+	}
+
+	if len(proxyIDsToSync) > 0 {
+		h.logger.Info("Synced proxies after ACL group deletion",
+			zap.Int("group_id", id),
+			zap.Int("proxy_count", len(proxyIDsToSync)))
 	}
 
 	utils.Success(w, nil, "ACL group deleted successfully")
@@ -1133,6 +1187,30 @@ func (h *ACLHandler) GetGroupUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.Success(w, assignments, "")
+}
+
+// =============================================================================
+// Auth Options Handler
+// =============================================================================
+
+// GetAuthOptions returns the union of auth options for a hostname.
+// This is a PUBLIC endpoint used by the login page to determine what auth methods are available.
+// GET /api/acl/options?hostname=example.com
+func (h *ACLHandler) GetAuthOptions(w http.ResponseWriter, r *http.Request) {
+	hostname := r.URL.Query().Get("hostname")
+	if hostname == "" {
+		utils.BadRequest(w, "hostname query parameter is required", nil)
+		return
+	}
+
+	options, err := h.aclService.GetAuthOptionsForProxy(hostname)
+	if err != nil {
+		h.logger.Warn("failed to get auth options", zap.String("hostname", hostname), zap.Error(err))
+		utils.NotFound(w, "proxy not found for hostname")
+		return
+	}
+
+	utils.Success(w, options, "")
 }
 
 // =============================================================================

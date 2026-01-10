@@ -120,6 +120,11 @@ func (m *oauthMockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*
 	return nil, nil
 }
 
+// Auth Options
+func (m *oauthMockACLService) GetAuthOptionsForProxy(hostname string) (*service.AuthOptionsResponse, error) {
+	return nil, nil
+}
+
 // Session Management
 func (m *oauthMockACLService) CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
 	return nil, nil

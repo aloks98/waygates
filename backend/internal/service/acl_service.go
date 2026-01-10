@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"sort"
 	"strings"
 	"time"
 
@@ -797,6 +798,161 @@ func (s *ACLService) UpdateBranding(branding *models.ACLBranding) error {
 }
 
 // =============================================================================
+// Auth Options (Union of ACL group auth methods for a proxy)
+// =============================================================================
+
+// AuthOptionsResponse contains union of auth options from all ACL groups for a proxy
+type AuthOptionsResponse struct {
+	Hostname         string               `json:"hostname"`
+	ProxyID          int64                `json:"proxy_id"`
+	WaygatesAuth     *UnionWaygatesAuth   `json:"waygates_auth,omitempty"`
+	OAuthProviders   []UnionOAuthProvider `json:"oauth_providers,omitempty"`
+	BasicAuthEnabled bool                 `json:"basic_auth_enabled"`
+	RequiresAuth     bool                 `json:"requires_auth"`
+}
+
+// UnionWaygatesAuth represents Waygates auth configuration in the union response
+type UnionWaygatesAuth struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UnionOAuthProvider represents an OAuth provider in the union response
+type UnionOAuthProvider struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
+// GetAuthOptionsForProxy returns union of auth options from all ACL groups for a proxy.
+// This method is used by the login page to determine what authentication methods are available.
+func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsResponse, error) {
+	// 1. Find proxy by hostname
+	proxy, err := s.proxyRepo.GetByHostname(hostname)
+	if err != nil {
+		return nil, fmt.Errorf("proxy not found: %w", err)
+	}
+
+	// 2. Get all ACL assignments for this proxy
+	assignments, err := s.aclRepo.GetProxyACLAssignments(proxy.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ACL assignments: %w", err)
+	}
+
+	// 3. If no assignments, no auth required
+	if len(assignments) == 0 {
+		return &AuthOptionsResponse{
+			Hostname:     hostname,
+			ProxyID:      int64(proxy.ID),
+			RequiresAuth: false,
+		}, nil
+	}
+
+	// 4. Build union of auth options
+	response := &AuthOptionsResponse{
+		Hostname:     hostname,
+		ProxyID:      int64(proxy.ID),
+		RequiresAuth: true,
+	}
+
+	oauthProviderMap := make(map[string]UnionOAuthProvider)
+	hasBasicAuthUsers := false
+
+	for _, assignment := range assignments {
+		if !assignment.Enabled {
+			continue
+		}
+
+		// Load full group data
+		group, err := s.aclRepo.GetGroupByID(assignment.ACLGroupID)
+		if err != nil {
+			s.logger.Warn("failed to get ACL group for auth options",
+				zap.Int("group_id", assignment.ACLGroupID),
+				zap.Error(err))
+			continue
+		}
+
+		// Union Waygates auth
+		if group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
+			response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
+
+			// Collect OAuth providers from WaygatesAuth.AllowedProviders
+			for _, providerID := range group.WaygatesAuth.AllowedProviders {
+				pid := strings.ToLower(providerID)
+				if _, exists := oauthProviderMap[pid]; !exists {
+					oauthProviderMap[pid] = UnionOAuthProvider{
+						ID:      providerID,
+						Name:    formatProviderName(providerID),
+						Enabled: true,
+					}
+				}
+			}
+		}
+
+		// Collect OAuth providers from OAuthProviderRestrictions
+		for _, restriction := range group.OAuthProviderRestrictions {
+			if !restriction.Enabled {
+				continue
+			}
+			pid := strings.ToLower(restriction.Provider)
+			if _, exists := oauthProviderMap[pid]; !exists {
+				oauthProviderMap[pid] = UnionOAuthProvider{
+					ID:      restriction.Provider,
+					Name:    formatProviderName(restriction.Provider),
+					Enabled: true,
+				}
+			}
+		}
+
+		// Track basic auth availability
+		if len(group.BasicAuthUsers) > 0 {
+			hasBasicAuthUsers = true
+		}
+	}
+
+	// Convert map to sorted slice
+	for _, provider := range oauthProviderMap {
+		response.OAuthProviders = append(response.OAuthProviders, provider)
+	}
+	sort.Slice(response.OAuthProviders, func(i, j int) bool {
+		return response.OAuthProviders[i].ID < response.OAuthProviders[j].ID
+	})
+
+	// Only enable basic auth if no more secure auth methods are available.
+	// Basic auth is less secure because credentials are sent with every request.
+	// Waygates auth and OAuth use session cookies which are more secure.
+	hasSecureAuth := (response.WaygatesAuth != nil && response.WaygatesAuth.Enabled) || len(response.OAuthProviders) > 0
+	if hasBasicAuthUsers && !hasSecureAuth {
+		response.BasicAuthEnabled = true
+	}
+
+	return response, nil
+}
+
+// formatProviderName converts a provider ID to a human-readable name
+func formatProviderName(id string) string {
+	switch strings.ToLower(id) {
+	case "google":
+		return "Google"
+	case "github":
+		return "GitHub"
+	case "microsoft":
+		return "Microsoft"
+	case "gitlab":
+		return "GitLab"
+	case "okta":
+		return "Okta"
+	case "auth0":
+		return "Auth0"
+	default:
+		// Title case the first letter
+		if len(id) == 0 {
+			return id
+		}
+		return strings.ToUpper(id[:1]) + strings.ToLower(id[1:])
+	}
+}
+
+// =============================================================================
 // OAuth Provider Restrictions
 // =============================================================================
 
@@ -917,7 +1073,15 @@ func (s *ACLService) DeleteOAuthProviderRestriction(groupID int, provider string
 // Access Verification (for forward_auth)
 // =============================================================================
 
-// VerifyAccess verifies if a request should be allowed based on ACL rules
+// VerifyAccess verifies if a request should be allowed based on ACL rules.
+//
+// This method uses UNION LOGIC when multiple ACL groups are assigned to a proxy:
+//   - IP deny rules from ANY group block access (deny takes precedence)
+//   - IP bypass rules from ANY group with ip_bypass mode allow access without auth
+//   - Valid credentials from ANY group grant access
+//
+// This ensures that security rules (deny) are enforced globally while allowing
+// flexible authentication across multiple groups.
 func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse, error) {
 	response := &ACLVerifyResponse{
 		Allowed: false,
@@ -940,7 +1104,7 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 		return nil, fmt.Errorf("getting proxy ACL assignments: %w", err)
 	}
 
-	// If no ACL assignments, allow by default
+	// If no ACL assignments, allow by default (no ACL = no restrictions)
 	if len(assignments) == 0 {
 		response.Allowed = true
 		return response, nil
@@ -953,13 +1117,15 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 		return response, nil
 	}
 
-	// 4. Process each matching assignment
+	// 4. Load ALL matching groups (for union logic evaluation)
+	// We need to load all groups first so we can check IP deny rules across ALL groups
+	// before allowing access based on any single group's rules.
+	var groups []*models.ACLGroup
 	for _, assignment := range matchingAssignments {
 		if !assignment.Enabled {
 			continue
 		}
 
-		// Get full group with related data
 		group, err := s.aclRepo.GetGroupByID(assignment.ACLGroupID)
 		if err != nil {
 			s.logger.Warn("Failed to get ACL group for assignment",
@@ -968,71 +1134,22 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 				zap.Error(err))
 			continue
 		}
-
-		// Evaluate access for this group
-		accessResult, err := s.evaluateGroupAccess(group, request)
-		if err != nil {
-			s.logger.Warn("Error evaluating group access",
-				zap.Int("group_id", group.ID),
-				zap.Error(err))
-			continue
-		}
-
-		if accessResult.Allowed {
-			response.Allowed = true
-			response.User = accessResult.User
-			response.OAuthEmail = accessResult.OAuthEmail
-			response.OAuthProvider = accessResult.OAuthProvider
-
-			// Set headers based on auth type
-			if accessResult.User != nil {
-				response.Headers["X-Auth-User"] = accessResult.User.Username
-				response.Headers["X-Auth-User-ID"] = fmt.Sprintf("%d", accessResult.User.ID)
-				response.Headers["X-Auth-User-Email"] = accessResult.User.Email
-			} else if accessResult.OAuthEmail != "" {
-				// OAuth user (no Waygates user account)
-				response.Headers["X-Auth-User-Email"] = accessResult.OAuthEmail
-				response.Headers["X-Auth-Provider"] = accessResult.OAuthProvider
-			}
-			return response, nil
-		}
-
-		// Track if user was authenticated but unauthorized
-		// This is important for providing proper feedback instead of a redirect loop
-		if accessResult.AuthenticatedButUnauthorized {
-			response.AuthenticatedButUnauthorized = true
-			response.OAuthEmail = accessResult.OAuthEmail
-			response.OAuthProvider = accessResult.OAuthProvider
-			response.User = accessResult.User
-			if accessResult.DenialReason != "" {
-				response.DenialDetails = accessResult.DenialReason
-			}
-		}
+		groups = append(groups, group)
 	}
 
-	// No access granted
-	response.Reason = "access denied by ACL rules"
-
-	// If user is authenticated but unauthorized, don't redirect to login (it would be a loop)
-	// Instead, return 403 with the denial details
-	if response.AuthenticatedButUnauthorized {
-		response.RequiresAuth = false
-		if response.DenialDetails == "" {
-			response.DenialDetails = "Your account is not authorized to access this resource"
-		}
-	} else {
-		// User is not authenticated - redirect to login
-		response.RequiresAuth = true
-
-		// Get branding for redirect URL
-		branding, _ := s.aclRepo.GetBranding()
-		if branding != nil {
-			// Construct login redirect URL
-			response.RedirectURL = fmt.Sprintf("/auth/login?redirect=%s%s", request.Host, request.Path)
-		}
+	// If no valid groups found after filtering, allow by default
+	if len(groups) == 0 {
+		response.Allowed = true
+		return response, nil
 	}
 
-	return response, nil
+	// 5. Evaluate access using UNION LOGIC across all matching groups
+	// This is the key change: instead of processing groups one-by-one with first-match-wins,
+	// we now aggregate rules from ALL groups and apply union semantics:
+	// - Deny from ANY group blocks (checked first across all groups)
+	// - Bypass from ANY group with ip_bypass mode allows without auth
+	// - Auth valid for ANY group grants access
+	return s.evaluateUnionAccess(groups, request)
 }
 
 // evaluateGroupAccess evaluates access rules for a specific ACL group
@@ -1103,8 +1220,11 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 		}
 	}
 
-	// Check basic auth
-	if request.BasicAuth != nil && len(group.BasicAuthUsers) > 0 {
+	// Check basic auth - only if no more secure auth methods are configured.
+	// Basic auth is less secure because credentials are sent with every request.
+	// Skip basic auth if Waygates auth or OAuth is available for this group.
+	hasSecureAuthInGroup := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) || len(group.OAuthProviderRestrictions) > 0
+	if request.BasicAuth != nil && len(group.BasicAuthUsers) > 0 && !hasSecureAuthInGroup {
 		for _, authUser := range group.BasicAuthUsers {
 			if authUser.Username == request.BasicAuth.Username {
 				if authUser.CheckPassword(request.BasicAuth.Password) {
@@ -1133,10 +1253,11 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 
 	case models.ACLCombinationModeAll:
 		// All configured methods must pass
-		// For simplicity, if there are auth users and basic auth passed, that's one requirement
-		// If there's waygates auth and session is valid, that's another requirement
 		// IP rules are handled separately
-		hasAuthRequirements := len(group.BasicAuthUsers) > 0 || (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled)
+		// Basic auth only counts if no secure auth is available (hasSecureAuthInGroup is defined above)
+		hasAuthRequirements := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) ||
+			len(group.OAuthProviderRestrictions) > 0 ||
+			(len(group.BasicAuthUsers) > 0 && !hasSecureAuthInGroup)
 		if !hasAuthRequirements {
 			// No auth requirements, IP check was enough
 			if ipResult != ipRuleDeny {
@@ -1659,4 +1780,359 @@ func generateSecureToken(length int) (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(bytes), nil
+}
+
+// =============================================================================
+// Union Access Helper Methods
+// =============================================================================
+
+// parseRemoteIP parses a remote IP string, handling "ip:port" format.
+func (s *ACLService) parseRemoteIP(remoteIP string) net.IP {
+	ip := net.ParseIP(remoteIP)
+	if ip == nil {
+		// Try to extract IP from potential "ip:port" format
+		host, _, err := net.SplitHostPort(remoteIP)
+		if err == nil {
+			ip = net.ParseIP(host)
+		}
+	}
+	if ip == nil {
+		s.logger.Warn("Failed to parse remote IP", zap.String("remote_ip", remoteIP))
+	}
+	return ip
+}
+
+// singleIPToNetwork converts a single IP to a /32 (IPv4) or /128 (IPv6) network.
+func (s *ACLService) singleIPToNetwork(ipStr string) *net.IPNet {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil
+	}
+	bits := 32
+	if ip.To4() == nil {
+		bits = 128
+	}
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)}
+}
+
+// checkIPDenyAcrossGroups checks if the IP matches any deny rule in ANY of the given groups.
+// This implements the union logic where deny from ANY group blocks access.
+// Returns true if access should be denied.
+func (s *ACLService) checkIPDenyAcrossGroups(groups []*models.ACLGroup, remoteIP string) bool {
+	ip := s.parseRemoteIP(remoteIP)
+	if ip == nil {
+		return false
+	}
+
+	for _, group := range groups {
+		for _, rule := range group.IPRules {
+			if rule.RuleType == models.ACLIPRuleTypeDeny {
+				_, network, err := net.ParseCIDR(rule.CIDR)
+				if err != nil {
+					// Try as single IP
+					network = s.singleIPToNetwork(rule.CIDR)
+					if network == nil {
+						continue
+					}
+				}
+				if network.Contains(ip) {
+					s.logger.Debug("IP denied by rule",
+						zap.String("ip", remoteIP),
+						zap.String("cidr", rule.CIDR),
+						zap.Int("group_id", group.ID),
+						zap.String("group_name", group.Name))
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// checkIPBypassAcrossGroups checks if the IP matches any bypass rule in ANY group
+// that has ip_bypass combination mode. Returns the group that granted bypass if found.
+func (s *ACLService) checkIPBypassAcrossGroups(groups []*models.ACLGroup, remoteIP string) *models.ACLGroup {
+	ip := s.parseRemoteIP(remoteIP)
+	if ip == nil {
+		return nil
+	}
+
+	for _, group := range groups {
+		// Only check bypass rules for groups with ip_bypass combination mode
+		if group.CombinationMode != models.ACLCombinationModeIPBypass {
+			continue
+		}
+
+		for _, rule := range group.IPRules {
+			if rule.RuleType == models.ACLIPRuleTypeBypass || rule.RuleType == models.ACLIPRuleTypeAllow {
+				_, network, err := net.ParseCIDR(rule.CIDR)
+				if err != nil {
+					network = s.singleIPToNetwork(rule.CIDR)
+					if network == nil {
+						continue
+					}
+				}
+				if network.Contains(ip) {
+					s.logger.Debug("IP bypass granted by rule",
+						zap.String("ip", remoteIP),
+						zap.String("cidr", rule.CIDR),
+						zap.Int("group_id", group.ID),
+						zap.String("group_name", group.Name))
+					return group
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// evaluateGroupAuth evaluates authentication methods for a single group.
+// This is called after IP deny/bypass checks have been performed globally.
+// It focuses only on auth evaluation, not IP rules (except for "any" mode IP allow).
+func (s *ACLService) evaluateGroupAuth(group *models.ACLGroup, request *ACLVerifyRequest) (*groupAccessResult, error) {
+	result := &groupAccessResult{Allowed: false}
+
+	// For "any" mode, an IP allow (not just bypass) is sufficient
+	if group.CombinationMode == models.ACLCombinationModeAny {
+		ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+		if ipResult == ipRuleAllow || ipResult == ipRuleBypass {
+			result.Allowed = true
+			return result, nil
+		}
+	}
+
+	// Check authentication methods
+	var authResults []bool
+
+	// Check session token (Waygates auth or OAuth)
+	// OAuth sessions should be validated even when WaygatesAuth.Enabled is false,
+	// as long as there's a WaygatesAuth config with OAuth restrictions
+	if request.SessionToken != "" && group.WaygatesAuth != nil {
+		session, err := s.aclRepo.GetSessionByToken(request.SessionToken)
+		if err == nil && !session.IsExpired() {
+			result.HasValidSession = true
+
+			// Check if this is an OAuth session (has email and provider)
+			if session.Email != nil && session.Provider != nil {
+				result.OAuthEmail = *session.Email
+				result.OAuthProvider = *session.Provider
+				// Also set user if available (OAuth user may have Waygates account)
+				if session.User != nil {
+					result.User = session.User
+				}
+
+				// OAuth session - check OAuth restrictions
+				// OAuth sessions are validated regardless of WaygatesAuth.Enabled
+				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions) {
+					authResults = append(authResults, true)
+				} else {
+					// User is authenticated but fails OAuth restrictions
+					result.AuthenticatedButUnauthorized = true
+					result.DenialReason = s.buildOAuthDenialReason(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions)
+				}
+			} else if session.User != nil && group.WaygatesAuth.Enabled {
+				// Pure Waygates user session (no OAuth info)
+				// This requires WaygatesAuth.Enabled since it's a username/password session
+				result.User = session.User
+				if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
+					authResults = append(authResults, true)
+				} else {
+					// User is authenticated but fails restrictions
+					result.AuthenticatedButUnauthorized = true
+					result.DenialReason = "Your account is not authorized to access this resource"
+				}
+			}
+		}
+	}
+
+	// Check basic auth - only if no more secure auth methods are configured.
+	// Basic auth is less secure because credentials are sent with every request.
+	// Skip basic auth if Waygates auth or OAuth is available for this group.
+	groupHasSecureAuth := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) || len(group.OAuthProviderRestrictions) > 0
+	if request.BasicAuth != nil && len(group.BasicAuthUsers) > 0 && !groupHasSecureAuth {
+		for _, authUser := range group.BasicAuthUsers {
+			if authUser.Username == request.BasicAuth.Username {
+				if authUser.CheckPassword(request.BasicAuth.Password) {
+					authResults = append(authResults, true)
+					break
+				}
+			}
+		}
+	}
+
+	// Evaluate based on combination mode
+	switch group.CombinationMode {
+	case models.ACLCombinationModeAny:
+		// IP allow was already checked above
+		// Check if any auth method passed
+		for _, passed := range authResults {
+			if passed {
+				result.Allowed = true
+				return result, nil
+			}
+		}
+
+	case models.ACLCombinationModeAll:
+		// All configured methods must pass
+		// Basic auth only counts if no secure auth is available (groupHasSecureAuth is defined above)
+		hasAuthRequirements := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) ||
+			len(group.OAuthProviderRestrictions) > 0 ||
+			(len(group.BasicAuthUsers) > 0 && !groupHasSecureAuth)
+		if !hasAuthRequirements {
+			// No auth requirements, IP check (non-deny) is enough
+			ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+			if ipResult != ipRuleDeny {
+				result.Allowed = true
+				return result, nil
+			}
+		}
+		// Need all auth results to pass
+		if len(authResults) > 0 {
+			allPassed := true
+			for _, passed := range authResults {
+				if !passed {
+					allPassed = false
+					break
+				}
+			}
+			if allPassed {
+				result.Allowed = true
+				return result, nil
+			}
+		}
+
+	case models.ACLCombinationModeIPBypass:
+		// IP bypass is handled globally before this method is called
+		// Here we just need to check if any auth method passed
+		for _, passed := range authResults {
+			if passed {
+				result.Allowed = true
+				return result, nil
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// evaluateUnionAccess evaluates access using union logic across all matching groups.
+//
+// Union semantics:
+//   - Phase 1: IP deny from ANY group blocks access (deny takes precedence)
+//   - Phase 2: IP bypass from ANY group with ip_bypass mode allows access without auth
+//   - Phase 3: Valid auth from ANY group grants access
+//   - Phase 4: If no access, return appropriate denial response
+func (s *ACLService) evaluateUnionAccess(groups []*models.ACLGroup, request *ACLVerifyRequest) (*ACLVerifyResponse, error) {
+	response := &ACLVerifyResponse{
+		Allowed: false,
+		Headers: make(map[string]string),
+	}
+
+	// Phase 1: Check ALL IP deny rules from ALL groups first
+	// Deny rules have global precedence - if ANY group denies the IP, block access
+	if s.checkIPDenyAcrossGroups(groups, request.RemoteIP) {
+		response.Reason = "access denied by IP deny rule"
+		s.logger.Debug("Union access denied by IP deny rule",
+			zap.String("remote_ip", request.RemoteIP),
+			zap.String("host", request.Host))
+		return response, nil
+	}
+
+	// Phase 2: Check ALL IP bypass rules from ALL groups with ip_bypass mode
+	// If IP matches any bypass rule in a group with ip_bypass mode, allow without auth
+	if bypassGroup := s.checkIPBypassAcrossGroups(groups, request.RemoteIP); bypassGroup != nil {
+		response.Allowed = true
+		s.logger.Debug("Union access granted by IP bypass",
+			zap.String("remote_ip", request.RemoteIP),
+			zap.Int("group_id", bypassGroup.ID),
+			zap.String("group_name", bypassGroup.Name))
+		return response, nil
+	}
+
+	// Phase 3: Try authentication against ALL groups
+	// If credentials are valid for ANY group, grant access (union semantics)
+	var hasAuthenticatedButUnauthorized bool
+	var lastDenialDetails string
+	var lastOAuthEmail, lastOAuthProvider string
+	var lastUser *models.User
+
+	for _, group := range groups {
+		result, err := s.evaluateGroupAuth(group, request)
+		if err != nil {
+			s.logger.Warn("Error evaluating group auth",
+				zap.Int("group_id", group.ID),
+				zap.String("group_name", group.Name),
+				zap.Error(err))
+			continue
+		}
+
+		if result.Allowed {
+			response.Allowed = true
+			response.User = result.User
+			response.OAuthEmail = result.OAuthEmail
+			response.OAuthProvider = result.OAuthProvider
+
+			// Set headers based on auth type
+			if result.User != nil {
+				response.Headers["X-Auth-User"] = result.User.Username
+				response.Headers["X-Auth-User-ID"] = fmt.Sprintf("%d", result.User.ID)
+				response.Headers["X-Auth-User-Email"] = result.User.Email
+			} else if result.OAuthEmail != "" {
+				// OAuth user (no Waygates user account)
+				response.Headers["X-Auth-User-Email"] = result.OAuthEmail
+				response.Headers["X-Auth-Provider"] = result.OAuthProvider
+			}
+
+			s.logger.Debug("Union access granted by group auth",
+				zap.Int("group_id", group.ID),
+				zap.String("group_name", group.Name))
+			return response, nil
+		}
+
+		// Track authenticated-but-unauthorized status for better error messages
+		// This is important for providing proper feedback instead of a redirect loop
+		if result.AuthenticatedButUnauthorized {
+			hasAuthenticatedButUnauthorized = true
+			lastDenialDetails = result.DenialReason
+			lastOAuthEmail = result.OAuthEmail
+			lastOAuthProvider = result.OAuthProvider
+			lastUser = result.User
+		}
+	}
+
+	// Phase 4: No access granted - build appropriate response
+	response.Reason = "access denied by ACL rules"
+
+	// If user is authenticated but unauthorized, don't redirect to login (it would be a loop)
+	// Instead, return 403 with the denial details
+	if hasAuthenticatedButUnauthorized {
+		response.AuthenticatedButUnauthorized = true
+		response.RequiresAuth = false
+		response.OAuthEmail = lastOAuthEmail
+		response.OAuthProvider = lastOAuthProvider
+		response.User = lastUser
+		if lastDenialDetails != "" {
+			response.DenialDetails = lastDenialDetails
+		} else {
+			response.DenialDetails = "Your account is not authorized to access this resource"
+		}
+	} else {
+		// User is not authenticated - redirect to login
+		response.RequiresAuth = true
+
+		// Get branding for redirect URL
+		branding, _ := s.aclRepo.GetBranding()
+		if branding != nil {
+			// Construct login redirect URL
+			response.RedirectURL = fmt.Sprintf("/auth/login?redirect=%s%s", request.Host, request.Path)
+		}
+	}
+
+	s.logger.Debug("Union access denied",
+		zap.String("host", request.Host),
+		zap.String("path", request.Path),
+		zap.Bool("requires_auth", response.RequiresAuth),
+		zap.Bool("authenticated_but_unauthorized", response.AuthenticatedButUnauthorized))
+
+	return response, nil
 }

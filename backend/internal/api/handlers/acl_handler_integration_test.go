@@ -70,6 +70,9 @@ type MockACLService struct {
 	// Access Verification
 	VerifyAccessFunc func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error)
 
+	// Auth Options
+	GetAuthOptionsForProxyFunc func(hostname string) (*service.AuthOptionsResponse, error)
+
 	// Session Management
 	CreateSessionFunc           func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
 	CreateOAuthSessionFunc      func(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
@@ -307,6 +310,14 @@ func (m *MockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*servi
 		return m.VerifyAccessFunc(request)
 	}
 	return &service.ACLVerifyResponse{Allowed: true}, nil
+}
+
+// GetAuthOptionsForProxy implements ACLServiceInterface.
+func (m *MockACLService) GetAuthOptionsForProxy(hostname string) (*service.AuthOptionsResponse, error) {
+	if m.GetAuthOptionsForProxyFunc != nil {
+		return m.GetAuthOptionsForProxyFunc(hostname)
+	}
+	return nil, nil
 }
 
 // CreateSession implements ACLServiceInterface.

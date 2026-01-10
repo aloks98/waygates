@@ -135,6 +135,9 @@ type ACLServiceInterface interface {
 	// Access Verification (for forward_auth)
 	VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse, error)
 
+	// Auth Options (for login page)
+	GetAuthOptionsForProxy(hostname string) (*AuthOptionsResponse, error)
+
 	// Session Management
 	CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
 	CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)

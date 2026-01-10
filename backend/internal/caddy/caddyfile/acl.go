@@ -332,14 +332,18 @@ func (b *ACLBuilder) buildAnyModeConfig(proxy *models.Proxy, group *models.ACLGr
 
 	// 4. Handle remaining requests with authentication
 	hasForwardAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasOAuthRestrictions := len(group.OAuthProviderRestrictions) > 0
 	hasExternalAuth := len(group.ExternalProviders) > 0
 	hasBasicAuth := len(group.BasicAuthUsers) > 0
 
-	if hasBasicAuth && !hasForwardAuth && !hasExternalAuth {
-		// Only basic auth configured
+	// Use forward auth if Waygates auth, OAuth restrictions, or external providers are configured.
+	// Basic auth is only used when it's the only auth method (more secure methods override it).
+	hasSecureAuth := hasForwardAuth || hasOAuthRestrictions || hasExternalAuth
+	if hasBasicAuth && !hasSecureAuth {
+		// Only basic auth configured (no more secure auth methods)
 		sb.WriteString(b.buildBasicAuthBlock(proxy, group, pathPattern, matcherPrefix, bypassIPs, allowIPs))
-	} else if hasForwardAuth || hasExternalAuth {
-		// Forward auth (Waygates or external provider)
+	} else if hasSecureAuth {
+		// Forward auth (Waygates, OAuth, or external provider)
 		sb.WriteString(b.buildForwardAuthBlock(proxy, group, pathPattern, matcherPrefix, bypassIPs, allowIPs))
 	}
 
@@ -370,12 +374,16 @@ func (b *ACLBuilder) buildAllModeConfig(proxy *models.Proxy, group *models.ACLGr
 
 	// 3. Requests from allowed IPs still need auth check
 	hasForwardAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasOAuthRestrictions := len(group.OAuthProviderRestrictions) > 0
 	hasExternalAuth := len(group.ExternalProviders) > 0
 	hasBasicAuth := len(group.BasicAuthUsers) > 0
 
-	if hasBasicAuth && !hasForwardAuth && !hasExternalAuth {
+	// Use forward auth if Waygates auth, OAuth restrictions, or external providers are configured.
+	// Basic auth is only used when it's the only auth method (more secure methods override it).
+	hasSecureAuth := hasForwardAuth || hasOAuthRestrictions || hasExternalAuth
+	if hasBasicAuth && !hasSecureAuth {
 		sb.WriteString(b.buildBasicAuthBlockAll(proxy, group, pathPattern, matcherPrefix, allAllowedIPs))
-	} else if hasForwardAuth || hasExternalAuth {
+	} else if hasSecureAuth {
 		sb.WriteString(b.buildForwardAuthBlockAll(proxy, group, pathPattern, matcherPrefix, allAllowedIPs))
 	}
 
@@ -795,6 +803,139 @@ func HasACLConfig(assignments []models.ProxyACLAssignment) bool {
 		}
 	}
 	return false
+}
+
+// =============================================================================
+// Union ACL Config Builder
+// =============================================================================
+
+// deduplicateCIDRs removes duplicate CIDR entries while preserving order.
+func deduplicateCIDRs(cidrs []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		if !seen[cidr] {
+			seen[cidr] = true
+			result = append(result, cidr)
+		}
+	}
+	return result
+}
+
+// collectUnionIPRules collects all IP rules from all enabled assignments grouped by type.
+// Returns deduplicated slices of deny, bypass, and allow CIDRs.
+func collectUnionIPRules(assignments []models.ProxyACLAssignment) (denyRules, bypassRules, allowRules []string) {
+	for _, assignment := range assignments {
+		if !assignment.Enabled || assignment.ACLGroup == nil {
+			continue
+		}
+		for _, rule := range assignment.ACLGroup.IPRules {
+			switch rule.RuleType {
+			case models.ACLIPRuleTypeDeny:
+				denyRules = append(denyRules, rule.CIDR)
+			case models.ACLIPRuleTypeBypass:
+				bypassRules = append(bypassRules, rule.CIDR)
+			case models.ACLIPRuleTypeAllow:
+				allowRules = append(allowRules, rule.CIDR)
+			}
+		}
+	}
+	return deduplicateCIDRs(denyRules), deduplicateCIDRs(bypassRules), deduplicateCIDRs(allowRules)
+}
+
+// BuildUnionACLConfig generates Caddyfile config combining IP rules from all ACL groups
+// into unified matchers. This creates a single set of deny, bypass, and forward_auth
+// directives that represent the union of all assigned ACL groups.
+//
+// The generated config follows this order:
+//  1. Deny matcher - blocks requests from any denied IP across all groups
+//  2. Bypass matcher - allows requests from bypass IPs to skip authentication
+//  3. Forward auth - requires authentication for all other requests
+//
+// Example output for two groups with deny 10.0.10.0/24 and deny 10.0.12.0/24, bypass 192.168.1.0/24:
+//
+//	@denied_ips {
+//	    remote_ip 10.0.10.0/24
+//	    remote_ip 10.0.12.0/24
+//	}
+//	respond @denied_ips 403
+//
+//	@bypass_ips {
+//	    remote_ip 192.168.1.0/24
+//	}
+//
+//	@needs_auth {
+//	    not {
+//	        remote_ip 192.168.1.0/24
+//	    }
+//	}
+//
+//	forward_auth @needs_auth localhost:8080 {
+//	    uri /api/auth/acl/verify
+//	    copy_headers Remote-User Remote-Groups Remote-Email X-Forwarded-User
+//	}
+func (b *ACLBuilder) BuildUnionACLConfig(assignments []models.ProxyACLAssignment) string {
+	if len(assignments) == 0 {
+		return ""
+	}
+
+	// Check if any assignment is enabled
+	hasEnabled := false
+	for _, a := range assignments {
+		if a.Enabled && a.ACLGroup != nil {
+			hasEnabled = true
+			break
+		}
+	}
+	if !hasEnabled {
+		return ""
+	}
+
+	denyRules, bypassRules, _ := collectUnionIPRules(assignments)
+
+	var config strings.Builder
+
+	// Generate deny matcher if there are deny rules
+	if len(denyRules) > 0 {
+		config.WriteString("\t@denied_ips {\n")
+		for _, cidr := range denyRules {
+			config.WriteString(fmt.Sprintf("\t\tremote_ip %s\n", cidr))
+		}
+		config.WriteString("\t}\n")
+		config.WriteString("\trespond @denied_ips 403\n\n")
+	}
+
+	// Generate bypass matcher if there are bypass rules
+	if len(bypassRules) > 0 {
+		config.WriteString("\t@bypass_ips {\n")
+		for _, cidr := range bypassRules {
+			config.WriteString(fmt.Sprintf("\t\tremote_ip %s\n", cidr))
+		}
+		config.WriteString("\t}\n\n")
+
+		// Generate needs_auth matcher (not in bypass list)
+		config.WriteString("\t@needs_auth {\n")
+		config.WriteString("\t\tnot {\n")
+		for _, cidr := range bypassRules {
+			config.WriteString(fmt.Sprintf("\t\t\tremote_ip %s\n", cidr))
+		}
+		config.WriteString("\t\t}\n")
+		config.WriteString("\t}\n\n")
+
+		// Forward auth only for IPs that need it
+		config.WriteString(fmt.Sprintf("\tforward_auth @needs_auth %s {\n", b.waygatesVerifyURL))
+		config.WriteString("\t\turi /api/auth/acl/verify\n")
+		config.WriteString("\t\tcopy_headers Remote-User Remote-Groups Remote-Email X-Forwarded-User\n")
+		config.WriteString("\t}\n")
+	} else {
+		// No bypass rules, forward auth for all requests
+		config.WriteString(fmt.Sprintf("\tforward_auth %s {\n", b.waygatesVerifyURL))
+		config.WriteString("\t\turi /api/auth/acl/verify\n")
+		config.WriteString("\t\tcopy_headers Remote-User Remote-Groups Remote-Email X-Forwarded-User\n")
+		config.WriteString("\t}\n")
+	}
+
+	return config.String()
 }
 
 // GetDefaultWaygatesHeaders returns the default headers copied from Waygates auth
