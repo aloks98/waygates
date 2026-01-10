@@ -124,7 +124,13 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get redirect URL from query parameter and validate it
-	redirectURL := h.validateRedirectURL(r.URL.Query().Get("redirect"))
+	rawRedirect := r.URL.Query().Get("redirect")
+	h.logger.Debug("StartOAuth received redirect parameter",
+		zap.String("provider", providerID),
+		zap.String("raw_redirect", rawRedirect))
+	redirectURL := h.validateRedirectURL(rawRedirect)
+	h.logger.Debug("StartOAuth validated redirect URL",
+		zap.String("validated_redirect", redirectURL))
 
 	// Generate state parameter with redirect URL encoded
 	state, err := h.generateState(redirectURL)
@@ -358,12 +364,19 @@ func (h *OAuthHandler) validateRedirectURL(redirectURL string) string {
 	// This allows OAuth redirects back to protected resources
 	if h.proxyRepo != nil {
 		hostname := parsed.Hostname()
-		if proxy, err := h.proxyRepo.GetByHostname(hostname); err == nil && proxy != nil {
-			h.logger.Debug("Allowing redirect to configured proxy hostname",
+		proxy, err := h.proxyRepo.GetByHostname(hostname)
+		if err == nil && proxy != nil {
+			h.logger.Info("Allowing redirect to configured proxy hostname",
 				zap.String("hostname", hostname),
 				zap.Int("proxy_id", proxy.ID))
 			return redirectURL
 		}
+		// Log why proxy lookup failed
+		h.logger.Warn("Proxy lookup failed for redirect hostname",
+			zap.String("hostname", hostname),
+			zap.Error(err))
+	} else {
+		h.logger.Warn("ProxyRepo is nil, cannot validate redirect hostname")
 	}
 
 	// For other absolute URLs, reject and return safe default
