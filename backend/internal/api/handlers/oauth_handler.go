@@ -457,7 +457,77 @@ func (h *OAuthHandler) fetchUserInfo(ctx context.Context, provider *auth.OAuthPr
 	}
 
 	// Parse response based on provider
-	return h.parseUserInfo(provider.ID, resp.Body)
+	userInfo, err := h.parseUserInfo(provider.ID, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// If GitHub user has no public email, fetch from /user/emails endpoint
+	if provider.ID == auth.OAuthProviderGitHub && userInfo.Email == "" {
+		email, fetchErr := h.fetchGitHubPrimaryEmail(ctx, client)
+		if fetchErr != nil {
+			h.logger.Warn("Failed to fetch GitHub emails, using noreply address",
+				zap.String("username", userInfo.Username),
+				zap.Error(fetchErr))
+			// Use GitHub's noreply email format as fallback
+			userInfo.Email = fmt.Sprintf("%s@users.noreply.github.com", userInfo.Username)
+		} else {
+			userInfo.Email = email
+		}
+	}
+
+	return userInfo, nil
+}
+
+// fetchGitHubPrimaryEmail fetches the primary email from GitHub's /user/emails endpoint
+func (h *OAuthHandler) fetchGitHubPrimaryEmail(ctx context.Context, client *http.Client) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetching emails: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("GitHub returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
+		return "", fmt.Errorf("decoding emails: %w", err)
+	}
+
+	// Find primary verified email first
+	for _, e := range emails {
+		if e.Primary && e.Verified {
+			return e.Email, nil
+		}
+	}
+
+	// Fall back to any verified email
+	for _, e := range emails {
+		if e.Verified {
+			return e.Email, nil
+		}
+	}
+
+	// Fall back to any email
+	if len(emails) > 0 {
+		return emails[0].Email, nil
+	}
+
+	return "", fmt.Errorf("no email addresses found")
 }
 
 // OAuthUserInfo holds normalized user information from OAuth providers
@@ -492,14 +562,8 @@ func (h *OAuthHandler) parseUserInfo(providerID auth.OAuthProviderID, body io.Re
 		userInfo.Name = getString(rawData, "name")
 		userInfo.Username = getString(rawData, "login")
 		userInfo.AvatarURL = getString(rawData, "avatar_url")
-
-		// GitHub may not return email in user info, would need to fetch from /user/emails
-		// For simplicity, we'll use the username as email prefix if email is empty
-		if userInfo.Email == "" && userInfo.Username != "" {
-			// In production, you should fetch from /user/emails endpoint
-			h.logger.Warn("GitHub user has no public email, using placeholder",
-				zap.String("username", userInfo.Username))
-		}
+		// Note: GitHub may not return email if user's email is private.
+		// We'll fetch from /user/emails endpoint in fetchUserInfo if needed.
 
 	case auth.OAuthProviderMicrosoft:
 		userInfo.ProviderID = getString(rawData, "id")
@@ -522,7 +586,8 @@ func (h *OAuthHandler) parseUserInfo(providerID auth.OAuthProviderID, body io.Re
 	}
 
 	// Validate required fields
-	if userInfo.Email == "" {
+	// Note: GitHub email may be empty here - it will be fetched from /user/emails in fetchUserInfo
+	if userInfo.Email == "" && providerID != auth.OAuthProviderGitHub {
 		return nil, fmt.Errorf("email not provided by OAuth provider")
 	}
 
