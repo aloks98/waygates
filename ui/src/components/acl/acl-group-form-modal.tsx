@@ -48,17 +48,17 @@ const combinationModeOptions = [
   {
     value: 'any',
     label: 'Any Match',
-    description: 'Allow access if any authentication method succeeds',
+    description: 'Access granted if any single auth method passes (OR logic)',
   },
   {
     value: 'all',
     label: 'All Required',
-    description: 'Require all authentication methods to succeed',
+    description: 'All configured auth methods must pass (AND logic)',
   },
   {
     value: 'ip_bypass',
     label: 'IP Bypass',
-    description: 'Skip other auth if IP matches allow rules',
+    description: 'Matching IPs skip authentication entirely, others must authenticate',
   },
 ];
 
@@ -208,13 +208,18 @@ export function ACLGroupFormModal({
                       onValueChange={(val) => field.handleChange(val as CombinationMode)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select mode..." />
+                        <SelectValue placeholder="Select mode...">
+                          {combinationModeOptions.find((o) => o.value === field.state.value)?.label}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {combinationModeOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            <div className="flex flex-col">
-                              <span>{option.label}</span>
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">{option.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {option.description}
+                              </span>
                             </div>
                           </SelectItem>
                         ))}

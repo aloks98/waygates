@@ -307,7 +307,7 @@ export function ACLGroupsPage() {
         isLoading={isLoading}
         loadingMode="skeleton"
         emptyMessage="No ACL groups found. Create your first group to get started."
-        onRowClick={(row) => handleRowClick(row.original)}
+        onRowClick={handleRowClick}
       >
         <DataGridContainer>
           <DataGridTable />

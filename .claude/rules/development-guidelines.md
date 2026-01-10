@@ -208,6 +208,53 @@ export const proxySchema = z.object({
 });
 ```
 
+#### Data Tables
+**Always use `DataGrid` from `@e412/titanium` for displaying tabular data.** Do not use the basic `Table` component directly. DataGrid provides consistent styling, skeleton loading states, sorting, pagination, and row click handling.
+
+```tsx
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@e412/titanium';
+import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+
+const columns = useMemo<ColumnDef<MyData>[]>(() => [
+  {
+    accessorKey: 'name',
+    header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
+    cell: ({ row }) => <span>{row.getValue('name')}</span>,
+    meta: {
+      skeleton: <Skeleton className="h-5 w-32" />,
+    },
+  },
+], []);
+
+const table = useReactTable({
+  data,
+  columns,
+  getCoreRowModel: getCoreRowModel(),
+});
+
+return (
+  <DataGrid
+    table={table}
+    recordCount={data.length}
+    isLoading={isLoading}
+    loadingMode="skeleton"
+    emptyMessage="No data found"
+    onRowClick={handleRowClick} // Optional: receives row data directly
+  >
+    <DataGridContainer>
+      <DataGridTable />
+      <DataGridPagination sizes={[10, 20, 50]} /> {/* Optional */}
+    </DataGridContainer>
+  </DataGrid>
+);
+```
+
 ## Testing Guidelines
 
 ### Backend Tests

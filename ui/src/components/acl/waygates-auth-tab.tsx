@@ -211,30 +211,18 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
   // Check if no OAuth providers are configured
   const hasNoAvailableProviders = !isLoadingProviders && providerList.length === 0;
 
-  if (isLoading) {
+  if (isLoading || isLoadingProviders) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-full mt-2" />
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-full mt-2" />
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-full mt-2" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -263,30 +251,44 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
           </CardHeading>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Field>
-            <FieldLabel className="flex items-center gap-2">
-              <Shield className="size-4" />
-              Enabled OAuth Providers
-            </FieldLabel>
-            <FieldDescription className="mb-3">
-              Select which OAuth providers users can use to authenticate. Leave all unchecked to
-              disable OAuth login entirely.
-            </FieldDescription>
-            {isLoadingProviders ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Skeleton className="h-20 w-full rounded-lg" />
-                <Skeleton className="h-20 w-full rounded-lg" />
-              </div>
-            ) : hasNoAvailableProviders ? (
-              <Alert>
-                <AlertCircle className="size-4" />
-                <AlertDescription>
-                  No OAuth providers are configured on the server. To enable OAuth login, configure
-                  the environment variables (e.g., GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET) on the
-                  backend server.
-                </AlertDescription>
-              </Alert>
-            ) : (
+          {isLoadingProviders ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+            </div>
+          ) : hasNoAvailableProviders ? (
+            <Alert>
+              <AlertCircle className="size-4" />
+              <AlertDescription>
+                No OAuth providers are configured on the server. To enable OAuth authentication,
+                configure the following environment variables on the backend:
+                <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                  <li>
+                    <strong>Google:</strong> GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+                  </li>
+                  <li>
+                    <strong>GitHub:</strong> GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+                  </li>
+                  <li>
+                    <strong>Microsoft:</strong> MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
+                  </li>
+                  <li>
+                    <strong>GitLab:</strong> GITLAB_CLIENT_ID, GITLAB_CLIENT_SECRET
+                  </li>
+                </ul>
+                <p className="mt-2">After configuring, restart the backend server.</p>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Field>
+              <FieldLabel className="flex items-center gap-2">
+                <Shield className="size-4" />
+                Enabled OAuth Providers
+              </FieldLabel>
+              <FieldDescription className="mb-3">
+                Select which OAuth providers users can use to authenticate. Leave all unchecked to
+                disable OAuth login entirely.
+              </FieldDescription>
               <form.Subscribe selector={(state) => state.values.allowed_providers}>
                 {(selectedProviders) => (
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -322,11 +324,12 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                   </div>
                 )}
               </form.Subscribe>
-            )}
-          </Field>
+            </Field>
+          )}
 
           <form.Subscribe selector={(state) => state.values.allowed_providers}>
             {(selectedProviders) =>
+              !hasNoAvailableProviders &&
               selectedProviders &&
               selectedProviders.length > 0 && (
                 <>
@@ -447,7 +450,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
           <form.Subscribe selector={(state) => state.values.enabled}>
             {(enabled) =>
               enabled && (
-                <FieldGroup className="space-y-6 pl-6 border-l-2 border-primary/20">
+                <FieldGroup className="space-y-6">
                   <Alert>
                     <AlertCircle className="size-4" />
                     <AlertDescription>
