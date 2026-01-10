@@ -216,11 +216,12 @@ func (ACLWaygatesAuth) TableName() string {
 }
 
 // ProxyACLAssignment represents a proxy-to-ACL-group mapping
+// Multiple ACL groups can be assigned to the same proxy and path pattern (union behavior)
 type ProxyACLAssignment struct {
 	ID          int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProxyID     int       `json:"proxy_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_path"`
-	ACLGroupID  int       `json:"acl_group_id" gorm:"not null;index"`
-	PathPattern string    `json:"path_pattern" gorm:"type:varchar(500);not null;default:'/*';uniqueIndex:uq_proxy_acl_assignments_proxy_path"`
+	ProxyID     int       `json:"proxy_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
+	ACLGroupID  int       `json:"acl_group_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
+	PathPattern string    `json:"path_pattern" gorm:"type:varchar(500);not null;default:'/*'"`
 	Priority    int       `json:"priority" gorm:"not null;default:0"`
 	Enabled     bool      `json:"enabled" gorm:"default:true"`
 	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`

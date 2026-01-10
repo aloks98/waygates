@@ -121,7 +121,7 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if errors.Is(err, service.ErrProxyACLExists) {
-			utils.Conflict(w, "ACL assignment already exists for this path pattern")
+			utils.Conflict(w, "This ACL group is already assigned to this proxy")
 			return
 		}
 		if errors.Is(err, service.ErrInvalidPathPattern) {

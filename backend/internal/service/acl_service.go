@@ -34,7 +34,7 @@ var (
 	ErrExternalProviderNotFound = errors.New("external provider not found")
 	ErrWaygatesAuthNotFound     = errors.New("waygates auth not found")
 	ErrProxyACLNotFound         = errors.New("proxy ACL assignment not found")
-	ErrProxyACLExists           = errors.New("proxy ACL assignment already exists for this path")
+	ErrProxyACLExists           = errors.New("this ACL group is already assigned to this proxy")
 	ErrSessionNotFound          = errors.New("session not found")
 	ErrSessionExpired           = errors.New("session expired")
 	ErrAccessDenied             = errors.New("access denied")

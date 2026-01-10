@@ -227,12 +227,27 @@ interface ACLLoginSearchParams {
   error?: string;
 }
 
+// Extract hostname from a URL string
+function extractHostname(url?: string): string | undefined {
+  if (!url) return undefined;
+  try {
+    // Handle both full URLs (https://example.com/path) and partial (example.com/path)
+    const urlToParse = url.startsWith('http') ? url : `https://${url}`;
+    const parsed = new URL(urlToParse);
+    return parsed.hostname;
+  } catch {
+    return undefined;
+  }
+}
+
 export function ACLLoginPage() {
   // Get query parameters
   const search = useSearch({ strict: false }) as ACLLoginSearchParams;
   const redirectUrl = search.redirect;
-  const host = search.host;
   const errorParam = search.error;
+
+  // Extract hostname from redirect URL or use explicit host param
+  const host = search.host || extractHostname(redirectUrl);
 
   // Fetch branding and auth options for the hostname
   const {
