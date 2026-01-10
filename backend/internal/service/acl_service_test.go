@@ -53,6 +53,13 @@ type MockACLRepository struct {
 	UpdateWaygatesAuthFunc func(auth *models.ACLWaygatesAuth) error
 	DeleteWaygatesAuthFunc func(groupID int) error
 
+	// OAuth Provider Restriction methods
+	GetOAuthProviderRestrictionsFunc   func(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	GetOAuthProviderRestrictionFunc    func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error)
+	CreateOAuthProviderRestrictionFunc func(restriction *models.ACLOAuthProviderRestriction) error
+	UpdateOAuthProviderRestrictionFunc func(restriction *models.ACLOAuthProviderRestriction) error
+	DeleteOAuthProviderRestrictionFunc func(groupID int, provider string) error
+
 	// Proxy ACL Assignment methods
 	CreateProxyACLAssignmentFunc                func(assignment *models.ProxyACLAssignment) error
 	GetProxyACLAssignmentByIDFunc               func(id int) (*models.ProxyACLAssignment, error)
@@ -258,6 +265,42 @@ func (m *MockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) err
 func (m *MockACLRepository) DeleteWaygatesAuth(groupID int) error {
 	if m.DeleteWaygatesAuthFunc != nil {
 		return m.DeleteWaygatesAuthFunc(groupID)
+	}
+	return nil
+}
+
+// OAuth Provider Restriction methods
+func (m *MockACLRepository) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	if m.GetOAuthProviderRestrictionsFunc != nil {
+		return m.GetOAuthProviderRestrictionsFunc(groupID)
+	}
+	return []models.ACLOAuthProviderRestriction{}, nil
+}
+
+func (m *MockACLRepository) GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+	if m.GetOAuthProviderRestrictionFunc != nil {
+		return m.GetOAuthProviderRestrictionFunc(groupID, provider)
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (m *MockACLRepository) CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	if m.CreateOAuthProviderRestrictionFunc != nil {
+		return m.CreateOAuthProviderRestrictionFunc(restriction)
+	}
+	return nil
+}
+
+func (m *MockACLRepository) UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	if m.UpdateOAuthProviderRestrictionFunc != nil {
+		return m.UpdateOAuthProviderRestrictionFunc(restriction)
+	}
+	return nil
+}
+
+func (m *MockACLRepository) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	if m.DeleteOAuthProviderRestrictionFunc != nil {
+		return m.DeleteOAuthProviderRestrictionFunc(groupID, provider)
 	}
 	return nil
 }

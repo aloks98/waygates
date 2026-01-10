@@ -18,6 +18,7 @@ export interface ACLGroup {
   basic_auth_users?: ACLBasicAuthUser[];
   external_providers?: ACLExternalProvider[];
   waygates_auth?: ACLWaygatesAuth;
+  oauth_provider_restrictions?: ACLOAuthProviderRestriction[];
 }
 
 export interface ACLIPRule {
@@ -60,10 +61,19 @@ export interface ACLWaygatesAuth {
   require_2fa: boolean;
   session_ttl: number;
   created_at: string;
-  // OAuth user restrictions
-  allowed_emails?: string[]; // Specific emails: ["john@example.com"]
-  allowed_domains?: string[]; // Email domains: ["@company.com"]
+  // OAuth providers allowed for this group
   allowed_providers?: string[]; // OAuth providers: ["google", "github"]
+}
+
+export interface ACLOAuthProviderRestriction {
+  id: number;
+  acl_group_id: number;
+  provider: string; // "google" | "github" | "microsoft" | "gitlab"
+  allowed_emails?: string[];
+  allowed_domains?: string[];
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ProxyACLAssignment {
@@ -163,10 +173,14 @@ export interface ConfigureWaygatesAuthRequest {
   allowed_email_patterns?: string[];
   require_2fa?: boolean;
   session_ttl?: number;
-  // OAuth user restrictions
+  // OAuth providers allowed for this group
+  allowed_providers?: string[];
+}
+
+export interface SetOAuthProviderRestrictionRequest {
   allowed_emails?: string[];
   allowed_domains?: string[];
-  allowed_providers?: string[];
+  enabled: boolean;
 }
 
 export interface AssignACLRequest {

@@ -797,6 +797,123 @@ func (s *ACLService) UpdateBranding(branding *models.ACLBranding) error {
 }
 
 // =============================================================================
+// OAuth Provider Restrictions
+// =============================================================================
+
+// ErrOAuthProviderRestrictionNotFound is returned when the OAuth provider restriction is not found
+var ErrOAuthProviderRestrictionNotFound = errors.New("OAuth provider restriction not found")
+
+// GetOAuthProviderRestrictions returns all OAuth provider restrictions for a group
+func (s *ACLService) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	// Check group exists
+	_, err := s.aclRepo.GetGroupByID(groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrACLGroupNotFound
+		}
+		return nil, fmt.Errorf("getting ACL group: %w", err)
+	}
+
+	restrictions, err := s.aclRepo.GetOAuthProviderRestrictions(groupID)
+	if err != nil {
+		return nil, fmt.Errorf("getting OAuth provider restrictions: %w", err)
+	}
+
+	return restrictions, nil
+}
+
+// SetOAuthProviderRestriction creates or updates an OAuth provider restriction for a group.
+// If a restriction for the provider already exists, it will be updated.
+func (s *ACLService) SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error {
+	// Check group exists
+	_, err := s.aclRepo.GetGroupByID(groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrACLGroupNotFound
+		}
+		return fmt.Errorf("getting ACL group: %w", err)
+	}
+
+	// Validate provider name
+	if provider == "" {
+		return fmt.Errorf("provider name cannot be empty")
+	}
+
+	// Check if restriction already exists
+	existing, err := s.aclRepo.GetOAuthProviderRestriction(groupID, provider)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("checking OAuth provider restriction: %w", err)
+	}
+
+	if existing != nil {
+		// Update existing restriction
+		existing.AllowedEmails = emails
+		existing.AllowedDomains = domains
+		existing.Enabled = enabled
+
+		if err := s.aclRepo.UpdateOAuthProviderRestriction(existing); err != nil {
+			return fmt.Errorf("updating OAuth provider restriction: %w", err)
+		}
+
+		s.logger.Info("OAuth provider restriction updated",
+			zap.Int("group_id", groupID),
+			zap.String("provider", provider),
+			zap.Bool("enabled", enabled))
+	} else {
+		// Create new restriction
+		restriction := &models.ACLOAuthProviderRestriction{
+			ACLGroupID:     groupID,
+			Provider:       provider,
+			AllowedEmails:  emails,
+			AllowedDomains: domains,
+			Enabled:        enabled,
+		}
+
+		if err := s.aclRepo.CreateOAuthProviderRestriction(restriction); err != nil {
+			return fmt.Errorf("creating OAuth provider restriction: %w", err)
+		}
+
+		s.logger.Info("OAuth provider restriction created",
+			zap.Int("group_id", groupID),
+			zap.String("provider", provider),
+			zap.Bool("enabled", enabled))
+	}
+
+	return nil
+}
+
+// DeleteOAuthProviderRestriction deletes an OAuth provider restriction for a group
+func (s *ACLService) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	// Check group exists
+	_, err := s.aclRepo.GetGroupByID(groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrACLGroupNotFound
+		}
+		return fmt.Errorf("getting ACL group: %w", err)
+	}
+
+	// Check if restriction exists
+	_, err = s.aclRepo.GetOAuthProviderRestriction(groupID, provider)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrOAuthProviderRestrictionNotFound
+		}
+		return fmt.Errorf("getting OAuth provider restriction: %w", err)
+	}
+
+	if err := s.aclRepo.DeleteOAuthProviderRestriction(groupID, provider); err != nil {
+		return fmt.Errorf("deleting OAuth provider restriction: %w", err)
+	}
+
+	s.logger.Info("OAuth provider restriction deleted",
+		zap.Int("group_id", groupID),
+		zap.String("provider", provider))
+
+	return nil
+}
+
+// =============================================================================
 // Access Verification (for forward_auth)
 // =============================================================================
 
@@ -946,7 +1063,9 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 	var authResults []bool
 
 	// Check session token (Waygates auth or OAuth)
-	if request.SessionToken != "" && group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
+	// OAuth sessions should be validated even when WaygatesAuth.Enabled is false,
+	// as long as there's a WaygatesAuth config with OAuth restrictions
+	if request.SessionToken != "" && group.WaygatesAuth != nil {
 		session, err := s.aclRepo.GetSessionByToken(request.SessionToken)
 		if err == nil && !session.IsExpired() {
 			result.HasValidSession = true
@@ -961,16 +1080,18 @@ func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVer
 				}
 
 				// OAuth session - check OAuth restrictions
-				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth) {
+				// OAuth sessions are validated regardless of WaygatesAuth.Enabled
+				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions) {
 					authResults = append(authResults, true)
 				} else {
 					// User is authenticated but fails OAuth restrictions
 					result.AuthenticatedButUnauthorized = true
-					result.DenialReason = s.buildOAuthDenialReason(*session.Email, *session.Provider, group.WaygatesAuth)
+					result.DenialReason = s.buildOAuthDenialReason(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions)
 				}
-			} else if session.User != nil {
-				result.User = session.User
+			} else if session.User != nil && group.WaygatesAuth.Enabled {
 				// Pure Waygates user session (no OAuth info)
+				// This requires WaygatesAuth.Enabled since it's a username/password session
+				result.User = session.User
 				if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
 					authResults = append(authResults, true)
 				} else {
@@ -1144,9 +1265,11 @@ func (s *ACLService) isUserAllowedByWaygatesAuth(user *models.User, auth *models
 	return false
 }
 
-// isOAuthUserAllowed checks if an OAuth user (email + provider) is allowed by the WaygatesAuth config
-func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACLWaygatesAuth) bool {
-	// Check provider restriction first
+// isOAuthUserAllowed checks if an OAuth user (email + provider) is allowed by the group's OAuth restrictions.
+// It first checks per-provider restrictions, and if none exist or are enabled for the provider,
+// falls back to global restrictions in WaygatesAuth.
+func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACLWaygatesAuth, providerRestrictions []models.ACLOAuthProviderRestriction) bool {
+	// Step 1: Check if provider is in global AllowedProviders (if set)
 	if len(auth.AllowedProviders) > 0 {
 		providerAllowed := false
 		for _, allowedProvider := range auth.AllowedProviders {
@@ -1160,20 +1283,41 @@ func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACL
 		}
 	}
 
-	// If no email restrictions, allow (provider check already passed)
-	if len(auth.AllowedEmails) == 0 && len(auth.AllowedDomains) == 0 {
+	// Step 2: Look for per-provider restriction for this specific provider
+	var perProviderRestriction *models.ACLOAuthProviderRestriction
+	for i := range providerRestrictions {
+		if strings.EqualFold(providerRestrictions[i].Provider, provider) {
+			perProviderRestriction = &providerRestrictions[i]
+			break
+		}
+	}
+
+	// Step 3: If per-provider restriction found and enabled, use it
+	if perProviderRestriction != nil && perProviderRestriction.Enabled {
+		return s.checkEmailAgainstRestrictions(email, perProviderRestriction.AllowedEmails, perProviderRestriction.AllowedDomains)
+	}
+
+	// Step 4: Fall back to global AllowedEmails/AllowedDomains
+	return s.checkEmailAgainstRestrictions(email, auth.AllowedEmails, auth.AllowedDomains)
+}
+
+// checkEmailAgainstRestrictions checks if an email matches the allowed emails or domains.
+// If no restrictions are set (both empty), returns true (allow all).
+func (s *ACLService) checkEmailAgainstRestrictions(email string, allowedEmails, allowedDomains []string) bool {
+	// If no email restrictions, allow
+	if len(allowedEmails) == 0 && len(allowedDomains) == 0 {
 		return true
 	}
 
 	// Check allowed emails (exact match)
-	for _, allowedEmail := range auth.AllowedEmails {
+	for _, allowedEmail := range allowedEmails {
 		if strings.EqualFold(email, allowedEmail) {
 			return true
 		}
 	}
 
 	// Check allowed domains (e.g., "@company.com")
-	for _, domain := range auth.AllowedDomains {
+	for _, domain := range allowedDomains {
 		// Normalize domain (ensure it starts with @)
 		normalizedDomain := domain
 		if !strings.HasPrefix(domain, "@") {
@@ -1188,8 +1332,8 @@ func (s *ACLService) isOAuthUserAllowed(email, provider string, auth *models.ACL
 }
 
 // buildOAuthDenialReason creates a human-readable explanation for why an OAuth user was denied
-func (s *ACLService) buildOAuthDenialReason(email, provider string, auth *models.ACLWaygatesAuth) string {
-	// Check if provider is restricted
+func (s *ACLService) buildOAuthDenialReason(email, provider string, auth *models.ACLWaygatesAuth, providerRestrictions []models.ACLOAuthProviderRestriction) string {
+	// Check if provider is restricted globally
 	if len(auth.AllowedProviders) > 0 {
 		providerAllowed := false
 		for _, allowedProvider := range auth.AllowedProviders {
@@ -1204,17 +1348,38 @@ func (s *ACLService) buildOAuthDenialReason(email, provider string, auth *models
 		}
 	}
 
+	// Check if there's a per-provider restriction
+	var perProviderRestriction *models.ACLOAuthProviderRestriction
+	for i := range providerRestrictions {
+		if strings.EqualFold(providerRestrictions[i].Provider, provider) {
+			perProviderRestriction = &providerRestrictions[i]
+			break
+		}
+	}
+
+	// Use per-provider restrictions if found and enabled, otherwise use global
+	var allowedEmails, allowedDomains []string
+	restrictionSource := "global"
+	if perProviderRestriction != nil && perProviderRestriction.Enabled {
+		allowedEmails = perProviderRestriction.AllowedEmails
+		allowedDomains = perProviderRestriction.AllowedDomains
+		restrictionSource = fmt.Sprintf("provider-specific (%s)", provider)
+	} else {
+		allowedEmails = auth.AllowedEmails
+		allowedDomains = auth.AllowedDomains
+	}
+
 	// Provider is allowed, so the issue is with email/domain
-	if len(auth.AllowedEmails) > 0 || len(auth.AllowedDomains) > 0 {
+	if len(allowedEmails) > 0 || len(allowedDomains) > 0 {
 		var restrictions []string
-		if len(auth.AllowedEmails) > 0 {
-			restrictions = append(restrictions, fmt.Sprintf("specific emails (%d configured)", len(auth.AllowedEmails)))
+		if len(allowedEmails) > 0 {
+			restrictions = append(restrictions, fmt.Sprintf("specific emails (%d configured)", len(allowedEmails)))
 		}
-		if len(auth.AllowedDomains) > 0 {
-			restrictions = append(restrictions, fmt.Sprintf("email domains: %s", strings.Join(auth.AllowedDomains, ", ")))
+		if len(allowedDomains) > 0 {
+			restrictions = append(restrictions, fmt.Sprintf("email domains: %s", strings.Join(allowedDomains, ", ")))
 		}
-		return fmt.Sprintf("Your email (%s) is not authorized to access this resource. Access is restricted to: %s",
-			email, strings.Join(restrictions, " or "))
+		return fmt.Sprintf("Your email (%s) is not authorized to access this resource. Access is restricted to: %s (%s restrictions)",
+			email, strings.Join(restrictions, " or "), restrictionSource)
 	}
 
 	return fmt.Sprintf("Your account (%s via %s) is not authorized to access this resource", email, provider)

@@ -17,15 +17,19 @@ export {
   useDeleteBasicAuthUser,
   useDeleteExternalProvider,
   useDeleteIPRule,
+  useDeleteOAuthProviderRestriction,
   // External Providers
   useExternalProviders,
   // IP Rules
   useIPRules,
+  // OAuth Provider Restrictions
+  useOAuthProviderRestrictions,
   // OAuth Providers
   useOAuthProviders,
   // Proxy ACL
   useProxyACL,
   useRemoveACL,
+  useSetOAuthProviderRestriction,
   useUpdateACLBranding,
   useUpdateACLGroup,
   useUpdateBasicAuthUser,

@@ -10,6 +10,12 @@ import {
   CardHeading,
   CardTitle,
   Checkbox,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Field,
   FieldContent,
   FieldDescription,
@@ -18,10 +24,13 @@ import {
   FieldLabel,
   Input,
   Label,
-  Separator,
   Skeleton,
   Switch,
-  Textarea,
+  TagsInput,
+  TagsInputInput,
+  TagsInputTag,
+  TagsInputTagRemove,
+  TagsInputTagText,
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
 import {
@@ -31,13 +40,21 @@ import {
   KeyRound,
   Mail,
   Save,
+  Settings,
   Shield,
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
-import { useConfigureWaygatesAuth, useOAuthProviders, useWaygatesAuth } from '@/hooks';
+import {
+  useConfigureWaygatesAuth,
+  useOAuthProviderRestrictions,
+  useOAuthProviders,
+  useSetOAuthProviderRestriction,
+  useWaygatesAuth,
+} from '@/hooks';
+import type { ACLOAuthProviderRestriction } from '@/types/acl';
 
 // Available OAuth providers that can be configured
 const OAUTH_PROVIDERS = [
@@ -46,6 +63,35 @@ const OAUTH_PROVIDERS = [
   { id: 'microsoft', name: 'Microsoft', description: 'Sign in with Microsoft accounts' },
   { id: 'gitlab', name: 'GitLab', description: 'Sign in with GitLab accounts' },
 ] as const;
+
+// Email validation regex (RFC 5322 simplified)
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Domain validation - accepts @domain.com or domain.com formats
+const DOMAIN_REGEX = /^@?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$/;
+
+// Known roles from backend RBAC configuration (see backend/rbac.yaml)
+const KNOWN_ROLES = [
+  { value: 'admin', label: 'Administrator', description: 'Full access to all features' },
+  { value: 'operator', label: 'Operator', description: 'Manage proxies & settings' },
+  { value: 'viewer', label: 'Viewer', description: 'Read-only access' },
+];
+
+// Email pattern validation - allows wildcards like *@domain.com or specific emails
+const EMAIL_PATTERN_REGEX = /^(\*|[^\s@]+)@[^\s@]+\.[^\s@]+$/;
+
+// Validation configurations for TagsInput
+const emailTagsValidation = {
+  pattern: EMAIL_REGEX,
+};
+
+const domainTagsValidation = {
+  pattern: DOMAIN_REGEX,
+};
+
+const emailPatternTagsValidation = {
+  pattern: EMAIL_PATTERN_REGEX,
+};
 
 const waygatesAuthSchema = z.object({
   enabled: z.boolean(),
@@ -57,27 +103,189 @@ const waygatesAuthSchema = z.object({
     .number()
     .min(60, 'Minimum session TTL is 60 seconds')
     .max(604800, 'Maximum session TTL is 7 days'),
-  // OAuth settings (independent of Waygates auth)
-  allowed_emails: z.array(z.string()).optional(),
-  allowed_domains: z.array(z.string()).optional(),
+  // OAuth providers list (not restrictions - those are per-provider now)
   allowed_providers: z.array(z.string()).optional(),
 });
 
 type WaygatesAuthFormValues = z.infer<typeof waygatesAuthSchema>;
 
+// Per-provider restriction state
+interface ProviderRestrictionState {
+  allowed_emails: string[];
+  allowed_domains: string[];
+  enabled: boolean;
+}
+
 interface WaygatesAuthTabProps {
   groupId: number;
+}
+
+// Modal component for provider restriction settings
+interface ProviderRestrictionModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  providerId: string;
+  providerName: string;
+  restriction: ACLOAuthProviderRestriction | undefined;
+  onSave: (data: {
+    allowed_emails?: string[];
+    allowed_domains?: string[];
+    enabled: boolean;
+  }) => Promise<void>;
+  isSaving: boolean;
+}
+
+function ProviderRestrictionModal({
+  open,
+  onOpenChange,
+  providerName,
+  restriction,
+  onSave,
+  isSaving,
+}: ProviderRestrictionModalProps) {
+  const [state, setState] = useState<ProviderRestrictionState>({
+    allowed_emails: [],
+    allowed_domains: [],
+    enabled: true,
+  });
+
+  // Initialize state from restriction when modal opens
+  useEffect(() => {
+    if (open) {
+      if (restriction) {
+        setState({
+          allowed_emails: restriction.allowed_emails || [],
+          allowed_domains: restriction.allowed_domains || [],
+          enabled: restriction.enabled,
+        });
+      } else {
+        setState({
+          allowed_emails: [],
+          allowed_domains: [],
+          enabled: true,
+        });
+      }
+    }
+  }, [open, restriction]);
+
+  const handleEmailsChange = (value: string[]) => {
+    setState((prev) => ({ ...prev, allowed_emails: value }));
+  };
+
+  const handleDomainsChange = (value: string[]) => {
+    setState((prev) => ({ ...prev, allowed_domains: value }));
+  };
+
+  const handleEnabledChange = (enabled: boolean) => {
+    setState((prev) => ({ ...prev, enabled }));
+  };
+
+  const handleSave = async () => {
+    await onSave({
+      allowed_emails: state.allowed_emails.length > 0 ? state.allowed_emails : undefined,
+      allowed_domains: state.allowed_domains.length > 0 ? state.allowed_domains : undefined,
+      enabled: state.enabled,
+    });
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Settings className="size-5" />
+            {providerName} Restrictions
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody className="space-y-6">
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLabel>Enable Restrictions</FieldLabel>
+              <FieldDescription>
+                When enabled, only users matching the restrictions below can authenticate via{' '}
+                {providerName}
+              </FieldDescription>
+            </FieldContent>
+            <Switch checked={state.enabled} onCheckedChange={handleEnabledChange} />
+          </Field>
+
+          <Field>
+            <FieldLabel className="flex items-center gap-2">
+              <Mail className="size-4" />
+              Allowed Emails
+            </FieldLabel>
+            <TagsInput
+              value={state.allowed_emails}
+              onValueChange={handleEmailsChange}
+              placeholder="Type email and press Enter"
+              delimiters={['Enter', ',', ' ']}
+              validation={emailTagsValidation}
+            >
+              {state.allowed_emails.map((email, index) => (
+                <TagsInputTag key={email} index={index}>
+                  <TagsInputTagText>{email}</TagsInputTagText>
+                  <TagsInputTagRemove />
+                </TagsInputTag>
+              ))}
+              <TagsInputInput placeholder="Add email..." />
+            </TagsInput>
+            <FieldDescription>
+              Specific email addresses allowed via {providerName}. Press Enter or comma to add.
+            </FieldDescription>
+          </Field>
+
+          <Field>
+            <FieldLabel className="flex items-center gap-2">
+              <Globe className="size-4" />
+              Allowed Domains
+            </FieldLabel>
+            <TagsInput
+              value={state.allowed_domains}
+              onValueChange={handleDomainsChange}
+              placeholder="Type domain and press Enter"
+              delimiters={['Enter', ',', ' ']}
+              validation={domainTagsValidation}
+            >
+              {state.allowed_domains.map((domain, index) => (
+                <TagsInputTag key={domain} index={index}>
+                  <TagsInputTagText>{domain}</TagsInputTagText>
+                  <TagsInputTagRemove />
+                </TagsInputTag>
+              ))}
+              <TagsInputInput placeholder="Add domain (e.g., @company.com)..." />
+            </TagsInput>
+            <FieldDescription>
+              Email domains allowed. Users with emails ending in these domains can authenticate.
+            </FieldDescription>
+          </Field>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={isSaving}>
+            <Save className="size-4" />
+            {isSaving ? 'Saving...' : 'Save Restrictions'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
   const { config, isLoading } = useWaygatesAuth(groupId);
   const { configureAuth, isConfiguring } = useConfigureWaygatesAuth();
+  const { restrictions, isLoading: isLoadingRestrictions } = useOAuthProviderRestrictions(groupId);
+  const { setRestriction, isSetting } = useSetOAuthProviderRestriction();
 
-  const [rolesInput, setRolesInput] = useState('');
-  const [emailPatternsInput, setEmailPatternsInput] = useState('');
-  // OAuth restriction inputs
-  const [allowedEmailsInput, setAllowedEmailsInput] = useState('');
-  const [allowedDomainsInput, setAllowedDomainsInput] = useState('');
+  // Modal state for provider restriction configuration
+  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   // Fetch OAuth providers from the backend (with availability status)
   const { providers: backendProviders, isLoading: isLoadingProviders } = useOAuthProviders();
@@ -90,9 +298,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       allowed_email_patterns: [] as string[],
       require_2fa: false,
       session_ttl: 3600,
-      // OAuth settings
-      allowed_emails: [] as string[],
-      allowed_domains: [] as string[],
+      // OAuth providers list
       allowed_providers: [] as string[],
     } as WaygatesAuthFormValues,
     validators: {
@@ -110,9 +316,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
             : undefined,
           require_2fa: value.require_2fa,
           session_ttl: value.session_ttl,
-          // OAuth settings
-          allowed_emails: value.allowed_emails?.length ? value.allowed_emails : undefined,
-          allowed_domains: value.allowed_domains?.length ? value.allowed_domains : undefined,
+          // OAuth providers
           allowed_providers: value.allowed_providers?.length ? value.allowed_providers : undefined,
         },
       });
@@ -127,55 +331,10 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       form.setFieldValue('allowed_email_patterns', config.allowed_email_patterns || []);
       form.setFieldValue('require_2fa', config.require_2fa);
       form.setFieldValue('session_ttl', config.session_ttl);
-      // OAuth settings
-      form.setFieldValue('allowed_emails', config.allowed_emails || []);
-      form.setFieldValue('allowed_domains', config.allowed_domains || []);
+      // OAuth providers
       form.setFieldValue('allowed_providers', config.allowed_providers || []);
-
-      setRolesInput((config.allowed_roles || []).join(', '));
-      setEmailPatternsInput((config.allowed_email_patterns || []).join(', '));
-      // OAuth restriction inputs
-      setAllowedEmailsInput((config.allowed_emails || []).join(', '));
-      setAllowedDomainsInput((config.allowed_domains || []).join(', '));
     }
   }, [config, form.setFieldValue]);
-
-  const handleRolesChange = (value: string) => {
-    setRolesInput(value);
-    const roles = value
-      .split(',')
-      .map((r) => r.trim())
-      .filter(Boolean);
-    form.setFieldValue('allowed_roles', roles);
-  };
-
-  const handleEmailPatternsChange = (value: string) => {
-    setEmailPatternsInput(value);
-    const patterns = value
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean);
-    form.setFieldValue('allowed_email_patterns', patterns);
-  };
-
-  // OAuth restriction handlers
-  const handleAllowedEmailsChange = (value: string) => {
-    setAllowedEmailsInput(value);
-    const emails = value
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean);
-    form.setFieldValue('allowed_emails', emails);
-  };
-
-  const handleAllowedDomainsChange = (value: string) => {
-    setAllowedDomainsInput(value);
-    const domains = value
-      .split(',')
-      .map((d) => d.trim())
-      .filter(Boolean);
-    form.setFieldValue('allowed_domains', domains);
-  };
 
   // Toggle OAuth provider selection
   const handleProviderToggle = (providerId: string, checked: boolean) => {
@@ -188,6 +347,46 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
         currentProviders.filter((p: string) => p !== providerId),
       );
     }
+  };
+
+  // Open restriction modal for a provider
+  const handleConfigureProvider = (providerId: string, providerName: string) => {
+    setSelectedProvider({ id: providerId, name: providerName });
+    setRestrictionModalOpen(true);
+  };
+
+  // Save provider restriction
+  const handleSaveProviderRestriction = useCallback(
+    async (data: { allowed_emails?: string[]; allowed_domains?: string[]; enabled: boolean }) => {
+      if (!selectedProvider) return;
+      await setRestriction({
+        groupId,
+        provider: selectedProvider.id,
+        data,
+      });
+    },
+    [groupId, selectedProvider, setRestriction],
+  );
+
+  // Get restriction for a specific provider
+  const getRestrictionForProvider = useCallback(
+    (providerId: string): ACLOAuthProviderRestriction | undefined => {
+      return restrictions.find((r) => r.provider === providerId);
+    },
+    [restrictions],
+  );
+
+  // Get restriction summary for display
+  const getRestrictionSummary = (providerId: string): string | null => {
+    const restriction = getRestrictionForProvider(providerId);
+    if (!restriction) return null;
+
+    const emailCount = restriction.allowed_emails?.length || 0;
+    const domainCount = restriction.allowed_domains?.length || 0;
+    const total = emailCount + domainCount;
+
+    if (total === 0) return null;
+    return `${total} restriction${total > 1 ? 's' : ''}`;
   };
 
   const formatTTL = (seconds: number): string => {
@@ -286,128 +485,69 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                 Enabled OAuth Providers
               </FieldLabel>
               <FieldDescription className="mb-3">
-                Select which OAuth providers users can use to authenticate. Leave all unchecked to
-                disable OAuth login entirely.
+                Select which OAuth providers users can use to authenticate. Click the configure
+                button to set email and domain restrictions for each provider.
               </FieldDescription>
               <form.Subscribe selector={(state) => state.values.allowed_providers}>
                 {(selectedProviders) => (
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {providerList.map((provider) => (
-                      <div
-                        key={provider.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          selectedProviders?.includes(provider.id)
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border bg-muted/30'
-                        }`}
-                      >
-                        <Checkbox
-                          id={`provider-${provider.id}`}
-                          checked={selectedProviders?.includes(provider.id) || false}
-                          onCheckedChange={(checked) =>
-                            handleProviderToggle(provider.id, checked as boolean)
-                          }
-                        />
-                        <div className="flex-1 min-w-0">
-                          <Label
-                            htmlFor={`provider-${provider.id}`}
-                            className="text-sm font-medium cursor-pointer"
-                          >
-                            {provider.name}
-                          </Label>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {provider.description}
-                          </p>
+                    {providerList.map((provider) => {
+                      const isSelected = selectedProviders?.includes(provider.id) || false;
+                      const restrictionSummary = getRestrictionSummary(provider.id);
+
+                      return (
+                        <div
+                          key={provider.id}
+                          className={`flex items-start gap-3 p-3 rounded-lg border ${
+                            isSelected ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'
+                          }`}
+                        >
+                          <Checkbox
+                            id={`provider-${provider.id}`}
+                            checked={isSelected}
+                            onCheckedChange={(checked) =>
+                              handleProviderToggle(provider.id, checked as boolean)
+                            }
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Label
+                                htmlFor={`provider-${provider.id}`}
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                {provider.name}
+                              </Label>
+                              {restrictionSummary && (
+                                <Badge variant="outline" className="text-xs">
+                                  {restrictionSummary}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {provider.description}
+                            </p>
+                            {isSelected && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="mt-2 h-7 px-2 text-xs"
+                                onClick={() => handleConfigureProvider(provider.id, provider.name)}
+                                disabled={isLoadingRestrictions}
+                              >
+                                <Settings className="size-3 mr-1" />
+                                Configure Restrictions
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </form.Subscribe>
             </Field>
           )}
-
-          <form.Subscribe selector={(state) => state.values.allowed_providers}>
-            {(selectedProviders) =>
-              !hasNoAvailableProviders &&
-              selectedProviders &&
-              selectedProviders.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Shield className="size-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">OAuth User Restrictions</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Optionally restrict which OAuth users can access this resource. Leave empty to
-                      allow any user who authenticates via the enabled providers.
-                    </p>
-                  </div>
-
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Mail className="size-4" />
-                      Allowed Emails
-                    </FieldLabel>
-                    <Textarea
-                      placeholder="e.g., john@example.com, jane@company.com"
-                      value={allowedEmailsInput}
-                      onChange={(e) => handleAllowedEmailsChange(e.target.value)}
-                      rows={2}
-                    />
-                    <FieldDescription>
-                      Comma-separated list of specific email addresses allowed to access
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_emails}>
-                      {(emails) =>
-                        emails &&
-                        emails.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {emails.map((email) => (
-                              <Badge key={email} variant="secondary" className="font-mono text-xs">
-                                {email}
-                              </Badge>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Globe className="size-4" />
-                      Allowed Domains
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g., @company.com, @example.org"
-                      value={allowedDomainsInput}
-                      onChange={(e) => handleAllowedDomainsChange(e.target.value)}
-                    />
-                    <FieldDescription>
-                      Comma-separated email domains (e.g., @company.com). Users with emails ending
-                      in these domains will be allowed.
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_domains}>
-                      {(domains) =>
-                        domains &&
-                        domains.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {domains.map((domain) => (
-                              <Badge key={domain} variant="outline" className="font-mono text-xs">
-                                {domain}
-                              </Badge>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
-                </>
-              )
-            }
-          </form.Subscribe>
         </CardContent>
       </Card>
 
@@ -459,64 +599,89 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                     </AlertDescription>
                   </Alert>
 
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Users className="size-4" />
-                      Allowed Roles
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g., admin, developer, viewer"
-                      value={rolesInput}
-                      onChange={(e) => handleRolesChange(e.target.value)}
-                    />
-                    <FieldDescription>
-                      Comma-separated list of roles that can access this resource
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_roles}>
-                      {(roles) =>
-                        roles &&
-                        roles.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {roles.map((role) => (
-                              <Badge key={role} variant="secondary">
-                                {role}
-                              </Badge>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
+                  <form.Field name="allowed_roles">
+                    {(field) => {
+                      const selectedRoles = field.state.value || [];
+                      const handleRoleToggle = (roleValue: string, checked: boolean) => {
+                        if (checked) {
+                          field.handleChange([...selectedRoles, roleValue]);
+                        } else {
+                          field.handleChange(selectedRoles.filter((r: string) => r !== roleValue));
+                        }
+                      };
 
-                  <Field>
-                    <FieldLabel className="flex items-center gap-2">
-                      <Mail className="size-4" />
-                      Allowed Email Patterns
-                    </FieldLabel>
-                    <Textarea
-                      placeholder="e.g., *@company.com, john@example.com"
-                      value={emailPatternsInput}
-                      onChange={(e) => handleEmailPatternsChange(e.target.value)}
-                      rows={2}
-                    />
-                    <FieldDescription>
-                      Comma-separated email patterns. Use * as wildcard (e.g., *@company.com)
-                    </FieldDescription>
-                    <form.Subscribe selector={(state) => state.values.allowed_email_patterns}>
-                      {(patterns) =>
-                        patterns &&
-                        patterns.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {patterns.map((pattern) => (
-                              <Badge key={pattern} variant="outline" className="font-mono text-xs">
-                                {pattern}
-                              </Badge>
+                      return (
+                        <Field>
+                          <FieldLabel className="flex items-center gap-2">
+                            <Users className="size-4" />
+                            Allowed Roles
+                          </FieldLabel>
+                          <FieldDescription className="mb-3">
+                            Select which roles can access this resource
+                          </FieldDescription>
+                          <div className="space-y-2">
+                            {KNOWN_ROLES.map((role) => (
+                              <div
+                                key={role.value}
+                                className={`flex items-start gap-3 p-3 rounded-lg border ${
+                                  selectedRoles.includes(role.value)
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border bg-muted/30'
+                                }`}
+                              >
+                                <Checkbox
+                                  id={`role-${role.value}`}
+                                  checked={selectedRoles.includes(role.value)}
+                                  onCheckedChange={(checked) =>
+                                    handleRoleToggle(role.value, checked as boolean)
+                                  }
+                                />
+                                <div className="flex-1">
+                                  <Label
+                                    htmlFor={`role-${role.value}`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {role.label}
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {role.description}
+                                  </p>
+                                </div>
+                              </div>
                             ))}
                           </div>
-                        )
-                      }
-                    </form.Subscribe>
-                  </Field>
+                        </Field>
+                      );
+                    }}
+                  </form.Field>
+
+                  <form.Field name="allowed_email_patterns">
+                    {(field) => (
+                      <Field>
+                        <FieldLabel className="flex items-center gap-2">
+                          <Mail className="size-4" />
+                          Allowed Email Patterns
+                        </FieldLabel>
+                        <TagsInput
+                          value={field.state.value || []}
+                          onValueChange={field.handleChange}
+                          delimiters={['Enter', ',']}
+                          validation={emailPatternTagsValidation}
+                        >
+                          {(field.state.value || []).map((pattern, index) => (
+                            <TagsInputTag key={pattern} index={index}>
+                              <TagsInputTagText>{pattern}</TagsInputTagText>
+                              <TagsInputTagRemove />
+                            </TagsInputTag>
+                          ))}
+                          <TagsInputInput placeholder="Add pattern (e.g., *@company.com)..." />
+                        </TagsInput>
+                        <FieldDescription>
+                          Email patterns. Use * as wildcard. Press Enter or comma to add.
+                        </FieldDescription>
+                      </Field>
+                    )}
+                  </form.Field>
 
                   <form.Field name="require_2fa">
                     {(field) => (
@@ -580,6 +745,19 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
           {isConfiguring ? 'Saving...' : 'Save Configuration'}
         </Button>
       </div>
+
+      {/* Provider Restriction Modal */}
+      {selectedProvider && (
+        <ProviderRestrictionModal
+          open={restrictionModalOpen}
+          onOpenChange={setRestrictionModalOpen}
+          providerId={selectedProvider.id}
+          providerName={selectedProvider.name}
+          restriction={getRestrictionForProvider(selectedProvider.id)}
+          onSave={handleSaveProviderRestriction}
+          isSaving={isSetting}
+        />
+      )}
     </form>
   );
 }

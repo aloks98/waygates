@@ -20,20 +20,55 @@ import (
 type ACLHandler struct {
 	aclService   service.ACLServiceInterface
 	aclRepo      repository.ACLRepositoryInterface
+	syncService  service.SyncServiceInterface
 	auditService service.AuditServiceInterface
 	logger       *zap.Logger
 }
 
 // NewACLHandler creates a new ACL handler
-func NewACLHandler(aclService service.ACLServiceInterface, aclRepo repository.ACLRepositoryInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ACLHandler {
+func NewACLHandler(aclService service.ACLServiceInterface, aclRepo repository.ACLRepositoryInterface, syncService service.SyncServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ACLHandler {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
 	return &ACLHandler{
 		aclService:   aclService,
 		aclRepo:      aclRepo,
+		syncService:  syncService,
 		logger:       logger.Named("acl-handler"),
 		auditService: auditService,
+	}
+}
+
+// syncProxiesUsingGroup triggers a Caddy sync for all proxies that use the given ACL group.
+// This ensures that changes to ACL group content (IP rules, basic auth, etc.) are reflected
+// in the Caddy configuration without requiring manual proxy re-save.
+func (h *ACLHandler) syncProxiesUsingGroup(groupID int) {
+	if h.syncService == nil {
+		return
+	}
+
+	assignments, err := h.aclService.GetGroupUsage(groupID)
+	if err != nil {
+		h.logger.Warn("Failed to get proxies using ACL group for sync",
+			zap.Int("group_id", groupID),
+			zap.Error(err))
+		return
+	}
+
+	for _, assignment := range assignments {
+		if err := h.syncService.SyncProxyByID(assignment.ProxyID); err != nil {
+			h.logger.Warn("Failed to sync proxy after ACL group change",
+				zap.Int("proxy_id", assignment.ProxyID),
+				zap.Int("group_id", groupID),
+				zap.Error(err))
+			// Continue syncing other proxies even if one fails
+		}
+	}
+
+	if len(assignments) > 0 {
+		h.logger.Info("Synced proxies after ACL group content change",
+			zap.Int("group_id", groupID),
+			zap.Int("proxy_count", len(assignments)))
 	}
 }
 
@@ -451,6 +486,9 @@ func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Created(w, rule, "IP rule added successfully")
 }
 
@@ -462,6 +500,14 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 		utils.BadRequest(w, "Invalid IP rule ID", nil)
 		return
 	}
+
+	// Get existing rule to obtain groupID for sync
+	existingRule, err := h.aclRepo.GetIPRuleByID(id)
+	if err != nil {
+		utils.NotFound(w, "IP rule not found")
+		return
+	}
+	groupID := existingRule.ACLGroupID
 
 	// Parse request body
 	var req UpdateIPRuleRequest
@@ -513,6 +559,9 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Success(w, rule, "IP rule updated successfully")
 }
 
@@ -525,6 +574,14 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get existing rule to obtain groupID for sync before deletion
+	existingRule, err := h.aclRepo.GetIPRuleByID(id)
+	if err != nil {
+		utils.NotFound(w, "IP rule not found")
+		return
+	}
+	groupID := existingRule.ACLGroupID
+
 	if err := h.aclService.DeleteIPRule(id); err != nil {
 		if errors.Is(err, service.ErrIPRuleNotFound) {
 			utils.NotFound(w, "IP rule not found")
@@ -533,6 +590,9 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 		utils.InternalError(w, "Failed to delete IP rule")
 		return
 	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
 
 	utils.Success(w, nil, "IP rule deleted successfully")
 }
@@ -619,6 +679,9 @@ func (h *ACLHandler) AddBasicAuthUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Created(w, map[string]string{"username": req.Username}, "Basic auth user added successfully")
 }
 
@@ -630,6 +693,14 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		utils.BadRequest(w, "Invalid basic auth user ID", nil)
 		return
 	}
+
+	// Get existing user to obtain groupID for sync
+	existingUser, err := h.aclRepo.GetBasicAuthUserByID(id)
+	if err != nil {
+		utils.NotFound(w, "Basic auth user not found")
+		return
+	}
+	groupID := existingUser.ACLGroupID
 
 	// Parse request body
 	var req UpdateBasicAuthUserRequest
@@ -662,6 +733,9 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Success(w, nil, "Basic auth user password updated successfully")
 }
 
@@ -674,6 +748,14 @@ func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get existing user to obtain groupID for sync before deletion
+	existingUser, err := h.aclRepo.GetBasicAuthUserByID(id)
+	if err != nil {
+		utils.NotFound(w, "Basic auth user not found")
+		return
+	}
+	groupID := existingUser.ACLGroupID
+
 	if err := h.aclService.DeleteBasicAuthUser(id); err != nil {
 		if errors.Is(err, service.ErrBasicAuthUserNotFound) {
 			utils.NotFound(w, "Basic auth user not found")
@@ -682,6 +764,9 @@ func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		utils.InternalError(w, "Failed to delete basic auth user")
 		return
 	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
 
 	utils.Success(w, nil, "Basic auth user deleted successfully")
 }
@@ -780,6 +865,9 @@ func (h *ACLHandler) AddExternalProvider(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Created(w, provider, "External provider added successfully")
 }
 
@@ -791,6 +879,14 @@ func (h *ACLHandler) UpdateExternalProvider(w http.ResponseWriter, r *http.Reque
 		utils.BadRequest(w, "Invalid external provider ID", nil)
 		return
 	}
+
+	// Get existing provider to obtain groupID for sync
+	existingProvider, err := h.aclRepo.GetExternalProviderByID(id)
+	if err != nil {
+		utils.NotFound(w, "External provider not found")
+		return
+	}
+	groupID := existingProvider.ACLGroupID
 
 	// Parse request body
 	var req UpdateExternalProviderRequest
@@ -843,6 +939,9 @@ func (h *ACLHandler) UpdateExternalProvider(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
 	utils.Success(w, provider, "External provider updated successfully")
 }
 
@@ -855,6 +954,14 @@ func (h *ACLHandler) DeleteExternalProvider(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Get existing provider to obtain groupID for sync before deletion
+	existingProvider, err := h.aclRepo.GetExternalProviderByID(id)
+	if err != nil {
+		utils.NotFound(w, "External provider not found")
+		return
+	}
+	groupID := existingProvider.ACLGroupID
+
 	if err := h.aclService.DeleteExternalProvider(id); err != nil {
 		if errors.Is(err, service.ErrExternalProviderNotFound) {
 			utils.NotFound(w, "External provider not found")
@@ -863,6 +970,9 @@ func (h *ACLHandler) DeleteExternalProvider(w http.ResponseWriter, r *http.Reque
 		utils.InternalError(w, "Failed to delete external provider")
 		return
 	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
 
 	utils.Success(w, nil, "External provider deleted successfully")
 }
@@ -935,6 +1045,9 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 		utils.InternalError(w, "Failed to configure Waygates auth")
 		return
 	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
 
 	utils.Success(w, config, "Waygates auth configured successfully")
 }
@@ -1020,4 +1133,144 @@ func (h *ACLHandler) GetGroupUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.Success(w, assignments, "")
+}
+
+// =============================================================================
+// OAuth Provider Restriction Handlers
+// =============================================================================
+
+// Valid OAuth providers
+var validOAuthProviders = map[string]bool{
+	"google":    true,
+	"github":    true,
+	"microsoft": true,
+	"gitlab":    true,
+}
+
+// SetOAuthProviderRestrictionRequest is the request body for setting OAuth provider restrictions
+type SetOAuthProviderRestrictionRequest struct {
+	AllowedEmails  []string `json:"allowed_emails"`
+	AllowedDomains []string `json:"allowed_domains"`
+	Enabled        bool     `json:"enabled"`
+}
+
+// GetOAuthProviderRestrictions handles GET /api/acl/groups/{id}/oauth-restrictions
+func (h *ACLHandler) GetOAuthProviderRestrictions(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	groupID, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	restrictions, err := h.aclService.GetOAuthProviderRestrictions(groupID)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		h.logger.Error("Failed to get OAuth provider restrictions",
+			zap.Int("group_id", groupID),
+			zap.Error(err))
+		utils.InternalError(w, "Failed to get OAuth provider restrictions")
+		return
+	}
+
+	utils.Success(w, restrictions, "")
+}
+
+// SetOAuthProviderRestriction handles PUT /api/acl/groups/{id}/oauth-restrictions/{provider}
+func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	groupID, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	provider := chi.URLParam(r, "provider")
+	if provider == "" {
+		utils.BadRequest(w, "Provider is required", nil)
+		return
+	}
+
+	// Validate provider is one of the valid OAuth providers
+	if !validOAuthProviders[provider] {
+		utils.BadRequest(w, "Invalid provider: must be one of 'google', 'github', 'microsoft', 'gitlab'", nil)
+		return
+	}
+
+	// Parse request body
+	var req SetOAuthProviderRestrictionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body format", nil)
+		return
+	}
+
+	if err := h.aclService.SetOAuthProviderRestriction(groupID, provider, req.AllowedEmails, req.AllowedDomains, req.Enabled); err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		h.logger.Error("Failed to set OAuth provider restriction",
+			zap.Int("group_id", groupID),
+			zap.String("provider", provider),
+			zap.Error(err))
+		utils.InternalError(w, "Failed to set OAuth provider restriction")
+		return
+	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
+	utils.Success(w, map[string]interface{}{
+		"provider":        provider,
+		"allowed_emails":  req.AllowedEmails,
+		"allowed_domains": req.AllowedDomains,
+		"enabled":         req.Enabled,
+	}, "OAuth provider restriction set successfully")
+}
+
+// DeleteOAuthProviderRestriction handles DELETE /api/acl/groups/{id}/oauth-restrictions/{provider}
+func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	groupID, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	provider := chi.URLParam(r, "provider")
+	if provider == "" {
+		utils.BadRequest(w, "Provider is required", nil)
+		return
+	}
+
+	// Validate provider is one of the valid OAuth providers
+	if !validOAuthProviders[provider] {
+		utils.BadRequest(w, "Invalid provider: must be one of 'google', 'github', 'microsoft', 'gitlab'", nil)
+		return
+	}
+
+	if err := h.aclService.DeleteOAuthProviderRestriction(groupID, provider); err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		if errors.Is(err, service.ErrOAuthProviderRestrictionNotFound) {
+			utils.NotFound(w, "OAuth provider restriction not found")
+			return
+		}
+		h.logger.Error("Failed to delete OAuth provider restriction",
+			zap.Int("group_id", groupID),
+			zap.String("provider", provider),
+			zap.Error(err))
+		utils.InternalError(w, "Failed to delete OAuth provider restriction")
+		return
+	}
+
+	// Sync all proxies using this ACL group
+	h.syncProxiesUsingGroup(groupID)
+
+	utils.Success(w, nil, "OAuth provider restriction deleted successfully")
 }

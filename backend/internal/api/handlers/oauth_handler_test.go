@@ -104,6 +104,17 @@ func (m *oauthMockACLService) UpdateBranding(branding *models.ACLBranding) error
 	return nil
 }
 
+// OAuth Provider Restrictions
+func (m *oauthMockACLService) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	return nil, nil
+}
+func (m *oauthMockACLService) SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error {
+	return nil
+}
+func (m *oauthMockACLService) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	return nil
+}
+
 // Access Verification
 func (m *oauthMockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 	return nil, nil

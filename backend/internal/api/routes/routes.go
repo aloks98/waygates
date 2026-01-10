@@ -139,7 +139,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService, logger)
 	syncHandler := handlers.NewSyncHandler(syncService, logger)
 	auditHandler := handlers.NewAuditHandler(auditService, logger)
-	aclHandler := handlers.NewACLHandler(aclService, aclRepo, auditService, logger)
+	aclHandler := handlers.NewACLHandler(aclService, aclRepo, syncService, auditService, logger)
 	aclVerifyHandler := handlers.NewACLVerifyHandler(handlers.ACLVerifyHandlerConfig{
 		ACLService:   aclService,
 		UserRepo:     userRepo,
@@ -152,6 +152,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		ProviderManager: oauthProviderManager,
 		ACLService:      aclService,
 		UserRepo:        userRepo,
+		ProxyRepo:       proxyRepo,
 		AuditService:    auditService,
 		Config:          cfg,
 		Logger:          logger,
@@ -263,6 +264,11 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 				// Waygates Auth config for a group
 				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/waygates-auth", aclHandler.GetWaygatesAuth)
 				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{id}/waygates-auth", aclHandler.ConfigureWaygatesAuth)
+
+				// OAuth Provider Restrictions for a group
+				r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/{id}/oauth-restrictions", aclHandler.GetOAuthProviderRestrictions)
+				r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{id}/oauth-restrictions/{provider}", aclHandler.SetOAuthProviderRestriction)
+				r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{id}/oauth-restrictions/{provider}", aclHandler.DeleteOAuthProviderRestriction)
 			})
 
 			// IP Rules direct access (for update/delete by rule ID)

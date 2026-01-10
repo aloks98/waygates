@@ -62,6 +62,11 @@ type MockACLService struct {
 	GetBrandingFunc    func() (*models.ACLBranding, error)
 	UpdateBrandingFunc func(branding *models.ACLBranding) error
 
+	// OAuth Provider Restrictions
+	GetOAuthProviderRestrictionsFunc   func(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	SetOAuthProviderRestrictionFunc    func(groupID int, provider string, emails, domains []string, enabled bool) error
+	DeleteOAuthProviderRestrictionFunc func(groupID int, provider string) error
+
 	// Access Verification
 	VerifyAccessFunc func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error)
 
@@ -272,6 +277,30 @@ func (m *MockACLService) UpdateBranding(branding *models.ACLBranding) error {
 	return nil
 }
 
+// GetOAuthProviderRestrictions implements ACLServiceInterface.
+func (m *MockACLService) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	if m.GetOAuthProviderRestrictionsFunc != nil {
+		return m.GetOAuthProviderRestrictionsFunc(groupID)
+	}
+	return []models.ACLOAuthProviderRestriction{}, nil
+}
+
+// SetOAuthProviderRestriction implements ACLServiceInterface.
+func (m *MockACLService) SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error {
+	if m.SetOAuthProviderRestrictionFunc != nil {
+		return m.SetOAuthProviderRestrictionFunc(groupID, provider, emails, domains, enabled)
+	}
+	return nil
+}
+
+// DeleteOAuthProviderRestriction implements ACLServiceInterface.
+func (m *MockACLService) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	if m.DeleteOAuthProviderRestrictionFunc != nil {
+		return m.DeleteOAuthProviderRestrictionFunc(groupID, provider)
+	}
+	return nil
+}
+
 // VerifyAccess implements ACLServiceInterface.
 func (m *MockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 	if m.VerifyAccessFunc != nil {
@@ -338,9 +367,12 @@ func (m *MockACLService) CleanupExpiredSessions() (int64, error) {
 
 // MockACLRepository is a mock implementation of ACLRepositoryInterface for testing
 type MockACLRepository struct {
-	ListIPRulesFunc           func(groupID int) ([]models.ACLIPRule, error)
-	ListBasicAuthUsersFunc    func(groupID int) ([]models.ACLBasicAuthUser, error)
-	ListExternalProvidersFunc func(groupID int) ([]models.ACLExternalProvider, error)
+	ListIPRulesFunc             func(groupID int) ([]models.ACLIPRule, error)
+	GetIPRuleByIDFunc           func(id int) (*models.ACLIPRule, error)
+	ListBasicAuthUsersFunc      func(groupID int) ([]models.ACLBasicAuthUser, error)
+	GetBasicAuthUserByIDFunc    func(id int) (*models.ACLBasicAuthUser, error)
+	ListExternalProvidersFunc   func(groupID int) ([]models.ACLExternalProvider, error)
+	GetExternalProviderByIDFunc func(id int) (*models.ACLExternalProvider, error)
 }
 
 func (m *MockACLRepository) CreateGroup(group *models.ACLGroup) error             { return nil }
@@ -349,10 +381,16 @@ func (m *MockACLRepository) GetGroupByName(name string) (*models.ACLGroup, error
 func (m *MockACLRepository) ListGroups(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 	return nil, 0, nil
 }
-func (m *MockACLRepository) UpdateGroup(group *models.ACLGroup) error        { return nil }
-func (m *MockACLRepository) DeleteGroup(id int) error                        { return nil }
-func (m *MockACLRepository) CreateIPRule(rule *models.ACLIPRule) error       { return nil }
-func (m *MockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error) { return nil, nil }
+func (m *MockACLRepository) UpdateGroup(group *models.ACLGroup) error  { return nil }
+func (m *MockACLRepository) DeleteGroup(id int) error                  { return nil }
+func (m *MockACLRepository) CreateIPRule(rule *models.ACLIPRule) error { return nil }
+func (m *MockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error) {
+	if m.GetIPRuleByIDFunc != nil {
+		return m.GetIPRuleByIDFunc(id)
+	}
+	// Return a default rule with group ID 1 for tests that don't need specific behavior
+	return &models.ACLIPRule{ID: id, ACLGroupID: 1}, nil
+}
 func (m *MockACLRepository) ListIPRules(groupID int) ([]models.ACLIPRule, error) {
 	if m.ListIPRulesFunc != nil {
 		return m.ListIPRulesFunc(groupID)
@@ -363,7 +401,11 @@ func (m *MockACLRepository) UpdateIPRule(rule *models.ACLIPRule) error          
 func (m *MockACLRepository) DeleteIPRule(id int) error                               { return nil }
 func (m *MockACLRepository) CreateBasicAuthUser(user *models.ACLBasicAuthUser) error { return nil }
 func (m *MockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUser, error) {
-	return nil, nil
+	if m.GetBasicAuthUserByIDFunc != nil {
+		return m.GetBasicAuthUserByIDFunc(id)
+	}
+	// Return a default user with group ID 1 for tests that don't need specific behavior
+	return &models.ACLBasicAuthUser{ID: id, ACLGroupID: 1}, nil
 }
 func (m *MockACLRepository) GetBasicAuthUser(groupID int, username string) (*models.ACLBasicAuthUser, error) {
 	return nil, nil
@@ -380,7 +422,11 @@ func (m *MockACLRepository) CreateExternalProvider(provider *models.ACLExternalP
 	return nil
 }
 func (m *MockACLRepository) GetExternalProviderByID(id int) (*models.ACLExternalProvider, error) {
-	return nil, nil
+	if m.GetExternalProviderByIDFunc != nil {
+		return m.GetExternalProviderByIDFunc(id)
+	}
+	// Return a default provider with group ID 1 for tests that don't need specific behavior
+	return &models.ACLExternalProvider{ID: id, ACLGroupID: 1}, nil
 }
 func (m *MockACLRepository) ListExternalProviders(groupID int) ([]models.ACLExternalProvider, error) {
 	if m.ListExternalProvidersFunc != nil {
@@ -398,6 +444,21 @@ func (m *MockACLRepository) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAut
 func (m *MockACLRepository) CreateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
 func (m *MockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
 func (m *MockACLRepository) DeleteWaygatesAuth(groupID int) error                  { return nil }
+func (m *MockACLRepository) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	return []models.ACLOAuthProviderRestriction{}, nil
+}
+func (m *MockACLRepository) GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+	return nil, nil
+}
+func (m *MockACLRepository) CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	return nil
+}
+func (m *MockACLRepository) UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	return nil
+}
+func (m *MockACLRepository) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	return nil
+}
 func (m *MockACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
 	return nil
 }
@@ -437,7 +498,7 @@ var _ service.ACLServiceInterface = (*MockACLService)(nil)
 
 // setupACLTestRouter creates a router with ACL handler for testing
 func setupACLTestRouter(mockService *MockACLService, mockRepo *MockACLRepository) *chi.Mux {
-	handler := NewACLHandler(mockService, mockRepo, nil, nil)
+	handler := NewACLHandler(mockService, mockRepo, nil, nil, nil)
 	r := chi.NewRouter()
 
 	// Group routes
@@ -515,7 +576,7 @@ func TestACLHandler_ListGroups_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups", nil)
 	w := httptest.NewRecorder()
 
@@ -538,7 +599,7 @@ func TestACLHandler_ListGroups_WithPagination(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups?page=2&limit=50&search=admin", nil)
 	w := httptest.NewRecorder()
 
@@ -551,7 +612,7 @@ func TestACLHandler_ListGroups_WithPagination(t *testing.T) {
 }
 
 func TestACLHandler_ListGroups_InvalidPage(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups?page=-1", nil)
 	w := httptest.NewRecorder()
 
@@ -561,7 +622,7 @@ func TestACLHandler_ListGroups_InvalidPage(t *testing.T) {
 }
 
 func TestACLHandler_ListGroups_InvalidLimit(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups?limit=101", nil)
 	w := httptest.NewRecorder()
 
@@ -581,7 +642,7 @@ func TestACLHandler_GetGroup_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/1", nil)
 	w := httptest.NewRecorder()
 
@@ -597,7 +658,7 @@ func TestACLHandler_GetGroup_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/999", nil)
 	w := httptest.NewRecorder()
 
@@ -607,7 +668,7 @@ func TestACLHandler_GetGroup_NotFound(t *testing.T) {
 }
 
 func TestACLHandler_GetGroup_InvalidID(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/invalid", nil)
 	w := httptest.NewRecorder()
 
@@ -617,7 +678,7 @@ func TestACLHandler_GetGroup_InvalidID(t *testing.T) {
 }
 
 func TestACLHandler_CreateGroup_ValidationError_EmptyName(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"name": ""}`
 	req := createAuthenticatedRequest(http.MethodPost, "/api/acl/groups", nil)
 	req.Body = httpReadCloser(body)
@@ -629,7 +690,7 @@ func TestACLHandler_CreateGroup_ValidationError_EmptyName(t *testing.T) {
 }
 
 func TestACLHandler_CreateGroup_InvalidCombinationMode(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"name": "Test", "combination_mode": "invalid"}`
 	req := createAuthenticatedRequest(http.MethodPost, "/api/acl/groups", nil)
 	req.Body = httpReadCloser(body)
@@ -647,7 +708,7 @@ func TestACLHandler_CreateGroup_DuplicateName(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"name": "Existing Group"}`
 	req := createAuthenticatedRequest(http.MethodPost, "/api/acl/groups", nil)
 	req.Body = httpReadCloser(body)
@@ -672,7 +733,7 @@ func TestACLHandler_UpdateGroup_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"name": "Updated Group", "combination_mode": "any"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/groups/1", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -690,7 +751,7 @@ func TestACLHandler_UpdateGroup_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"name": "Updated Group"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/groups/999", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -702,7 +763,7 @@ func TestACLHandler_UpdateGroup_NotFound(t *testing.T) {
 }
 
 func TestACLHandler_UpdateGroup_ValidationError(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"name": ""}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/groups/1", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -720,7 +781,7 @@ func TestACLHandler_DeleteGroup_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/groups/1", nil)
 	w := httptest.NewRecorder()
 
@@ -736,7 +797,7 @@ func TestACLHandler_DeleteGroup_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/groups/999", nil)
 	w := httptest.NewRecorder()
 
@@ -780,7 +841,7 @@ func TestACLHandler_ListIPRules_GroupNotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/999/ip-rules", nil)
 	w := httptest.NewRecorder()
 
@@ -797,7 +858,7 @@ func TestACLHandler_AddIPRule_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"rule_type": "allow", "cidr": "192.168.1.0/24", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -815,7 +876,7 @@ func TestACLHandler_AddIPRule_InvalidCIDR(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"rule_type": "allow", "cidr": "invalid-cidr", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -833,7 +894,7 @@ func TestACLHandler_AddIPRule_GroupNotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"rule_type": "allow", "cidr": "192.168.1.0/24", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/999/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -845,7 +906,7 @@ func TestACLHandler_AddIPRule_GroupNotFound(t *testing.T) {
 }
 
 func TestACLHandler_AddIPRule_MissingRuleType(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"cidr": "192.168.1.0/24", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -857,7 +918,7 @@ func TestACLHandler_AddIPRule_MissingRuleType(t *testing.T) {
 }
 
 func TestACLHandler_AddIPRule_MissingCIDR(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"rule_type": "allow", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -869,7 +930,7 @@ func TestACLHandler_AddIPRule_MissingCIDR(t *testing.T) {
 }
 
 func TestACLHandler_AddIPRule_InvalidRuleType(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"rule_type": "invalid", "cidr": "192.168.1.0/24", "priority": 10}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -887,7 +948,7 @@ func TestACLHandler_UpdateIPRule_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"rule_type": "deny", "cidr": "10.0.0.0/8", "priority": 5}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/ip-rules/1", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -905,7 +966,7 @@ func TestACLHandler_UpdateIPRule_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"rule_type": "deny", "cidr": "10.0.0.0/8", "priority": 5}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/ip-rules/999", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -923,7 +984,7 @@ func TestACLHandler_DeleteIPRule_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/ip-rules/1", nil)
 	w := httptest.NewRecorder()
 
@@ -939,7 +1000,7 @@ func TestACLHandler_DeleteIPRule_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/ip-rules/999", nil)
 	w := httptest.NewRecorder()
 
@@ -983,7 +1044,7 @@ func TestACLHandler_AddBasicAuthUser_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"username": "testuser", "password": "password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/basic-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1001,7 +1062,7 @@ func TestACLHandler_AddBasicAuthUser_DuplicateUsername(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"username": "existinguser", "password": "password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/basic-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1013,7 +1074,7 @@ func TestACLHandler_AddBasicAuthUser_DuplicateUsername(t *testing.T) {
 }
 
 func TestACLHandler_AddBasicAuthUser_MissingUsername(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"password": "password123"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/basic-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1025,7 +1086,7 @@ func TestACLHandler_AddBasicAuthUser_MissingUsername(t *testing.T) {
 }
 
 func TestACLHandler_AddBasicAuthUser_MissingPassword(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"username": "testuser"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/basic-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1037,7 +1098,7 @@ func TestACLHandler_AddBasicAuthUser_MissingPassword(t *testing.T) {
 }
 
 func TestACLHandler_AddBasicAuthUser_PasswordTooShort(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{"username": "testuser", "password": "short"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/basic-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1055,7 +1116,7 @@ func TestACLHandler_UpdateBasicAuthUser_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"password": "newpassword123"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/basic-auth/1", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1073,7 +1134,7 @@ func TestACLHandler_UpdateBasicAuthUser_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"password": "newpassword123"}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/basic-auth/999", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1091,7 +1152,7 @@ func TestACLHandler_DeleteBasicAuthUser_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/basic-auth/1", nil)
 	w := httptest.NewRecorder()
 
@@ -1107,7 +1168,7 @@ func TestACLHandler_DeleteBasicAuthUser_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/basic-auth/999", nil)
 	w := httptest.NewRecorder()
 
@@ -1151,7 +1212,7 @@ func TestACLHandler_AddExternalProvider_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{
 		"provider_type": "authelia",
 		"name": "My Authelia",
@@ -1167,7 +1228,7 @@ func TestACLHandler_AddExternalProvider_Success(t *testing.T) {
 }
 
 func TestACLHandler_AddExternalProvider_InvalidProviderType(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{
 		"provider_type": "invalid",
 		"name": "Invalid Provider",
@@ -1183,7 +1244,7 @@ func TestACLHandler_AddExternalProvider_InvalidProviderType(t *testing.T) {
 }
 
 func TestACLHandler_AddExternalProvider_MissingName(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{
 		"provider_type": "authelia",
 		"verify_url": "https://auth.example.com/api/verify"
@@ -1198,7 +1259,7 @@ func TestACLHandler_AddExternalProvider_MissingName(t *testing.T) {
 }
 
 func TestACLHandler_AddExternalProvider_MissingVerifyURL(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{
 		"provider_type": "authelia",
 		"name": "My Provider"
@@ -1219,7 +1280,7 @@ func TestACLHandler_UpdateExternalProvider_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{
 		"provider_type": "authentik",
 		"name": "Updated Provider",
@@ -1241,7 +1302,7 @@ func TestACLHandler_UpdateExternalProvider_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{
 		"provider_type": "authentik",
 		"name": "Updated Provider",
@@ -1263,7 +1324,7 @@ func TestACLHandler_DeleteExternalProvider_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/providers/1", nil)
 	w := httptest.NewRecorder()
 
@@ -1279,7 +1340,7 @@ func TestACLHandler_DeleteExternalProvider_NotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodDelete, "/api/acl/providers/999", nil)
 	w := httptest.NewRecorder()
 
@@ -1304,7 +1365,7 @@ func TestACLHandler_GetWaygatesAuth_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/1/waygates-auth", nil)
 	w := httptest.NewRecorder()
 
@@ -1320,7 +1381,7 @@ func TestACLHandler_GetWaygatesAuth_NotConfigured(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/1/waygates-auth", nil)
 	w := httptest.NewRecorder()
 
@@ -1337,7 +1398,7 @@ func TestACLHandler_GetWaygatesAuth_GroupNotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/999/waygates-auth", nil)
 	w := httptest.NewRecorder()
 
@@ -1353,7 +1414,7 @@ func TestACLHandler_ConfigureWaygatesAuth_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{
 		"enabled": true,
 		"allowed_users": ["admin", "user1"],
@@ -1376,7 +1437,7 @@ func TestACLHandler_ConfigureWaygatesAuth_GroupNotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{"enabled": true}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/groups/999/waygates-auth", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1403,7 +1464,7 @@ func TestACLHandler_GetBranding_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/branding", nil)
 	w := httptest.NewRecorder()
 
@@ -1424,7 +1485,7 @@ func TestACLHandler_UpdateBranding_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{
 		"primary_color": "#ff0000",
 		"background_color": "#000000",
@@ -1448,7 +1509,7 @@ func TestACLHandler_UpdateBranding_DefaultValues(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	body := `{}`
 	req := httptest.NewRequest(http.MethodPut, "/api/acl/branding", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1480,7 +1541,7 @@ func TestACLHandler_GetGroupUsage_Success(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/1/usage", nil)
 	w := httptest.NewRecorder()
 
@@ -1496,7 +1557,7 @@ func TestACLHandler_GetGroupUsage_GroupNotFound(t *testing.T) {
 		},
 	}
 
-	r := setupACLTestRouter(mockService, nil)
+	r := setupACLTestRouter(mockService, &MockACLRepository{})
 	req := httptest.NewRequest(http.MethodGet, "/api/acl/groups/999/usage", nil)
 	w := httptest.NewRecorder()
 
@@ -1510,7 +1571,7 @@ func TestACLHandler_GetGroupUsage_GroupNotFound(t *testing.T) {
 // =============================================================================
 
 func TestACLHandler_InvalidJSON(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 	body := `{invalid json}`
 	req := httptest.NewRequest(http.MethodPost, "/api/acl/groups/1/ip-rules", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -1522,7 +1583,7 @@ func TestACLHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestACLHandler_InvalidIDFormat(t *testing.T) {
-	r := setupACLTestRouter(&MockACLService{}, nil)
+	r := setupACLTestRouter(&MockACLService{}, &MockACLRepository{})
 
 	testCases := []struct {
 		name   string

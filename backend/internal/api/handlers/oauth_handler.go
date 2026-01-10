@@ -31,6 +31,7 @@ type OAuthHandler struct {
 	providerManager *auth.OAuthProviderManager
 	aclService      service.ACLServiceInterface
 	userRepo        repository.UserRepositoryInterface
+	proxyRepo       repository.ProxyRepositoryInterface
 	auditService    service.AuditServiceInterface
 	config          *config.Config
 	logger          *zap.Logger
@@ -41,6 +42,7 @@ type OAuthHandlerConfig struct {
 	ProviderManager *auth.OAuthProviderManager
 	ACLService      service.ACLServiceInterface
 	UserRepo        repository.UserRepositoryInterface
+	ProxyRepo       repository.ProxyRepositoryInterface
 	AuditService    service.AuditServiceInterface
 	Config          *config.Config
 	Logger          *zap.Logger
@@ -57,6 +59,7 @@ func NewOAuthHandler(cfg OAuthHandlerConfig) *OAuthHandler {
 		providerManager: cfg.ProviderManager,
 		aclService:      cfg.ACLService,
 		userRepo:        cfg.UserRepo,
+		proxyRepo:       cfg.ProxyRepo,
 		auditService:    cfg.AuditService,
 		config:          cfg.Config,
 		logger:          logger.Named("oauth-handler"),
@@ -351,7 +354,21 @@ func (h *OAuthHandler) validateRedirectURL(redirectURL string) string {
 		}
 	}
 
+	// Check if the hostname is a configured proxy in Waygates
+	// This allows OAuth redirects back to protected resources
+	if h.proxyRepo != nil {
+		hostname := parsed.Hostname()
+		if proxy, err := h.proxyRepo.GetByHostname(hostname); err == nil && proxy != nil {
+			h.logger.Debug("Allowing redirect to configured proxy hostname",
+				zap.String("hostname", hostname),
+				zap.Int("proxy_id", proxy.ID))
+			return redirectURL
+		}
+	}
+
 	// For other absolute URLs, reject and return safe default
+	h.logger.Warn("Rejecting redirect URL - not a configured proxy hostname",
+		zap.String("redirect_url", redirectURL))
 	return "/"
 }
 

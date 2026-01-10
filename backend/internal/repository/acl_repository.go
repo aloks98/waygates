@@ -65,6 +65,13 @@ type ACLRepositoryInterface interface {
 	UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error
 	DeleteWaygatesAuth(groupID int) error
 
+	// OAuth Provider Restrictions
+	GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error)
+	CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error
+	UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error
+	DeleteOAuthProviderRestriction(groupID int, provider string) error
+
 	// Proxy ACL Assignments
 	CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error
 	GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error)
@@ -118,6 +125,7 @@ func (r *ACLRepository) GetGroupByID(id int) (*models.ACLGroup, error) {
 		Preload("BasicAuthUsers").
 		Preload("ExternalProviders").
 		Preload("WaygatesAuth").
+		Preload("OAuthProviderRestrictions").
 		First(&group, id).Error; err != nil {
 		return nil, err
 	}
@@ -189,7 +197,7 @@ func (r *ACLRepository) UpdateGroup(group *models.ACLGroup) error {
 }
 
 // DeleteGroup deletes an ACL group by ID
-// This will cascade delete related IP rules, basic auth users, external providers, and waygates auth
+// This will cascade delete related IP rules, basic auth users, external providers, waygates auth, and oauth provider restrictions
 func (r *ACLRepository) DeleteGroup(id int) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Delete related records first
@@ -203,6 +211,9 @@ func (r *ACLRepository) DeleteGroup(id int) error {
 			return err
 		}
 		if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLWaygatesAuth{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("acl_group_id = ?", id).Delete(&models.ACLOAuthProviderRestriction{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("acl_group_id = ?", id).Delete(&models.ProxyACLAssignment{}).Error; err != nil {
@@ -363,6 +374,43 @@ func (r *ACLRepository) DeleteWaygatesAuth(groupID int) error {
 }
 
 // =============================================================================
+// OAuth Provider Restrictions
+// =============================================================================
+
+// GetOAuthProviderRestrictions retrieves all OAuth provider restrictions for a group
+func (r *ACLRepository) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	var restrictions []models.ACLOAuthProviderRestriction
+	if err := r.db.Where("acl_group_id = ?", groupID).Order("provider ASC").Find(&restrictions).Error; err != nil {
+		return nil, err
+	}
+	return restrictions, nil
+}
+
+// GetOAuthProviderRestriction retrieves an OAuth provider restriction for a specific provider in a group
+func (r *ACLRepository) GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+	var restriction models.ACLOAuthProviderRestriction
+	if err := r.db.Where("acl_group_id = ? AND provider = ?", groupID, provider).First(&restriction).Error; err != nil {
+		return nil, err
+	}
+	return &restriction, nil
+}
+
+// CreateOAuthProviderRestriction creates a new OAuth provider restriction
+func (r *ACLRepository) CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	return r.db.Create(restriction).Error
+}
+
+// UpdateOAuthProviderRestriction updates an existing OAuth provider restriction
+func (r *ACLRepository) UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	return r.db.Save(restriction).Error
+}
+
+// DeleteOAuthProviderRestriction deletes an OAuth provider restriction for a specific provider in a group
+func (r *ACLRepository) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	return r.db.Where("acl_group_id = ? AND provider = ?", groupID, provider).Delete(&models.ACLOAuthProviderRestriction{}).Error
+}
+
+// =============================================================================
 // Proxy ACL Assignments
 // =============================================================================
 
@@ -390,6 +438,7 @@ func (r *ACLRepository) GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAs
 		Preload("ACLGroup.BasicAuthUsers").
 		Preload("ACLGroup.WaygatesAuth").
 		Preload("ACLGroup.ExternalProviders").
+		Preload("ACLGroup.OAuthProviderRestrictions").
 		Where("proxy_id = ?", proxyID).
 		Order("priority ASC, id ASC").
 		Find(&assignments).Error; err != nil {

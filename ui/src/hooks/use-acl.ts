@@ -10,6 +10,7 @@ import type {
   ACLGroupListParams,
   ACLGroupListResponse,
   ACLIPRule,
+  ACLOAuthProviderRestriction,
   ACLWaygatesAuth,
   AssignACLRequest,
   ConfigureWaygatesAuthRequest,
@@ -19,6 +20,7 @@ import type {
   CreateIPRuleRequest,
   OAuthProvider,
   ProxyACLAssignment,
+  SetOAuthProviderRestrictionRequest,
   UpdateACLBrandingRequest,
   UpdateACLGroupRequest,
   UpdateBasicAuthUserRequest,
@@ -51,6 +53,10 @@ function externalProvidersKey(groupId: number) {
 
 function waygatesAuthKey(groupId: number) {
   return [...ACL_GROUPS_KEY, groupId, 'waygates-auth'] as const;
+}
+
+function oauthProviderRestrictionsKey(groupId: number) {
+  return [...ACL_GROUPS_KEY, groupId, 'oauth-restrictions'] as const;
 }
 
 function proxyAclKey(proxyId: number) {
@@ -585,6 +591,89 @@ export function useConfigureWaygatesAuth() {
   return {
     configureAuth: mutation.mutateAsync,
     isConfiguring: mutation.isPending,
+  };
+}
+
+// =============================================================================
+// OAuth Provider Restrictions
+// =============================================================================
+
+export function useOAuthProviderRestrictions(groupId: number) {
+  const query = useQuery({
+    queryKey: oauthProviderRestrictionsKey(groupId),
+    queryFn: async () => {
+      const response = await api
+        .get(`acl/groups/${groupId}/oauth-restrictions`)
+        .json<ApiResponse<ACLOAuthProviderRestriction[]>>();
+      return response.data;
+    },
+    enabled: groupId > 0,
+  });
+
+  return {
+    restrictions: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+export function useSetOAuthProviderRestriction() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      groupId,
+      provider,
+      data,
+    }: {
+      groupId: number;
+      provider: string;
+      data: SetOAuthProviderRestrictionRequest;
+    }) => {
+      return await api
+        .put(`acl/groups/${groupId}/oauth-restrictions/${provider}`, { json: data })
+        .json<ApiResponse<ACLOAuthProviderRestriction>>();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: oauthProviderRestrictionsKey(variables.groupId) });
+      queryClient.invalidateQueries({ queryKey: aclGroupKey(variables.groupId) });
+      toast.success(`OAuth restriction for ${variables.provider} updated successfully`);
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to update OAuth provider restriction', { description: message });
+    },
+  });
+
+  return {
+    setRestriction: mutation.mutateAsync,
+    isSetting: mutation.isPending,
+  };
+}
+
+export function useDeleteOAuthProviderRestriction() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async ({ groupId, provider }: { groupId: number; provider: string }) => {
+      await api.delete(`acl/groups/${groupId}/oauth-restrictions/${provider}`);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: oauthProviderRestrictionsKey(variables.groupId) });
+      queryClient.invalidateQueries({ queryKey: aclGroupKey(variables.groupId) });
+      toast.success(`OAuth restriction for ${variables.provider} removed successfully`);
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to remove OAuth provider restriction', { description: message });
+    },
+  });
+
+  return {
+    deleteRestriction: mutation.mutateAsync,
+    isDeleting: mutation.isPending,
   };
 }
 

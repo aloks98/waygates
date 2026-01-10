@@ -82,11 +82,12 @@ type ACLGroup struct {
 	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Relations
-	Creator           *User                 `json:"created_by,omitempty" gorm:"foreignKey:CreatedBy"`
-	IPRules           []ACLIPRule           `json:"ip_rules,omitempty" gorm:"foreignKey:ACLGroupID"`
-	BasicAuthUsers    []ACLBasicAuthUser    `json:"basic_auth_users,omitempty" gorm:"foreignKey:ACLGroupID"`
-	ExternalProviders []ACLExternalProvider `json:"external_providers,omitempty" gorm:"foreignKey:ACLGroupID"`
-	WaygatesAuth      *ACLWaygatesAuth      `json:"waygates_auth,omitempty" gorm:"foreignKey:ACLGroupID"`
+	Creator                   *User                         `json:"created_by,omitempty" gorm:"foreignKey:CreatedBy"`
+	IPRules                   []ACLIPRule                   `json:"ip_rules,omitempty" gorm:"foreignKey:ACLGroupID"`
+	BasicAuthUsers            []ACLBasicAuthUser            `json:"basic_auth_users,omitempty" gorm:"foreignKey:ACLGroupID"`
+	ExternalProviders         []ACLExternalProvider         `json:"external_providers,omitempty" gorm:"foreignKey:ACLGroupID"`
+	WaygatesAuth              *ACLWaygatesAuth              `json:"waygates_auth,omitempty" gorm:"foreignKey:ACLGroupID"`
+	OAuthProviderRestrictions []ACLOAuthProviderRestriction `json:"oauth_provider_restrictions,omitempty" gorm:"foreignKey:ACLGroupID"`
 }
 
 // TableName specifies the table name for GORM
@@ -187,6 +188,26 @@ type ACLWaygatesAuth struct {
 
 	// Relations
 	ACLGroup *ACLGroup `json:"-" gorm:"foreignKey:ACLGroupID"`
+}
+
+// ACLOAuthProviderRestriction represents per-provider OAuth email/domain restrictions
+type ACLOAuthProviderRestriction struct {
+	ID             int             `json:"id" gorm:"primaryKey;autoIncrement"`
+	ACLGroupID     int             `json:"acl_group_id" gorm:"not null;index;uniqueIndex:uq_acl_oauth_provider_restrictions_group_provider"`
+	Provider       string          `json:"provider" gorm:"type:varchar(50);not null;uniqueIndex:uq_acl_oauth_provider_restrictions_group_provider"` // e.g., "google", "github"
+	AllowedEmails  JSONStringArray `json:"allowed_emails,omitempty" gorm:"type:text"`                                                               // Specific emails: ["john@example.com"]
+	AllowedDomains JSONStringArray `json:"allowed_domains,omitempty" gorm:"type:text"`                                                              // Email domains: ["@company.com"]
+	Enabled        bool            `json:"enabled" gorm:"not null;default:true"`
+	CreatedAt      time.Time       `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time       `json:"updated_at" gorm:"autoUpdateTime"`
+
+	// Relations
+	ACLGroup *ACLGroup `json:"-" gorm:"foreignKey:ACLGroupID"`
+}
+
+// TableName specifies the table name for GORM
+func (ACLOAuthProviderRestriction) TableName() string {
+	return "acl_oauth_provider_restrictions"
 }
 
 // TableName specifies the table name for GORM

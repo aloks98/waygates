@@ -127,6 +127,11 @@ type ACLServiceInterface interface {
 	GetBranding() (*models.ACLBranding, error)
 	UpdateBranding(branding *models.ACLBranding) error
 
+	// OAuth Provider Restrictions
+	GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error
+	DeleteOAuthProviderRestriction(groupID int, provider string) error
+
 	// Access Verification (for forward_auth)
 	VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse, error)
 
