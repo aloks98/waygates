@@ -120,11 +120,8 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get redirect URL from query parameter
-	redirectURL := r.URL.Query().Get("redirect")
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
+	// Get redirect URL from query parameter and validate it
+	redirectURL := h.validateRedirectURL(r.URL.Query().Get("redirect"))
 
 	// Generate state parameter with redirect URL encoded
 	state, err := h.generateState(redirectURL)
@@ -208,8 +205,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract redirect URL from state
-	redirectURL := h.extractRedirectFromState(stateParam)
+	// Extract redirect URL from state and validate it
+	redirectURL := h.validateRedirectURL(h.extractRedirectFromState(stateParam))
 
 	// Clear state cookie
 	http.SetCookie(w, &http.Cookie{
@@ -313,16 +310,50 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		zap.Int("user_id", user.ID),
 		zap.String("username", user.Username))
 
-	// Redirect to original URL
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
+	// Redirect to original URL (already validated above)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// validateRedirectURL validates that a redirect URL is safe to prevent open redirect attacks.
+// Returns the validated URL or "/" if invalid.
+func (h *OAuthHandler) validateRedirectURL(redirectURL string) string {
+	if redirectURL == "" {
+		return "/"
+	}
+
+	// Check for relative paths (must start with / but not //)
+	// Protocol-relative URLs (//example.com) are dangerous
+	if strings.HasPrefix(redirectURL, "/") && !strings.HasPrefix(redirectURL, "//") {
+		return redirectURL
+	}
+
+	// Parse absolute URL
+	parsed, err := url.Parse(redirectURL)
+	if err != nil {
+		return "/"
+	}
+
+	// Reject dangerous schemes
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "/"
+	}
+
+	// Validate against allowed callback base URL
+	if h.config != nil && h.config.ACL.OAuth.CallbackBaseURL != "" {
+		baseURL, err := url.Parse(h.config.ACL.OAuth.CallbackBaseURL)
+		if err == nil && parsed.Host == baseURL.Host {
+			return redirectURL
+		}
+	}
+
+	// For other absolute URLs, reject and return safe default
+	return "/"
+}
 
 // generateState generates a secure state parameter with encoded redirect URL
 func (h *OAuthHandler) generateState(redirectURL string) (string, error) {
@@ -608,10 +639,8 @@ func (h *OAuthHandler) handleOAuthError(w http.ResponseWriter, r *http.Request, 
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Build error redirect URL
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
+	// Validate redirect URL to prevent open redirect attacks
+	redirectURL = h.validateRedirectURL(redirectURL)
 
 	// Add error message to redirect URL
 	errorURL, err := url.Parse(redirectURL)

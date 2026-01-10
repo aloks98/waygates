@@ -292,7 +292,9 @@ export function ReverseProxyForm({
               <div className="w-24">
                 <Select
                   value={upstream.scheme}
-                  onValueChange={(value: 'http' | 'https') => updateUpstream(index, 'scheme', value)}
+                  onValueChange={(value: 'http' | 'https') =>
+                    updateUpstream(index, 'scheme', value)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Scheme" />

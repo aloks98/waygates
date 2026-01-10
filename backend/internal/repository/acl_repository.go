@@ -67,6 +67,7 @@ type ACLRepositoryInterface interface {
 
 	// Proxy ACL Assignments
 	CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error
+	GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error)
 	GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAssignment, error)
 	GetProxyACLAssignmentsByGroup(groupID int) ([]models.ProxyACLAssignment, error)
 	UpdateProxyACLAssignment(assignment *models.ProxyACLAssignment) error
@@ -368,6 +369,15 @@ func (r *ACLRepository) DeleteWaygatesAuth(groupID int) error {
 // CreateProxyACLAssignment creates a new proxy ACL assignment
 func (r *ACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
 	return r.db.Create(assignment).Error
+}
+
+// GetProxyACLAssignmentByID retrieves a proxy ACL assignment by ID
+func (r *ACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+	var assignment models.ProxyACLAssignment
+	if err := r.db.First(&assignment, id).Error; err != nil {
+		return nil, err
+	}
+	return &assignment, nil
 }
 
 // GetProxyACLAssignments returns all ACL assignments for a proxy, ordered by priority.

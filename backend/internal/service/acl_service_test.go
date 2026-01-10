@@ -55,6 +55,7 @@ type MockACLRepository struct {
 
 	// Proxy ACL Assignment methods
 	CreateProxyACLAssignmentFunc                func(assignment *models.ProxyACLAssignment) error
+	GetProxyACLAssignmentByIDFunc               func(id int) (*models.ProxyACLAssignment, error)
 	GetProxyACLAssignmentsFunc                  func(proxyID int) ([]models.ProxyACLAssignment, error)
 	GetProxyACLAssignmentsByGroupFunc           func(groupID int) ([]models.ProxyACLAssignment, error)
 	UpdateProxyACLAssignmentFunc                func(assignment *models.ProxyACLAssignment) error
@@ -267,6 +268,13 @@ func (m *MockACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACL
 		return m.CreateProxyACLAssignmentFunc(assignment)
 	}
 	return nil
+}
+
+func (m *MockACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentByIDFunc != nil {
+		return m.GetProxyACLAssignmentByIDFunc(id)
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (m *MockACLRepository) GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAssignment, error) {

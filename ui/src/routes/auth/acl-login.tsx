@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
+import { sanitizeCSS } from '@/lib/css-sanitizer';
 import { publicApi } from '@/lib/api';
 import type { ACLBranding, OAuthProvider } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';
@@ -204,9 +205,9 @@ export function ACLLoginPage() {
   const effectiveBranding = branding || defaultBranding;
   const effectiveProviders = providers || [];
 
-  // Apply custom CSS if provided
+  // Apply custom CSS if provided (sanitized to prevent XSS and data exfiltration)
   const customStyles = effectiveBranding.custom_css
-    ? { __html: effectiveBranding.custom_css }
+    ? { __html: sanitizeCSS(effectiveBranding.custom_css) }
     : null;
 
   // Background style from branding (only apply if explicitly set)
@@ -216,8 +217,8 @@ export function ACLLoginPage() {
 
   return (
     <>
-      {/* Inject custom CSS from admin-configured branding settings */}
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Custom CSS is admin-configured branding */}
+      {/* Inject custom CSS - sanitized to prevent XSS and data exfiltration */}
+      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: CSS is sanitized via sanitizeCSS() */}
       {customStyles && <style dangerouslySetInnerHTML={customStyles} />}
 
       <div

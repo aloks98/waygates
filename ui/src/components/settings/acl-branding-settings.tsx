@@ -21,6 +21,7 @@ import {
 import { Eye, Lock, Mail, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useACLBranding, useUpdateACLBranding } from '@/hooks';
+import { sanitizeCSS } from '@/lib/css-sanitizer';
 import type { ACLBranding } from '@/types/acl';
 
 interface BrandingFormValues {
@@ -171,15 +172,12 @@ function LoginPreview({
         className="relative rounded-lg border shadow-lg overflow-hidden"
         style={{ backgroundColor, minHeight: '480px' }}
       >
-        {/* Custom CSS injection - required for CSS preview, input is sanitized */}
+        {/* Custom CSS injection - sanitized to prevent XSS and data exfiltration */}
         {customCss && (
           <style
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: required for CSS preview feature
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: CSS is sanitized via sanitizeCSS()
             dangerouslySetInnerHTML={{
-              __html: customCss
-                .replace(/<[^>]*>/g, '')
-                .replace(/javascript:/gi, '')
-                .replace(/expression\(/gi, ''),
+              __html: sanitizeCSS(customCss),
             }}
           />
         )}

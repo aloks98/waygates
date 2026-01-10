@@ -236,12 +236,16 @@ func (m *OAuthProviderManager) IsAvailable(id OAuthProviderID) bool {
 	return ok && p.Enabled // Enabled means env vars are present
 }
 
-// Deprecated: Use GetAvailableProviders instead
+// GetEnabledProviders returns enabled providers.
+//
+// Deprecated: Use GetAvailableProviders instead.
 func (m *OAuthProviderManager) GetEnabledProviders() []*OAuthProvider {
 	return m.GetAvailableProviders()
 }
 
-// Deprecated: Use GetAvailableProvidersPublic instead
+// GetEnabledProvidersPublic returns enabled providers in public format.
+//
+// Deprecated: Use GetAvailableProvidersPublic instead.
 func (m *OAuthProviderManager) GetEnabledProvidersPublic() []OAuthProviderPublic {
 	return m.GetAvailableProvidersPublic()
 }

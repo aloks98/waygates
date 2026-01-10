@@ -411,6 +411,9 @@ func (m *MockACLRepository) UpdateProxyACLAssignment(assignment *models.ProxyACL
 	return nil
 }
 func (m *MockACLRepository) DeleteProxyACLAssignment(id int) error { return nil }
+func (m *MockACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+	return nil, nil
+}
 func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error {
 	return nil
 }

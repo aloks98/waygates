@@ -711,29 +711,25 @@ func (s *ACLService) AssignToProxy(proxyID, groupID int, pathPattern string, pri
 
 // UpdateProxyAssignment updates a proxy ACL assignment
 func (s *ACLService) UpdateProxyAssignment(id int, pathPattern string, priority int, enabled bool) error {
-	// Get existing assignments for the proxy to find our assignment
-	// We need to retrieve by iterating since we don't have a direct GetByID method
-	// Let's search through proxy assignments
-
-	// First validate path pattern if provided
+	// Validate path pattern if provided
 	if pathPattern != "" {
 		if err := validatePathPattern(pathPattern); err != nil {
 			return err
 		}
 	}
 
-	// For now, we'll update by getting proxy assignments and finding the one with matching ID
-	// This is a limitation - we should add GetProxyACLAssignmentByID to the repository
-	// But we'll work with what we have
-
-	assignment := &models.ProxyACLAssignment{
-		ID:          id,
-		PathPattern: pathPattern,
-		Priority:    priority,
-		Enabled:     enabled,
+	// Fetch existing assignment to preserve ProxyID and ACLGroupID
+	existing, err := s.aclRepo.GetProxyACLAssignmentByID(id)
+	if err != nil {
+		return fmt.Errorf("getting proxy ACL assignment: %w", err)
 	}
 
-	if err := s.aclRepo.UpdateProxyACLAssignment(assignment); err != nil {
+	// Update only the fields we want to change
+	existing.PathPattern = pathPattern
+	existing.Priority = priority
+	existing.Enabled = enabled
+
+	if err := s.aclRepo.UpdateProxyACLAssignment(existing); err != nil {
 		return fmt.Errorf("updating proxy ACL assignment: %w", err)
 	}
 
