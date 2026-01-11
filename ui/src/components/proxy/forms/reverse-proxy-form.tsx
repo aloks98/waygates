@@ -25,6 +25,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
+import { type ACLAssignment, ACLSelector } from './acl-selector';
 
 const upstreamSchema = z.object({
   host: z.string().min(1, 'Host is required'),
@@ -54,20 +55,39 @@ type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
 
 interface ReverseProxyFormProps {
   initialData?: ProxyConfig | null;
-  onSubmit: (data: CreateReverseProxyRequest) => void;
+  initialACLAssignments?: ACLAssignment[];
+  onSubmit: (data: CreateReverseProxyRequest, aclAssignments?: ACLAssignment[]) => void;
   loading: boolean;
   onCancel: () => void;
 }
 
+// Helper to normalize upstreams from initial data
+function normalizeUpstreams(
+  data?: ProxyConfig | null,
+): Array<{ host: string; port: number; scheme: 'http' | 'https' }> {
+  if (!data?.upstreams?.length) {
+    return [{ host: '', port: 8080, scheme: 'http' }];
+  }
+  return data.upstreams.map((u) => ({
+    host: u.host || '',
+    port: u.port || 8080,
+    scheme: (String(u.scheme || '').toLowerCase() === 'https' ? 'https' : 'http') as
+      | 'http'
+      | 'https',
+  }));
+}
+
 export function ReverseProxyForm({
   initialData,
+  initialACLAssignments,
   onSubmit,
   loading,
   onCancel,
 }: ReverseProxyFormProps) {
-  const [upstreams, setUpstreams] = useState<
-    Array<{ host: string; port: number; scheme: 'http' | 'https' }>
-  >([{ host: '', port: 8080, scheme: 'http' }]);
+  const [upstreams, setUpstreams] = useState(() => normalizeUpstreams(initialData));
+  const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
+    initialACLAssignments ?? [],
+  );
 
   const form = useForm({
     defaultValues: {
@@ -115,15 +135,13 @@ export function ReverseProxyForm({
         };
       }
 
-      onSubmit(data);
+      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
 
   useEffect(() => {
     if (initialData) {
-      const upstreamData = initialData.upstreams?.length
-        ? initialData.upstreams
-        : [{ host: '', port: 8080, scheme: 'http' as const }];
+      const upstreamData = normalizeUpstreams(initialData);
 
       setUpstreams(upstreamData);
 
@@ -153,6 +171,13 @@ export function ReverseProxyForm({
       );
     }
   }, [initialData, form.setFieldValue]);
+
+  // Update ACL assignments when initialACLAssignments changes (async load)
+  useEffect(() => {
+    if (initialACLAssignments) {
+      setAclAssignments(initialACLAssignments);
+    }
+  }, [initialACLAssignments]);
 
   const addUpstream = () => {
     const newUpstreams = [...upstreams, { host: '', port: 8080, scheme: 'http' as const }];
@@ -267,10 +292,12 @@ export function ReverseProxyForm({
               <div className="w-24">
                 <Select
                   value={upstream.scheme}
-                  onValueChange={(value) => updateUpstream(index, 'scheme', value)}
+                  onValueChange={(value: 'http' | 'https') =>
+                    updateUpstream(index, 'scheme', value)
+                  }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Scheme" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="http">HTTP</SelectItem>
@@ -287,10 +314,16 @@ export function ReverseProxyForm({
               </div>
               <div className="w-24">
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   placeholder="8080"
-                  value={upstream.port}
-                  onChange={(e) => updateUpstream(index, 'port', parseInt(e.target.value, 10) || 0)}
+                  value={upstream.port || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    const port = value ? Math.min(parseInt(value, 10), 65535) : 0;
+                    updateUpstream(index, 'port', port);
+                  }}
                 />
               </div>
               {upstreams.length > 1 && (
@@ -448,6 +481,8 @@ export function ReverseProxyForm({
           </form.Field>
         </CardContent>
       </Card>
+
+      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel}>

@@ -159,3 +159,86 @@ func mapLBStrategy(strategy string) string {
 		return "round_robin"
 	}
 }
+
+// buildReverseProxyBlockWithACL generates a reverse proxy site block with ACL configuration.
+// The ACL configuration is inserted before the reverse proxy directive, and handles
+// requests based on path patterns, IP rules, and authentication requirements.
+func (b *Builder) buildReverseProxyBlockWithACL(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) (string, error) {
+	if proxy.Upstreams == nil {
+		return "", fmt.Errorf("reverse proxy requires at least one upstream")
+	}
+
+	upstreams, ok := proxy.Upstreams.([]interface{})
+	if !ok || len(upstreams) == 0 {
+		return "", fmt.Errorf("reverse proxy requires at least one upstream")
+	}
+
+	var sb strings.Builder
+
+	// Site block with hostname
+	siteAddr := formatSiteAddress(proxy.Hostname, proxy.SSLEnabled)
+	sb.WriteString(fmt.Sprintf("%s {\n", siteAddr))
+
+	// Import security snippet if block exploits is enabled
+	if proxy.BlockExploits {
+		sb.WriteString("\timport /etc/caddy/snippets/security.caddy\n\n")
+	}
+
+	// Generate ACL configuration using the ACL builder
+	if b.aclBuilder != nil {
+		aclConfig := b.aclBuilder.BuildACLConfig(proxy, aclAssignments)
+		if aclConfig != "" {
+			sb.WriteString("\t# ACL Configuration\n")
+			sb.WriteString(aclConfig)
+		}
+	}
+
+	// Add fallback reverse proxy for paths not covered by ACL
+	// This handles requests that don't match any ACL path patterns
+	sb.WriteString("\t# Fallback for unprotected paths\n")
+
+	// Build upstream list
+	upstreamAddrs, hasHTTPS := b.buildUpstreamList(upstreams)
+
+	// reverse_proxy directive
+	sb.WriteString(fmt.Sprintf("\treverse_proxy %s {\n", upstreamAddrs))
+
+	// Load balancing config
+	if len(proxy.LoadBalancing) > 0 {
+		b.writeLoadBalancingConfig(&sb, proxy.LoadBalancing)
+	}
+
+	// Health checks
+	if len(proxy.LoadBalancing) > 0 {
+		if healthChecks, ok := proxy.LoadBalancing["health_checks"].(map[string]interface{}); ok {
+			if enabled, _ := healthChecks["enabled"].(bool); enabled {
+				b.writeHealthCheckConfig(&sb, healthChecks)
+			}
+		}
+	}
+
+	// Transport config for HTTPS upstreams
+	if hasHTTPS || proxy.TLSInsecureSkipVerify {
+		b.writeTransportConfig(&sb, hasHTTPS, proxy.TLSInsecureSkipVerify)
+	}
+
+	// Standard headers
+	sb.WriteString("\t\theader_up X-Real-IP {remote_host}\n")
+	sb.WriteString("\t\theader_up X-Forwarded-For {remote_host}\n")
+	sb.WriteString("\t\theader_up X-Forwarded-Proto {scheme}\n")
+	sb.WriteString("\t\theader_up X-Forwarded-Host {host}\n")
+
+	// Custom headers
+	if len(proxy.CustomHeaders) > 0 {
+		for key, value := range proxy.CustomHeaders {
+			if strVal, ok := value.(string); ok {
+				sb.WriteString(fmt.Sprintf("\t\theader_up %s %q\n", key, strVal))
+			}
+		}
+	}
+
+	sb.WriteString("\t}\n") // Close reverse_proxy
+	sb.WriteString("}\n")   // Close site block
+
+	return sb.String(), nil
+}

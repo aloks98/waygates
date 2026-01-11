@@ -25,7 +25,7 @@ import (
 func TestNewAuditHandler(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	require.NotNil(t, handler, "handler should be created")
 	assert.Equal(t, mockService, handler.auditService, "audit service should be set")
@@ -51,7 +51,7 @@ func TestAuditHandler_List_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs", nil)
 	rec := httptest.NewRecorder()
@@ -88,7 +88,7 @@ func TestAuditHandler_List_WithFilters(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?page=2&limit=10&action=proxy.create&status=success&search=test", nil)
 	rec := httptest.NewRecorder()
@@ -120,7 +120,7 @@ func TestAuditHandler_List_WithMultipleActions(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?action=proxy.create,proxy.update,proxy.delete", nil)
 	rec := httptest.NewRecorder()
@@ -151,7 +151,7 @@ func TestAuditHandler_List_WithExclusionFilters(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	// New format: field=operator:value
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?action=not_in:proxy.delete,auth.logout&resource_type=not:system&status=not:failure", nil)
@@ -228,7 +228,7 @@ func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
 					}, nil
 				},
 			}
-			handler := NewAuditHandler(mockService)
+			handler := NewAuditHandler(mockService, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?"+tc.query, nil)
 			rec := httptest.NewRecorder()
@@ -271,7 +271,7 @@ func TestAuditHandler_List_WithMultipleResourceTypes(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?resource_type=proxy,user,settings", nil)
 	rec := httptest.NewRecorder()
@@ -290,7 +290,7 @@ func TestAuditHandler_List_WithMultipleResourceTypes(t *testing.T) {
 func TestAuditHandler_List_InvalidStatusNot(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	// New format: status=not:invalid
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?status=not:invalid", nil)
@@ -304,7 +304,7 @@ func TestAuditHandler_List_InvalidStatusNot(t *testing.T) {
 func TestAuditHandler_List_InvalidPage(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?page=-1", nil)
 	rec := httptest.NewRecorder()
@@ -317,7 +317,7 @@ func TestAuditHandler_List_InvalidPage(t *testing.T) {
 func TestAuditHandler_List_InvalidLimit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?limit=200", nil)
 	rec := httptest.NewRecorder()
@@ -330,7 +330,7 @@ func TestAuditHandler_List_InvalidLimit(t *testing.T) {
 func TestAuditHandler_List_InvalidStatus(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?status=invalid", nil)
 	rec := httptest.NewRecorder()
@@ -347,7 +347,7 @@ func TestAuditHandler_List_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs", nil)
 	rec := httptest.NewRecorder()
@@ -373,7 +373,7 @@ func TestAuditHandler_GetByID_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/audit-logs/{id}", handler.GetByID)
@@ -400,7 +400,7 @@ func TestAuditHandler_GetByID_NotFound(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/audit-logs/{id}", handler.GetByID)
@@ -416,7 +416,7 @@ func TestAuditHandler_GetByID_NotFound(t *testing.T) {
 func TestAuditHandler_GetByID_InvalidID(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	r := chi.NewRouter()
 	r.Get("/api/audit-logs/{id}", handler.GetByID)
@@ -456,7 +456,7 @@ func TestAuditHandler_GetStats_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/stats", nil)
 	rec := httptest.NewRecorder()
@@ -484,7 +484,7 @@ func TestAuditHandler_GetStats_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/stats", nil)
 	rec := httptest.NewRecorder()
@@ -522,7 +522,7 @@ func TestAuditHandler_GetConfig_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/config", nil)
 	rec := httptest.NewRecorder()
@@ -550,7 +550,7 @@ func TestAuditHandler_GetConfig_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/config", nil)
 	rec := httptest.NewRecorder()
@@ -573,7 +573,7 @@ func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
 			return nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"proxy_create":         true,
@@ -612,7 +612,7 @@ func TestAuditHandler_UpdateConfig_Success(t *testing.T) {
 func TestAuditHandler_UpdateConfig_InvalidJSON(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPut, "/api/audit-logs/config", bytes.NewBufferString("{invalid}"))
 	req.Header.Set("Content-Type", "application/json")
@@ -630,7 +630,7 @@ func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 			return errors.New("database error")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"proxy_create":         true,
@@ -696,7 +696,7 @@ func TestAuditHandler_Export_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/export", nil)
 	rec := httptest.NewRecorder()
@@ -719,7 +719,7 @@ func TestAuditHandler_Export_ServiceError(t *testing.T) {
 			return nil, errors.New("database error")
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/export", nil)
 	rec := httptest.NewRecorder()
@@ -846,7 +846,7 @@ func TestAuditHandler_ResponseFormat(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs", nil)
 	rec := httptest.NewRecorder()
@@ -940,7 +940,7 @@ func TestSplitAndTrim(t *testing.T) {
 func TestAuditHandler_GetEventGroups_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/audit-logs/event-groups", nil)
 	rec := httptest.NewRecorder()
@@ -1094,7 +1094,7 @@ func TestParseFilterParam(t *testing.T) {
 func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	testCases := []struct {
 		name  string
@@ -1151,7 +1151,7 @@ func TestAuditHandler_List_CombinedFilters(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := NewAuditHandler(mockService)
+	handler := NewAuditHandler(mockService, nil)
 
 	// Test combining multiple filter types with new format
 	req := httptest.NewRequest(http.MethodGet,

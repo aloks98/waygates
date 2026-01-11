@@ -25,7 +25,7 @@ func TestSyncHandler_GetStatus_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	w := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestSyncHandler_GetStatus_WhileSyncing(t *testing.T) {
 		},
 	}
 
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	w := httptest.NewRecorder()
@@ -97,7 +97,7 @@ func TestSyncHandler_Trigger_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	w := httptest.NewRecorder()
@@ -125,7 +125,7 @@ func TestSyncHandler_Trigger_Error(t *testing.T) {
 		},
 	}
 
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	w := httptest.NewRecorder()
@@ -150,7 +150,7 @@ func TestSyncHandler_GetStatus_WithError(t *testing.T) {
 		},
 	}
 
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	w := httptest.NewRecorder()

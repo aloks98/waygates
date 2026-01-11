@@ -20,10 +20,16 @@ import {
 import type { PaginationState } from '@tanstack/react-table';
 import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getProxyTypeLabel, ProxyDataGrid, ProxyFormModal } from '@/components/proxy';
+import {
+  type ACLAssignment,
+  getProxyTypeLabel,
+  ProxyDataGrid,
+  ProxyFormModal,
+} from '@/components/proxy';
+import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
-import type { ProxyConfig, ProxyType } from '@/types/proxy';
+import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 
 // Map Titanium filter operators to backend operators
 const operatorMap: Record<string, string> = {
@@ -204,24 +210,86 @@ export function ProxiesPage() {
     isToggling,
   } = useProxies(apiParams);
 
+  const { assignACL } = useAssignACL();
+  const { removeACL } = useRemoveACL();
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
   const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
+
+  // Fetch ACL assignments for the proxy being edited
+  const { assignments: editingProxyACL } = useProxyACL(editingProxy?.id ?? 0);
+
+  // Convert API ACL assignments to form ACL assignments
+  const editingProxyACLAssignments: ACLAssignment[] = useMemo(() => {
+    return editingProxyACL.map((a) => ({
+      acl_group_id: a.acl_group_id,
+      acl_group_name: a.acl_group?.name,
+      path_pattern: a.path_pattern,
+      priority: a.priority,
+      enabled: a.enabled,
+    }));
+  }, [editingProxyACL]);
 
   const handleCreateProxy = (type: ProxyType) => {
     setCreateProxyType(type);
     setCreateModalOpen(true);
   };
 
-  const handleCreate = async (data: Parameters<typeof create>[0]) => {
-    await create(data);
+  const handleCreate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
+    const response = await create(data);
+    const proxyId = response.data?.id;
+
+    // Assign ACLs if provided
+    if (proxyId && aclAssignments && aclAssignments.length > 0) {
+      for (const assignment of aclAssignments) {
+        await assignACL({
+          proxyId,
+          data: {
+            acl_group_id: assignment.acl_group_id,
+            path_pattern: assignment.path_pattern,
+            priority: assignment.priority,
+            enabled: assignment.enabled,
+          },
+        });
+      }
+    }
+
     setCreateModalOpen(false);
   };
 
-  const handleUpdate = async (data: Parameters<typeof create>[0]) => {
+  const handleUpdate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
     if (!editingProxy) return;
     await update({ id: editingProxy.id, data });
+
+    // Sync ACL assignments
+    const newAssignments = aclAssignments ?? [];
+    const oldGroupIds = editingProxyACL.map((a) => a.acl_group_id);
+    const newGroupIds = newAssignments.map((a) => a.acl_group_id);
+
+    // Remove ACL groups that are no longer assigned
+    for (const oldAssignment of editingProxyACL) {
+      if (!newGroupIds.includes(oldAssignment.acl_group_id)) {
+        await removeACL({ proxyId: editingProxy.id, groupId: oldAssignment.acl_group_id });
+      }
+    }
+
+    // Add new ACL groups
+    for (const newAssignment of newAssignments) {
+      if (!oldGroupIds.includes(newAssignment.acl_group_id)) {
+        await assignACL({
+          proxyId: editingProxy.id,
+          data: {
+            acl_group_id: newAssignment.acl_group_id,
+            path_pattern: newAssignment.path_pattern,
+            priority: newAssignment.priority,
+            enabled: newAssignment.enabled,
+          },
+        });
+      }
+    }
+
     setEditingProxy(null);
   };
 
@@ -309,10 +377,12 @@ export function ProxiesPage() {
 
       {editingProxy && (
         <ProxyFormModal
+          key={editingProxy.id}
           open={!!editingProxy}
           onOpenChange={(open) => !open && setEditingProxy(null)}
           onSubmit={handleUpdate}
           initialData={editingProxy}
+          initialACLAssignments={editingProxyACLAssignments}
           proxyType={editingProxy.type}
           title={`Edit ${getProxyTypeLabel(editingProxy.type)}`}
           loading={isUpdating}

@@ -55,6 +55,21 @@ permission_groups:
         name: "View Audit Logs"
         description: "View audit log entries"
 
+  - name: "ACL"
+    permissions:
+      - key: "acl:read"
+        name: "View ACL"
+        description: "View access control lists and groups"
+      - key: "acl:create"
+        name: "Create ACL"
+        description: "Create new ACL groups and rules"
+      - key: "acl:update"
+        name: "Update ACL"
+        description: "Modify existing ACL groups, rules, and assignments"
+      - key: "acl:delete"
+        name: "Delete ACL"
+        description: "Remove ACL groups, rules, and assignments"
+
 role_templates:
   - key: "admin"
     name: "Administrator"
@@ -67,6 +82,7 @@ role_templates:
     description: "Manage proxy configurations and settings"
     permissions:
       - "proxies:*"
+      - "acl:*"
       - "settings:read"
       - "settings:write"
       - "sync:read"
@@ -79,6 +95,7 @@ role_templates:
     description: "Read-only access"
     permissions:
       - "proxies:read"
+      - "acl:read"
       - "settings:read"
       - "sync:read"
       - "system:status"

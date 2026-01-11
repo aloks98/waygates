@@ -34,6 +34,7 @@ type SettingsServiceInterface interface {
 type SyncServiceInterface interface {
 	GetStatus() SyncStatus
 	FullSync() error
+	SyncProxyByID(proxyID int) error
 }
 
 // ProxySyncer defines the interface for proxy sync operations used by ProxyService
@@ -86,6 +87,76 @@ type AuditServiceInterface interface {
 	LogCaddyReload(ctx context.Context, success bool, errMsg string) error
 }
 
+// SyncCallback is a function type for syncing proxies after group deletion.
+// It receives a slice of proxy IDs that need to be synced.
+type SyncCallback func(proxyIDs []int)
+
+// ACLServiceInterface defines the interface for ACL operations
+type ACLServiceInterface interface {
+	// Group Management
+	CreateGroup(group *models.ACLGroup, createdBy int) error
+	GetGroup(id int) (*models.ACLGroup, error)
+	GetGroupByName(name string) (*models.ACLGroup, error)
+	ListGroups(params ListACLGroupsRequest) (*models.ACLGroupListResponse, error)
+	UpdateGroup(id int, updates *models.ACLGroup) error
+	DeleteGroup(id int) error
+	// DeleteGroupWithSync atomically deletes an ACL group and returns the proxy IDs that were using it.
+	// The sync callback is called AFTER the transaction commits successfully with the list of proxy IDs
+	// that need to be synced. This prevents the TOCTOU race condition where a new assignment could be
+	// created between fetching assignments and deleting the group.
+	DeleteGroupWithSync(id int, syncFn SyncCallback) error
+
+	// IP Rules
+	AddIPRule(groupID int, rule *models.ACLIPRule) error
+	UpdateIPRule(id int, rule *models.ACLIPRule) error
+	DeleteIPRule(id int) error
+
+	// Basic Auth
+	AddBasicAuthUser(groupID int, username, password string) error
+	UpdateBasicAuthPassword(id int, password string) error
+	DeleteBasicAuthUser(id int) error
+
+	// External Providers
+	AddExternalProvider(groupID int, provider *models.ACLExternalProvider) error
+	UpdateExternalProvider(id int, provider *models.ACLExternalProvider) error
+	DeleteExternalProvider(id int) error
+
+	// Waygates Auth Config
+	GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error)
+	ConfigureWaygatesAuth(groupID int, config *models.ACLWaygatesAuth) error
+
+	// Proxy Assignment
+	AssignToProxy(proxyID, groupID int, pathPattern string, priority int) error
+	UpdateProxyAssignment(id int, pathPattern string, priority int, enabled bool) error
+	RemoveFromProxy(proxyID, groupID int) error
+	GetProxyACL(proxyID int) ([]models.ProxyACLAssignment, error)
+	GetGroupUsage(groupID int) ([]models.ProxyACLAssignment, error)
+
+	// Branding
+	GetBranding() (*models.ACLBranding, error)
+	UpdateBranding(branding *models.ACLBranding) error
+
+	// OAuth Provider Restrictions
+	GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error
+	DeleteOAuthProviderRestriction(groupID int, provider string) error
+
+	// Access Verification (for forward_auth)
+	VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse, error)
+
+	// Auth Options (for login page)
+	GetAuthOptionsForProxy(hostname string) (*AuthOptionsResponse, error)
+
+	// Session Management
+	CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error)
+	CreateSessionWithParams(params CreateSessionParams) (*models.ACLSession, error)
+	ValidateSession(token string) (*models.ACLSession, error)
+	RevokeSession(token string) error
+	RevokeUserSessions(userID int) error
+	CleanupExpiredSessions() (int64, error)
+}
+
 // Ensure concrete types implement interfaces
 var (
 	_ ProxyServiceInterface    = (*ProxyService)(nil)
@@ -93,4 +164,5 @@ var (
 	_ SyncServiceInterface     = (*SyncService)(nil)
 	_ ProxySyncer              = (*SyncService)(nil)
 	_ AuditServiceInterface    = (*AuditService)(nil)
+	_ ACLServiceInterface      = (*ACLService)(nil)
 )

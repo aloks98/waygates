@@ -47,6 +47,7 @@ import {
   KeyRound,
   LogOut,
   Settings,
+  Shield,
   User,
   XCircle,
 } from 'lucide-react';
@@ -76,6 +77,11 @@ const navItems: NavItem[] = [
     label: 'Audit Logs',
     path: '/dashboard/audit-logs',
     icon: <ClipboardList className="size-4" />,
+  },
+  {
+    label: 'Access Control',
+    path: '/dashboard/acl',
+    icon: <Shield className="size-4" />,
   },
   {
     label: 'Settings',
@@ -316,7 +322,7 @@ function ProfileDialog({
   );
 }
 
-export function AppSidebar({ children }: { children: React.ReactNode }) {
+export function AppSidebar({ children }: { children: ReactNode }) {
   const location = useLocation();
   const router = useRouter();
   const { user, logout } = useAuthStore();

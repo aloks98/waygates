@@ -1,13 +1,14 @@
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@e412/titanium';
 import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 import { getProxyTypeIcon } from './cells';
-import { RedirectForm, ReverseProxyForm, StaticForm } from './forms';
+import { type ACLAssignment, RedirectForm, ReverseProxyForm, StaticForm } from './forms';
 
 interface ProxyFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: CreateProxyRequest) => void;
+  onSubmit: (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => void;
   initialData?: ProxyConfig | null;
+  initialACLAssignments?: ACLAssignment[];
   proxyType: ProxyType;
   title: string;
   loading: boolean;
@@ -18,6 +19,7 @@ export function ProxyFormModal({
   onOpenChange,
   onSubmit,
   initialData,
+  initialACLAssignments,
   proxyType,
   title,
   loading,
@@ -37,6 +39,7 @@ export function ProxyFormModal({
           {proxyType === 'reverse_proxy' && (
             <ReverseProxyForm
               initialData={initialData}
+              initialACLAssignments={initialACLAssignments}
               onSubmit={onSubmit}
               loading={loading}
               onCancel={handleCancel}
@@ -45,6 +48,7 @@ export function ProxyFormModal({
           {proxyType === 'redirect' && (
             <RedirectForm
               initialData={initialData}
+              initialACLAssignments={initialACLAssignments}
               onSubmit={onSubmit}
               loading={loading}
               onCancel={handleCancel}
@@ -53,6 +57,7 @@ export function ProxyFormModal({
           {proxyType === 'static' && (
             <StaticForm
               initialData={initialData}
+              initialACLAssignments={initialACLAssignments}
               onSubmit={onSubmit}
               loading={loading}
               onCancel={handleCancel}

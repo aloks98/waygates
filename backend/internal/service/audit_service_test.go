@@ -214,8 +214,7 @@ func TestNewAuditService(t *testing.T) {
 	svc := NewAuditService(nil, nil, nil)
 	if svc == nil {
 		t.Fatal("Expected service to be created")
-	}
-	if svc.logger == nil {
+	} else if svc.logger == nil {
 		t.Error("Expected logger to be set (nop logger)")
 	}
 
@@ -960,8 +959,7 @@ func TestStringPtr(t *testing.T) {
 	result = stringPtr("test")
 	if result == nil {
 		t.Fatal("Expected non-nil for non-empty string")
-	}
-	if *result != "test" {
+	} else if *result != "test" {
 		t.Errorf("Expected 'test', got '%s'", *result)
 	}
 }

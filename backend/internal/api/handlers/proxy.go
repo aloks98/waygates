@@ -10,6 +10,7 @@ import (
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/service"
@@ -20,13 +21,15 @@ import (
 type ProxyHandler struct {
 	service      service.ProxyServiceInterface
 	auditService service.AuditServiceInterface
+	logger       *zap.Logger
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(svc service.ProxyServiceInterface, auditService service.AuditServiceInterface) *ProxyHandler {
+func NewProxyHandler(svc service.ProxyServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyHandler {
 	return &ProxyHandler{
 		service:      svc,
 		auditService: auditService,
+		logger:       logger,
 	}
 }
 
@@ -149,6 +152,12 @@ func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 	// Get proxies from service
 	result, err := h.service.ListProxies(req)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to list proxies",
+				zap.Int("page", req.Page),
+				zap.Int("limit", req.Limit),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to list proxies")
 		return
 	}
@@ -173,6 +182,11 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return
+		}
+		if h.logger != nil {
+			h.logger.Error("Failed to get proxy",
+				zap.Int("id", id),
+				zap.Error(err))
 		}
 		utils.InternalError(w, "Failed to get proxy")
 		return
@@ -229,6 +243,12 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		// Check if it's a Caddy error
 		if service.IsCaddyError(err) {
+			if h.logger != nil {
+				h.logger.Error("Caddy error while creating proxy",
+					zap.String("hostname", proxy.Hostname),
+					zap.Int("user_id", userID),
+					zap.Error(err))
+			}
 			utils.BadGateway(w, err.Error())
 			return
 		}
@@ -305,6 +325,12 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		// Check if it's a Caddy error
 		if service.IsCaddyError(err) {
+			if h.logger != nil {
+				h.logger.Error("Caddy error while updating proxy",
+					zap.Int("id", id),
+					zap.String("hostname", proxy.Hostname),
+					zap.Error(err))
+			}
 			utils.BadGateway(w, err.Error())
 			return
 		}
@@ -352,6 +378,11 @@ func (h *ProxyHandler) DeleteProxy(w http.ResponseWriter, r *http.Request) {
 			utils.NotFound(w, "Proxy not found")
 			return
 		}
+		if h.logger != nil {
+			h.logger.Error("Failed to delete proxy",
+				zap.Int("id", id),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to delete proxy")
 		return
 	}
@@ -391,8 +422,18 @@ func (h *ProxyHandler) EnableProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		// Check if it's a Caddy error
 		if service.IsCaddyError(err) {
+			if h.logger != nil {
+				h.logger.Error("Caddy error while enabling proxy",
+					zap.Int("id", id),
+					zap.Error(err))
+			}
 			utils.BadGateway(w, err.Error())
 			return
+		}
+		if h.logger != nil {
+			h.logger.Error("Failed to enable proxy",
+				zap.Int("id", id),
+				zap.Error(err))
 		}
 		utils.InternalError(w, "Failed to enable proxy")
 		return
@@ -433,6 +474,11 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 			utils.BadRequest(w, "Proxy is already disabled", nil)
 			return
 		}
+		if h.logger != nil {
+			h.logger.Error("Failed to disable proxy",
+				zap.Int("id", id),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to disable proxy")
 		return
 	}
@@ -452,6 +498,9 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 func (h *ProxyHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetStats()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get proxy stats", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to get proxy stats")
 		return
 	}

@@ -163,12 +163,11 @@ func TestNewAuthHandler(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	authProvider := &MockAuthProvider{}
 
-	handler := NewAuthHandler(authProvider, userRepo, nil, 10)
+	handler := NewAuthHandler(authProvider, userRepo, nil, 10, nil)
 
 	if handler == nil {
 		t.Fatal("Expected non-nil handler")
-	}
-	if handler.bcryptCost != 10 {
+	} else if handler.bcryptCost != 10 {
 		t.Errorf("Expected bcryptCost 10, got %d", handler.bcryptCost)
 	}
 }
@@ -364,7 +363,7 @@ func TestRegister(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4) // Low cost for tests
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil) // Low cost for tests
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -501,7 +500,7 @@ func TestLogin(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4)
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -573,7 +572,7 @@ func TestRefreshToken(t *testing.T) {
 				tc.setupMocks(authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, &MockUserRepository{}, nil, 4)
+			handler := NewAuthHandler(authProvider, &MockUserRepository{}, nil, 4, nil)
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -629,7 +628,7 @@ func TestLogout(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, nil, 4)
+			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, nil, 4, nil)
 
 			var body []byte
 			if tc.requestBody != nil {
@@ -735,7 +734,7 @@ func TestGetMe(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4)
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 			if tc.setupContext != nil {
@@ -1359,7 +1358,7 @@ func TestChangePassword(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4) // Low bcrypt cost for tests
+			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil) // Low bcrypt cost for tests
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -1422,7 +1421,7 @@ func TestChangePassword_WithAuditLogging(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",
@@ -1470,7 +1469,7 @@ func TestChangePassword_AuditLoggingNotCalledOnFailure(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4, nil)
 
 	// Try with wrong password
 	reqBody := ChangePasswordRequest{
@@ -1516,7 +1515,7 @@ func TestChangePassword_PasswordHashActuallyUpdated(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",
@@ -1564,7 +1563,7 @@ func TestChangePassword_CorrectUserIDUsed(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",

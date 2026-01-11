@@ -32,6 +32,7 @@ type SyncStatus struct {
 type SyncService struct {
 	proxyRepo    repository.ProxyRepositoryInterface
 	settingsRepo repository.SettingsRepositoryInterface
+	aclRepo      repository.ACLRepositoryInterface
 	builder      caddyfile.BuilderInterface
 	fileManager  caddy.FileManagerInterface
 	reloader     caddy.ReloaderInterface
@@ -51,6 +52,7 @@ type SyncService struct {
 type SyncServiceConfig struct {
 	ProxyRepo    repository.ProxyRepositoryInterface
 	SettingsRepo repository.SettingsRepositoryInterface
+	ACLRepo      repository.ACLRepositoryInterface // Optional: for ACL-enabled proxies
 	Builder      caddyfile.BuilderInterface
 	FileManager  caddy.FileManagerInterface
 	Reloader     caddy.ReloaderInterface
@@ -67,6 +69,7 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 	return &SyncService{
 		proxyRepo:    cfg.ProxyRepo,
 		settingsRepo: cfg.SettingsRepo,
+		aclRepo:      cfg.ACLRepo,
 		builder:      cfg.Builder,
 		fileManager:  cfg.FileManager,
 		reloader:     cfg.Reloader,
@@ -280,7 +283,34 @@ func (s *SyncService) performFullSync() error {
 		filename := s.builder.GetProxyFilename(proxy)
 		expectedFiles[filename] = true
 
-		content, err := s.builder.BuildProxyFile(proxy)
+		// Load ACL assignments for this proxy if ACL repository is available
+		var aclAssignments []models.ProxyACLAssignment
+		if s.aclRepo != nil {
+			assignments, err := s.aclRepo.GetProxyACLAssignments(proxy.ID)
+			if err != nil {
+				s.logger.Warn("Failed to get ACL assignments for proxy",
+					zap.Int("proxy_id", proxy.ID),
+					zap.Error(err))
+			} else {
+				// Load full ACL group data for each assignment
+				for j := range assignments {
+					if assignments[j].ACLGroup == nil {
+						group, err := s.aclRepo.GetGroupByID(assignments[j].ACLGroupID)
+						if err != nil {
+							s.logger.Warn("Failed to load ACL group",
+								zap.Int("group_id", assignments[j].ACLGroupID),
+								zap.Error(err))
+							continue
+						}
+						assignments[j].ACLGroup = group
+					}
+				}
+				aclAssignments = assignments
+			}
+		}
+
+		// Build proxy config with ACL if available
+		content, err := s.builder.BuildProxyFileWithACL(proxy, aclAssignments)
 		if err != nil {
 			s.logger.Warn("Failed to build proxy config",
 				zap.Int("proxy_id", proxy.ID),
@@ -299,7 +329,9 @@ func (s *SyncService) performFullSync() error {
 			continue
 		} else if changed {
 			configChanged = true
-			s.logger.Debug("Proxy file updated", zap.String("filename", filename))
+			s.logger.Debug("Proxy file updated",
+				zap.String("filename", filename),
+				zap.Int("acl_assignments", len(aclAssignments)))
 		}
 
 		// Handle enable/disable based on IsActive flag
@@ -382,14 +414,54 @@ func (s *SyncService) performFullSync() error {
 
 // SyncProxy syncs a single proxy to file
 func (s *SyncService) SyncProxy(proxy *models.Proxy) error {
+	return s.SyncProxyWithACL(proxy, nil)
+}
+
+// SyncProxyByID syncs a single proxy to file by its ID
+func (s *SyncService) SyncProxyByID(proxyID int) error {
+	proxy, err := s.proxyRepo.GetByID(proxyID)
+	if err != nil {
+		return fmt.Errorf("getting proxy: %w", err)
+	}
+	return s.SyncProxyWithACL(proxy, nil)
+}
+
+// SyncProxyWithACL syncs a single proxy to file with ACL assignments.
+// If aclAssignments is nil and ACL repo is available, it will load them automatically.
+func (s *SyncService) SyncProxyWithACL(proxy *models.Proxy, aclAssignments []models.ProxyACLAssignment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	ctx := context.Background()
 
+	// Load ACL assignments if not provided and ACL repo is available
+	if aclAssignments == nil && s.aclRepo != nil {
+		assignments, err := s.aclRepo.GetProxyACLAssignments(proxy.ID)
+		if err != nil {
+			s.logger.Warn("Failed to get ACL assignments for proxy",
+				zap.Int("proxy_id", proxy.ID),
+				zap.Error(err))
+		} else {
+			// Load full ACL group data for each assignment
+			for i := range assignments {
+				if assignments[i].ACLGroup == nil {
+					group, err := s.aclRepo.GetGroupByID(assignments[i].ACLGroupID)
+					if err != nil {
+						s.logger.Warn("Failed to load ACL group",
+							zap.Int("group_id", assignments[i].ACLGroupID),
+							zap.Error(err))
+						continue
+					}
+					assignments[i].ACLGroup = group
+				}
+			}
+			aclAssignments = assignments
+		}
+	}
+
 	// Generate filename and content
 	filename := s.builder.GetProxyFilename(proxy)
-	content, err := s.builder.BuildProxyFile(proxy)
+	content, err := s.builder.BuildProxyFileWithACL(proxy, aclAssignments)
 	if err != nil {
 		return fmt.Errorf("failed to build proxy config: %w", err)
 	}
@@ -419,7 +491,8 @@ func (s *SyncService) SyncProxy(proxy *models.Proxy) error {
 	s.logger.Info("Synced proxy",
 		zap.Int("proxy_id", proxy.ID),
 		zap.String("name", proxy.Name),
-		zap.String("filename", filename))
+		zap.String("filename", filename),
+		zap.Int("acl_assignments", len(aclAssignments)))
 
 	return nil
 }

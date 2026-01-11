@@ -1,10 +1,14 @@
 import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
 import { RootLayout } from '@/routes/__root';
 import { DashboardIndex } from '@/routes/_dashboard';
+import { ACLGroupDetailPage } from '@/routes/_dashboard/acl/$groupId';
+import { ACLGroupsPage } from '@/routes/_dashboard/acl/index';
 import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
 import { ProxiesPage } from '@/routes/_dashboard/proxies';
 import { DashboardLayout } from '@/routes/_dashboard/route';
 import { SettingsPage } from '@/routes/_dashboard/settings';
+import { ACLForbiddenPage } from '@/routes/auth/acl-forbidden';
+import { ACLLoginPage } from '@/routes/auth/acl-login';
 import { LoginPage } from '@/routes/login';
 import { SignupPage } from '@/routes/signup';
 import { useAuthStore } from '@/stores/auth';
@@ -49,6 +53,21 @@ const signupRoute = createRoute({
   component: SignupPage,
 });
 
+// ACL Login route - public route for proxy authentication
+// This is separate from admin login and is shown when accessing protected proxies
+const aclLoginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/login',
+  component: ACLLoginPage,
+});
+
+// ACL Forbidden route - shown when user is authenticated but not authorized
+const aclForbiddenRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/forbidden',
+  component: ACLForbiddenPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
@@ -85,11 +104,32 @@ const auditLogsRoute = createRoute({
   component: AuditLogsPage,
 });
 
+const aclRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/acl',
+  component: ACLGroupsPage,
+});
+
+const aclGroupDetailRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/acl/$groupId',
+  component: ACLGroupDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
-  dashboardRoute.addChildren([dashboardIndexRoute, proxiesRoute, settingsRoute, auditLogsRoute]),
+  aclLoginRoute,
+  aclForbiddenRoute,
+  dashboardRoute.addChildren([
+    dashboardIndexRoute,
+    proxiesRoute,
+    settingsRoute,
+    auditLogsRoute,
+    aclRoute,
+    aclGroupDetailRoute,
+  ]),
 ]);
 
 export const router = createRouter({ routeTree });

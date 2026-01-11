@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -20,12 +21,14 @@ import (
 // AuditHandler handles audit log-related HTTP requests
 type AuditHandler struct {
 	auditService service.AuditServiceInterface
+	logger       *zap.Logger
 }
 
 // NewAuditHandler creates a new audit handler
-func NewAuditHandler(auditService service.AuditServiceInterface) *AuditHandler {
+func NewAuditHandler(auditService service.AuditServiceInterface, logger *zap.Logger) *AuditHandler {
 	return &AuditHandler{
 		auditService: auditService,
+		logger:       logger,
 	}
 }
 
@@ -39,6 +42,12 @@ func (h *AuditHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.auditService.ListAuditLogs(params)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to list audit logs",
+				zap.Int("page", params.Page),
+				zap.Int("limit", params.Limit),
+				zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to retrieve audit logs")
 		return
 	}
@@ -57,6 +66,11 @@ func (h *AuditHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	log, err := h.auditService.GetAuditLogByID(id)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get audit log by ID",
+				zap.Int("id", id),
+				zap.Error(err))
+		}
 		utils.NotFound(w, "Audit log not found")
 		return
 	}
@@ -68,6 +82,9 @@ func (h *AuditHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.auditService.GetStats()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get audit log stats", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to retrieve audit log statistics")
 		return
 	}
@@ -89,6 +106,9 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.auditService.ListAuditLogs(params)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to retrieve audit logs for export", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to retrieve audit logs for export")
 		return
 	}
@@ -132,6 +152,9 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config, err := h.auditService.GetConfig()
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to get audit configuration", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to retrieve audit configuration")
 		return
 	}
@@ -148,6 +171,9 @@ func (h *AuditHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.auditService.SetConfig(&config); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to update audit configuration", zap.Error(err))
+		}
 		utils.InternalError(w, "Failed to update audit configuration")
 		return
 	}

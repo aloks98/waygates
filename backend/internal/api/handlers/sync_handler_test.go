@@ -18,12 +18,11 @@ import (
 
 func TestNewSyncHandler(t *testing.T) {
 	mockService := &mocks.MockSyncService{}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	if handler == nil {
 		t.Fatal("Expected handler to be created")
-	}
-	if handler.syncService != mockService {
+	} else if handler.syncService != mockService {
 		t.Error("Expected sync service to be set")
 	}
 }
@@ -44,7 +43,7 @@ func TestSyncHandler_Unit_GetStatus_Success(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
@@ -85,7 +84,7 @@ func TestSyncHandler_Unit_GetStatus_WhileSyncing(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
@@ -119,7 +118,7 @@ func TestSyncHandler_GetStatus_AfterError(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
@@ -156,7 +155,7 @@ func TestSyncHandler_GetStatus_ZeroSyncCount(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
@@ -199,7 +198,7 @@ func TestSyncHandler_Unit_Trigger_Success(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -233,7 +232,7 @@ func TestSyncHandler_Trigger_SyncError(t *testing.T) {
 			return errors.New("Caddy not reachable: connection refused")
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -260,7 +259,7 @@ func TestSyncHandler_Trigger_DatabaseError(t *testing.T) {
 			return errors.New("database connection lost")
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -289,7 +288,7 @@ func TestSyncHandler_Trigger_ReturnsUpdatedStatus(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -322,7 +321,7 @@ func TestSyncHandler_Trigger_RouteConfigError(t *testing.T) {
 			return errors.New("invalid route configuration: missing upstream")
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -350,7 +349,7 @@ func TestSyncHandler_Trigger_FileSystemError(t *testing.T) {
 			return errors.New("failed to write proxy file: permission denied")
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -378,7 +377,7 @@ func TestSyncHandler_StatusResponseFormat(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sync/status", nil)
 	rec := httptest.NewRecorder()
@@ -426,7 +425,7 @@ func TestSyncHandler_TriggerResponseFormat(t *testing.T) {
 			}
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()
@@ -450,7 +449,7 @@ func TestSyncHandler_TriggerErrorResponseFormat(t *testing.T) {
 			return errors.New("sync failed")
 		},
 	}
-	handler := NewSyncHandler(mockService)
+	handler := NewSyncHandler(mockService, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/sync/trigger", nil)
 	rec := httptest.NewRecorder()

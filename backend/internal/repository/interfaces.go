@@ -58,4 +58,5 @@ var (
 	_ UserRepositoryInterface     = (*UserRepository)(nil)
 	_ SettingsRepositoryInterface = (*SettingsRepository)(nil)
 	_ AuditLogRepositoryInterface = (*AuditLogRepository)(nil)
+	_ ACLRepositoryInterface      = (*ACLRepository)(nil)
 )

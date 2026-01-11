@@ -156,8 +156,9 @@ func (m *MockSettingsService) SetNotFoundSettings(settings *models.NotFoundSetti
 
 // MockSyncService is a mock implementation of SyncServiceInterface
 type MockSyncService struct {
-	GetStatusFunc func() service.SyncStatus
-	FullSyncFunc  func() error
+	GetStatusFunc     func() service.SyncStatus
+	FullSyncFunc      func() error
+	SyncProxyByIDFunc func(proxyID int) error
 }
 
 // GetStatus implements SyncServiceInterface.
@@ -178,6 +179,14 @@ func (m *MockSyncService) GetStatus() service.SyncStatus {
 func (m *MockSyncService) FullSync() error {
 	if m.FullSyncFunc != nil {
 		return m.FullSyncFunc()
+	}
+	return nil
+}
+
+// SyncProxyByID implements SyncServiceInterface.
+func (m *MockSyncService) SyncProxyByID(proxyID int) error {
+	if m.SyncProxyByIDFunc != nil {
+		return m.SyncProxyByIDFunc(proxyID)
 	}
 	return nil
 }
