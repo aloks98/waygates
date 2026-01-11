@@ -123,6 +123,43 @@ func (s *AuditService) isEventEnabled(action string) bool {
 		return config.SystemStartup
 	case models.AuditActionCaddyReload:
 		return config.CaddyReload
+	// ACL Group events
+	case models.AuditActionACLGroupCreate:
+		return config.ACLGroupCreate
+	case models.AuditActionACLGroupUpdate:
+		return config.ACLGroupUpdate
+	case models.AuditActionACLGroupDelete:
+		return config.ACLGroupDelete
+	// ACL IP Rule events
+	case models.AuditActionACLIPRuleAdd:
+		return config.ACLIPRuleAdd
+	case models.AuditActionACLIPRuleUpdate:
+		return config.ACLIPRuleUpdate
+	case models.AuditActionACLIPRuleDelete:
+		return config.ACLIPRuleDelete
+	// ACL Basic Auth events
+	case models.AuditActionACLBasicAuthAdd:
+		return config.ACLBasicAuthAdd
+	case models.AuditActionACLBasicAuthUpdate:
+		return config.ACLBasicAuthUpdate
+	case models.AuditActionACLBasicAuthDelete:
+		return config.ACLBasicAuthDelete
+	// ACL Waygates Auth events
+	case models.AuditActionACLWaygatesAuthUpdate:
+		return config.ACLWaygatesAuthUpdate
+	// ACL Proxy Assignment events
+	case models.AuditActionACLAssignmentCreate:
+		return config.ACLAssignmentCreate
+	case models.AuditActionACLAssignmentUpdate:
+		return config.ACLAssignmentUpdate
+	case models.AuditActionACLAssignmentDelete:
+		return config.ACLAssignmentDelete
+	// ACL Branding events
+	case models.AuditActionACLBrandingUpdate:
+		return config.ACLBrandingUpdate
+	// ACL Session events
+	case models.AuditActionACLSessionRevoke:
+		return config.ACLSessionRevoke
 	default:
 		// Log unknown events by default
 		return true
@@ -464,6 +501,318 @@ func (s *AuditService) LogCaddyReload(ctx context.Context, success bool, errMsg 
 		ResourceType: models.AuditResourceTypeSystem,
 		Status:       status,
 		ErrorMessage: errMsg,
+	})
+}
+
+// ACL Audit Logging Methods
+
+// LogACLGroupCreate logs an ACL group creation event
+func (s *AuditService) LogACLGroupCreate(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error {
+	resourceID := group.ID
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLGroupCreate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &resourceID,
+		ResourceName: group.Name,
+		Details: map[string]interface{}{
+			"group_id":         group.ID,
+			"group_name":       group.Name,
+			"combination_mode": group.CombinationMode,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLGroupUpdate logs an ACL group update event
+func (s *AuditService) LogACLGroupUpdate(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error {
+	resourceID := group.ID
+	details := map[string]interface{}{
+		"group_id":   group.ID,
+		"group_name": group.Name,
+	}
+	if changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLGroupUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &resourceID,
+		ResourceName: group.Name,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogACLGroupDelete logs an ACL group deletion event
+func (s *AuditService) LogACLGroupDelete(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLGroupDelete,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &groupID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"group_id":   groupID,
+			"group_name": groupName,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLIPRuleAdd logs an IP rule addition event
+func (s *AuditService) LogACLIPRuleAdd(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error {
+	ruleID := rule.ID
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLIPRuleAdd,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &ruleID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"group_id":   groupID,
+			"group_name": groupName,
+			"rule_id":    rule.ID,
+			"rule_type":  rule.RuleType,
+			"cidr":       rule.CIDR,
+			"priority":   rule.Priority,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLIPRuleUpdate logs an IP rule update event
+func (s *AuditService) LogACLIPRuleUpdate(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error {
+	ruleID := rule.ID
+	details := map[string]interface{}{
+		"rule_id":   rule.ID,
+		"rule_type": rule.RuleType,
+		"cidr":      rule.CIDR,
+	}
+	if changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLIPRuleUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &ruleID,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogACLIPRuleDelete logs an IP rule deletion event
+func (s *AuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLIPRuleDelete,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &ruleID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"rule_id":    ruleID,
+			"group_name": groupName,
+			"cidr":       cidr,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLBasicAuthAdd logs a basic auth user addition event
+func (s *AuditService) LogACLBasicAuthAdd(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLBasicAuthAdd,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"group_id":   groupID,
+			"group_name": groupName,
+			"username":   username,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLBasicAuthUpdate logs a basic auth password change event
+func (s *AuditService) LogACLBasicAuthUpdate(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLBasicAuthUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &authUserID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"auth_user_id": authUserID,
+			"group_name":   groupName,
+			"username":     username,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLBasicAuthDelete logs a basic auth user deletion event
+func (s *AuditService) LogACLBasicAuthDelete(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLBasicAuthDelete,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &authUserID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"auth_user_id": authUserID,
+			"group_name":   groupName,
+			"username":     username,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLWaygatesAuthUpdate logs a Waygates auth configuration change event
+func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error {
+	details := map[string]interface{}{
+		"group_id":   groupID,
+		"group_name": groupName,
+	}
+	if changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLWaygatesAuthUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &groupID,
+		ResourceName: groupName,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogACLAssignmentCreate logs an ACL proxy assignment creation event
+func (s *AuditService) LogACLAssignmentCreate(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLAssignmentCreate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &proxyID,
+		ResourceName: proxyName,
+		Details: map[string]interface{}{
+			"proxy_id":     proxyID,
+			"proxy_name":   proxyName,
+			"group_id":     groupID,
+			"group_name":   groupName,
+			"path_pattern": pathPattern,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLAssignmentUpdate logs an ACL proxy assignment update event
+func (s *AuditService) LogACLAssignmentUpdate(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error {
+	assignmentID := assignment.ID
+	details := map[string]interface{}{
+		"assignment_id": assignment.ID,
+		"proxy_id":      assignment.ProxyID,
+		"group_id":      assignment.ACLGroupID,
+		"path_pattern":  assignment.PathPattern,
+	}
+	if changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLAssignmentUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &assignmentID,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogACLAssignmentDelete logs an ACL proxy assignment deletion event
+func (s *AuditService) LogACLAssignmentDelete(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLAssignmentDelete,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &proxyID,
+		ResourceName: proxyName,
+		Details: map[string]interface{}{
+			"proxy_id":   proxyID,
+			"proxy_name": proxyName,
+			"group_id":   groupID,
+			"group_name": groupName,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLBrandingUpdate logs a branding configuration update event
+func (s *AuditService) LogACLBrandingUpdate(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error {
+	details := map[string]interface{}{}
+	if changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLBrandingUpdate,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceName: "branding",
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogACLSessionRevoke logs a session revocation event
+func (s *AuditService) LogACLSessionRevoke(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLSessionRevoke,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &sessionID,
+		ResourceName: sessionEmail,
+		Details: map[string]interface{}{
+			"session_id":    sessionID,
+			"session_email": sessionEmail,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
 	})
 }
 

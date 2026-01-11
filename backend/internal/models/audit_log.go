@@ -73,6 +73,35 @@ type AuditConfig struct {
 	// System events
 	SystemStartup bool `json:"system_startup"`
 	CaddyReload   bool `json:"caddy_reload"`
+
+	// ACL Group events
+	ACLGroupCreate bool `json:"acl_group_create"`
+	ACLGroupUpdate bool `json:"acl_group_update"`
+	ACLGroupDelete bool `json:"acl_group_delete"`
+
+	// ACL IP Rule events
+	ACLIPRuleAdd    bool `json:"acl_ip_rule_add"`
+	ACLIPRuleUpdate bool `json:"acl_ip_rule_update"`
+	ACLIPRuleDelete bool `json:"acl_ip_rule_delete"`
+
+	// ACL Basic Auth events
+	ACLBasicAuthAdd    bool `json:"acl_basic_auth_add"`
+	ACLBasicAuthUpdate bool `json:"acl_basic_auth_update"`
+	ACLBasicAuthDelete bool `json:"acl_basic_auth_delete"`
+
+	// ACL Waygates Auth events
+	ACLWaygatesAuthUpdate bool `json:"acl_waygates_auth_update"`
+
+	// ACL Proxy Assignment events
+	ACLAssignmentCreate bool `json:"acl_assignment_create"`
+	ACLAssignmentUpdate bool `json:"acl_assignment_update"`
+	ACLAssignmentDelete bool `json:"acl_assignment_delete"`
+
+	// ACL Branding events
+	ACLBrandingUpdate bool `json:"acl_branding_update"`
+
+	// ACL Session events
+	ACLSessionRevoke bool `json:"acl_session_revoke"`
 }
 
 // DefaultAuditConfig returns the default audit configuration with all events enabled
@@ -94,6 +123,22 @@ func DefaultAuditConfig() *AuditConfig {
 		SyncFailed:         true,
 		SystemStartup:      true,
 		CaddyReload:        true,
+		// ACL events
+		ACLGroupCreate:        true,
+		ACLGroupUpdate:        true,
+		ACLGroupDelete:        true,
+		ACLIPRuleAdd:          true,
+		ACLIPRuleUpdate:       true,
+		ACLIPRuleDelete:       true,
+		ACLBasicAuthAdd:       true,
+		ACLBasicAuthUpdate:    true,
+		ACLBasicAuthDelete:    true,
+		ACLWaygatesAuthUpdate: true,
+		ACLAssignmentCreate:   true,
+		ACLAssignmentUpdate:   true,
+		ACLAssignmentDelete:   true,
+		ACLBrandingUpdate:     true,
+		ACLSessionRevoke:      true,
 	}
 }
 
@@ -138,6 +183,35 @@ const (
 	// System actions
 	AuditActionSystemStartup = "system.startup"
 	AuditActionCaddyReload   = "caddy.reload"
+
+	// ACL Group Events
+	AuditActionACLGroupCreate = "acl_group.create"
+	AuditActionACLGroupUpdate = "acl_group.update"
+	AuditActionACLGroupDelete = "acl_group.delete"
+
+	// ACL IP Rule Events
+	AuditActionACLIPRuleAdd    = "acl_ip_rule.add"
+	AuditActionACLIPRuleUpdate = "acl_ip_rule.update"
+	AuditActionACLIPRuleDelete = "acl_ip_rule.delete"
+
+	// ACL Basic Auth Events
+	AuditActionACLBasicAuthAdd    = "acl_basic_auth.add"
+	AuditActionACLBasicAuthUpdate = "acl_basic_auth.update"
+	AuditActionACLBasicAuthDelete = "acl_basic_auth.delete"
+
+	// ACL Waygates Auth Events
+	AuditActionACLWaygatesAuthUpdate = "acl_waygates_auth.update"
+
+	// ACL Proxy Assignment Events
+	AuditActionACLAssignmentCreate = "acl_assignment.create"
+	AuditActionACLAssignmentUpdate = "acl_assignment.update"
+	AuditActionACLAssignmentDelete = "acl_assignment.delete"
+
+	// ACL Branding Events
+	AuditActionACLBrandingUpdate = "acl_branding.update"
+
+	// ACL Session Events
+	AuditActionACLSessionRevoke = "acl_session.revoke"
 )
 
 // Audit status constants
@@ -152,6 +226,7 @@ const (
 	AuditResourceTypeUser     = "user"
 	AuditResourceTypeSettings = "settings"
 	AuditResourceTypeSystem   = "system"
+	AuditResourceTypeACL      = "acl"
 )
 
 // SettingAuditConfig is the settings key for audit configuration
@@ -223,6 +298,28 @@ func GetAuditEventGroups() []AuditEventGroup {
 			Events: []AuditEventDefinition{
 				{Key: "system_startup", Label: "System Startup"},
 				{Key: "caddy_reload", Label: "Caddy Reload"},
+			},
+		},
+		{
+			Key:         "acl",
+			Label:       "ACL Events",
+			Description: "Access control list configuration changes",
+			Events: []AuditEventDefinition{
+				{Key: "acl_group_create", Label: "ACL Group Created"},
+				{Key: "acl_group_update", Label: "ACL Group Updated"},
+				{Key: "acl_group_delete", Label: "ACL Group Deleted"},
+				{Key: "acl_ip_rule_add", Label: "IP Rule Added"},
+				{Key: "acl_ip_rule_update", Label: "IP Rule Updated"},
+				{Key: "acl_ip_rule_delete", Label: "IP Rule Deleted"},
+				{Key: "acl_basic_auth_add", Label: "Basic Auth User Added"},
+				{Key: "acl_basic_auth_update", Label: "Basic Auth Updated"},
+				{Key: "acl_basic_auth_delete", Label: "Basic Auth User Deleted"},
+				{Key: "acl_waygates_auth_update", Label: "Waygates Auth Updated"},
+				{Key: "acl_assignment_create", Label: "ACL Assigned to Proxy"},
+				{Key: "acl_assignment_update", Label: "ACL Assignment Updated"},
+				{Key: "acl_assignment_delete", Label: "ACL Removed from Proxy"},
+				{Key: "acl_branding_update", Label: "Branding Updated"},
+				{Key: "acl_session_revoke", Label: "Session Revoked"},
 			},
 		},
 	}
