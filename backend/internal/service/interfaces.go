@@ -96,7 +96,7 @@ type AuditServiceInterface interface {
 	LogACLBasicAuthAdd(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthUpdate(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthDelete(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
-	LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error
+	LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error
 	LogACLAssignmentCreate(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
 	LogACLAssignmentUpdate(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
 	LogACLAssignmentDelete(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error

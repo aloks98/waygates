@@ -1270,7 +1270,7 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 	// Audit logging for Waygates auth configuration update
 	if h.auditService != nil {
 		changes := buildWaygatesAuthChanges(oldConfig, config)
-		_ = h.auditService.LogACLWaygatesAuthUpdate(r.Context(), userID, groupID, group.Name, changes, getClientIP(r), r.UserAgent())
+		_ = h.auditService.LogACLWaygatesAuthUpdate(r.Context(), userID, groupID, group.Name, config, changes, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1658,11 +1658,54 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 		old = &models.ACLWaygatesAuth{}
 	}
 
+	// When enabled status changes, include context about what's being enabled/disabled
 	if old.Enabled != new.Enabled {
-		changes["enabled"] = map[string]interface{}{
+		enabledChange := map[string]interface{}{
 			"old": old.Enabled,
 			"new": new.Enabled,
 		}
+		// Add context about what configuration is being enabled/disabled
+		if new.Enabled {
+			// Being enabled - show what will be active
+			context := make(map[string]interface{})
+			if len(new.AllowedProviders) > 0 {
+				context["oauth_providers"] = new.AllowedProviders
+			}
+			if len(new.AllowedRoles) > 0 {
+				context["allowed_roles"] = new.AllowedRoles
+			}
+			if len(new.AllowedUsers) > 0 {
+				context["allowed_users"] = new.AllowedUsers
+			}
+			if len(new.AllowedDomains) > 0 {
+				context["allowed_domains"] = new.AllowedDomains
+			}
+			if new.SessionTTL > 0 {
+				context["session_ttl"] = new.SessionTTL
+			}
+			if len(context) > 0 {
+				enabledChange["with_config"] = context
+			}
+		} else {
+			// Being disabled - show what was active
+			context := make(map[string]interface{})
+			if len(old.AllowedProviders) > 0 {
+				context["oauth_providers"] = old.AllowedProviders
+			}
+			if len(old.AllowedRoles) > 0 {
+				context["allowed_roles"] = old.AllowedRoles
+			}
+			if len(old.AllowedUsers) > 0 {
+				context["allowed_users"] = old.AllowedUsers
+			}
+			if len(old.AllowedDomains) > 0 {
+				context["allowed_domains"] = old.AllowedDomains
+			}
+			if len(context) > 0 {
+				enabledChange["was_config"] = context
+			}
+		}
+		changes["enabled"] = enabledChange
 	}
 
 	if old.Require2FA != new.Require2FA {

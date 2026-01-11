@@ -695,12 +695,41 @@ func (s *AuditService) LogACLBasicAuthDelete(ctx context.Context, userID int, au
 }
 
 // LogACLWaygatesAuthUpdate logs a Waygates auth configuration change event
-func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error {
+func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error {
 	details := map[string]interface{}{
 		"group_id":   groupID,
 		"group_name": groupName,
 	}
-	if changes != nil {
+
+	// Include the full new configuration state for better audit visibility
+	if newConfig != nil {
+		config := map[string]interface{}{
+			"enabled":     newConfig.Enabled,
+			"require_2fa": newConfig.Require2FA,
+			"session_ttl": newConfig.SessionTTL,
+		}
+		if len(newConfig.AllowedProviders) > 0 {
+			config["allowed_providers"] = newConfig.AllowedProviders
+		}
+		if len(newConfig.AllowedRoles) > 0 {
+			config["allowed_roles"] = newConfig.AllowedRoles
+		}
+		if len(newConfig.AllowedUsers) > 0 {
+			config["allowed_users"] = newConfig.AllowedUsers
+		}
+		if len(newConfig.AllowedDomains) > 0 {
+			config["allowed_domains"] = newConfig.AllowedDomains
+		}
+		if len(newConfig.AllowedEmails) > 0 {
+			config["allowed_emails"] = newConfig.AllowedEmails
+		}
+		if len(newConfig.AllowedEmailPatterns) > 0 {
+			config["allowed_email_patterns"] = newConfig.AllowedEmailPatterns
+		}
+		details["configuration"] = config
+	}
+
+	if changes != nil && len(changes) > 0 {
 		details["changes"] = changes
 	}
 
