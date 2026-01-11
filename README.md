@@ -2,6 +2,7 @@
 
 A modern reverse proxy manager with a React UI and Go backend. Manage your Caddy reverse proxy configurations through a clean web interface.
 
+[![codecov](https://codecov.io/gh/aloks98/waygates/graph/badge.svg?token=J4V92R1NN1)](https://codecov.io/gh/aloks98/waygates)
 ## Features
 
 - Web UI for managing reverse proxy configurations
