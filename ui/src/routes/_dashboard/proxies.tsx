@@ -259,9 +259,57 @@ export function ProxiesPage() {
     setCreateModalOpen(false);
   };
 
+  // Check if proxy data has changed (excluding ACL assignments)
+  const hasProxyDataChanged = useCallback(
+    (newData: CreateProxyRequest, originalProxy: ProxyConfig): boolean => {
+      // Compare core fields
+      if (newData.name !== originalProxy.name) return true;
+      if (newData.hostname !== originalProxy.hostname) return true;
+      if (newData.type !== originalProxy.type) return true;
+      if (newData.ssl_enabled !== originalProxy.ssl_enabled) return true;
+      if (newData.enabled !== originalProxy.enabled) return true;
+
+      // Compare type-specific fields based on proxy type
+      if (originalProxy.type === 'reverse_proxy') {
+        const oldUpstreams = originalProxy.upstreams || [];
+        const newUpstreams = newData.upstreams || [];
+        if (JSON.stringify(oldUpstreams) !== JSON.stringify(newUpstreams)) return true;
+
+        const oldHeaders = originalProxy.custom_headers || [];
+        const newHeaders = newData.custom_headers || [];
+        if (JSON.stringify(oldHeaders) !== JSON.stringify(newHeaders)) return true;
+
+        if (newData.health_check_path !== originalProxy.health_check_path) return true;
+        if (newData.load_balancing !== originalProxy.load_balancing) return true;
+      }
+
+      if (originalProxy.type === 'redirect') {
+        if (newData.redirect_url !== originalProxy.redirect_url) return true;
+        if (newData.redirect_code !== originalProxy.redirect_code) return true;
+      }
+
+      if (originalProxy.type === 'static') {
+        if (newData.root_path !== originalProxy.root_path) return true;
+        if (
+          JSON.stringify(newData.try_files || []) !== JSON.stringify(originalProxy.try_files || [])
+        )
+          return true;
+        if (newData.browse !== originalProxy.browse) return true;
+        if (newData.index !== originalProxy.index) return true;
+      }
+
+      return false;
+    },
+    [],
+  );
+
   const handleUpdate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
     if (!editingProxy) return;
-    await update({ id: editingProxy.id, data });
+
+    // Only update proxy if data actually changed
+    if (hasProxyDataChanged(data, editingProxy)) {
+      await update({ id: editingProxy.id, data });
+    }
 
     // Sync ACL assignments
     const newAssignments = aclAssignments ?? [];

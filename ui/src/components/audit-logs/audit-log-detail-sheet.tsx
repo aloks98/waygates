@@ -43,8 +43,6 @@ interface ChangeItemProps {
   field: string;
   oldValue: unknown;
   newValue: unknown;
-  context?: Record<string, unknown>;
-  contextLabel?: string;
 }
 
 function isComplexValue(value: unknown): boolean {
@@ -57,17 +55,7 @@ function formatSimpleValue(value: unknown): string {
   return String(value);
 }
 
-function formatContextValue(value: unknown): string {
-  if (Array.isArray(value)) {
-    return value.join(', ');
-  }
-  if (typeof value === 'object' && value !== null) {
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
-function SimpleChangeItem({ field, oldValue, newValue, context, contextLabel }: ChangeItemProps) {
+function SimpleChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
   return (
     <div className="rounded-md border bg-muted/30 p-3">
       <p className="text-sm font-medium text-foreground mb-2 capitalize">
@@ -78,19 +66,6 @@ function SimpleChangeItem({ field, oldValue, newValue, context, contextLabel }: 
         <ArrowRight className="size-3 text-muted-foreground flex-shrink-0" />
         <span className="text-foreground font-medium">{formatSimpleValue(newValue)}</span>
       </div>
-      {context && Object.keys(context).length > 0 && (
-        <div className="mt-3 pt-3 border-t border-border/50">
-          <p className="text-xs text-muted-foreground mb-2">{contextLabel || 'Configuration'}:</p>
-          <div className="space-y-1">
-            {Object.entries(context).map(([key, value]) => (
-              <div key={key} className="flex items-start gap-2 text-xs">
-                <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}:</span>
-                <span className="text-foreground font-medium">{formatContextValue(value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -119,30 +94,15 @@ function ComplexChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
   );
 }
 
-function ChangeItem({ field, oldValue, newValue, context, contextLabel }: ChangeItemProps) {
+function ChangeItem({ field, oldValue, newValue }: ChangeItemProps) {
   if (isComplexValue(oldValue) || isComplexValue(newValue)) {
     return <ComplexChangeItem field={field} oldValue={oldValue} newValue={newValue} />;
   }
-  return (
-    <SimpleChangeItem
-      field={field}
-      oldValue={oldValue}
-      newValue={newValue}
-      context={context}
-      contextLabel={contextLabel}
-    />
-  );
-}
-
-interface ChangeEntry {
-  old: unknown;
-  new: unknown;
-  with_config?: Record<string, unknown>;
-  was_config?: Record<string, unknown>;
+  return <SimpleChangeItem field={field} oldValue={oldValue} newValue={newValue} />;
 }
 
 interface ChangesDisplayProps {
-  changes: Record<string, ChangeEntry>;
+  changes: Record<string, { old: unknown; new: unknown }>;
 }
 
 function ChangesDisplay({ changes }: ChangesDisplayProps) {
@@ -151,19 +111,6 @@ function ChangesDisplay({ changes }: ChangesDisplayProps) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted-foreground">No changes recorded</p>;
   }
-
-  // Extract context from change entry
-  const getContext = (
-    change: ChangeEntry,
-  ): { context?: Record<string, unknown>; label?: string } => {
-    if (change.with_config && Object.keys(change.with_config).length > 0) {
-      return { context: change.with_config, label: 'Enabled configuration' };
-    }
-    if (change.was_config && Object.keys(change.was_config).length > 0) {
-      return { context: change.was_config, label: 'Previous configuration' };
-    }
-    return {};
-  };
 
   // Separate simple and complex changes
   const simpleChanges = entries.filter(
@@ -177,36 +124,16 @@ function ChangesDisplay({ changes }: ChangesDisplayProps) {
     <div className="space-y-3">
       {simpleChanges.length > 0 && (
         <div className="grid gap-2 sm:grid-cols-2">
-          {simpleChanges.map(([field, change]) => {
-            const { context, label } = getContext(change);
-            return (
-              <ChangeItem
-                key={field}
-                field={field}
-                oldValue={change.old}
-                newValue={change.new}
-                context={context}
-                contextLabel={label}
-              />
-            );
-          })}
+          {simpleChanges.map(([field, { old: oldVal, new: newVal }]) => (
+            <ChangeItem key={field} field={field} oldValue={oldVal} newValue={newVal} />
+          ))}
         </div>
       )}
       {complexChanges.length > 0 && (
         <div className="space-y-2">
-          {complexChanges.map(([field, change]) => {
-            const { context, label } = getContext(change);
-            return (
-              <ChangeItem
-                key={field}
-                field={field}
-                oldValue={change.old}
-                newValue={change.new}
-                context={context}
-                contextLabel={label}
-              />
-            );
-          })}
+          {complexChanges.map(([field, { old: oldVal, new: newVal }]) => (
+            <ChangeItem key={field} field={field} oldValue={oldVal} newValue={newVal} />
+          ))}
         </div>
       )}
     </div>

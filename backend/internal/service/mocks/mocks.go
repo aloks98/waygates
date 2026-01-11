@@ -338,7 +338,7 @@ type MockAuditService struct {
 	LogACLGroupDeleteFunc            func(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error
 	LogACLIPRuleAddFunc              func(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error
 	LogACLIPRuleUpdateFunc           func(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error
-	LogACLIPRuleDeleteFunc           func(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error
+	LogACLIPRuleDeleteFunc           func(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error
 	LogACLBasicAuthAddFunc           func(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthUpdateFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthDeleteFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
@@ -348,7 +348,7 @@ type MockAuditService struct {
 	LogACLAssignmentDeleteFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
 	LogACLBrandingUpdateFunc         func(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
 	LogACLSessionRevokeFunc          func(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
-	LogACLOAuthRestrictionSetFunc    func(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error
+	LogACLOAuthRestrictionSetFunc    func(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error
 	LogACLOAuthRestrictionDeleteFunc func(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error
 }
 
@@ -576,9 +576,9 @@ func (m *MockAuditService) LogACLIPRuleUpdate(ctx context.Context, userID int, r
 }
 
 // LogACLIPRuleDelete implements AuditServiceInterface.
-func (m *MockAuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error {
+func (m *MockAuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error {
 	if m.LogACLIPRuleDeleteFunc != nil {
-		return m.LogACLIPRuleDeleteFunc(ctx, userID, ruleID, groupName, cidr, ip, userAgent)
+		return m.LogACLIPRuleDeleteFunc(ctx, userID, ruleID, groupName, cidr, ruleType, ip, userAgent)
 	}
 	return nil
 }
@@ -656,9 +656,9 @@ func (m *MockAuditService) LogACLSessionRevoke(ctx context.Context, userID int, 
 }
 
 // LogACLOAuthRestrictionSet implements AuditServiceInterface.
-func (m *MockAuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error {
+func (m *MockAuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error {
 	if m.LogACLOAuthRestrictionSetFunc != nil {
-		return m.LogACLOAuthRestrictionSetFunc(ctx, userID, groupID, groupName, provider, enabled, allowedEmails, allowedDomains, ip, userAgent)
+		return m.LogACLOAuthRestrictionSetFunc(ctx, userID, groupID, groupName, provider, oldRestriction, newEnabled, newAllowedEmails, newAllowedDomains, ip, userAgent)
 	}
 	return nil
 }

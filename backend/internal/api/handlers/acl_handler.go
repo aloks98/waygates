@@ -702,6 +702,7 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 	}
 	groupID := existingRule.ACLGroupID
 	ruleCIDR := existingRule.CIDR
+	ruleType := existingRule.RuleType
 
 	// Get group name for audit logging
 	group, _ := h.aclService.GetGroup(groupID)
@@ -721,7 +722,7 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 
 	// Audit logging for IP rule deletion
 	if h.auditService != nil {
-		_ = h.auditService.LogACLIPRuleDelete(r.Context(), userID, id, groupName, ruleCIDR, getClientIP(r), r.UserAgent())
+		_ = h.auditService.LogACLIPRuleDelete(r.Context(), userID, id, groupName, ruleCIDR, ruleType, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1479,6 +1480,17 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Get old restriction for audit logging (before making changes)
+	var oldRestriction *models.ACLOAuthProviderRestriction
+	if restrictions, err := h.aclService.GetOAuthProviderRestrictions(groupID); err == nil {
+		for i := range restrictions {
+			if restrictions[i].Provider == provider {
+				oldRestriction = &restrictions[i]
+				break
+			}
+		}
+	}
+
 	if err := h.aclService.SetOAuthProviderRestriction(groupID, provider, req.AllowedEmails, req.AllowedDomains, req.Enabled); err != nil {
 		if errors.Is(err, service.ErrACLGroupNotFound) {
 			utils.NotFound(w, "ACL group not found")
@@ -1494,7 +1506,7 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 
 	// Audit logging
 	if h.auditService != nil {
-		_ = h.auditService.LogACLOAuthRestrictionSet(r.Context(), userID, groupID, groupName, provider, req.Enabled, req.AllowedEmails, req.AllowedDomains, getClientIP(r), r.UserAgent())
+		_ = h.auditService.LogACLOAuthRestrictionSet(r.Context(), userID, groupID, groupName, provider, oldRestriction, req.Enabled, req.AllowedEmails, req.AllowedDomains, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1658,54 +1670,11 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 		old = &models.ACLWaygatesAuth{}
 	}
 
-	// When enabled status changes, include context about what's being enabled/disabled
 	if old.Enabled != new.Enabled {
-		enabledChange := map[string]interface{}{
+		changes["enabled"] = map[string]interface{}{
 			"old": old.Enabled,
 			"new": new.Enabled,
 		}
-		// Add context about what configuration is being enabled/disabled
-		if new.Enabled {
-			// Being enabled - show what will be active
-			context := make(map[string]interface{})
-			if len(new.AllowedProviders) > 0 {
-				context["oauth_providers"] = new.AllowedProviders
-			}
-			if len(new.AllowedRoles) > 0 {
-				context["allowed_roles"] = new.AllowedRoles
-			}
-			if len(new.AllowedUsers) > 0 {
-				context["allowed_users"] = new.AllowedUsers
-			}
-			if len(new.AllowedDomains) > 0 {
-				context["allowed_domains"] = new.AllowedDomains
-			}
-			if new.SessionTTL > 0 {
-				context["session_ttl"] = new.SessionTTL
-			}
-			if len(context) > 0 {
-				enabledChange["with_config"] = context
-			}
-		} else {
-			// Being disabled - show what was active
-			context := make(map[string]interface{})
-			if len(old.AllowedProviders) > 0 {
-				context["oauth_providers"] = old.AllowedProviders
-			}
-			if len(old.AllowedRoles) > 0 {
-				context["allowed_roles"] = old.AllowedRoles
-			}
-			if len(old.AllowedUsers) > 0 {
-				context["allowed_users"] = old.AllowedUsers
-			}
-			if len(old.AllowedDomains) > 0 {
-				context["allowed_domains"] = old.AllowedDomains
-			}
-			if len(context) > 0 {
-				enabledChange["was_config"] = context
-			}
-		}
-		changes["enabled"] = enabledChange
 	}
 
 	if old.Require2FA != new.Require2FA {

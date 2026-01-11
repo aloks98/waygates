@@ -620,7 +620,7 @@ func (s *AuditService) LogACLIPRuleUpdate(ctx context.Context, userID int, rule 
 }
 
 // LogACLIPRuleDelete logs an IP rule deletion event
-func (s *AuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error {
+func (s *AuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error {
 	return s.LogEvent(ctx, models.AuditEvent{
 		UserID:       &userID,
 		Action:       models.AuditActionACLIPRuleDelete,
@@ -631,6 +631,7 @@ func (s *AuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleI
 			"rule_id":    ruleID,
 			"group_name": groupName,
 			"cidr":       cidr,
+			"rule_type":  ruleType,
 		},
 		IPAddress: ip,
 		UserAgent: userAgent,
@@ -699,34 +700,6 @@ func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int,
 	details := map[string]interface{}{
 		"group_id":   groupID,
 		"group_name": groupName,
-	}
-
-	// Include the full new configuration state for better audit visibility
-	if newConfig != nil {
-		config := map[string]interface{}{
-			"enabled":     newConfig.Enabled,
-			"require_2fa": newConfig.Require2FA,
-			"session_ttl": newConfig.SessionTTL,
-		}
-		if len(newConfig.AllowedProviders) > 0 {
-			config["allowed_providers"] = newConfig.AllowedProviders
-		}
-		if len(newConfig.AllowedRoles) > 0 {
-			config["allowed_roles"] = newConfig.AllowedRoles
-		}
-		if len(newConfig.AllowedUsers) > 0 {
-			config["allowed_users"] = newConfig.AllowedUsers
-		}
-		if len(newConfig.AllowedDomains) > 0 {
-			config["allowed_domains"] = newConfig.AllowedDomains
-		}
-		if len(newConfig.AllowedEmails) > 0 {
-			config["allowed_emails"] = newConfig.AllowedEmails
-		}
-		if len(newConfig.AllowedEmailPatterns) > 0 {
-			config["allowed_email_patterns"] = newConfig.AllowedEmailPatterns
-		}
-		details["configuration"] = config
 	}
 
 	if changes != nil && len(changes) > 0 {
@@ -850,25 +823,79 @@ func (s *AuditService) LogACLSessionRevoke(ctx context.Context, userID int, sess
 }
 
 // LogACLOAuthRestrictionSet logs an OAuth provider restriction set event
-func (s *AuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error {
+func (s *AuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error {
+	details := map[string]interface{}{
+		"group_id":   groupID,
+		"group_name": groupName,
+		"provider":   provider,
+	}
+
+	// Build changes showing old and new values
+	changes := make(map[string]interface{})
+
+	oldEnabled := false
+	var oldEmails, oldDomains []string
+	if oldRestriction != nil {
+		oldEnabled = oldRestriction.Enabled
+		oldEmails = oldRestriction.AllowedEmails
+		oldDomains = oldRestriction.AllowedDomains
+	}
+
+	if oldEnabled != newEnabled {
+		changes["enabled"] = map[string]interface{}{
+			"old": oldEnabled,
+			"new": newEnabled,
+		}
+	}
+
+	oldEmailsStr := joinStringSlice(oldEmails)
+	newEmailsStr := joinStringSlice(newAllowedEmails)
+	if oldEmailsStr != newEmailsStr {
+		changes["allowed_emails"] = map[string]interface{}{
+			"old": oldEmails,
+			"new": newAllowedEmails,
+		}
+	}
+
+	oldDomainsStr := joinStringSlice(oldDomains)
+	newDomainsStr := joinStringSlice(newAllowedDomains)
+	if oldDomainsStr != newDomainsStr {
+		changes["allowed_domains"] = map[string]interface{}{
+			"old": oldDomains,
+			"new": newAllowedDomains,
+		}
+	}
+
+	if len(changes) > 0 {
+		details["changes"] = changes
+	}
+
 	return s.LogEvent(ctx, models.AuditEvent{
 		UserID:       &userID,
 		Action:       models.AuditActionACLOAuthRestrictionSet,
 		ResourceType: models.AuditResourceTypeACL,
 		ResourceID:   &groupID,
 		ResourceName: groupName,
-		Details: map[string]interface{}{
-			"group_id":        groupID,
-			"group_name":      groupName,
-			"provider":        provider,
-			"enabled":         enabled,
-			"allowed_emails":  allowedEmails,
-			"allowed_domains": allowedDomains,
-		},
-		IPAddress: ip,
-		UserAgent: userAgent,
-		Status:    models.AuditStatusSuccess,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
 	})
+}
+
+// joinStringSlice joins a slice of strings for comparison
+func joinStringSlice(s []string) string {
+	if s == nil {
+		return ""
+	}
+	result := ""
+	for i, v := range s {
+		if i > 0 {
+			result += ","
+		}
+		result += v
+	}
+	return result
 }
 
 // LogACLOAuthRestrictionDelete logs an OAuth provider restriction delete event
