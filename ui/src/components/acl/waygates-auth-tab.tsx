@@ -683,19 +683,7 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                     )}
                   </form.Field>
 
-                  <form.Field name="require_2fa">
-                    {(field) => (
-                      <Field orientation="horizontal">
-                        <FieldContent>
-                          <FieldLabel>Require Two-Factor Authentication</FieldLabel>
-                          <FieldDescription>
-                            Only allow users with 2FA enabled on their account
-                          </FieldDescription>
-                        </FieldContent>
-                        <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                      </Field>
-                    )}
-                  </form.Field>
+                  {/* TODO: 2FA support coming in future release */}
 
                   <form.Field name="session_ttl">
                     {(field) => {
