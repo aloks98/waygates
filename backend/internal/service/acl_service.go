@@ -956,7 +956,8 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 		}
 
 		// Collect OAuth providers from OAuthProviderRestrictions
-		for _, restriction := range group.OAuthProviderRestrictions {
+		for i := range group.OAuthProviderRestrictions {
+			restriction := &group.OAuthProviderRestrictions[i]
 			if !restriction.Enabled {
 				continue
 			}
@@ -1218,148 +1219,6 @@ func (s *ACLService) VerifyAccess(request *ACLVerifyRequest) (*ACLVerifyResponse
 	// - Bypass from ANY group with ip_bypass mode allows without auth
 	// - Auth valid for ANY group grants access
 	return s.evaluateUnionAccess(groups, request)
-}
-
-// evaluateGroupAccess evaluates access rules for a specific ACL group
-func (s *ACLService) evaluateGroupAccess(group *models.ACLGroup, request *ACLVerifyRequest) (*groupAccessResult, error) {
-	result := &groupAccessResult{Allowed: false}
-
-	// First check IP rules (deny rules take priority)
-	ipResult, bypass := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
-
-	// If IP is denied, reject immediately
-	if ipResult == ipRuleDeny {
-		return result, nil
-	}
-
-	// If IP bypass and combination mode allows it, grant access without further auth
-	if ipResult == ipRuleBypass && group.CombinationMode == models.ACLCombinationModeIPBypass {
-		result.Allowed = true
-		return result, nil
-	}
-
-	// If IP is explicitly allowed (not just bypass), it might be sufficient
-	if ipResult == ipRuleAllow && group.CombinationMode == models.ACLCombinationModeIPBypass {
-		result.Allowed = true
-		return result, nil
-	}
-
-	// Check authentication methods based on combination mode
-	var authResults []bool
-
-	// Check session token (Waygates auth or OAuth)
-	// OAuth sessions should be validated even when WaygatesAuth.Enabled is false,
-	// as long as there's a WaygatesAuth config with OAuth restrictions
-	if request.SessionToken != "" && group.WaygatesAuth != nil {
-		session, err := s.aclRepo.GetSessionByToken(request.SessionToken)
-		if err == nil && !session.IsExpired() {
-			result.HasValidSession = true
-
-			// Check if this is an OAuth session (has email and provider)
-			if session.Email != nil && session.Provider != nil {
-				result.OAuthEmail = *session.Email
-				result.OAuthProvider = *session.Provider
-				// Also set user if available (OAuth user may have Waygates account)
-				if session.User != nil {
-					result.User = session.User
-				}
-
-				// OAuth session - check OAuth restrictions
-				// OAuth sessions are validated regardless of WaygatesAuth.Enabled
-				if s.isOAuthUserAllowed(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions) {
-					authResults = append(authResults, true)
-				} else {
-					// User is authenticated but fails OAuth restrictions
-					result.AuthenticatedButUnauthorized = true
-					result.DenialReason = s.buildOAuthDenialReason(*session.Email, *session.Provider, group.WaygatesAuth, group.OAuthProviderRestrictions)
-				}
-			} else if session.User != nil && group.WaygatesAuth.Enabled {
-				// Pure Waygates user session (no OAuth info)
-				// This requires WaygatesAuth.Enabled since it's a username/password session
-				result.User = session.User
-				if s.isUserAllowedByWaygatesAuth(session.User, group.WaygatesAuth) {
-					authResults = append(authResults, true)
-				} else {
-					// User is authenticated but fails restrictions
-					result.AuthenticatedButUnauthorized = true
-					result.DenialReason = "Your account is not authorized to access this resource"
-				}
-			}
-		}
-	}
-
-	// Check basic auth - only if no more secure auth methods are configured.
-	// Basic auth is less secure because credentials are sent with every request.
-	// Skip basic auth if Waygates auth or OAuth is available for this group.
-	hasSecureAuthInGroup := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) || len(group.OAuthProviderRestrictions) > 0
-	if request.BasicAuth != nil && len(group.BasicAuthUsers) > 0 && !hasSecureAuthInGroup {
-		for _, authUser := range group.BasicAuthUsers {
-			if authUser.Username == request.BasicAuth.Username {
-				if authUser.CheckPassword(request.BasicAuth.Password) {
-					authResults = append(authResults, true)
-					break
-				}
-			}
-		}
-	}
-
-	// Evaluate based on combination mode
-	switch group.CombinationMode {
-	case models.ACLCombinationModeAny:
-		// If IP is allowed/bypassed, that's enough
-		if bypass || ipResult == ipRuleAllow {
-			result.Allowed = true
-			return result, nil
-		}
-		// Or if any auth method passed
-		for _, passed := range authResults {
-			if passed {
-				result.Allowed = true
-				return result, nil
-			}
-		}
-
-	case models.ACLCombinationModeAll:
-		// All configured methods must pass
-		// IP rules are handled separately
-		// Basic auth only counts if no secure auth is available (hasSecureAuthInGroup is defined above)
-		hasAuthRequirements := (group.WaygatesAuth != nil && group.WaygatesAuth.Enabled) ||
-			len(group.OAuthProviderRestrictions) > 0 ||
-			(len(group.BasicAuthUsers) > 0 && !hasSecureAuthInGroup)
-		if !hasAuthRequirements {
-			// No auth requirements, IP check was enough
-			if ipResult != ipRuleDeny {
-				result.Allowed = true
-				return result, nil
-			}
-		}
-		// Need all auth results to pass
-		if len(authResults) > 0 {
-			allPassed := true
-			for _, passed := range authResults {
-				if !passed {
-					allPassed = false
-					break
-				}
-			}
-			if allPassed {
-				result.Allowed = true
-				return result, nil
-			}
-		}
-
-	case models.ACLCombinationModeIPBypass:
-		// IP bypass already handled above
-		// Otherwise, need auth
-		for _, passed := range authResults {
-			if passed {
-				result.Allowed = true
-				return result, nil
-			}
-		}
-	}
-
-	return result, nil
 }
 
 // IP rule evaluation result

@@ -323,12 +323,13 @@ func TestNewSyncService(t *testing.T) {
 
 	if svc == nil {
 		t.Fatal("Expected non-nil service")
-	}
-	if svc.email != "test@example.com" {
-		t.Errorf("Expected email 'test@example.com', got '%s'", svc.email)
-	}
-	if svc.acmeProvider != "off" {
-		t.Errorf("Expected acmeProvider 'off', got '%s'", svc.acmeProvider)
+	} else {
+		if svc.email != "test@example.com" {
+			t.Errorf("Expected email 'test@example.com', got '%s'", svc.email)
+		}
+		if svc.acmeProvider != "off" {
+			t.Errorf("Expected acmeProvider 'off', got '%s'", svc.acmeProvider)
+		}
 	}
 }
 
@@ -340,8 +341,7 @@ func TestNewSyncService_NilLogger(t *testing.T) {
 
 	if svc == nil {
 		t.Fatal("Expected non-nil service")
-	}
-	if svc.logger == nil {
+	} else if svc.logger == nil {
 		t.Error("Expected logger to be set to nop logger")
 	}
 }

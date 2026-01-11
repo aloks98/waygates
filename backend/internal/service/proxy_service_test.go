@@ -148,12 +148,13 @@ func TestNewProxyService(t *testing.T) {
 
 	if svc == nil {
 		t.Fatal("Expected non-nil service")
-	}
-	if svc.repo != repo {
-		t.Error("Expected repo to be set")
-	}
-	if svc.syncService != syncer {
-		t.Error("Expected syncService to be set")
+	} else {
+		if svc.repo != repo {
+			t.Error("Expected repo to be set")
+		}
+		if svc.syncService != syncer {
+			t.Error("Expected syncService to be set")
+		}
 	}
 }
 

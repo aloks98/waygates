@@ -167,8 +167,7 @@ func TestNewAuthHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("Expected non-nil handler")
-	}
-	if handler.bcryptCost != 10 {
+	} else if handler.bcryptCost != 10 {
 		t.Errorf("Expected bcryptCost 10, got %d", handler.bcryptCost)
 	}
 }

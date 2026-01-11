@@ -809,7 +809,7 @@ func TestACLRepository_ProxyACLAssignments(t *testing.T) {
 		assert.Equal(t, 100, assignments[2].Priority)
 	})
 
-	t.Run("unique constraint on proxy+path", func(t *testing.T) {
+	t.Run("unique constraint on proxy+group", func(t *testing.T) {
 		CleanACLTables(t, tdb.DB)
 		user := CreateTestUser(t, tdb.DB)
 		group1 := CreateTestACLGroup(t, tdb.DB, user.ID, "Group A")
@@ -818,16 +818,27 @@ func TestACLRepository_ProxyACLAssignments(t *testing.T) {
 
 		CreateTestProxyACLAssignment(t, tdb.DB, proxy.ID, group1.ID, "/*", 0)
 
-		// Try to create another with same proxy+path (different group)
-		duplicate := &models.ProxyACLAssignment{
+		// Same proxy + different group with same path should be ALLOWED (union behavior)
+		differentGroup := &models.ProxyACLAssignment{
 			ProxyID:     proxy.ID,
 			ACLGroupID:  group2.ID,
 			PathPattern: "/*",
 			Priority:    10,
 			Enabled:     true,
 		}
-		err := repo.CreateProxyACLAssignment(duplicate)
-		assert.Error(t, err)
+		err := repo.CreateProxyACLAssignment(differentGroup)
+		assert.NoError(t, err) // This should succeed now
+
+		// Same proxy + same group should be NOT ALLOWED (duplicate)
+		duplicate := &models.ProxyACLAssignment{
+			ProxyID:     proxy.ID,
+			ACLGroupID:  group1.ID, // Same group as first assignment
+			PathPattern: "/api/*",  // Different path, but same proxy+group
+			Priority:    20,
+			Enabled:     true,
+		}
+		err = repo.CreateProxyACLAssignment(duplicate)
+		assert.Error(t, err) // This should fail - same proxy+group
 	})
 }
 

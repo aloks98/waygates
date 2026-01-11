@@ -22,8 +22,7 @@ func TestNewSyncHandler(t *testing.T) {
 
 	if handler == nil {
 		t.Fatal("Expected handler to be created")
-	}
-	if handler.syncService != mockService {
+	} else if handler.syncService != mockService {
 		t.Error("Expected sync service to be set")
 	}
 }

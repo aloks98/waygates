@@ -468,12 +468,13 @@ func TestNewACLService(t *testing.T) {
 
 	if svc == nil {
 		t.Fatal("Expected non-nil service")
-	}
-	if svc.aclRepo != aclRepo {
-		t.Error("Expected aclRepo to be set")
-	}
-	if svc.proxyRepo != proxyRepo {
-		t.Error("Expected proxyRepo to be set")
+	} else {
+		if svc.aclRepo != aclRepo {
+			t.Error("Expected aclRepo to be set")
+		}
+		if svc.proxyRepo != proxyRepo {
+			t.Error("Expected proxyRepo to be set")
+		}
 	}
 }
 
@@ -2225,7 +2226,7 @@ func TestValidatePathPattern(t *testing.T) {
 			if !tc.isValid && err == nil {
 				t.Errorf("Expected pattern %q to be invalid, but it was accepted", tc.pattern)
 			}
-			if !tc.isValid && err != nil && err != ErrInvalidPathPattern {
+			if !tc.isValid && err != nil && !errors.Is(err, ErrInvalidPathPattern) {
 				t.Errorf("Expected ErrInvalidPathPattern for %q, got: %v", tc.pattern, err)
 			}
 		})
@@ -2284,7 +2285,7 @@ func TestValidatePathPattern_CaddyfileInjection(t *testing.T) {
 			if err == nil {
 				t.Errorf("Security vulnerability: injection payload %q was accepted", tc.pattern)
 			}
-			if err != nil && err != ErrInvalidPathPattern {
+			if err != nil && !errors.Is(err, ErrInvalidPathPattern) {
 				t.Errorf("Expected ErrInvalidPathPattern for injection payload, got: %v", err)
 			}
 		})
@@ -3048,14 +3049,7 @@ func TestVerifyAccess_OAuthUnion(t *testing.T) {
 				t.Errorf("%s: got Allowed=%v, want Allowed=%v", tt.description, response.Allowed, tt.wantAllowed)
 			}
 
-			if tt.wantAuthenticated && !response.AuthenticatedButUnauthorized {
-				// If user should be authenticated but unauthorized, verify the response reflects that
-				if response.Allowed {
-					// If allowed, we don't expect AuthenticatedButUnauthorized
-				} else if !response.RequiresAuth {
-					// Correct - user is authenticated but not authorized
-				}
-			}
+			// Note: wantAuthenticated is checked above via Allowed and RequiresAuth fields
 		})
 	}
 }
@@ -4428,9 +4422,8 @@ func TestCheckIPDenyAcrossGroups_MultipleGroupsWithOverlappingDenyRules(t *testi
 
 	// Should return the group that denied
 	if result == nil {
-		t.Error("Expected a group to deny the IP")
-	}
-	if result.ID != 2 {
+		t.Fatal("Expected a group to deny the IP")
+	} else if result.ID != 2 {
 		t.Errorf("Expected Group 2 to deny, got group ID: %d", result.ID)
 	}
 }
@@ -4464,9 +4457,8 @@ func TestCheckIPDenyAcrossGroups_DenyTakesPrecedenceOverAllow(t *testing.T) {
 
 	// Deny should take precedence
 	if result == nil {
-		t.Error("Expected deny to take precedence over allow")
-	}
-	if result.ID != 2 {
+		t.Fatal("Expected deny to take precedence over allow")
+	} else if result.ID != 2 {
 		t.Errorf("Expected Group 2 (deny) to be returned, got group ID: %d", result.ID)
 	}
 }
@@ -4536,9 +4528,8 @@ func TestCheckIPBypassAcrossGroups_GroupsWithIPBypassMode(t *testing.T) {
 
 	// Should return the group that granted bypass
 	if result == nil {
-		t.Error("Expected bypass to be granted")
-	}
-	if result.ID != 1 {
+		t.Fatal("Expected bypass to be granted")
+	} else if result.ID != 1 {
 		t.Errorf("Expected Group 1 to grant bypass, got: %d", result.ID)
 	}
 }
@@ -4713,9 +4704,8 @@ func TestCheckIPBypassAcrossGroups_MixedModes(t *testing.T) {
 
 	// Should bypass because Group 2 is ip_bypass mode
 	if result == nil {
-		t.Error("Expected bypass for IP matching ip_bypass group")
-	}
-	if result.ID != 2 {
+		t.Fatal("Expected bypass for IP matching ip_bypass group")
+	} else if result.ID != 2 {
 		t.Errorf("Expected Group 2, got: %d", result.ID)
 	}
 }

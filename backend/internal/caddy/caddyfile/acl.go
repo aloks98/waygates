@@ -513,7 +513,7 @@ func (b *ACLBuilder) buildStaticAssetsBypassBlock(proxy *models.Proxy, matcherPr
 	matcherName := fmt.Sprintf("@%s_static_assets", matcherPrefix)
 
 	// Build path patterns for static assets
-	var pathPatterns []string
+	pathPatterns := make([]string, 0, len(staticAssetExtensions)+len(staticAssetPaths))
 
 	// Add file extension patterns
 	for _, ext := range staticAssetExtensions {
