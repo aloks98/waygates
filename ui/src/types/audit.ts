@@ -30,7 +30,9 @@ export type AuditAction =
   | 'acl_assignment.update'
   | 'acl_assignment.delete'
   | 'acl_branding.update'
-  | 'acl_session.revoke';
+  | 'acl_session.revoke'
+  | 'acl_oauth_restriction.set'
+  | 'acl_oauth_restriction.delete';
 
 export type AuditStatus = 'success' | 'failure';
 
@@ -115,6 +117,8 @@ export interface AuditConfig {
   acl_assignment_delete: boolean;
   acl_branding_update: boolean;
   acl_session_revoke: boolean;
+  acl_oauth_restriction_set: boolean;
+  acl_oauth_restriction_delete: boolean;
 }
 
 // Filter format: field=operator:value

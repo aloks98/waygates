@@ -102,6 +102,10 @@ type AuditConfig struct {
 
 	// ACL Session events
 	ACLSessionRevoke bool `json:"acl_session_revoke"`
+
+	// ACL OAuth Provider Restriction Events
+	ACLOAuthRestrictionSet    bool `json:"acl_oauth_restriction_set"`
+	ACLOAuthRestrictionDelete bool `json:"acl_oauth_restriction_delete"`
 }
 
 // DefaultAuditConfig returns the default audit configuration with all events enabled
@@ -139,6 +143,10 @@ func DefaultAuditConfig() *AuditConfig {
 		ACLAssignmentDelete:   true,
 		ACLBrandingUpdate:     true,
 		ACLSessionRevoke:      true,
+
+		// ACL OAuth Provider Restriction Events
+		ACLOAuthRestrictionSet:    true,
+		ACLOAuthRestrictionDelete: true,
 	}
 }
 
@@ -212,6 +220,10 @@ const (
 
 	// ACL Session Events
 	AuditActionACLSessionRevoke = "acl_session.revoke"
+
+	// ACL OAuth Provider Restriction Events
+	AuditActionACLOAuthRestrictionSet    = "acl_oauth_restriction.set"
+	AuditActionACLOAuthRestrictionDelete = "acl_oauth_restriction.delete"
 )
 
 // Audit status constants
@@ -320,6 +332,8 @@ func GetAuditEventGroups() []AuditEventGroup {
 				{Key: "acl_assignment_delete", Label: "ACL Removed from Proxy"},
 				{Key: "acl_branding_update", Label: "Branding Updated"},
 				{Key: "acl_session_revoke", Label: "Session Revoked"},
+				{Key: "acl_oauth_restriction_set", Label: "OAuth Provider Configured"},
+				{Key: "acl_oauth_restriction_delete", Label: "OAuth Provider Removed"},
 			},
 		},
 	}

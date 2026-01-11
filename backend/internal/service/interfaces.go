@@ -102,6 +102,8 @@ type AuditServiceInterface interface {
 	LogACLAssignmentDelete(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
 	LogACLBrandingUpdate(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
 	LogACLSessionRevoke(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
+	LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error
+	LogACLOAuthRestrictionDelete(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error
 }
 
 // SyncCallback is a function type for syncing proxies after group deletion.

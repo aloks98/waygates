@@ -160,6 +160,10 @@ func (s *AuditService) isEventEnabled(action string) bool {
 	// ACL Session events
 	case models.AuditActionACLSessionRevoke:
 		return config.ACLSessionRevoke
+	case models.AuditActionACLOAuthRestrictionSet:
+		return config.ACLOAuthRestrictionSet
+	case models.AuditActionACLOAuthRestrictionDelete:
+		return config.ACLOAuthRestrictionDelete
 	default:
 		// Log unknown events by default
 		return true
@@ -809,6 +813,47 @@ func (s *AuditService) LogACLSessionRevoke(ctx context.Context, userID int, sess
 		Details: map[string]interface{}{
 			"session_id":    sessionID,
 			"session_email": sessionEmail,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLOAuthRestrictionSet logs an OAuth provider restriction set event
+func (s *AuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLOAuthRestrictionSet,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &groupID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"group_id":        groupID,
+			"group_name":      groupName,
+			"provider":        provider,
+			"enabled":         enabled,
+			"allowed_emails":  allowedEmails,
+			"allowed_domains": allowedDomains,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogACLOAuthRestrictionDelete logs an OAuth provider restriction delete event
+func (s *AuditService) LogACLOAuthRestrictionDelete(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionACLOAuthRestrictionDelete,
+		ResourceType: models.AuditResourceTypeACL,
+		ResourceID:   &groupID,
+		ResourceName: groupName,
+		Details: map[string]interface{}{
+			"group_id":   groupID,
+			"group_name": groupName,
+			"provider":   provider,
 		},
 		IPAddress: ip,
 		UserAgent: userAgent,

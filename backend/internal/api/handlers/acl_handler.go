@@ -1444,6 +1444,9 @@ func (h *ACLHandler) GetOAuthProviderRestrictions(w http.ResponseWriter, r *http
 
 // SetOAuthProviderRestriction handles PUT /api/acl/groups/{id}/oauth-restrictions/{provider}
 func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -1461,6 +1464,12 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 	if !validOAuthProviders[provider] {
 		utils.BadRequest(w, "Invalid provider: must be one of 'google', 'github', 'microsoft', 'gitlab'", nil)
 		return
+	}
+
+	// Get group name for audit logging
+	groupName := ""
+	if group, err := h.aclService.GetGroup(groupID); err == nil && group != nil {
+		groupName = group.Name
 	}
 
 	// Parse request body
@@ -1483,6 +1492,11 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Audit logging
+	if h.auditService != nil {
+		_ = h.auditService.LogACLOAuthRestrictionSet(r.Context(), userID, groupID, groupName, provider, req.Enabled, req.AllowedEmails, req.AllowedDomains, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -1496,6 +1510,9 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 
 // DeleteOAuthProviderRestriction handles DELETE /api/acl/groups/{id}/oauth-restrictions/{provider}
 func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -1515,6 +1532,12 @@ func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Get group name for audit logging
+	groupName := ""
+	if group, err := h.aclService.GetGroup(groupID); err == nil && group != nil {
+		groupName = group.Name
+	}
+
 	if err := h.aclService.DeleteOAuthProviderRestriction(groupID, provider); err != nil {
 		if errors.Is(err, service.ErrACLGroupNotFound) {
 			utils.NotFound(w, "ACL group not found")
@@ -1530,6 +1553,11 @@ func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *ht
 			zap.Error(err))
 		utils.InternalError(w, "Failed to delete OAuth provider restriction")
 		return
+	}
+
+	// Audit logging
+	if h.auditService != nil {
+		_ = h.auditService.LogACLOAuthRestrictionDelete(r.Context(), userID, groupID, groupName, provider, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1548,8 +1576,8 @@ func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
 
 	if old.Name != new.Name {
 		changes["name"] = map[string]interface{}{
-			"from": old.Name,
-			"to":   new.Name,
+			"old": old.Name,
+			"new": new.Name,
 		}
 	}
 
@@ -1563,15 +1591,15 @@ func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
 	}
 	if oldDesc != newDesc {
 		changes["description"] = map[string]interface{}{
-			"from": oldDesc,
-			"to":   newDesc,
+			"old": oldDesc,
+			"new": newDesc,
 		}
 	}
 
 	if old.CombinationMode != new.CombinationMode {
 		changes["combination_mode"] = map[string]interface{}{
-			"from": old.CombinationMode,
-			"to":   new.CombinationMode,
+			"old": old.CombinationMode,
+			"new": new.CombinationMode,
 		}
 	}
 
@@ -1584,22 +1612,22 @@ func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
 
 	if old.RuleType != new.RuleType {
 		changes["rule_type"] = map[string]interface{}{
-			"from": old.RuleType,
-			"to":   new.RuleType,
+			"old": old.RuleType,
+			"new": new.RuleType,
 		}
 	}
 
 	if old.CIDR != new.CIDR {
 		changes["cidr"] = map[string]interface{}{
-			"from": old.CIDR,
-			"to":   new.CIDR,
+			"old": old.CIDR,
+			"new": new.CIDR,
 		}
 	}
 
 	if old.Priority != new.Priority {
 		changes["priority"] = map[string]interface{}{
-			"from": old.Priority,
-			"to":   new.Priority,
+			"old": old.Priority,
+			"new": new.Priority,
 		}
 	}
 
@@ -1613,8 +1641,8 @@ func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
 	}
 	if oldDesc != newDesc {
 		changes["description"] = map[string]interface{}{
-			"from": oldDesc,
-			"to":   newDesc,
+			"old": oldDesc,
+			"new": newDesc,
 		}
 	}
 
@@ -1632,22 +1660,22 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 
 	if old.Enabled != new.Enabled {
 		changes["enabled"] = map[string]interface{}{
-			"from": old.Enabled,
-			"to":   new.Enabled,
+			"old": old.Enabled,
+			"new": new.Enabled,
 		}
 	}
 
 	if old.Require2FA != new.Require2FA {
 		changes["require_2fa"] = map[string]interface{}{
-			"from": old.Require2FA,
-			"to":   new.Require2FA,
+			"old": old.Require2FA,
+			"new": new.Require2FA,
 		}
 	}
 
 	if old.SessionTTL != new.SessionTTL {
 		changes["session_ttl"] = map[string]interface{}{
-			"from": old.SessionTTL,
-			"to":   new.SessionTTL,
+			"old": old.SessionTTL,
+			"new": new.SessionTTL,
 		}
 	}
 
@@ -1656,8 +1684,8 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 	newRoles := joinStrings(new.AllowedRoles)
 	if oldRoles != newRoles {
 		changes["allowed_roles"] = map[string]interface{}{
-			"from": old.AllowedRoles,
-			"to":   new.AllowedRoles,
+			"old": old.AllowedRoles,
+			"new": new.AllowedRoles,
 		}
 	}
 
@@ -1666,8 +1694,8 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 	newDomains := joinStrings(new.AllowedDomains)
 	if oldDomains != newDomains {
 		changes["allowed_domains"] = map[string]interface{}{
-			"from": old.AllowedDomains,
-			"to":   new.AllowedDomains,
+			"old": old.AllowedDomains,
+			"new": new.AllowedDomains,
 		}
 	}
 
@@ -1676,8 +1704,8 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 	newProviders := joinStrings(new.AllowedProviders)
 	if oldProviders != newProviders {
 		changes["allowed_providers"] = map[string]interface{}{
-			"from": old.AllowedProviders,
-			"to":   new.AllowedProviders,
+			"old": old.AllowedProviders,
+			"new": new.AllowedProviders,
 		}
 	}
 
@@ -1686,8 +1714,8 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 	newEmails := joinStrings(new.AllowedEmails)
 	if oldEmails != newEmails {
 		changes["allowed_emails"] = map[string]interface{}{
-			"from": old.AllowedEmails,
-			"to":   new.AllowedEmails,
+			"old": old.AllowedEmails,
+			"new": new.AllowedEmails,
 		}
 	}
 
@@ -1696,8 +1724,8 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 	newUsers := joinStrings(new.AllowedUsers)
 	if oldUsers != newUsers {
 		changes["allowed_users"] = map[string]interface{}{
-			"from": old.AllowedUsers,
-			"to":   new.AllowedUsers,
+			"old": old.AllowedUsers,
+			"new": new.AllowedUsers,
 		}
 	}
 
@@ -1715,22 +1743,22 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 
 	if old.Title != new.Title {
 		changes["title"] = map[string]interface{}{
-			"from": old.Title,
-			"to":   new.Title,
+			"old": old.Title,
+			"new": new.Title,
 		}
 	}
 
 	if old.PrimaryColor != new.PrimaryColor {
 		changes["primary_color"] = map[string]interface{}{
-			"from": old.PrimaryColor,
-			"to":   new.PrimaryColor,
+			"old": old.PrimaryColor,
+			"new": new.PrimaryColor,
 		}
 	}
 
 	if old.BackgroundColor != new.BackgroundColor {
 		changes["background_color"] = map[string]interface{}{
-			"from": old.BackgroundColor,
-			"to":   new.BackgroundColor,
+			"old": old.BackgroundColor,
+			"new": new.BackgroundColor,
 		}
 	}
 
@@ -1744,8 +1772,8 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 	}
 	if oldSubtitle != newSubtitle {
 		changes["subtitle"] = map[string]interface{}{
-			"from": oldSubtitle,
-			"to":   newSubtitle,
+			"old": oldSubtitle,
+			"new": newSubtitle,
 		}
 	}
 
@@ -1759,8 +1787,8 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 	}
 	if oldLogoURL != newLogoURL {
 		changes["logo_url"] = map[string]interface{}{
-			"from": oldLogoURL,
-			"to":   newLogoURL,
+			"old": oldLogoURL,
+			"new": newLogoURL,
 		}
 	}
 

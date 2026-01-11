@@ -346,22 +346,22 @@ func buildProxyACLAssignmentChanges(old, new *models.ProxyACLAssignment) map[str
 
 	if old.PathPattern != new.PathPattern {
 		changes["path_pattern"] = map[string]interface{}{
-			"from": old.PathPattern,
-			"to":   new.PathPattern,
+			"old": old.PathPattern,
+			"new": new.PathPattern,
 		}
 	}
 
 	if old.Priority != new.Priority {
 		changes["priority"] = map[string]interface{}{
-			"from": old.Priority,
-			"to":   new.Priority,
+			"old": old.Priority,
+			"new": new.Priority,
 		}
 	}
 
 	if old.Enabled != new.Enabled {
 		changes["enabled"] = map[string]interface{}{
-			"from": old.Enabled,
-			"to":   new.Enabled,
+			"old": old.Enabled,
+			"new": new.Enabled,
 		}
 	}
 

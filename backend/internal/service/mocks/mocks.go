@@ -333,21 +333,23 @@ type MockAuditService struct {
 	LogSystemStartupFunc      func(ctx context.Context) error
 	LogCaddyReloadFunc        func(ctx context.Context, success bool, errMsg string) error
 	// ACL audit funcs
-	LogACLGroupCreateFunc        func(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error
-	LogACLGroupUpdateFunc        func(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error
-	LogACLGroupDeleteFunc        func(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error
-	LogACLIPRuleAddFunc          func(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error
-	LogACLIPRuleUpdateFunc       func(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error
-	LogACLIPRuleDeleteFunc       func(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error
-	LogACLBasicAuthAddFunc       func(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
-	LogACLBasicAuthUpdateFunc    func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
-	LogACLBasicAuthDeleteFunc    func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
-	LogACLWaygatesAuthUpdateFunc func(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error
-	LogACLAssignmentCreateFunc   func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
-	LogACLAssignmentUpdateFunc   func(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
-	LogACLAssignmentDeleteFunc   func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
-	LogACLBrandingUpdateFunc     func(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
-	LogACLSessionRevokeFunc      func(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
+	LogACLGroupCreateFunc            func(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error
+	LogACLGroupUpdateFunc            func(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error
+	LogACLGroupDeleteFunc            func(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error
+	LogACLIPRuleAddFunc              func(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error
+	LogACLIPRuleUpdateFunc           func(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error
+	LogACLIPRuleDeleteFunc           func(ctx context.Context, userID int, ruleID int, groupName, cidr, ip, userAgent string) error
+	LogACLBasicAuthAddFunc           func(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthUpdateFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthDeleteFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLWaygatesAuthUpdateFunc     func(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentCreateFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
+	LogACLAssignmentUpdateFunc       func(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentDeleteFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
+	LogACLBrandingUpdateFunc         func(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
+	LogACLSessionRevokeFunc          func(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
+	LogACLOAuthRestrictionSetFunc    func(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error
+	LogACLOAuthRestrictionDeleteFunc func(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error
 }
 
 // LogEvent implements AuditServiceInterface.
@@ -649,6 +651,22 @@ func (m *MockAuditService) LogACLBrandingUpdate(ctx context.Context, userID int,
 func (m *MockAuditService) LogACLSessionRevoke(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error {
 	if m.LogACLSessionRevokeFunc != nil {
 		return m.LogACLSessionRevokeFunc(ctx, userID, sessionID, sessionEmail, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLOAuthRestrictionSet implements AuditServiceInterface.
+func (m *MockAuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, enabled bool, allowedEmails, allowedDomains []string, ip, userAgent string) error {
+	if m.LogACLOAuthRestrictionSetFunc != nil {
+		return m.LogACLOAuthRestrictionSetFunc(ctx, userID, groupID, groupName, provider, enabled, allowedEmails, allowedDomains, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLOAuthRestrictionDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLOAuthRestrictionDelete(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error {
+	if m.LogACLOAuthRestrictionDeleteFunc != nil {
+		return m.LogACLOAuthRestrictionDeleteFunc(ctx, userID, groupID, groupName, provider, ip, userAgent)
 	}
 	return nil
 }
