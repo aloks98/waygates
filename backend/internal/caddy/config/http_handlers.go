@@ -192,10 +192,25 @@ type ForwardAuthHandler struct {
 
 // HandleResponse configures how to handle responses from forward_auth.
 type HandleResponse struct {
-	Match               *ResponseMatch `json:"match,omitempty"`
-	Routes              []*HTTPRoute   `json:"routes,omitempty"`
-	StatusCode          int            `json:"status_code,omitempty"`
-	CopyResponseHeaders []string       `json:"copy_response_headers,omitempty"` // Headers to copy from upstream response to request
+	Match      *ResponseMatch `json:"match,omitempty"`
+	Routes     []*HTTPRoute   `json:"routes,omitempty"`
+	StatusCode int            `json:"status_code,omitempty"`
+}
+
+// CopyResponseHeadersHandler copies headers from upstream response to the request.
+// This handler can only be used inside reverse_proxy's handle_response routes.
+type CopyResponseHeadersHandler struct {
+	Handler string   `json:"handler"` // Must be "copy_response_headers"
+	Include []string `json:"include,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
+}
+
+// NewCopyResponseHeadersHandler creates a new copy_response_headers handler.
+func NewCopyResponseHeadersHandler(headers []string) *CopyResponseHeadersHandler {
+	return &CopyResponseHeadersHandler{
+		Handler: "copy_response_headers",
+		Include: headers,
+	}
 }
 
 // ResponseMatch matches response attributes.
@@ -556,6 +571,17 @@ func ToHTTPHandler(handler interface{}) HTTPHandler {
 			"request":  h.Request,
 			"response": h.Response,
 		}
+	case *CopyResponseHeadersHandler:
+		result := HTTPHandler{
+			"handler": h.Handler,
+		}
+		if len(h.Include) > 0 {
+			result["include"] = h.Include
+		}
+		if len(h.Exclude) > 0 {
+			result["exclude"] = h.Exclude
+		}
+		return result
 	default:
 		return nil
 	}

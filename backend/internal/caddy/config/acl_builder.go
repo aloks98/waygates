@@ -413,7 +413,13 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 				Match: &ResponseMatch{
 					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
 				},
-				CopyResponseHeaders: waygatesDefaultHeaders,
+				Routes: []*HTTPRoute{
+					{
+						Handle: []HTTPHandler{
+							ToHTTPHandler(NewCopyResponseHeadersHandler(waygatesDefaultHeaders)),
+						},
+					},
+				},
 			},
 			// On 401 (unauthorized): redirect to login
 			{
@@ -482,7 +488,13 @@ func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalPro
 				Match: &ResponseMatch{
 					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
 				},
-				CopyResponseHeaders: headers,
+				Routes: []*HTTPRoute{
+					{
+						Handle: []HTTPHandler{
+							ToHTTPHandler(NewCopyResponseHeadersHandler(headers)),
+						},
+					},
+				},
 			},
 		},
 	}
