@@ -408,6 +408,14 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 			URI: "/api/auth/acl/verify",
 		},
 		"handle_response": []*HandleResponse{
+			// On 2xx (successful auth): copy headers and continue to upstream
+			{
+				Match: &ResponseMatch{
+					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
+				},
+				CopyResponseHeaders: waygatesDefaultHeaders,
+			},
+			// On 401 (unauthorized): redirect to login
 			{
 				Match: &ResponseMatch{
 					StatusCode: []int{401},
@@ -423,6 +431,7 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 					},
 				},
 			},
+			// On 403 (forbidden): show access denied
 			{
 				Match: &ResponseMatch{
 					StatusCode: []int{403},
@@ -449,15 +458,10 @@ func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalPro
 		}
 	}
 
-	headerSet := make(map[string][]string)
-	for _, h := range headers {
-		headerSet[h] = []string{"{http.reverse_proxy.header." + h + "}"}
-	}
-
 	// Extract host:port from URL for Caddy's Dial field
 	dialAddr := extractDialAddress(provider.VerifyURL)
 
-	return HTTPHandler{
+	handler := HTTPHandler{
 		"handler": HandlerReverseProxy,
 		"upstreams": []*Upstream{
 			{Dial: dialAddr},
@@ -472,7 +476,18 @@ func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalPro
 				},
 			},
 		},
+		"handle_response": []*HandleResponse{
+			// On 2xx (successful auth): copy headers and continue to upstream
+			{
+				Match: &ResponseMatch{
+					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
+				},
+				CopyResponseHeaders: headers,
+			},
+		},
 	}
+
+	return handler
 }
 
 // categorizeIPRules separates IP rules by type.

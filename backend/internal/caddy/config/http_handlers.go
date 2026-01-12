@@ -192,9 +192,10 @@ type ForwardAuthHandler struct {
 
 // HandleResponse configures how to handle responses from forward_auth.
 type HandleResponse struct {
-	Match      *ResponseMatch `json:"match,omitempty"`
-	Routes     []*HTTPRoute   `json:"routes,omitempty"`
-	StatusCode int            `json:"status_code,omitempty"`
+	Match               *ResponseMatch `json:"match,omitempty"`
+	Routes              []*HTTPRoute   `json:"routes,omitempty"`
+	StatusCode          int            `json:"status_code,omitempty"`
+	CopyResponseHeaders []string       `json:"copy_response_headers,omitempty"` // Headers to copy from upstream response to request
 }
 
 // ResponseMatch matches response attributes.
