@@ -220,6 +220,7 @@ func (b *HTTPBuilder) buildReverseProxyHandler(proxy *models.Proxy, upstreams []
 	hasHTTPS := b.hasHTTPSUpstream(proxy.Upstreams)
 	if hasHTTPS || proxy.TLSInsecureSkipVerify {
 		handler.Transport = &HTTPTransport{
+			Protocol: "http", // Required by Caddy to identify the transport module
 			TLS: &TLSConfig{
 				InsecureSkipVerify: proxy.TLSInsecureSkipVerify,
 			},
