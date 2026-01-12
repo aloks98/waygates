@@ -332,6 +332,24 @@ type MockAuditService struct {
 	LogSyncFailedFunc         func(ctx context.Context, errMsg string) error
 	LogSystemStartupFunc      func(ctx context.Context) error
 	LogCaddyReloadFunc        func(ctx context.Context, success bool, errMsg string) error
+	// ACL audit funcs
+	LogACLGroupCreateFunc            func(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error
+	LogACLGroupUpdateFunc            func(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error
+	LogACLGroupDeleteFunc            func(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error
+	LogACLIPRuleAddFunc              func(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error
+	LogACLIPRuleUpdateFunc           func(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error
+	LogACLIPRuleDeleteFunc           func(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error
+	LogACLBasicAuthAddFunc           func(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthUpdateFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthDeleteFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLWaygatesAuthUpdateFunc     func(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentCreateFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
+	LogACLAssignmentUpdateFunc       func(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentDeleteFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
+	LogACLBrandingUpdateFunc         func(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
+	LogACLSessionRevokeFunc          func(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
+	LogACLOAuthRestrictionSetFunc    func(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error
+	LogACLOAuthRestrictionDeleteFunc func(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error
 }
 
 // LogEvent implements AuditServiceInterface.
@@ -513,6 +531,142 @@ func (m *MockAuditService) LogSystemStartup(ctx context.Context) error {
 func (m *MockAuditService) LogCaddyReload(ctx context.Context, success bool, errMsg string) error {
 	if m.LogCaddyReloadFunc != nil {
 		return m.LogCaddyReloadFunc(ctx, success, errMsg)
+	}
+	return nil
+}
+
+// LogACLGroupCreate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLGroupCreate(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error {
+	if m.LogACLGroupCreateFunc != nil {
+		return m.LogACLGroupCreateFunc(ctx, userID, group, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLGroupUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLGroupUpdate(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogACLGroupUpdateFunc != nil {
+		return m.LogACLGroupUpdateFunc(ctx, userID, group, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLGroupDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLGroupDelete(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error {
+	if m.LogACLGroupDeleteFunc != nil {
+		return m.LogACLGroupDeleteFunc(ctx, userID, groupID, groupName, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLIPRuleAdd implements AuditServiceInterface.
+func (m *MockAuditService) LogACLIPRuleAdd(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error {
+	if m.LogACLIPRuleAddFunc != nil {
+		return m.LogACLIPRuleAddFunc(ctx, userID, groupID, groupName, rule, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLIPRuleUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLIPRuleUpdate(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogACLIPRuleUpdateFunc != nil {
+		return m.LogACLIPRuleUpdateFunc(ctx, userID, rule, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLIPRuleDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error {
+	if m.LogACLIPRuleDeleteFunc != nil {
+		return m.LogACLIPRuleDeleteFunc(ctx, userID, ruleID, groupName, cidr, ruleType, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLBasicAuthAdd implements AuditServiceInterface.
+func (m *MockAuditService) LogACLBasicAuthAdd(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error {
+	if m.LogACLBasicAuthAddFunc != nil {
+		return m.LogACLBasicAuthAddFunc(ctx, userID, groupID, groupName, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLBasicAuthUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLBasicAuthUpdate(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error {
+	if m.LogACLBasicAuthUpdateFunc != nil {
+		return m.LogACLBasicAuthUpdateFunc(ctx, userID, authUserID, groupName, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLBasicAuthDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLBasicAuthDelete(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error {
+	if m.LogACLBasicAuthDeleteFunc != nil {
+		return m.LogACLBasicAuthDeleteFunc(ctx, userID, authUserID, groupName, username, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLWaygatesAuthUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogACLWaygatesAuthUpdateFunc != nil {
+		return m.LogACLWaygatesAuthUpdateFunc(ctx, userID, groupID, groupName, newConfig, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLAssignmentCreate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLAssignmentCreate(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error {
+	if m.LogACLAssignmentCreateFunc != nil {
+		return m.LogACLAssignmentCreateFunc(ctx, userID, proxyID, proxyName, groupID, groupName, pathPattern, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLAssignmentUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLAssignmentUpdate(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogACLAssignmentUpdateFunc != nil {
+		return m.LogACLAssignmentUpdateFunc(ctx, userID, assignment, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLAssignmentDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLAssignmentDelete(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error {
+	if m.LogACLAssignmentDeleteFunc != nil {
+		return m.LogACLAssignmentDeleteFunc(ctx, userID, proxyID, proxyName, groupID, groupName, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLBrandingUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogACLBrandingUpdate(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error {
+	if m.LogACLBrandingUpdateFunc != nil {
+		return m.LogACLBrandingUpdateFunc(ctx, userID, changes, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLSessionRevoke implements AuditServiceInterface.
+func (m *MockAuditService) LogACLSessionRevoke(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error {
+	if m.LogACLSessionRevokeFunc != nil {
+		return m.LogACLSessionRevokeFunc(ctx, userID, sessionID, sessionEmail, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLOAuthRestrictionSet implements AuditServiceInterface.
+func (m *MockAuditService) LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error {
+	if m.LogACLOAuthRestrictionSetFunc != nil {
+		return m.LogACLOAuthRestrictionSetFunc(ctx, userID, groupID, groupName, provider, oldRestriction, newEnabled, newAllowedEmails, newAllowedDomains, ip, userAgent)
+	}
+	return nil
+}
+
+// LogACLOAuthRestrictionDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogACLOAuthRestrictionDelete(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error {
+	if m.LogACLOAuthRestrictionDeleteFunc != nil {
+		return m.LogACLOAuthRestrictionDeleteFunc(ctx, userID, groupID, groupName, provider, ip, userAgent)
 	}
 	return nil
 }

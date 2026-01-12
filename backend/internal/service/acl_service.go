@@ -939,10 +939,14 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 		}
 
 		// Union Waygates auth
-		if group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
-			response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
+		if group.WaygatesAuth != nil {
+			// Set Waygates auth enabled if any group has it enabled
+			if group.WaygatesAuth.Enabled {
+				response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
+			}
 
 			// Collect OAuth providers from WaygatesAuth.AllowedProviders
+			// OAuth providers should be available even if Waygates username/password login is disabled
 			for _, providerID := range group.WaygatesAuth.AllowedProviders {
 				pid := strings.ToLower(providerID)
 				if _, exists := oauthProviderMap[pid]; !exists {

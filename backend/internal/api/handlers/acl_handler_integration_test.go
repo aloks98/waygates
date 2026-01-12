@@ -98,7 +98,11 @@ func (m *MockACLService) GetGroup(id int) (*models.ACLGroup, error) {
 	if m.GetGroupFunc != nil {
 		return m.GetGroupFunc(id)
 	}
-	return nil, service.ErrACLGroupNotFound
+	// Return a valid mock group by default for testing
+	return &models.ACLGroup{
+		ID:   id,
+		Name: "mock-group",
+	}, nil
 }
 
 // GetGroupByName implements ACLServiceInterface.

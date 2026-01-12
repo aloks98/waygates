@@ -85,6 +85,25 @@ type AuditServiceInterface interface {
 	// System events
 	LogSystemStartup(ctx context.Context) error
 	LogCaddyReload(ctx context.Context, success bool, errMsg string) error
+
+	// ACL events
+	LogACLGroupCreate(ctx context.Context, userID int, group *models.ACLGroup, ip, userAgent string) error
+	LogACLGroupUpdate(ctx context.Context, userID int, group *models.ACLGroup, changes map[string]interface{}, ip, userAgent string) error
+	LogACLGroupDelete(ctx context.Context, userID int, groupID int, groupName, ip, userAgent string) error
+	LogACLIPRuleAdd(ctx context.Context, userID int, groupID int, groupName string, rule *models.ACLIPRule, ip, userAgent string) error
+	LogACLIPRuleUpdate(ctx context.Context, userID int, rule *models.ACLIPRule, changes map[string]interface{}, ip, userAgent string) error
+	LogACLIPRuleDelete(ctx context.Context, userID int, ruleID int, groupName, cidr, ruleType, ip, userAgent string) error
+	LogACLBasicAuthAdd(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthUpdate(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLBasicAuthDelete(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
+	LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentCreate(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
+	LogACLAssignmentUpdate(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
+	LogACLAssignmentDelete(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
+	LogACLBrandingUpdate(ctx context.Context, userID int, changes map[string]interface{}, ip, userAgent string) error
+	LogACLSessionRevoke(ctx context.Context, userID int, sessionID int, sessionEmail, ip, userAgent string) error
+	LogACLOAuthRestrictionSet(ctx context.Context, userID int, groupID int, groupName, provider string, oldRestriction *models.ACLOAuthProviderRestriction, newEnabled bool, newAllowedEmails, newAllowedDomains []string, ip, userAgent string) error
+	LogACLOAuthRestrictionDelete(ctx context.Context, userID int, groupID int, groupName, provider, ip, userAgent string) error
 }
 
 // SyncCallback is a function type for syncing proxies after group deletion.

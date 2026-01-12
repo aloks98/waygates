@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"strconv"
 
+	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
+	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
 )
@@ -16,15 +19,19 @@ import (
 // ProxyACLHandler handles proxy ACL assignment HTTP requests
 type ProxyACLHandler struct {
 	aclService   service.ACLServiceInterface
+	aclRepo      repository.ACLRepositoryInterface
+	proxyRepo    repository.ProxyRepositoryInterface
 	syncService  service.SyncServiceInterface
 	auditService service.AuditServiceInterface
 	logger       *zap.Logger
 }
 
 // NewProxyACLHandler creates a new proxy ACL handler
-func NewProxyACLHandler(aclService service.ACLServiceInterface, syncService service.SyncServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyACLHandler {
+func NewProxyACLHandler(aclService service.ACLServiceInterface, aclRepo repository.ACLRepositoryInterface, proxyRepo repository.ProxyRepositoryInterface, syncService service.SyncServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyACLHandler {
 	return &ProxyACLHandler{
 		aclService:   aclService,
+		aclRepo:      aclRepo,
+		proxyRepo:    proxyRepo,
 		syncService:  syncService,
 		auditService: auditService,
 		logger:       logger,
@@ -84,6 +91,9 @@ func (h *ProxyACLHandler) GetProxyACL(w http.ResponseWriter, r *http.Request) {
 // AssignACLToProxy handles POST /api/proxies/:id/acl
 // Assigns an ACL group to a proxy
 func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	proxyID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -108,6 +118,18 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 	pathPattern := req.PathPattern
 	if pathPattern == "" {
 		pathPattern = "/*"
+	}
+
+	// Get proxy and group names for audit logging
+	proxyName := ""
+	if h.proxyRepo != nil {
+		if proxy, err := h.proxyRepo.GetByID(proxyID); err == nil && proxy != nil {
+			proxyName = proxy.Name
+		}
+	}
+	groupName := ""
+	if group, err := h.aclService.GetGroup(req.ACLGroupID); err == nil && group != nil {
+		groupName = group.Name
 	}
 
 	// Assign ACL group to proxy
@@ -137,6 +159,11 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 		}
 		utils.InternalError(w, "Failed to assign ACL to proxy")
 		return
+	}
+
+	// Audit logging for ACL assignment
+	if h.auditService != nil {
+		_ = h.auditService.LogACLAssignmentCreate(r.Context(), userID, proxyID, proxyName, req.ACLGroupID, groupName, pathPattern, getClientIP(r), r.UserAgent())
 	}
 
 	// Get updated assignments to return
@@ -169,6 +196,9 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 // UpdateProxyACLAssignment handles PUT /api/proxies/:id/acl/:assignmentId
 // Updates a specific ACL assignment for a proxy
 func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	proxyIDStr := chi.URLParam(r, "id")
 	proxyID, err := strconv.Atoi(proxyIDStr)
 	if err != nil {
@@ -181,6 +211,12 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 	if err != nil {
 		utils.BadRequest(w, "Invalid assignment ID", nil)
 		return
+	}
+
+	// Get old assignment for change tracking
+	var oldAssignment *models.ProxyACLAssignment
+	if h.aclRepo != nil {
+		oldAssignment, _ = h.aclRepo.GetProxyACLAssignmentByID(assignmentID)
 	}
 
 	// Parse request body
@@ -210,6 +246,15 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 		return
 	}
 
+	// Audit logging for ACL assignment update
+	if h.auditService != nil && h.aclRepo != nil {
+		newAssignment, _ := h.aclRepo.GetProxyACLAssignmentByID(assignmentID)
+		if newAssignment != nil {
+			changes := buildProxyACLAssignmentChanges(oldAssignment, newAssignment)
+			_ = h.auditService.LogACLAssignmentUpdate(r.Context(), userID, newAssignment, changes, getClientIP(r), r.UserAgent())
+		}
+	}
+
 	// Trigger Caddy sync to update the proxy's Caddyfile with ACL config
 	if h.syncService != nil {
 		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
@@ -227,6 +272,9 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 // RemoveACLFromProxy handles DELETE /api/proxies/:id/acl/:groupId
 // Removes an ACL group assignment from a proxy
 func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	proxyIDStr := chi.URLParam(r, "id")
 	proxyID, err := strconv.Atoi(proxyIDStr)
 	if err != nil {
@@ -239,6 +287,18 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
 		return
+	}
+
+	// Get proxy and group names for audit logging before deletion
+	proxyName := ""
+	if h.proxyRepo != nil {
+		if proxy, err := h.proxyRepo.GetByID(proxyID); err == nil && proxy != nil {
+			proxyName = proxy.Name
+		}
+	}
+	groupName := ""
+	if group, err := h.aclService.GetGroup(groupID); err == nil && group != nil {
+		groupName = group.Name
 	}
 
 	// Remove ACL group from proxy
@@ -257,6 +317,11 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Audit logging for ACL assignment deletion
+	if h.auditService != nil {
+		_ = h.auditService.LogACLAssignmentDelete(r.Context(), userID, proxyID, proxyName, groupID, groupName, getClientIP(r), r.UserAgent())
+	}
+
 	// Trigger Caddy sync to update the proxy's Caddyfile (remove ACL config)
 	if h.syncService != nil {
 		if err := h.syncService.SyncProxyByID(proxyID); err != nil {
@@ -269,4 +334,36 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 	}
 
 	utils.Success(w, nil, "ACL removed from proxy successfully")
+}
+
+// buildProxyACLAssignmentChanges builds a map of changes between old and new proxy ACL assignment
+func buildProxyACLAssignmentChanges(old, new *models.ProxyACLAssignment) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	if old == nil {
+		return changes
+	}
+
+	if old.PathPattern != new.PathPattern {
+		changes["path_pattern"] = map[string]interface{}{
+			"old": old.PathPattern,
+			"new": new.PathPattern,
+		}
+	}
+
+	if old.Priority != new.Priority {
+		changes["priority"] = map[string]interface{}{
+			"old": old.Priority,
+			"new": new.Priority,
+		}
+	}
+
+	if old.Enabled != new.Enabled {
+		changes["enabled"] = map[string]interface{}{
+			"old": old.Enabled,
+			"new": new.Enabled,
+		}
+	}
+
+	return changes
 }

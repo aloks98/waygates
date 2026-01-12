@@ -2,42 +2,32 @@ package repository
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewSettingsRepository(t *testing.T) {
 	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewSettingsRepository(nil)
-	if repo == nil {
-		t.Fatal("Expected repository to be created")
-	}
-	if repo.db != nil {
-		t.Error("Expected db to be nil")
-	}
+	require.NotNil(t, repo, "Expected repository to be created")
+	require.Nil(t, repo.db, "Expected db to be nil")
 }
 
 func TestNewProxyRepository(t *testing.T) {
 	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewProxyRepository(nil)
-	if repo == nil {
-		t.Fatal("Expected repository to be created")
-	}
-	if repo.db != nil {
-		t.Error("Expected db to be nil")
-	}
+	require.NotNil(t, repo, "Expected repository to be created")
+	require.Nil(t, repo.db, "Expected db to be nil")
 }
 
 func TestNewUserRepository(t *testing.T) {
 	t.Parallel()
 	// Test with nil db (just checking constructor doesn't panic)
 	repo := NewUserRepository(nil)
-	if repo == nil {
-		t.Fatal("Expected repository to be created")
-	}
-	if repo.db != nil {
-		t.Error("Expected db to be nil")
-	}
+	require.NotNil(t, repo, "Expected repository to be created")
+	require.Nil(t, repo.db, "Expected db to be nil")
 }
 
 func TestProxyStats_Structure(t *testing.T) {

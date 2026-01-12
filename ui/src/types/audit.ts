@@ -15,11 +15,28 @@ export type AuditAction =
   | 'sync.completed'
   | 'sync.failed'
   | 'system.startup'
-  | 'caddy.reload';
+  | 'caddy.reload'
+  | 'acl_group.create'
+  | 'acl_group.update'
+  | 'acl_group.delete'
+  | 'acl_ip_rule.add'
+  | 'acl_ip_rule.update'
+  | 'acl_ip_rule.delete'
+  | 'acl_basic_auth.add'
+  | 'acl_basic_auth.update'
+  | 'acl_basic_auth.delete'
+  | 'acl_waygates_auth.update'
+  | 'acl_assignment.create'
+  | 'acl_assignment.update'
+  | 'acl_assignment.delete'
+  | 'acl_branding.update'
+  | 'acl_session.revoke'
+  | 'acl_oauth_restriction.set'
+  | 'acl_oauth_restriction.delete';
 
 export type AuditStatus = 'success' | 'failure';
 
-export type AuditResourceType = 'proxy' | 'user' | 'settings' | 'system';
+export type AuditResourceType = 'proxy' | 'user' | 'settings' | 'system' | 'acl';
 
 export interface AuditLog {
   id: number;
@@ -83,6 +100,25 @@ export interface AuditConfig {
   // System events
   system_startup: boolean;
   caddy_reload: boolean;
+
+  // ACL events
+  acl_group_create: boolean;
+  acl_group_update: boolean;
+  acl_group_delete: boolean;
+  acl_ip_rule_add: boolean;
+  acl_ip_rule_update: boolean;
+  acl_ip_rule_delete: boolean;
+  acl_basic_auth_add: boolean;
+  acl_basic_auth_update: boolean;
+  acl_basic_auth_delete: boolean;
+  acl_waygates_auth_update: boolean;
+  acl_assignment_create: boolean;
+  acl_assignment_update: boolean;
+  acl_assignment_delete: boolean;
+  acl_branding_update: boolean;
+  acl_session_revoke: boolean;
+  acl_oauth_restriction_set: boolean;
+  acl_oauth_restriction_delete: boolean;
 }
 
 // Filter format: field=operator:value

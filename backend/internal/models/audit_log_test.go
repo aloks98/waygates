@@ -71,10 +71,10 @@ func TestGetAuditEventGroups(t *testing.T) {
 	groups := GetAuditEventGroups()
 
 	require.NotNil(t, groups)
-	require.Len(t, groups, 5, "Should have 5 event groups")
+	require.Len(t, groups, 6, "Should have 6 event groups")
 
 	// Test expected group keys
-	expectedGroups := []string{"proxy", "auth", "settings", "sync", "system"}
+	expectedGroups := []string{"proxy", "auth", "settings", "sync", "system", "acl"}
 	for i, expectedKey := range expectedGroups {
 		assert.Equal(t, expectedKey, groups[i].Key)
 	}
@@ -527,6 +527,6 @@ func TestGetAuditEventGroups_TotalEvents(t *testing.T) {
 		totalEvents += len(group.Events)
 	}
 
-	// 5 proxy + 5 auth + 1 settings + 3 sync + 2 system = 16 events
-	assert.Equal(t, 16, totalEvents)
+	// 5 proxy + 5 auth + 1 settings + 3 sync + 2 system + 17 acl = 33 events
+	assert.Equal(t, 33, totalEvents)
 }

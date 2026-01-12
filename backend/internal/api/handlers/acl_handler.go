@@ -281,7 +281,10 @@ func (h *ACLHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Add audit logging for ACL group creation
+	// Audit logging for ACL group creation
+	if h.auditService != nil {
+		_ = h.auditService.LogACLGroupCreate(r.Context(), userID, group, getClientIP(r), r.UserAgent())
+	}
 
 	utils.Created(w, group, "ACL group created successfully")
 }
@@ -310,10 +313,24 @@ func (h *ACLHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 // UpdateGroup handles PUT /api/acl/groups/:id
 func (h *ACLHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	// Get old group for change tracking
+	oldGroup, err := h.aclService.GetGroup(id)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get ACL group")
 		return
 	}
 
@@ -370,17 +387,38 @@ func (h *ACLHandler) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit logging for ACL group update
+	if h.auditService != nil {
+		changes := buildACLGroupChanges(oldGroup, group)
+		_ = h.auditService.LogACLGroupUpdate(r.Context(), userID, group, changes, getClientIP(r), r.UserAgent())
+	}
+
 	utils.Success(w, group, "ACL group updated successfully")
 }
 
 // DeleteGroup handles DELETE /api/acl/groups/:id
 func (h *ACLHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
 		return
 	}
+
+	// Get group info before deletion for audit logging
+	group, err := h.aclService.GetGroup(id)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get ACL group")
+		return
+	}
+	groupName := group.Name
 
 	// Create sync callback that will be called after the transaction commits.
 	// This callback receives the proxy IDs that were atomically collected before deletion.
@@ -419,6 +457,11 @@ func (h *ACLHandler) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 		}
 		utils.InternalError(w, "Failed to delete ACL group")
 		return
+	}
+
+	// Audit logging for ACL group deletion
+	if h.auditService != nil {
+		_ = h.auditService.LogACLGroupDelete(r.Context(), userID, id, groupName, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, nil, "ACL group deleted successfully")
@@ -460,10 +503,24 @@ func (h *ACLHandler) ListIPRules(w http.ResponseWriter, r *http.Request) {
 
 // AddIPRule handles POST /api/acl/groups/:id/ip-rules
 func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	// Get group name for audit logging
+	group, err := h.aclService.GetGroup(groupID)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get ACL group")
 		return
 	}
 
@@ -521,6 +578,11 @@ func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit logging for IP rule addition
+	if h.auditService != nil {
+		_ = h.auditService.LogACLIPRuleAdd(r.Context(), userID, groupID, group.Name, rule, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -529,6 +591,9 @@ func (h *ACLHandler) AddIPRule(w http.ResponseWriter, r *http.Request) {
 
 // UpdateIPRule handles PUT /api/acl/ip-rules/:id
 func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -536,7 +601,7 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get existing rule to obtain groupID for sync
+	// Get existing rule to obtain groupID for sync and change tracking
 	existingRule, err := h.aclRepo.GetIPRuleByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -575,6 +640,7 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rule := &models.ACLIPRule{
+		ID:          id,
 		RuleType:    req.RuleType,
 		CIDR:        req.CIDR,
 		Description: req.Description,
@@ -599,6 +665,12 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit logging for IP rule update
+	if h.auditService != nil {
+		changes := buildIPRuleChanges(existingRule, rule)
+		_ = h.auditService.LogACLIPRuleUpdate(r.Context(), userID, rule, changes, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -607,6 +679,9 @@ func (h *ACLHandler) UpdateIPRule(w http.ResponseWriter, r *http.Request) {
 
 // DeleteIPRule handles DELETE /api/acl/ip-rules/:id
 func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -626,6 +701,15 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	groupID := existingRule.ACLGroupID
+	ruleCIDR := existingRule.CIDR
+	ruleType := existingRule.RuleType
+
+	// Get group name for audit logging
+	group, _ := h.aclService.GetGroup(groupID)
+	groupName := ""
+	if group != nil {
+		groupName = group.Name
+	}
 
 	if err := h.aclService.DeleteIPRule(id); err != nil {
 		if errors.Is(err, service.ErrIPRuleNotFound) {
@@ -634,6 +718,11 @@ func (h *ACLHandler) DeleteIPRule(w http.ResponseWriter, r *http.Request) {
 		}
 		utils.InternalError(w, "Failed to delete IP rule")
 		return
+	}
+
+	// Audit logging for IP rule deletion
+	if h.auditService != nil {
+		_ = h.auditService.LogACLIPRuleDelete(r.Context(), userID, id, groupName, ruleCIDR, ruleType, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -678,10 +767,24 @@ func (h *ACLHandler) ListBasicAuthUsers(w http.ResponseWriter, r *http.Request) 
 
 // AddBasicAuthUser handles POST /api/acl/groups/:id/basic-auth
 func (h *ACLHandler) AddBasicAuthUser(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
+		return
+	}
+
+	// Get group name for audit logging
+	group, err := h.aclService.GetGroup(groupID)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get ACL group")
 		return
 	}
 
@@ -724,6 +827,11 @@ func (h *ACLHandler) AddBasicAuthUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Audit logging for basic auth user addition
+	if h.auditService != nil {
+		_ = h.auditService.LogACLBasicAuthAdd(r.Context(), userID, groupID, group.Name, req.Username, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -732,6 +840,9 @@ func (h *ACLHandler) AddBasicAuthUser(w http.ResponseWriter, r *http.Request) {
 
 // UpdateBasicAuthUser handles PUT /api/acl/basic-auth/:id
 func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -751,6 +862,14 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	groupID := existingUser.ACLGroupID
+	username := existingUser.Username
+
+	// Get group name for audit logging
+	group, _ := h.aclService.GetGroup(groupID)
+	groupName := ""
+	if group != nil {
+		groupName = group.Name
+	}
 
 	// Parse request body
 	var req UpdateBasicAuthUserRequest
@@ -783,6 +902,11 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Audit logging for basic auth password update
+	if h.auditService != nil {
+		_ = h.auditService.LogACLBasicAuthUpdate(r.Context(), userID, id, groupName, username, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -791,6 +915,9 @@ func (h *ACLHandler) UpdateBasicAuthUser(w http.ResponseWriter, r *http.Request)
 
 // DeleteBasicAuthUser handles DELETE /api/acl/basic-auth/:id
 func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -810,6 +937,14 @@ func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	groupID := existingUser.ACLGroupID
+	username := existingUser.Username
+
+	// Get group name for audit logging
+	group, _ := h.aclService.GetGroup(groupID)
+	groupName := ""
+	if group != nil {
+		groupName = group.Name
+	}
 
 	if err := h.aclService.DeleteBasicAuthUser(id); err != nil {
 		if errors.Is(err, service.ErrBasicAuthUserNotFound) {
@@ -818,6 +953,11 @@ func (h *ACLHandler) DeleteBasicAuthUser(w http.ResponseWriter, r *http.Request)
 		}
 		utils.InternalError(w, "Failed to delete basic auth user")
 		return
+	}
+
+	// Audit logging for basic auth user deletion
+	if h.auditService != nil {
+		_ = h.auditService.LogACLBasicAuthDelete(r.Context(), userID, id, groupName, username, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1075,12 +1215,29 @@ func (h *ACLHandler) GetWaygatesAuth(w http.ResponseWriter, r *http.Request) {
 
 // ConfigureWaygatesAuth handles PUT /api/acl/groups/:id/waygates-auth
 func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
 		utils.BadRequest(w, "Invalid ACL group ID", nil)
 		return
 	}
+
+	// Get group name and old config for audit logging
+	group, err := h.aclService.GetGroup(groupID)
+	if err != nil {
+		if errors.Is(err, service.ErrACLGroupNotFound) {
+			utils.NotFound(w, "ACL group not found")
+			return
+		}
+		utils.InternalError(w, "Failed to get ACL group")
+		return
+	}
+
+	// Get old config for change tracking
+	oldConfig, _ := h.aclService.GetWaygatesAuth(groupID)
 
 	// Parse request body
 	var req ConfigureWaygatesAuthRequest
@@ -1111,6 +1268,12 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Audit logging for Waygates auth configuration update
+	if h.auditService != nil {
+		changes := buildWaygatesAuthChanges(oldConfig, config)
+		_ = h.auditService.LogACLWaygatesAuthUpdate(r.Context(), userID, groupID, group.Name, config, changes, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -1134,6 +1297,12 @@ func (h *ACLHandler) GetBranding(w http.ResponseWriter, r *http.Request) {
 
 // UpdateBranding handles PUT /api/acl/branding
 func (h *ACLHandler) UpdateBranding(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
+	// Get old branding for change tracking
+	oldBranding, _ := h.aclService.GetBranding()
+
 	// Parse request body
 	var req UpdateBrandingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1165,6 +1334,12 @@ func (h *ACLHandler) UpdateBranding(w http.ResponseWriter, r *http.Request) {
 	if err := h.aclService.UpdateBranding(branding); err != nil {
 		utils.InternalError(w, "Failed to update branding configuration")
 		return
+	}
+
+	// Audit logging for branding update
+	if h.auditService != nil {
+		changes := buildBrandingChanges(oldBranding, branding)
+		_ = h.auditService.LogACLBrandingUpdate(r.Context(), userID, changes, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, branding, "Branding updated successfully")
@@ -1270,6 +1445,9 @@ func (h *ACLHandler) GetOAuthProviderRestrictions(w http.ResponseWriter, r *http
 
 // SetOAuthProviderRestriction handles PUT /api/acl/groups/{id}/oauth-restrictions/{provider}
 func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -1289,11 +1467,28 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Get group name for audit logging
+	groupName := ""
+	if group, err := h.aclService.GetGroup(groupID); err == nil && group != nil {
+		groupName = group.Name
+	}
+
 	// Parse request body
 	var req SetOAuthProviderRestrictionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid request body format", nil)
 		return
+	}
+
+	// Get old restriction for audit logging (before making changes)
+	var oldRestriction *models.ACLOAuthProviderRestriction
+	if restrictions, err := h.aclService.GetOAuthProviderRestrictions(groupID); err == nil {
+		for i := range restrictions {
+			if restrictions[i].Provider == provider {
+				oldRestriction = &restrictions[i]
+				break
+			}
+		}
 	}
 
 	if err := h.aclService.SetOAuthProviderRestriction(groupID, provider, req.AllowedEmails, req.AllowedDomains, req.Enabled); err != nil {
@@ -1309,6 +1504,11 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Audit logging
+	if h.auditService != nil {
+		_ = h.auditService.LogACLOAuthRestrictionSet(r.Context(), userID, groupID, groupName, provider, oldRestriction, req.Enabled, req.AllowedEmails, req.AllowedDomains, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
@@ -1322,6 +1522,9 @@ func (h *ACLHandler) SetOAuthProviderRestriction(w http.ResponseWriter, r *http.
 
 // DeleteOAuthProviderRestriction handles DELETE /api/acl/groups/{id}/oauth-restrictions/{provider}
 func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, _ := strconv.Atoi(userIDStr)
+
 	idStr := chi.URLParam(r, "id")
 	groupID, err := strconv.Atoi(idStr)
 	if err != nil {
@@ -1339,6 +1542,12 @@ func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *ht
 	if !validOAuthProviders[provider] {
 		utils.BadRequest(w, "Invalid provider: must be one of 'google', 'github', 'microsoft', 'gitlab'", nil)
 		return
+	}
+
+	// Get group name for audit logging
+	groupName := ""
+	if group, err := h.aclService.GetGroup(groupID); err == nil && group != nil {
+		groupName = group.Name
 	}
 
 	if err := h.aclService.DeleteOAuthProviderRestriction(groupID, provider); err != nil {
@@ -1358,8 +1567,257 @@ func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Audit logging
+	if h.auditService != nil {
+		_ = h.auditService.LogACLOAuthRestrictionDelete(r.Context(), userID, groupID, groupName, provider, getClientIP(r), r.UserAgent())
+	}
+
 	// Sync all proxies using this ACL group
 	h.syncProxiesUsingGroup(groupID)
 
 	utils.Success(w, nil, "OAuth provider restriction deleted successfully")
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+// buildACLGroupChanges builds a map of changes between old and new ACL group
+func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	if old.Name != new.Name {
+		changes["name"] = map[string]interface{}{
+			"old": old.Name,
+			"new": new.Name,
+		}
+	}
+
+	oldDesc := ""
+	newDesc := ""
+	if old.Description != nil {
+		oldDesc = *old.Description
+	}
+	if new.Description != nil {
+		newDesc = *new.Description
+	}
+	if oldDesc != newDesc {
+		changes["description"] = map[string]interface{}{
+			"old": oldDesc,
+			"new": newDesc,
+		}
+	}
+
+	if old.CombinationMode != new.CombinationMode {
+		changes["combination_mode"] = map[string]interface{}{
+			"old": old.CombinationMode,
+			"new": new.CombinationMode,
+		}
+	}
+
+	return changes
+}
+
+// buildIPRuleChanges builds a map of changes between old and new IP rule
+func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	if old.RuleType != new.RuleType {
+		changes["rule_type"] = map[string]interface{}{
+			"old": old.RuleType,
+			"new": new.RuleType,
+		}
+	}
+
+	if old.CIDR != new.CIDR {
+		changes["cidr"] = map[string]interface{}{
+			"old": old.CIDR,
+			"new": new.CIDR,
+		}
+	}
+
+	if old.Priority != new.Priority {
+		changes["priority"] = map[string]interface{}{
+			"old": old.Priority,
+			"new": new.Priority,
+		}
+	}
+
+	oldDesc := ""
+	newDesc := ""
+	if old.Description != nil {
+		oldDesc = *old.Description
+	}
+	if new.Description != nil {
+		newDesc = *new.Description
+	}
+	if oldDesc != newDesc {
+		changes["description"] = map[string]interface{}{
+			"old": oldDesc,
+			"new": newDesc,
+		}
+	}
+
+	return changes
+}
+
+// buildWaygatesAuthChanges builds a map of changes between old and new Waygates auth config
+func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	// Handle nil old config (first-time configuration)
+	if old == nil {
+		old = &models.ACLWaygatesAuth{}
+	}
+
+	if old.Enabled != new.Enabled {
+		changes["enabled"] = map[string]interface{}{
+			"old": old.Enabled,
+			"new": new.Enabled,
+		}
+	}
+
+	if old.Require2FA != new.Require2FA {
+		changes["require_2fa"] = map[string]interface{}{
+			"old": old.Require2FA,
+			"new": new.Require2FA,
+		}
+	}
+
+	if old.SessionTTL != new.SessionTTL {
+		changes["session_ttl"] = map[string]interface{}{
+			"old": old.SessionTTL,
+			"new": new.SessionTTL,
+		}
+	}
+
+	// Track allowed_roles changes
+	oldRoles := joinStrings(old.AllowedRoles)
+	newRoles := joinStrings(new.AllowedRoles)
+	if oldRoles != newRoles {
+		changes["allowed_roles"] = map[string]interface{}{
+			"old": old.AllowedRoles,
+			"new": new.AllowedRoles,
+		}
+	}
+
+	// Track allowed_domains changes
+	oldDomains := joinStrings(old.AllowedDomains)
+	newDomains := joinStrings(new.AllowedDomains)
+	if oldDomains != newDomains {
+		changes["allowed_domains"] = map[string]interface{}{
+			"old": old.AllowedDomains,
+			"new": new.AllowedDomains,
+		}
+	}
+
+	// Track allowed_providers changes
+	oldProviders := joinStrings(old.AllowedProviders)
+	newProviders := joinStrings(new.AllowedProviders)
+	if oldProviders != newProviders {
+		changes["allowed_providers"] = map[string]interface{}{
+			"old": old.AllowedProviders,
+			"new": new.AllowedProviders,
+		}
+	}
+
+	// Track allowed_emails changes
+	oldEmails := joinStrings(old.AllowedEmails)
+	newEmails := joinStrings(new.AllowedEmails)
+	if oldEmails != newEmails {
+		changes["allowed_emails"] = map[string]interface{}{
+			"old": old.AllowedEmails,
+			"new": new.AllowedEmails,
+		}
+	}
+
+	// Track allowed_users changes
+	oldUsers := joinStrings(old.AllowedUsers)
+	newUsers := joinStrings(new.AllowedUsers)
+	if oldUsers != newUsers {
+		changes["allowed_users"] = map[string]interface{}{
+			"old": old.AllowedUsers,
+			"new": new.AllowedUsers,
+		}
+	}
+
+	return changes
+}
+
+// buildBrandingChanges builds a map of changes between old and new branding
+func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
+	changes := make(map[string]interface{})
+
+	// Handle nil old branding (first-time configuration)
+	if old == nil {
+		old = &models.ACLBranding{}
+	}
+
+	if old.Title != new.Title {
+		changes["title"] = map[string]interface{}{
+			"old": old.Title,
+			"new": new.Title,
+		}
+	}
+
+	if old.PrimaryColor != new.PrimaryColor {
+		changes["primary_color"] = map[string]interface{}{
+			"old": old.PrimaryColor,
+			"new": new.PrimaryColor,
+		}
+	}
+
+	if old.BackgroundColor != new.BackgroundColor {
+		changes["background_color"] = map[string]interface{}{
+			"old": old.BackgroundColor,
+			"new": new.BackgroundColor,
+		}
+	}
+
+	oldSubtitle := ""
+	newSubtitle := ""
+	if old.Subtitle != nil {
+		oldSubtitle = *old.Subtitle
+	}
+	if new.Subtitle != nil {
+		newSubtitle = *new.Subtitle
+	}
+	if oldSubtitle != newSubtitle {
+		changes["subtitle"] = map[string]interface{}{
+			"old": oldSubtitle,
+			"new": newSubtitle,
+		}
+	}
+
+	oldLogoURL := ""
+	newLogoURL := ""
+	if old.LogoURL != nil {
+		oldLogoURL = *old.LogoURL
+	}
+	if new.LogoURL != nil {
+		newLogoURL = *new.LogoURL
+	}
+	if oldLogoURL != newLogoURL {
+		changes["logo_url"] = map[string]interface{}{
+			"old": oldLogoURL,
+			"new": newLogoURL,
+		}
+	}
+
+	return changes
+}
+
+// joinStrings joins a slice of strings for comparison
+func joinStrings(s []string) string {
+	if s == nil {
+		return ""
+	}
+	result := ""
+	for i, v := range s {
+		if i > 0 {
+			result += ","
+		}
+		result += v
+	}
+	return result
 }

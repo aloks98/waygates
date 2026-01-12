@@ -27,6 +27,7 @@ const resourceTypeOptions = [
   { value: 'user', label: 'User' },
   { value: 'settings', label: 'Settings' },
   { value: 'system', label: 'System' },
+  { value: 'acl', label: 'ACL' },
 ];
 
 export function AuditLogsPage() {

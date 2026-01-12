@@ -350,14 +350,15 @@ func (b *ACLBuilder) buildAnyModeConfig(proxy *models.Proxy, group *models.ACLGr
 	sb.WriteString(b.buildStaticAssetsBypassBlock(proxy, matcherPrefix))
 
 	// 5. Handle remaining requests with authentication
-	hasForwardAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasWaygatesUsernameAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasOAuthProviders := group.WaygatesAuth != nil && len(group.WaygatesAuth.AllowedProviders) > 0
 	hasOAuthRestrictions := len(group.OAuthProviderRestrictions) > 0
 	hasExternalAuth := len(group.ExternalProviders) > 0
 	hasBasicAuth := len(group.BasicAuthUsers) > 0
 
-	// Use forward auth if Waygates auth, OAuth restrictions, or external providers are configured.
+	// Use forward auth if Waygates auth (username/password OR OAuth providers), OAuth restrictions, or external providers are configured.
 	// Basic auth is only used when it's the only auth method (more secure methods override it).
-	hasSecureAuth := hasForwardAuth || hasOAuthRestrictions || hasExternalAuth
+	hasSecureAuth := hasWaygatesUsernameAuth || hasOAuthProviders || hasOAuthRestrictions || hasExternalAuth
 	if hasBasicAuth && !hasSecureAuth {
 		// Only basic auth configured (no more secure auth methods)
 		sb.WriteString(b.buildBasicAuthBlock(proxy, group, pathPattern, matcherPrefix, bypassIPs, allowIPs))
@@ -392,14 +393,15 @@ func (b *ACLBuilder) buildAllModeConfig(proxy *models.Proxy, group *models.ACLGr
 	}
 
 	// 3. Requests from allowed IPs still need auth check
-	hasForwardAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasWaygatesUsernameAuth := group.WaygatesAuth != nil && group.WaygatesAuth.Enabled
+	hasOAuthProviders := group.WaygatesAuth != nil && len(group.WaygatesAuth.AllowedProviders) > 0
 	hasOAuthRestrictions := len(group.OAuthProviderRestrictions) > 0
 	hasExternalAuth := len(group.ExternalProviders) > 0
 	hasBasicAuth := len(group.BasicAuthUsers) > 0
 
-	// Use forward auth if Waygates auth, OAuth restrictions, or external providers are configured.
+	// Use forward auth if Waygates auth (username/password OR OAuth providers), OAuth restrictions, or external providers are configured.
 	// Basic auth is only used when it's the only auth method (more secure methods override it).
-	hasSecureAuth := hasForwardAuth || hasOAuthRestrictions || hasExternalAuth
+	hasSecureAuth := hasWaygatesUsernameAuth || hasOAuthProviders || hasOAuthRestrictions || hasExternalAuth
 	if hasBasicAuth && !hasSecureAuth {
 		sb.WriteString(b.buildBasicAuthBlockAll(proxy, group, pathPattern, matcherPrefix, allAllowedIPs))
 	} else if hasSecureAuth {
@@ -642,7 +644,8 @@ func (b *ACLBuilder) buildForwardAuthBlock(proxy *models.Proxy, group *models.AC
 		// Use first external provider
 		provider := group.ExternalProviders[0]
 		sb.WriteString(b.buildExternalForwardAuth(provider, "\t\t"))
-	} else if group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
+	} else if group.WaygatesAuth != nil && (group.WaygatesAuth.Enabled || len(group.WaygatesAuth.AllowedProviders) > 0) {
+		// Use Waygates forward auth if username/password is enabled OR OAuth providers are configured
 		sb.WriteString(b.buildWaygatesForwardAuth("\t\t"))
 	}
 
@@ -679,7 +682,8 @@ func (b *ACLBuilder) buildForwardAuthBlockAll(proxy *models.Proxy, group *models
 	if len(group.ExternalProviders) > 0 {
 		provider := group.ExternalProviders[0]
 		sb.WriteString(b.buildExternalForwardAuth(provider, "\t\t"))
-	} else if group.WaygatesAuth != nil && group.WaygatesAuth.Enabled {
+	} else if group.WaygatesAuth != nil && (group.WaygatesAuth.Enabled || len(group.WaygatesAuth.AllowedProviders) > 0) {
+		// Use Waygates forward auth if username/password is enabled OR OAuth providers are configured
 		sb.WriteString(b.buildWaygatesForwardAuth("\t\t"))
 	}
 
