@@ -50,6 +50,9 @@ const actionConfig: Record<
   'acl_branding.update': { label: 'ACL Branding Update', variant: 'info' },
   // ACL Session action
   'acl_session.revoke': { label: 'Session Revoke', variant: 'warning' },
+  // ACL OAuth Restriction actions
+  'acl_oauth_restriction.set': { label: 'OAuth Restriction Set', variant: 'info' },
+  'acl_oauth_restriction.delete': { label: 'OAuth Restriction Delete', variant: 'destructive' },
 };
 
 export function ActionBadge({ action }: ActionBadgeProps) {

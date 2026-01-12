@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/aloks98/waygates/backend/internal/models"
 )
 
@@ -13,12 +15,8 @@ func TestNewACLRepository(t *testing.T) {
 	t.Parallel()
 
 	repo := NewACLRepository(nil)
-	if repo == nil {
-		t.Fatal("Expected repository to be created")
-	}
-	if repo.db != nil {
-		t.Error("Expected db to be nil")
-	}
+	require.NotNil(t, repo, "Expected repository to be created")
+	require.Nil(t, repo.db, "Expected db to be nil")
 }
 
 // TestACLGroupListParams_Structure tests the ACLGroupListParams struct

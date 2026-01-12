@@ -703,7 +703,7 @@ func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int,
 		"group_name": groupName,
 	}
 
-	if changes != nil && len(changes) > 0 {
+	if len(changes) > 0 {
 		details["changes"] = changes
 	}
 
