@@ -149,7 +149,7 @@ func TestReloader_Validate_Success(t *testing.T) {
 	// Create a mock caddy script that returns success for validate
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         echo "Valid configuration"
@@ -186,7 +186,7 @@ func TestReloader_Validate_Failure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         echo "Error: invalid directive on line 5" >&2
@@ -227,7 +227,7 @@ func TestReloader_Validate_StdoutError(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         echo "Error: syntax error"
@@ -305,7 +305,7 @@ func TestReloader_Validate_ContextCancellation(t *testing.T) {
 	tempDir := t.TempDir()
 	// Create a script that sleeps to allow cancellation
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 sleep 10
 exit 0
 `
@@ -336,7 +336,7 @@ func TestReloader_Reload_Success(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         echo "Valid configuration"
@@ -386,7 +386,7 @@ func TestReloader_Reload_IncrementCount(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 exit 0
 `
 	err := os.WriteFile(scriptPath, []byte(script), 0755)
@@ -422,7 +422,7 @@ func TestReloader_Reload_ValidationFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         echo "Error: invalid config" >&2
@@ -466,7 +466,7 @@ func TestReloader_Reload_ReloadFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         exit 0
@@ -508,7 +508,7 @@ func TestReloader_Reload_StdoutError(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         exit 0
@@ -550,7 +550,7 @@ func TestReloader_ForceReload_Success(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "reload")
         echo "Force reload successful"
@@ -591,7 +591,7 @@ func TestReloader_ForceReload_Failure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "reload")
         echo "Error: force reload failed" >&2
@@ -630,7 +630,7 @@ func TestReloader_ForceReload_StdoutError(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "reload")
         echo "stdout error message"
@@ -669,7 +669,7 @@ func TestReloader_AdaptAndReload_Success(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "adapt")
         echo '{"apps":{"http":{}}}'
@@ -714,7 +714,7 @@ func TestReloader_AdaptAndReload_AdaptFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "adapt")
         echo "Error: failed to adapt config" >&2
@@ -753,7 +753,7 @@ func TestReloader_AdaptAndReload_ReloadFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "adapt")
         echo '{"apps":{}}'
@@ -797,7 +797,7 @@ func TestReloader_TestConnection_Success(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "version")
         echo "v2.7.5"
@@ -846,7 +846,7 @@ func TestReloader_TestConnection_CommandFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 exit 1
 `
 	err := os.WriteFile(scriptPath, []byte(script), 0755)
@@ -870,7 +870,7 @@ func TestReloader_ConcurrentAccess(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 exit 0
 `
 	err := os.WriteFile(scriptPath, []byte(script), 0755)
@@ -925,7 +925,7 @@ func TestReloader_Validate_ContextTimeout(t *testing.T) {
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
 	// Script that sleeps longer than context timeout
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 sleep 5
 exit 0
 `
@@ -957,7 +957,7 @@ func TestReloader_Reload_ContextTimeout(t *testing.T) {
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
 	// Script that completes validation but sleeps during reload
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         exit 0
@@ -1059,7 +1059,7 @@ func TestReloader_Reload_NoStateUpdateOnFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "validate")
         exit 0
@@ -1107,7 +1107,7 @@ func TestReloader_ForceReload_NoStateUpdateOnFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 exit 1
 `
 	err := os.WriteFile(scriptPath, []byte(script), 0755)
@@ -1145,7 +1145,7 @@ func TestReloader_AdaptAndReload_NoStateUpdateOnAdaptFailure(t *testing.T) {
 
 	tempDir := t.TempDir()
 	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/bin/bash
+	script := `#!/usr/bin/env bash
 case "$1" in
     "adapt")
         exit 1
