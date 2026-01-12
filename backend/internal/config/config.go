@@ -45,6 +45,8 @@ type DatabaseConfig struct {
 type CaddyConfig struct {
 	Email        string // Email for ACME certificates
 	ACMEProvider string // DNS provider for ACME challenge: cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh, http, off
+	UseJSONMode  bool   // When true, use JSON config instead of Caddyfile (recommended)
+	StoragePath  string // Caddy storage path for certificates (default: /data)
 }
 
 // ACMEProviderEnvVars maps ACME providers to their required environment variables
@@ -132,6 +134,8 @@ func Load() (*Config, error) {
 		Caddy: CaddyConfig{
 			Email:        viper.GetString("CADDY_EMAIL"),
 			ACMEProvider: viper.GetString("CADDY_ACME_PROVIDER"),
+			UseJSONMode:  viper.GetBool("CADDY_USE_JSON_MODE"),
+			StoragePath:  viper.GetString("CADDY_STORAGE_PATH"),
 		},
 		JWT: JWTConfig{
 			Secret:        viper.GetString("JWT_SECRET"),
@@ -193,6 +197,8 @@ func setDefaults() {
 	// Caddy ACME configuration
 	viper.SetDefault("CADDY_EMAIL", "")
 	viper.SetDefault("CADDY_ACME_PROVIDER", "off") // off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
+	viper.SetDefault("CADDY_USE_JSON_MODE", true)  // Use JSON config instead of Caddyfile (recommended)
+	viper.SetDefault("CADDY_STORAGE_PATH", "/data")
 
 	// JWT
 	viper.SetDefault("JWT_ACCESS_EXPIRY", 15*time.Minute)
