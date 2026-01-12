@@ -196,13 +196,14 @@ func (s *AuditService) GetConfig() (*models.AuditConfig, error) {
 		return models.DefaultAuditConfig(), nil
 	}
 
-	var config models.AuditConfig
-	if err := json.Unmarshal([]byte(configStr), &config); err != nil {
+	// Start with defaults so any new fields added later are enabled by default
+	config := models.DefaultAuditConfig()
+	if err := json.Unmarshal([]byte(configStr), config); err != nil {
 		s.logger.Error("Failed to parse audit config", zap.Error(err))
 		return models.DefaultAuditConfig(), nil
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // SetConfig updates the audit configuration
