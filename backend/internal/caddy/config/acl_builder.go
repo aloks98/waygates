@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"sort"
 
 	"go.uber.org/zap"
@@ -384,11 +385,14 @@ func (b *ACLBuilder) buildForwardAuthHandler(group *models.ACLGroup) HTTPHandler
 
 // buildWaygatesForwardAuthHandler creates a Waygates forward auth handler.
 func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
+	// Extract host:port from URL for Caddy's Dial field
+	dialAddr := extractDialAddress(b.waygatesVerifyURL)
+
 	// Waygates forward auth is implemented as a reverse_proxy with specific configuration
 	return HTTPHandler{
 		"handler": HandlerReverseProxy,
 		"upstreams": []*Upstream{
-			{Dial: b.waygatesVerifyURL},
+			{Dial: dialAddr},
 		},
 		"headers": &HeadersConfig{
 			Request: &HeaderOps{
@@ -450,10 +454,13 @@ func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalPro
 		headerSet[h] = []string{"{http.reverse_proxy.header." + h + "}"}
 	}
 
+	// Extract host:port from URL for Caddy's Dial field
+	dialAddr := extractDialAddress(provider.VerifyURL)
+
 	return HTTPHandler{
 		"handler": HandlerReverseProxy,
 		"upstreams": []*Upstream{
-			{Dial: provider.VerifyURL},
+			{Dial: dialAddr},
 		},
 		"headers": &HeadersConfig{
 			Request: &HeaderOps{
@@ -501,4 +508,40 @@ func GetProviderDefaultHeaders(providerType string) []string {
 		return headers
 	}
 	return nil
+}
+
+// extractDialAddress extracts the host:port from a URL for Caddy's Dial field.
+// Input: "http://waygates:8080" or "https://auth.example.com:443/verify"
+// Output: "waygates:8080" or "auth.example.com:443"
+func extractDialAddress(rawURL string) string {
+	// If it's already just host:port, return as-is
+	if !containsScheme(rawURL) {
+		return rawURL
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		// If parsing fails, return the original (let Caddy handle the error)
+		return rawURL
+	}
+
+	host := parsed.Hostname()
+	port := parsed.Port()
+
+	// If no port specified, use default based on scheme
+	if port == "" {
+		switch parsed.Scheme {
+		case "https":
+			port = "443"
+		default:
+			port = "80"
+		}
+	}
+
+	return fmt.Sprintf("%s:%s", host, port)
+}
+
+// containsScheme checks if a string contains a URL scheme (e.g., "http://", "https://").
+func containsScheme(s string) bool {
+	return len(s) > 7 && (s[:7] == "http://" || (len(s) > 8 && s[:8] == "https://"))
 }

@@ -1591,6 +1591,57 @@ func TestGetProviderDefaultHeaders(t *testing.T) {
 	}
 }
 
+func TestExtractDialAddress(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "http URL with port",
+			input:    "http://waygates:8080",
+			expected: "waygates:8080",
+		},
+		{
+			name:     "https URL with port",
+			input:    "https://auth.example.com:443",
+			expected: "auth.example.com:443",
+		},
+		{
+			name:     "http URL without port",
+			input:    "http://waygates",
+			expected: "waygates:80",
+		},
+		{
+			name:     "https URL without port",
+			input:    "https://secure.example.com",
+			expected: "secure.example.com:443",
+		},
+		{
+			name:     "URL with path",
+			input:    "http://localhost:8080/verify",
+			expected: "localhost:8080",
+		},
+		{
+			name:     "already host:port format",
+			input:    "waygates:8080",
+			expected: "waygates:8080",
+		},
+		{
+			name:     "IP address with port",
+			input:    "http://192.168.1.100:9000",
+			expected: "192.168.1.100:9000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractDialAddress(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 // =============================================================================
 // Integration Tests
 // =============================================================================
