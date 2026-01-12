@@ -83,6 +83,7 @@ type PassiveHealthCheck struct {
 
 // HTTPTransport configures the HTTP transport for reverse proxy.
 type HTTPTransport struct {
+	Protocol              string       `json:"protocol,omitempty"` // Must be "http" for Caddy to recognize the transport module
 	Resolver              *DNSResolver `json:"resolver,omitempty"`
 	TLS                   *TLSConfig   `json:"tls,omitempty"`
 	KeepAlive             *KeepAlive   `json:"keep_alive,omitempty"`
@@ -358,6 +359,7 @@ func (h *ReverseProxyHandler) WithHealthChecks(path string, interval, timeout Du
 // WithTLSTransport adds TLS transport configuration to a reverse proxy handler.
 func (h *ReverseProxyHandler) WithTLSTransport(insecureSkipVerify bool) *ReverseProxyHandler {
 	h.Transport = &HTTPTransport{
+		Protocol: "http", // Required by Caddy to identify the transport module
 		TLS: &TLSConfig{
 			InsecureSkipVerify: insecureSkipVerify,
 		},
