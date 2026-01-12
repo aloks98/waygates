@@ -12,6 +12,7 @@ import (
 
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/caddy/caddyfile"
+	"github.com/aloks98/waygates/backend/internal/caddy/config"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
@@ -40,6 +41,14 @@ type SyncService struct {
 	email        string
 	acmeProvider string
 
+	// JSON configuration builder (new)
+	jsonBuilder *config.Builder
+	useJSONMode bool // When true, use JSON config instead of Caddyfile
+
+	// Waygates auth URLs for ACL
+	waygatesVerifyURL string
+	waygatesLoginURL  string
+
 	// Sync state
 	ticker   *time.Ticker
 	stopChan chan struct{}
@@ -59,6 +68,12 @@ type SyncServiceConfig struct {
 	Logger       *zap.Logger
 	Email        string // Email for ACME certificates
 	ACMEProvider string // ACME provider: off, http, cloudflare, route53, etc.
+
+	// JSON mode configuration (new)
+	UseJSONMode       bool   // When true, use JSON config instead of Caddyfile
+	WaygatesVerifyURL string // Waygates auth verify URL for ACL
+	WaygatesLoginURL  string // Waygates auth login URL for ACL
+	StoragePath       string // Caddy storage path (default: /data)
 }
 
 // NewSyncService creates a new sync service
@@ -66,21 +81,69 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 	if cfg.Logger == nil {
 		cfg.Logger = zap.NewNop()
 	}
-	return &SyncService{
-		proxyRepo:    cfg.ProxyRepo,
-		settingsRepo: cfg.SettingsRepo,
-		aclRepo:      cfg.ACLRepo,
-		builder:      cfg.Builder,
-		fileManager:  cfg.FileManager,
-		reloader:     cfg.Reloader,
-		logger:       cfg.Logger.Named("sync-service"),
-		email:        cfg.Email,
-		acmeProvider: cfg.ACMEProvider,
-		stopChan:     make(chan struct{}),
+
+	logger := cfg.Logger.Named("sync-service")
+
+	svc := &SyncService{
+		proxyRepo:         cfg.ProxyRepo,
+		settingsRepo:      cfg.SettingsRepo,
+		aclRepo:           cfg.ACLRepo,
+		builder:           cfg.Builder,
+		fileManager:       cfg.FileManager,
+		reloader:          cfg.Reloader,
+		logger:            logger,
+		email:             cfg.Email,
+		acmeProvider:      cfg.ACMEProvider,
+		useJSONMode:       cfg.UseJSONMode,
+		waygatesVerifyURL: cfg.WaygatesVerifyURL,
+		waygatesLoginURL:  cfg.WaygatesLoginURL,
+		stopChan:          make(chan struct{}),
 		status: SyncStatus{
 			LastSyncSuccess: true,
 		},
 	}
+
+	// Initialize JSON builder if JSON mode is enabled
+	if cfg.UseJSONMode {
+		svc.initJSONBuilder(cfg, logger)
+	}
+
+	return svc
+}
+
+// initJSONBuilder initializes the JSON configuration builder
+func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger) {
+	// Create ACL builder if Waygates auth URLs are configured
+	var aclBuilder *config.ACLBuilder
+	if cfg.WaygatesVerifyURL != "" && cfg.WaygatesLoginURL != "" {
+		aclBuilder = config.NewACLBuilder(logger)
+		aclBuilder.SetWaygatesURLs(cfg.WaygatesVerifyURL, cfg.WaygatesLoginURL)
+	}
+
+	// Create builder options
+	opts := []config.BuilderOption{
+		config.WithLogger(logger),
+	}
+	if aclBuilder != nil {
+		opts = append(opts, config.WithACLBuilder(aclBuilder))
+	}
+
+	// Create the JSON builder
+	s.jsonBuilder = config.NewBuilder(opts...)
+
+	// Set configuration settings
+	storagePath := cfg.StoragePath
+	if storagePath == "" {
+		storagePath = "/data"
+	}
+
+	s.jsonBuilder.SetSettings(&config.Settings{
+		AdminEmail:        cfg.Email,
+		ACMEProvider:      cfg.ACMEProvider,
+		StoragePath:       storagePath,
+		WaygatesVerifyURL: cfg.WaygatesVerifyURL,
+		WaygatesLoginURL:  cfg.WaygatesLoginURL,
+	})
 }
 
 // Start begins the periodic sync process
@@ -132,6 +195,46 @@ func (s *SyncService) Start(interval time.Duration) {
 func (s *SyncService) ensureInitialConfigs() error {
 	s.logger.Debug("Ensuring initial config files exist")
 
+	// In JSON mode, ensure the JSON config exists
+	if s.useJSONMode && s.jsonBuilder != nil {
+		return s.ensureInitialJSONConfig()
+	}
+
+	// Caddyfile mode
+	return s.ensureInitialCaddyfileConfigs()
+}
+
+// ensureInitialJSONConfig creates an initial JSON config if it doesn't exist
+func (s *SyncService) ensureInitialJSONConfig() error {
+	jsonConfigPath := s.fileManager.GetJSONConfigPath()
+	if !s.fileManager.FileExists(jsonConfigPath) {
+		s.logger.Info("Creating initial JSON config", zap.String("path", jsonConfigPath))
+
+		// Build a minimal JSON config with no proxies
+		s.jsonBuilder.SetHTTPProxies(nil)
+		s.jsonBuilder.SetACLGroups(nil)
+		s.jsonBuilder.SetACLAssignments(nil)
+		s.jsonBuilder.SetNotFoundSettings(&models.NotFoundSettings{
+			Mode:        "default",
+			RedirectURL: "",
+		})
+
+		configBytes, err := s.jsonBuilder.BuildJSON()
+		if err != nil {
+			return fmt.Errorf("failed to build initial JSON config: %w", err)
+		}
+
+		if err := s.fileManager.WriteJSONConfig(jsonConfigPath, configBytes); err != nil {
+			return fmt.Errorf("failed to write initial JSON config: %w", err)
+		}
+	}
+
+	s.logger.Debug("Initial JSON config ensured")
+	return nil
+}
+
+// ensureInitialCaddyfileConfigs creates initial Caddyfile configs if they don't exist
+func (s *SyncService) ensureInitialCaddyfileConfigs() error {
 	// Check if main Caddyfile exists
 	caddyfilePath := s.fileManager.GetCaddyfilePath()
 	if !s.fileManager.FileExists(caddyfilePath) {
@@ -160,7 +263,7 @@ func (s *SyncService) ensureInitialConfigs() error {
 		}
 	}
 
-	s.logger.Debug("Initial config files ensured")
+	s.logger.Debug("Initial Caddyfile configs ensured")
 	return nil
 }
 
@@ -240,6 +343,133 @@ func (s *SyncService) FullSync() error {
 
 // performFullSync executes the actual sync logic
 func (s *SyncService) performFullSync() error {
+	// Use JSON mode if enabled
+	if s.useJSONMode && s.jsonBuilder != nil {
+		return s.performFullSyncJSON()
+	}
+
+	// Fall back to Caddyfile mode
+	return s.performFullSyncCaddyfile()
+}
+
+// performFullSyncJSON executes sync using JSON configuration builder
+func (s *SyncService) performFullSyncJSON() error {
+	ctx := context.Background()
+
+	s.logger.Debug("Starting JSON config sync")
+
+	// 1. Get all proxies from DB
+	proxies, _, err := s.proxyRepo.List(repository.ProxyListParams{
+		Limit: 10000, // Get all proxies
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list proxies: %w", err)
+	}
+
+	// 2. Get 404 settings from DB
+	notFoundSettings, err := s.settingsRepo.GetNotFoundSettings()
+	if err != nil {
+		s.logger.Warn("Failed to get 404 settings, using default", zap.Error(err))
+		notFoundSettings = &models.NotFoundSettings{
+			Mode:        "default",
+			RedirectURL: "",
+		}
+	}
+
+	// 3. Load ACL groups and assignments if ACL repository is available
+	var aclGroups []models.ACLGroup
+	var aclAssignments []models.ProxyACLAssignment
+
+	if s.aclRepo != nil {
+		// Get all ACL groups
+		groups, _, err := s.aclRepo.ListGroups(repository.ACLGroupListParams{
+			Limit: 10000, // Get all groups
+			Page:  1,
+		})
+		if err != nil {
+			s.logger.Warn("Failed to list ACL groups", zap.Error(err))
+		} else {
+			// Load full group data for each group
+			for _, g := range groups {
+				fullGroup, err := s.aclRepo.GetGroupByID(g.ID)
+				if err != nil {
+					s.logger.Warn("Failed to load full ACL group data",
+						zap.Int("group_id", g.ID),
+						zap.Error(err))
+					continue
+				}
+				aclGroups = append(aclGroups, *fullGroup)
+			}
+		}
+
+		// Get ACL assignments for each proxy
+		for _, proxy := range proxies {
+			assignments, err := s.aclRepo.GetProxyACLAssignments(proxy.ID)
+			if err != nil {
+				s.logger.Warn("Failed to get ACL assignments for proxy",
+					zap.Int("proxy_id", proxy.ID),
+					zap.Error(err))
+				continue
+			}
+			aclAssignments = append(aclAssignments, assignments...)
+		}
+	}
+
+	// 4. Configure the JSON builder with all data
+	s.jsonBuilder.SetHTTPProxies(proxies)
+	s.jsonBuilder.SetACLGroups(aclGroups)
+	s.jsonBuilder.SetACLAssignments(aclAssignments)
+	s.jsonBuilder.SetNotFoundSettings(notFoundSettings)
+
+	// 5. Build the JSON configuration
+	configBytes, err := s.jsonBuilder.BuildJSON()
+	if err != nil {
+		return fmt.Errorf("failed to build JSON config: %w", err)
+	}
+
+	// 6. Get JSON config path from file manager
+	jsonConfigPath := s.fileManager.GetJSONConfigPath()
+
+	// 7. Write the JSON config (with backup)
+	if err := s.fileManager.BackupJSONConfig(jsonConfigPath); err != nil {
+		s.logger.Warn("Failed to backup JSON config", zap.Error(err))
+		// Continue anyway - backup is optional
+	}
+
+	if err := s.fileManager.WriteJSONConfig(jsonConfigPath, configBytes); err != nil {
+		return fmt.Errorf("failed to write JSON config: %w", err)
+	}
+
+	s.logger.Debug("JSON config written", zap.String("path", jsonConfigPath))
+
+	// 8. Validate the JSON configuration
+	if err := s.reloader.ValidateJSON(jsonConfigPath); err != nil {
+		return fmt.Errorf("JSON config validation failed: %w", err)
+	}
+
+	// 9. Reload Caddy with the JSON configuration
+	result, err := s.reloader.ReloadJSON(ctx, jsonConfigPath)
+	if err != nil {
+		return fmt.Errorf("failed to reload Caddy with JSON config: %w", err)
+	}
+
+	// Update status
+	s.mu.Lock()
+	s.status.ConfigChanged = true
+	s.status.LastReloadTime = time.Now()
+	s.status.ReloadCount++
+	s.mu.Unlock()
+
+	s.logger.Info("Caddy JSON configuration reloaded",
+		zap.Int("proxy_count", len(proxies)),
+		zap.Int("acl_group_count", len(aclGroups)),
+		zap.Duration("reload_duration", result.Duration))
+
+	return nil
+}
+
+// performFullSyncCaddyfile executes sync using Caddyfile generation (legacy mode)
+func (s *SyncService) performFullSyncCaddyfile() error {
 	ctx := context.Background()
 	configChanged := false
 

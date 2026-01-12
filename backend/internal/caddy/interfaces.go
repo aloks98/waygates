@@ -20,6 +20,11 @@ type FileManagerInterface interface {
 	FileExists(path string) bool
 	Backup() (string, error)
 	Restore(backupPath string) error
+
+	// JSON configuration methods
+	GetJSONConfigPath() string
+	WriteJSONConfig(path string, data []byte) error
+	BackupJSONConfig(path string) error
 }
 
 // ReloaderInterface defines the interface for Caddy reload operations
@@ -29,6 +34,10 @@ type ReloaderInterface interface {
 	ForceReload(ctx context.Context) (*ReloadResult, error)
 	AdaptAndReload(ctx context.Context) (string, error)
 	TestConnection(ctx context.Context) error
+
+	// JSON configuration methods
+	ValidateJSON(configPath string) error
+	ReloadJSON(ctx context.Context, configPath string) (*ReloadResult, error)
 }
 
 // Ensure concrete types implement interfaces

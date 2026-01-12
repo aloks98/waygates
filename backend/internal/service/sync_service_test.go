@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/caddy/caddyfile"
 	"github.com/aloks98/waygates/backend/internal/models"
@@ -90,6 +92,11 @@ type MockFileManager struct {
 	FileExistsFunc         func(path string) bool
 	BackupFunc             func() (string, error)
 	RestoreFunc            func(backupPath string) error
+
+	// JSON configuration methods
+	GetJSONConfigPathFunc func() string
+	WriteJSONConfigFunc   func(path string, data []byte) error
+	BackupJSONConfigFunc  func(path string) error
 }
 
 func (m *MockFileManager) EnsureDirectories() error {
@@ -204,6 +211,27 @@ func (m *MockFileManager) Restore(backupPath string) error {
 	return nil
 }
 
+func (m *MockFileManager) GetJSONConfigPath() string {
+	if m.GetJSONConfigPathFunc != nil {
+		return m.GetJSONConfigPathFunc()
+	}
+	return "/etc/caddy/caddy.json"
+}
+
+func (m *MockFileManager) WriteJSONConfig(path string, data []byte) error {
+	if m.WriteJSONConfigFunc != nil {
+		return m.WriteJSONConfigFunc(path, data)
+	}
+	return nil
+}
+
+func (m *MockFileManager) BackupJSONConfig(path string) error {
+	if m.BackupJSONConfigFunc != nil {
+		return m.BackupJSONConfigFunc(path)
+	}
+	return nil
+}
+
 // MockReloader implements ReloaderInterface for testing
 type MockReloader struct {
 	ValidateFunc       func(ctx context.Context) error
@@ -211,6 +239,10 @@ type MockReloader struct {
 	ForceReloadFunc    func(ctx context.Context) (*caddy.ReloadResult, error)
 	AdaptAndReloadFunc func(ctx context.Context) (string, error)
 	TestConnectionFunc func(ctx context.Context) error
+
+	// JSON configuration methods
+	ValidateJSONFunc func(configPath string) error
+	ReloadJSONFunc   func(ctx context.Context, configPath string) (*caddy.ReloadResult, error)
 }
 
 func (m *MockReloader) Validate(ctx context.Context) error {
@@ -246,6 +278,20 @@ func (m *MockReloader) TestConnection(ctx context.Context) error {
 		return m.TestConnectionFunc(ctx)
 	}
 	return nil
+}
+
+func (m *MockReloader) ValidateJSON(configPath string) error {
+	if m.ValidateJSONFunc != nil {
+		return m.ValidateJSONFunc(configPath)
+	}
+	return nil
+}
+
+func (m *MockReloader) ReloadJSON(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+	if m.ReloadJSONFunc != nil {
+		return m.ReloadJSONFunc(ctx, configPath)
+	}
+	return &caddy.ReloadResult{Success: true, Duration: 100 * time.Millisecond}, nil
 }
 
 // MockBuilder implements BuilderInterface for testing
@@ -1974,4 +2020,1447 @@ func TestUpdateCatchAll_ReloadError(t *testing.T) {
 	if !contains(err.Error(), "failed to reload Caddy") {
 		t.Errorf("Expected 'failed to reload Caddy' error, got: %v", err)
 	}
+}
+
+// =============================================================================
+// Mock ACL Repository for JSON Mode Tests
+// =============================================================================
+
+// SyncMockACLRepository is a simplified mock for ACL repository used in sync tests
+type SyncMockACLRepository struct {
+	ListGroupsFunc                    func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error)
+	GetGroupByIDFunc                  func(id int) (*models.ACLGroup, error)
+	GetProxyACLAssignmentsFunc        func(proxyID int) ([]models.ProxyACLAssignment, error)
+	GetProxyACLAssignmentsByGroupFunc func(groupID int) ([]models.ProxyACLAssignment, error)
+	CreateGroupFunc                   func(group *models.ACLGroup) error
+	GetGroupByNameFunc                func(name string) (*models.ACLGroup, error)
+	UpdateGroupFunc                   func(group *models.ACLGroup) error
+	DeleteGroupFunc                   func(id int) error
+	GetDBFunc                         func() *gorm.DB
+	DeleteGroupWithTxFunc             func(tx *gorm.DB, id int) error
+	GetProxyACLAssignsByGroupTxFn     func(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error)
+	CreateIPRuleFunc                  func(rule *models.ACLIPRule) error
+	GetIPRuleByIDFunc                 func(id int) (*models.ACLIPRule, error)
+	ListIPRulesFunc                   func(groupID int) ([]models.ACLIPRule, error)
+	UpdateIPRuleFunc                  func(rule *models.ACLIPRule) error
+	DeleteIPRuleFunc                  func(id int) error
+	CreateBasicAuthUserFunc           func(user *models.ACLBasicAuthUser) error
+	GetBasicAuthUserByIDFunc          func(id int) (*models.ACLBasicAuthUser, error)
+	GetBasicAuthUserFunc              func(groupID int, username string) (*models.ACLBasicAuthUser, error)
+	ListBasicAuthUsersFunc            func(groupID int) ([]models.ACLBasicAuthUser, error)
+	UpdateBasicAuthUserFunc           func(user *models.ACLBasicAuthUser) error
+	DeleteBasicAuthUserFunc           func(id int) error
+	CreateExternalProviderFunc        func(provider *models.ACLExternalProvider) error
+	GetExternalProviderByIDFunc       func(id int) (*models.ACLExternalProvider, error)
+	ListExternalProvidersFunc         func(groupID int) ([]models.ACLExternalProvider, error)
+	UpdateExternalProviderFunc        func(provider *models.ACLExternalProvider) error
+	DeleteExternalProviderFunc        func(id int) error
+	GetWaygatesAuthFunc               func(groupID int) (*models.ACLWaygatesAuth, error)
+	CreateWaygatesAuthFunc            func(auth *models.ACLWaygatesAuth) error
+	UpdateWaygatesAuthFunc            func(auth *models.ACLWaygatesAuth) error
+	DeleteWaygatesAuthFunc            func(groupID int) error
+	GetOAuthProviderRestrictsFunc     func(groupID int) ([]models.ACLOAuthProviderRestriction, error)
+	GetOAuthProviderRestrictFunc      func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error)
+	CreateOAuthProviderRestrictFn     func(restriction *models.ACLOAuthProviderRestriction) error
+	UpdateOAuthProviderRestrictFn     func(restriction *models.ACLOAuthProviderRestriction) error
+	DeleteOAuthProviderRestrictFn     func(groupID int, provider string) error
+	CreateProxyACLAssignmentFunc      func(assignment *models.ProxyACLAssignment) error
+	GetProxyACLAssignmentByIDFunc     func(id int) (*models.ProxyACLAssignment, error)
+	UpdateProxyACLAssignmentFunc      func(assignment *models.ProxyACLAssignment) error
+	DeleteProxyACLAssignmentFunc      func(id int) error
+	DeleteProxyACLAssignByPGFunc      func(proxyID, groupID int) error
+	GetBrandingFunc                   func() (*models.ACLBranding, error)
+	UpdateBrandingFunc                func(branding *models.ACLBranding) error
+	CreateSessionFunc                 func(session *models.ACLSession) error
+	GetSessionByTokenFunc             func(token string) (*models.ACLSession, error)
+	DeleteSessionFunc                 func(token string) error
+	DeleteExpiredSessionsFunc         func() (int64, error)
+	DeleteUserSessionsFunc            func(userID int) error
+	DeleteProxySessionsFunc           func(proxyID int) error
+}
+
+func (m *SyncMockACLRepository) CreateGroup(group *models.ACLGroup) error {
+	if m.CreateGroupFunc != nil {
+		return m.CreateGroupFunc(group)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetGroupByID(id int) (*models.ACLGroup, error) {
+	if m.GetGroupByIDFunc != nil {
+		return m.GetGroupByIDFunc(id)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) GetGroupByName(name string) (*models.ACLGroup, error) {
+	if m.GetGroupByNameFunc != nil {
+		return m.GetGroupByNameFunc(name)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) ListGroups(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+	if m.ListGroupsFunc != nil {
+		return m.ListGroupsFunc(params)
+	}
+	return []models.ACLGroup{}, 0, nil
+}
+
+func (m *SyncMockACLRepository) UpdateGroup(group *models.ACLGroup) error {
+	if m.UpdateGroupFunc != nil {
+		return m.UpdateGroupFunc(group)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteGroup(id int) error {
+	if m.DeleteGroupFunc != nil {
+		return m.DeleteGroupFunc(id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteGroupWithTx(tx *gorm.DB, id int) error {
+	if m.DeleteGroupWithTxFunc != nil {
+		return m.DeleteGroupWithTxFunc(tx, id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetDB() *gorm.DB {
+	if m.GetDBFunc != nil {
+		return m.GetDBFunc()
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignsByGroupTxFn != nil {
+		return m.GetProxyACLAssignsByGroupTxFn(tx, groupID)
+	}
+	return []models.ProxyACLAssignment{}, nil
+}
+
+func (m *SyncMockACLRepository) CreateIPRule(rule *models.ACLIPRule) error {
+	if m.CreateIPRuleFunc != nil {
+		return m.CreateIPRuleFunc(rule)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error) {
+	if m.GetIPRuleByIDFunc != nil {
+		return m.GetIPRuleByIDFunc(id)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) ListIPRules(groupID int) ([]models.ACLIPRule, error) {
+	if m.ListIPRulesFunc != nil {
+		return m.ListIPRulesFunc(groupID)
+	}
+	return []models.ACLIPRule{}, nil
+}
+
+func (m *SyncMockACLRepository) UpdateIPRule(rule *models.ACLIPRule) error {
+	if m.UpdateIPRuleFunc != nil {
+		return m.UpdateIPRuleFunc(rule)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteIPRule(id int) error {
+	if m.DeleteIPRuleFunc != nil {
+		return m.DeleteIPRuleFunc(id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) CreateBasicAuthUser(user *models.ACLBasicAuthUser) error {
+	if m.CreateBasicAuthUserFunc != nil {
+		return m.CreateBasicAuthUserFunc(user)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUser, error) {
+	if m.GetBasicAuthUserByIDFunc != nil {
+		return m.GetBasicAuthUserByIDFunc(id)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) GetBasicAuthUser(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+	if m.GetBasicAuthUserFunc != nil {
+		return m.GetBasicAuthUserFunc(groupID, username)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) ListBasicAuthUsers(groupID int) ([]models.ACLBasicAuthUser, error) {
+	if m.ListBasicAuthUsersFunc != nil {
+		return m.ListBasicAuthUsersFunc(groupID)
+	}
+	return []models.ACLBasicAuthUser{}, nil
+}
+
+func (m *SyncMockACLRepository) UpdateBasicAuthUser(user *models.ACLBasicAuthUser) error {
+	if m.UpdateBasicAuthUserFunc != nil {
+		return m.UpdateBasicAuthUserFunc(user)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteBasicAuthUser(id int) error {
+	if m.DeleteBasicAuthUserFunc != nil {
+		return m.DeleteBasicAuthUserFunc(id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) CreateExternalProvider(provider *models.ACLExternalProvider) error {
+	if m.CreateExternalProviderFunc != nil {
+		return m.CreateExternalProviderFunc(provider)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetExternalProviderByID(id int) (*models.ACLExternalProvider, error) {
+	if m.GetExternalProviderByIDFunc != nil {
+		return m.GetExternalProviderByIDFunc(id)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) ListExternalProviders(groupID int) ([]models.ACLExternalProvider, error) {
+	if m.ListExternalProvidersFunc != nil {
+		return m.ListExternalProvidersFunc(groupID)
+	}
+	return []models.ACLExternalProvider{}, nil
+}
+
+func (m *SyncMockACLRepository) UpdateExternalProvider(provider *models.ACLExternalProvider) error {
+	if m.UpdateExternalProviderFunc != nil {
+		return m.UpdateExternalProviderFunc(provider)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteExternalProvider(id int) error {
+	if m.DeleteExternalProviderFunc != nil {
+		return m.DeleteExternalProviderFunc(id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error) {
+	if m.GetWaygatesAuthFunc != nil {
+		return m.GetWaygatesAuthFunc(groupID)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) CreateWaygatesAuth(auth *models.ACLWaygatesAuth) error {
+	if m.CreateWaygatesAuthFunc != nil {
+		return m.CreateWaygatesAuthFunc(auth)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error {
+	if m.UpdateWaygatesAuthFunc != nil {
+		return m.UpdateWaygatesAuthFunc(auth)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteWaygatesAuth(groupID int) error {
+	if m.DeleteWaygatesAuthFunc != nil {
+		return m.DeleteWaygatesAuthFunc(groupID)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+	if m.GetOAuthProviderRestrictsFunc != nil {
+		return m.GetOAuthProviderRestrictsFunc(groupID)
+	}
+	return []models.ACLOAuthProviderRestriction{}, nil
+}
+
+func (m *SyncMockACLRepository) GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+	if m.GetOAuthProviderRestrictFunc != nil {
+		return m.GetOAuthProviderRestrictFunc(groupID, provider)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	if m.CreateOAuthProviderRestrictFn != nil {
+		return m.CreateOAuthProviderRestrictFn(restriction)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+	if m.UpdateOAuthProviderRestrictFn != nil {
+		return m.UpdateOAuthProviderRestrictFn(restriction)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+	if m.DeleteOAuthProviderRestrictFn != nil {
+		return m.DeleteOAuthProviderRestrictFn(groupID, provider)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
+	if m.CreateProxyACLAssignmentFunc != nil {
+		return m.CreateProxyACLAssignmentFunc(assignment)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentByIDFunc != nil {
+		return m.GetProxyACLAssignmentByIDFunc(id)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentsFunc != nil {
+		return m.GetProxyACLAssignmentsFunc(proxyID)
+	}
+	return []models.ProxyACLAssignment{}, nil
+}
+
+func (m *SyncMockACLRepository) GetProxyACLAssignmentsByGroup(groupID int) ([]models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentsByGroupFunc != nil {
+		return m.GetProxyACLAssignmentsByGroupFunc(groupID)
+	}
+	return []models.ProxyACLAssignment{}, nil
+}
+
+func (m *SyncMockACLRepository) UpdateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
+	if m.UpdateProxyACLAssignmentFunc != nil {
+		return m.UpdateProxyACLAssignmentFunc(assignment)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteProxyACLAssignment(id int) error {
+	if m.DeleteProxyACLAssignmentFunc != nil {
+		return m.DeleteProxyACLAssignmentFunc(id)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error {
+	if m.DeleteProxyACLAssignByPGFunc != nil {
+		return m.DeleteProxyACLAssignByPGFunc(proxyID, groupID)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetBranding() (*models.ACLBranding, error) {
+	if m.GetBrandingFunc != nil {
+		return m.GetBrandingFunc()
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) UpdateBranding(branding *models.ACLBranding) error {
+	if m.UpdateBrandingFunc != nil {
+		return m.UpdateBrandingFunc(branding)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) CreateSession(session *models.ACLSession) error {
+	if m.CreateSessionFunc != nil {
+		return m.CreateSessionFunc(session)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) GetSessionByToken(token string) (*models.ACLSession, error) {
+	if m.GetSessionByTokenFunc != nil {
+		return m.GetSessionByTokenFunc(token)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *SyncMockACLRepository) DeleteSession(token string) error {
+	if m.DeleteSessionFunc != nil {
+		return m.DeleteSessionFunc(token)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteExpiredSessions() (int64, error) {
+	if m.DeleteExpiredSessionsFunc != nil {
+		return m.DeleteExpiredSessionsFunc()
+	}
+	return 0, nil
+}
+
+func (m *SyncMockACLRepository) DeleteUserSessions(userID int) error {
+	if m.DeleteUserSessionsFunc != nil {
+		return m.DeleteUserSessionsFunc(userID)
+	}
+	return nil
+}
+
+func (m *SyncMockACLRepository) DeleteProxySessions(proxyID int) error {
+	if m.DeleteProxySessionsFunc != nil {
+		return m.DeleteProxySessionsFunc(proxyID)
+	}
+	return nil
+}
+
+// Ensure SyncMockACLRepository implements the interface
+var _ repository.ACLRepositoryInterface = (*SyncMockACLRepository)(nil)
+
+// =============================================================================
+// JSON Mode Test Helper
+// =============================================================================
+
+// newTestSyncServiceWithJSON creates a test sync service configured for JSON mode
+func newTestSyncServiceWithJSON() (*SyncService, *MockProxyRepository, *MockSettingsRepository, *SyncMockACLRepository, *MockFileManager, *MockReloader, *MockBuilder) {
+	proxyRepo := &MockProxyRepository{}
+	settingsRepo := &MockSettingsRepository{}
+	aclRepo := &SyncMockACLRepository{}
+	fileManager := &MockFileManager{}
+	reloader := &MockReloader{}
+	builder := &MockBuilder{}
+
+	svc := NewSyncService(SyncServiceConfig{
+		ProxyRepo:         proxyRepo,
+		SettingsRepo:      settingsRepo,
+		ACLRepo:           aclRepo,
+		FileManager:       fileManager,
+		Reloader:          reloader,
+		Builder:           builder,
+		Email:             "test@example.com",
+		ACMEProvider:      "off",
+		UseJSONMode:       true,
+		WaygatesVerifyURL: "http://localhost:8080/api/acl/verify",
+		WaygatesLoginURL:  "http://localhost:8080/login",
+		StoragePath:       "/data",
+	})
+
+	return svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, builder
+}
+
+// =============================================================================
+// JSON Mode Integration Tests
+// =============================================================================
+
+// TestSyncService_PerformFullSyncJSON tests JSON mode full sync operations
+func TestSyncService_PerformFullSyncJSON(t *testing.T) {
+	t.Run("successful JSON sync with proxies", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		// Setup mocks
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+				{ID: 2, Hostname: "api.example.com", Name: "API", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:4000"}},
+			}, 2, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		writeJSONCalled := false
+		var writtenData []byte
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			writeJSONCalled = true
+			writtenData = data
+			if path != "/etc/caddy/caddy.json" {
+				t.Errorf("Expected path '/etc/caddy/caddy.json', got '%s'", path)
+			}
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !writeJSONCalled {
+			t.Error("Expected WriteJSONConfig to be called")
+		}
+		if len(writtenData) == 0 {
+			t.Error("Expected JSON config data to be written")
+		}
+
+		status := svc.GetStatus()
+		if !status.LastSyncSuccess {
+			t.Error("Expected LastSyncSuccess to be true")
+		}
+		if status.SyncCount != 1 {
+			t.Errorf("Expected SyncCount 1, got %d", status.SyncCount)
+		}
+	})
+
+	t.Run("JSON sync with empty proxies", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		writeJSONCalled := false
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			writeJSONCalled = true
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !writeJSONCalled {
+			t.Error("Expected WriteJSONConfig to be called even with empty proxies")
+		}
+	})
+
+	t.Run("JSON sync with ACL assignments", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "secure.example.com", Name: "Secure", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:5000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		testGroupDesc := "Test ACL Group"
+		testGroup := &models.ACLGroup{
+			ID:          1,
+			Name:        "TestGroup",
+			Description: &testGroupDesc,
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{*testGroup}, 1, nil
+		}
+
+		aclRepo.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+			if id == 1 {
+				return testGroup, nil
+			}
+			return nil, errors.New("not found")
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			if proxyID == 1 {
+				return []models.ProxyACLAssignment{
+					{ID: 1, ProxyID: 1, ACLGroupID: 1, Enabled: true, ACLGroup: testGroup},
+				}, nil
+			}
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		status := svc.GetStatus()
+		if !status.LastSyncSuccess {
+			t.Error("Expected LastSyncSuccess to be true")
+		}
+	})
+
+	t.Run("JSON sync with TLS domains", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "ssl.example.com", Name: "SSL Site", IsActive: true, SSLEnabled: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:6000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("JSON sync failure on write error", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return errors.New("disk full")
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+		fileManager.BackupFunc = func() (string, error) {
+			return "/tmp/backup", nil
+		}
+		fileManager.RestoreFunc = func(backupPath string) error {
+			return nil
+		}
+
+		reloader.ReloadFunc = func(ctx context.Context) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !contains(err.Error(), "failed to write JSON config") {
+			t.Errorf("Expected 'failed to write JSON config' error, got: %v", err)
+		}
+
+		status := svc.GetStatus()
+		if status.LastSyncSuccess {
+			t.Error("Expected LastSyncSuccess to be false after error")
+		}
+	})
+
+	t.Run("JSON sync failure on validate error", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+		fileManager.BackupFunc = func() (string, error) {
+			return "/tmp/backup", nil
+		}
+		fileManager.RestoreFunc = func(backupPath string) error {
+			return nil
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return errors.New("invalid JSON syntax")
+		}
+		reloader.ReloadFunc = func(ctx context.Context) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !contains(err.Error(), "JSON config validation failed") {
+			t.Errorf("Expected 'JSON config validation failed' error, got: %v", err)
+		}
+	})
+
+	t.Run("JSON sync failure on reload error", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+		fileManager.BackupFunc = func() (string, error) {
+			return "/tmp/backup", nil
+		}
+		fileManager.RestoreFunc = func(backupPath string) error {
+			return nil
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return nil, errors.New("caddy not responding")
+		}
+		reloader.ReloadFunc = func(ctx context.Context) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !contains(err.Error(), "failed to reload Caddy with JSON config") {
+			t.Errorf("Expected 'failed to reload Caddy with JSON config' error, got: %v", err)
+		}
+	})
+
+	t.Run("JSON sync failure on proxy list error", func(t *testing.T) {
+		svc, proxyRepo, _, _, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return nil, 0, errors.New("database error")
+		}
+
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+		fileManager.BackupFunc = func() (string, error) {
+			return "/tmp/backup", nil
+		}
+		fileManager.RestoreFunc = func(backupPath string) error {
+			return nil
+		}
+
+		reloader.ReloadFunc = func(ctx context.Context) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true}, nil
+		}
+
+		err := svc.FullSync()
+
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !contains(err.Error(), "failed to list proxies") {
+			t.Errorf("Expected 'failed to list proxies' error, got: %v", err)
+		}
+	})
+}
+
+// TestSyncService_EnsureInitialJSONConfig tests initial JSON config creation
+func TestSyncService_EnsureInitialJSONConfig(t *testing.T) {
+	t.Run("creates initial config when file does not exist", func(t *testing.T) {
+		svc, _, _, _, fileManager, _, _ := newTestSyncServiceWithJSON()
+
+		writeJSONCalled := false
+		fileManager.FileExistsFunc = func(path string) bool {
+			return false // JSON config doesn't exist
+		}
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			writeJSONCalled = true
+			if path != "/etc/caddy/caddy.json" {
+				t.Errorf("Expected path '/etc/caddy/caddy.json', got '%s'", path)
+			}
+			return nil
+		}
+
+		err := svc.ensureInitialConfigs()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !writeJSONCalled {
+			t.Error("Expected WriteJSONConfig to be called when file doesn't exist")
+		}
+	})
+
+	t.Run("skips creation when file exists", func(t *testing.T) {
+		svc, _, _, _, fileManager, _, _ := newTestSyncServiceWithJSON()
+
+		writeJSONCalled := false
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true // JSON config exists
+		}
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			writeJSONCalled = true
+			return nil
+		}
+
+		err := svc.ensureInitialConfigs()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if writeJSONCalled {
+			t.Error("WriteJSONConfig should not be called when file exists")
+		}
+	})
+
+	t.Run("handles write error gracefully", func(t *testing.T) {
+		svc, _, _, _, fileManager, _, _ := newTestSyncServiceWithJSON()
+
+		fileManager.FileExistsFunc = func(path string) bool {
+			return false
+		}
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return errors.New("permission denied")
+		}
+
+		err := svc.ensureInitialConfigs()
+
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !contains(err.Error(), "failed to write initial JSON config") {
+			t.Errorf("Expected 'failed to write initial JSON config' error, got: %v", err)
+		}
+	})
+}
+
+// TestSyncService_JSONModeConfiguration tests JSON mode toggle behavior
+func TestSyncService_JSONModeConfiguration(t *testing.T) {
+	t.Run("UseJSONMode=true uses JSON methods", func(t *testing.T) {
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{
+					{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+				}, 1, nil
+			},
+		}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "default"}, nil
+			},
+		}
+		aclRepo := &SyncMockACLRepository{
+			ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+				return []models.ACLGroup{}, 0, nil
+			},
+			GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+				return []models.ProxyACLAssignment{}, nil
+			},
+		}
+
+		jsonMethodCalled := false
+		caddyfileMethodCalled := false
+
+		fileManager := &MockFileManager{
+			FileExistsFunc: func(path string) bool {
+				return true
+			},
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/caddy.json"
+			},
+			WriteJSONConfigFunc: func(path string, data []byte) error {
+				jsonMethodCalled = true
+				return nil
+			},
+			BackupJSONConfigFunc: func(path string) error {
+				return nil
+			},
+			WriteIfChangedFunc: func(filepath, content string) (bool, error) {
+				caddyfileMethodCalled = true
+				return true, nil
+			},
+		}
+
+		reloader := &MockReloader{
+			ValidateJSONFunc: func(configPath string) error {
+				return nil
+			},
+			ReloadJSONFunc: func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+				return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+			},
+		}
+
+		builder := &MockBuilder{}
+
+		svc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:         proxyRepo,
+			SettingsRepo:      settingsRepo,
+			ACLRepo:           aclRepo,
+			FileManager:       fileManager,
+			Reloader:          reloader,
+			Builder:           builder,
+			Email:             "test@example.com",
+			ACMEProvider:      "off",
+			UseJSONMode:       true, // Enable JSON mode
+			WaygatesVerifyURL: "http://localhost:8080/api/acl/verify",
+			WaygatesLoginURL:  "http://localhost:8080/login",
+		})
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if !jsonMethodCalled {
+			t.Error("Expected JSON method (WriteJSONConfig) to be called in JSON mode")
+		}
+		if caddyfileMethodCalled {
+			t.Error("Caddyfile method (WriteIfChanged) should not be called in JSON mode")
+		}
+	})
+
+	t.Run("UseJSONMode=false uses Caddyfile methods", func(t *testing.T) {
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{
+					{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true},
+				}, 1, nil
+			},
+		}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "default"}, nil
+			},
+		}
+
+		jsonMethodCalled := false
+		caddyfileMethodCalled := false
+
+		fileManager := &MockFileManager{
+			FileExistsFunc: func(path string) bool {
+				return true
+			},
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/caddy.json"
+			},
+			WriteJSONConfigFunc: func(path string, data []byte) error {
+				jsonMethodCalled = true
+				return nil
+			},
+			WriteIfChangedFunc: func(filepath, content string) (bool, error) {
+				caddyfileMethodCalled = true
+				return true, nil
+			},
+			ListProxyFilesFunc: func() ([]string, []string, error) {
+				return []string{"1_example_com.conf"}, []string{}, nil
+			},
+			GetProxyFilePathFunc: func(filename string) string {
+				return "/etc/caddy/sites/" + filename
+			},
+		}
+
+		reloader := &MockReloader{
+			ReloadFunc: func(ctx context.Context) (*caddy.ReloadResult, error) {
+				return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+			},
+		}
+
+		builder := &MockBuilder{
+			GetProxyFilenameFunc: func(proxy *models.Proxy) string {
+				return GetProxyFilename(proxy.ID, proxy.Hostname)
+			},
+		}
+
+		svc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    proxyRepo,
+			SettingsRepo: settingsRepo,
+			FileManager:  fileManager,
+			Reloader:     reloader,
+			Builder:      builder,
+			Email:        "test@example.com",
+			ACMEProvider: "off",
+			UseJSONMode:  false, // Disable JSON mode (use Caddyfile)
+		})
+
+		err := svc.FullSync()
+
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if jsonMethodCalled {
+			t.Error("JSON method (WriteJSONConfig) should not be called in Caddyfile mode")
+		}
+		if !caddyfileMethodCalled {
+			t.Error("Expected Caddyfile method (WriteIfChanged) to be called in Caddyfile mode")
+		}
+	})
+
+	t.Run("JSON mode service initialization", func(t *testing.T) {
+		svc := NewSyncService(SyncServiceConfig{
+			UseJSONMode:       true,
+			WaygatesVerifyURL: "http://localhost:8080/api/acl/verify",
+			WaygatesLoginURL:  "http://localhost:8080/login",
+			StoragePath:       "/custom/data",
+			Email:             "admin@example.com",
+		})
+
+		if svc == nil {
+			t.Fatal("Expected non-nil service")
+		}
+		if !svc.useJSONMode {
+			t.Error("Expected useJSONMode to be true")
+		}
+		if svc.jsonBuilder == nil {
+			t.Error("Expected jsonBuilder to be initialized in JSON mode")
+		}
+	})
+
+	t.Run("Caddyfile mode service initialization", func(t *testing.T) {
+		svc := NewSyncService(SyncServiceConfig{
+			UseJSONMode: false,
+			Email:       "admin@example.com",
+		})
+
+		if svc == nil {
+			t.Fatal("Expected non-nil service")
+		}
+		if svc.useJSONMode {
+			t.Error("Expected useJSONMode to be false")
+		}
+		if svc.jsonBuilder != nil {
+			t.Error("Expected jsonBuilder to be nil in Caddyfile mode")
+		}
+	})
+}
+
+// TestSyncService_JSONMode_NotFoundSettings tests not found settings in JSON mode
+func TestSyncService_JSONMode_NotFoundSettings(t *testing.T) {
+	t.Run("uses default settings when error", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return nil, errors.New("database error")
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		// Should not error - uses default settings
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("uses redirect settings when configured", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{
+				Mode:        "redirect",
+				RedirectURL: "https://example.com/404",
+			}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+}
+
+// TestSyncService_JSONMode_BackupHandling tests backup behavior in JSON mode
+func TestSyncService_JSONMode_BackupHandling(t *testing.T) {
+	t.Run("continues when backup fails", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return errors.New("backup failed")
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		// Should not error - backup failure is logged but not fatal
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+}
+
+// TestSyncService_JSONMode_ACLGroupLoading tests ACL group loading in JSON mode
+func TestSyncService_JSONMode_ACLGroupLoading(t *testing.T) {
+	t.Run("handles ACL group list error gracefully", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return nil, 0, errors.New("database error")
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		// Should not error - ACL list failure is logged but not fatal
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("handles individual group load error gracefully", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{}, 0, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{
+				{ID: 1, Name: "Group1"},
+				{ID: 2, Name: "Group2"},
+			}, 2, nil
+		}
+
+		aclRepo.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+			if id == 1 {
+				return &models.ACLGroup{ID: 1, Name: "Group1"}, nil
+			}
+			return nil, errors.New("not found")
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		// Should not error - individual group load failure is logged but not fatal
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
+
+	t.Run("handles ACL assignment error gracefully", func(t *testing.T) {
+		svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader, _ := newTestSyncServiceWithJSON()
+
+		proxyRepo.ListFunc = func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			return []models.Proxy{
+				{ID: 1, Hostname: "example.com", Name: "Test", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+			}, 1, nil
+		}
+
+		settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+			return &models.NotFoundSettings{Mode: "default"}, nil
+		}
+
+		aclRepo.ListGroupsFunc = func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			return []models.ACLGroup{}, 0, nil
+		}
+
+		aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return nil, errors.New("database error")
+		}
+
+		fileManager.GetJSONConfigPathFunc = func() string {
+			return "/etc/caddy/caddy.json"
+		}
+		fileManager.WriteJSONConfigFunc = func(path string, data []byte) error {
+			return nil
+		}
+		fileManager.BackupJSONConfigFunc = func(path string) error {
+			return nil
+		}
+		fileManager.FileExistsFunc = func(path string) bool {
+			return true
+		}
+
+		reloader.ValidateJSONFunc = func(configPath string) error {
+			return nil
+		}
+		reloader.ReloadJSONFunc = func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			return &caddy.ReloadResult{Success: true, Duration: 50 * time.Millisecond}, nil
+		}
+
+		// Should not error - ACL assignment failure is logged but not fatal
+		err := svc.FullSync()
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+	})
 }
