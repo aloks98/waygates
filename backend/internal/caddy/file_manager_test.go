@@ -2,10 +2,12 @@ package caddy
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -123,17 +125,18 @@ func TestFileManager_BackupJSONConfig(t *testing.T) {
 		t.Fatalf("BackupJSONConfig failed: %v", err)
 	}
 
-	// Find backup file (it has a timestamp suffix)
-	entries, err := os.ReadDir(tempDir)
+	// Find backup file in the backup directory (it has a timestamp suffix)
+	backupDir := fm.GetBackupDir()
+	entries, err := os.ReadDir(backupDir)
 	if err != nil {
-		t.Fatalf("Failed to read directory: %v", err)
+		t.Fatalf("Failed to read backup directory: %v", err)
 	}
 
 	var backupFound bool
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), "caddy.json.") && strings.HasSuffix(entry.Name(), ".backup") {
 			backupFound = true
-			backupPath := filepath.Join(tempDir, entry.Name())
+			backupPath := filepath.Join(backupDir, entry.Name())
 			backupData, _ := os.ReadFile(backupPath)
 			if !bytes.Equal(backupData, originalData) {
 				t.Error("Backup content doesn't match original")
@@ -238,5 +241,189 @@ func TestFileManager_WriteJSONConfig_OverwriteExisting(t *testing.T) {
 	read, _ := os.ReadFile(configPath)
 	if !bytes.Equal(read, updated) {
 		t.Errorf("Expected updated content, got: %s", read)
+	}
+}
+
+func TestFileManager_GetBackupDir(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+
+	backupDir := fm.GetBackupDir()
+	expected := filepath.Join(tempDir, "backup")
+
+	if backupDir != expected {
+		t.Errorf("Expected backup dir %s, got %s", expected, backupDir)
+	}
+}
+
+func TestFileManager_ReadJSONConfig(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	configPath := fm.GetJSONConfigPath()
+	expected := []byte(`{"test": true}`)
+
+	// Write config
+	err := fm.WriteJSONConfig(configPath, expected)
+	if err != nil {
+		t.Fatalf("WriteJSONConfig failed: %v", err)
+	}
+
+	// Read it back
+	data, err := fm.ReadJSONConfig(configPath)
+	if err != nil {
+		t.Fatalf("ReadJSONConfig failed: %v", err)
+	}
+
+	if !bytes.Equal(data, expected) {
+		t.Errorf("Expected %s, got %s", expected, data)
+	}
+}
+
+func TestFileManager_ReadJSONConfig_Nonexistent(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+
+	// Read a nonexistent file
+	data, err := fm.ReadJSONConfig(filepath.Join(tempDir, "nonexistent.json"))
+	if err != nil {
+		t.Errorf("ReadJSONConfig should not error for nonexistent file: %v", err)
+	}
+	if data != nil {
+		t.Error("Expected nil data for nonexistent file")
+	}
+}
+
+func TestFileManager_ConfigChanged(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	configPath := fm.GetJSONConfigPath()
+	original := []byte(`{"version": 1}`)
+
+	// Write initial config
+	err := fm.WriteJSONConfig(configPath, original)
+	if err != nil {
+		t.Fatalf("WriteJSONConfig failed: %v", err)
+	}
+
+	// Check with same content - should not be changed
+	changed, err := fm.ConfigChanged(configPath, original)
+	if err != nil {
+		t.Fatalf("ConfigChanged failed: %v", err)
+	}
+	if changed {
+		t.Error("ConfigChanged should return false for identical content")
+	}
+
+	// Check with different content - should be changed
+	newContent := []byte(`{"version": 2}`)
+	changed, err = fm.ConfigChanged(configPath, newContent)
+	if err != nil {
+		t.Fatalf("ConfigChanged failed: %v", err)
+	}
+	if !changed {
+		t.Error("ConfigChanged should return true for different content")
+	}
+}
+
+func TestFileManager_ConfigChanged_Nonexistent(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+
+	// Check against nonexistent file - should be considered changed
+	changed, err := fm.ConfigChanged(filepath.Join(tempDir, "nonexistent.json"), []byte(`{}`))
+	if err != nil {
+		t.Fatalf("ConfigChanged failed: %v", err)
+	}
+	if !changed {
+		t.Error("ConfigChanged should return true when file doesn't exist")
+	}
+}
+
+func TestFileManager_CleanupOldBackups(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	backupDir := fm.GetBackupDir()
+
+	// Create 15 backup files with different timestamps
+	for i := 0; i < 15; i++ {
+		filename := fmt.Sprintf("caddy.json.2024010%d_120000.backup", i)
+		backupPath := filepath.Join(backupDir, filename)
+		if err := os.WriteFile(backupPath, []byte("backup"), 0644); err != nil {
+			t.Fatalf("Failed to create backup: %v", err)
+		}
+		// Set modification time to ensure ordering
+		modTime := time.Now().Add(time.Duration(-15+i) * time.Hour)
+		if err := os.Chtimes(backupPath, modTime, modTime); err != nil {
+			t.Fatalf("Failed to set mtime: %v", err)
+		}
+	}
+
+	// Clean up, keeping only 5
+	err := fm.CleanupOldBackups(5)
+	if err != nil {
+		t.Fatalf("CleanupOldBackups failed: %v", err)
+	}
+
+	// Count remaining backups
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		t.Fatalf("Failed to read backup dir: %v", err)
+	}
+
+	backupCount := 0
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".backup") {
+			backupCount++
+		}
+	}
+
+	if backupCount != 5 {
+		t.Errorf("Expected 5 backups after cleanup, got %d", backupCount)
+	}
+}
+
+func TestFileManager_CleanupOldBackups_NothingToClean(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	// Cleanup with no backups - should not error
+	err := fm.CleanupOldBackups(10)
+	if err != nil {
+		t.Errorf("CleanupOldBackups should not error when no backups exist: %v", err)
+	}
+}
+
+func TestFileManager_CleanupOldBackups_DefaultMax(t *testing.T) {
+	logger := zap.NewNop()
+	tempDir := t.TempDir()
+
+	fm := NewFileManager(tempDir, logger)
+	_ = fm.EnsureDirectories()
+
+	// Pass 0 to use default
+	err := fm.CleanupOldBackups(0)
+	if err != nil {
+		t.Errorf("CleanupOldBackups with 0 should use default: %v", err)
 	}
 }

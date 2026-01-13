@@ -253,14 +253,8 @@ func (s *SyncService) FullSync() error {
 
 	s.logger.Debug("Starting full sync")
 
-	// Backup existing JSON config before making changes
-	configPath := s.fileManager.GetJSONConfigPath()
-	if err := s.fileManager.BackupJSONConfig(configPath); err != nil {
-		s.logger.Warn("Failed to backup JSON config", zap.Error(err))
-		// Continue anyway - backup is optional, and atomic writes protect us
-	}
-
 	// Perform sync (uses atomic writes, so partial failures are safe)
+	// Backup is handled inside performFullSync only when config actually changes
 	if err := s.performFullSync(); err != nil {
 		s.setError(err)
 		return err
@@ -359,24 +353,47 @@ func (s *SyncService) performFullSyncJSON() error {
 	// 6. Get JSON config path from file manager
 	jsonConfigPath := s.fileManager.GetJSONConfigPath()
 
-	// 7. Write the JSON config (with backup)
+	// 7. Check if config actually changed
+	configChanged, err := s.fileManager.ConfigChanged(jsonConfigPath, configBytes)
+	if err != nil {
+		s.logger.Warn("Failed to check config changes", zap.Error(err))
+		// Assume changed if we can't check
+		configChanged = true
+	}
+
+	// 8. If config hasn't changed, skip backup and reload
+	if !configChanged {
+		s.logger.Debug("JSON config unchanged, skipping sync")
+		s.mu.Lock()
+		s.status.ConfigChanged = false
+		s.mu.Unlock()
+		return nil
+	}
+
+	// 9. Backup existing config before overwriting (only when config changed)
 	if err := s.fileManager.BackupJSONConfig(jsonConfigPath); err != nil {
 		s.logger.Warn("Failed to backup JSON config", zap.Error(err))
 		// Continue anyway - backup is optional
 	}
 
+	// 10. Cleanup old backups (keep last 10)
+	if err := s.fileManager.CleanupOldBackups(caddy.DefaultMaxBackups); err != nil {
+		s.logger.Warn("Failed to cleanup old backups", zap.Error(err))
+	}
+
+	// 11. Write the new JSON config
 	if err := s.fileManager.WriteJSONConfig(jsonConfigPath, configBytes); err != nil {
 		return fmt.Errorf("failed to write JSON config: %w", err)
 	}
 
 	s.logger.Debug("JSON config written", zap.String("path", jsonConfigPath))
 
-	// 8. Validate the JSON configuration
+	// 12. Validate the JSON configuration
 	if err := s.reloader.ValidateJSON(jsonConfigPath); err != nil {
 		return fmt.Errorf("JSON config validation failed: %w", err)
 	}
 
-	// 9. Reload Caddy with the JSON configuration
+	// 13. Reload Caddy with the JSON configuration
 	result, err := s.reloader.ReloadJSON(ctx, jsonConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to reload Caddy with JSON config: %w", err)

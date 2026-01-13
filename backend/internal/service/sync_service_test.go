@@ -80,8 +80,12 @@ type MockFileManager struct {
 
 	// JSON configuration methods
 	GetJSONConfigPathFunc func() string
+	GetBackupDirFunc      func() string
+	ReadJSONConfigFunc    func(path string) ([]byte, error)
 	WriteJSONConfigFunc   func(path string, data []byte) error
+	ConfigChangedFunc     func(path string, newData []byte) (bool, error)
 	BackupJSONConfigFunc  func(path string) error
+	CleanupOldBackupsFunc func(maxBackups int) error
 }
 
 func (m *MockFileManager) EnsureDirectories() error {
@@ -105,6 +109,20 @@ func (m *MockFileManager) GetJSONConfigPath() string {
 	return "/etc/caddy/caddy.json"
 }
 
+func (m *MockFileManager) GetBackupDir() string {
+	if m.GetBackupDirFunc != nil {
+		return m.GetBackupDirFunc()
+	}
+	return "/etc/caddy/backup"
+}
+
+func (m *MockFileManager) ReadJSONConfig(path string) ([]byte, error) {
+	if m.ReadJSONConfigFunc != nil {
+		return m.ReadJSONConfigFunc(path)
+	}
+	return nil, nil
+}
+
 func (m *MockFileManager) WriteJSONConfig(path string, data []byte) error {
 	if m.WriteJSONConfigFunc != nil {
 		return m.WriteJSONConfigFunc(path, data)
@@ -112,9 +130,24 @@ func (m *MockFileManager) WriteJSONConfig(path string, data []byte) error {
 	return nil
 }
 
+func (m *MockFileManager) ConfigChanged(path string, newData []byte) (bool, error) {
+	if m.ConfigChangedFunc != nil {
+		return m.ConfigChangedFunc(path, newData)
+	}
+	// Default: always consider config changed for tests
+	return true, nil
+}
+
 func (m *MockFileManager) BackupJSONConfig(path string) error {
 	if m.BackupJSONConfigFunc != nil {
 		return m.BackupJSONConfigFunc(path)
+	}
+	return nil
+}
+
+func (m *MockFileManager) CleanupOldBackups(maxBackups int) error {
+	if m.CleanupOldBackupsFunc != nil {
+		return m.CleanupOldBackupsFunc(maxBackups)
 	}
 	return nil
 }
