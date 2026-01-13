@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"go.uber.org/zap"
 
@@ -287,6 +288,9 @@ func (b *Builder) collectTLSDomains() []string {
 	for domain := range domainSet {
 		domains = append(domains, domain)
 	}
+
+	// Sort domains for deterministic JSON output
+	sort.Strings(domains)
 
 	return domains
 }
