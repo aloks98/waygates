@@ -2,7 +2,7 @@
 # Waygates - Combined Backend + Caddy Container
 # =============================================================================
 # This Dockerfile creates a single container running both the Waygates backend
-# and Caddy server. The backend manages Caddy configuration via Caddyfiles.
+# and Caddy server. The backend manages Caddy configuration via JSON API.
 #
 # CUSTOMIZATION:
 #
@@ -139,13 +139,10 @@ COPY --from=ui-builder /app/dist /app/ui
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Copy security snippets to /app/defaults
-# (NOT /etc/caddy which is a volume mount that gets overwritten)
-# Note: Caddyfile is generated dynamically by the backend based on CADDY_ACME_PROVIDER
-COPY conf/snippets /app/defaults/snippets
+# Note: JSON configuration (caddy.json) is generated dynamically by the backend
 
 # Create required directories
-RUN mkdir -p /etc/caddy/sites /etc/caddy/backup /data /config
+RUN mkdir -p /etc/caddy/backup /data /config
 
 # Expose ports
 # 80   - HTTP (redirect to HTTPS)

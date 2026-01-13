@@ -1,0 +1,28 @@
+{
+  "admin": {
+    "listen": "localhost:2019"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [":80", ":443"],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "status_code": 404,
+                  "body": "Not Found - Waygates Test Environment"
+                }
+              ]
+            }
+          ],
+          "automatic_https": {
+            "disabled": true
+          }
+        }
+      }
+    }
+  }
+}

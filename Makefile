@@ -16,7 +16,7 @@ help:
 	@echo "  make status        - Show container status"
 	@echo "  make clean         - Remove containers, volumes, and images"
 	@echo "  make rebuild       - Clean build and restart everything"
-	@echo "  make validate      - Validate Caddyfile syntax"
+	@echo "  make validate      - Validate Caddy JSON config"
 	@echo "  make deploy        - Full deployment (env-check, build, up)"
 	@echo ""
 	@echo "Backend (Go):"
@@ -102,11 +102,11 @@ clean:
 # Rebuild everything from scratch
 rebuild: clean build up
 
-# Validate Caddyfile syntax (requires running container)
+# Validate Caddy JSON config (requires running container)
 validate:
-	@echo "Validating Caddyfile..."
-	docker compose exec waygates caddy validate --config /etc/caddy/Caddyfile
-	@echo "✓ Caddyfile is valid"
+	@echo "Validating Caddy JSON config..."
+	docker compose exec waygates caddy validate --config /etc/caddy/caddy.json
+	@echo "✓ Caddy config is valid"
 
 # Full deployment pipeline
 deploy: env-check build up

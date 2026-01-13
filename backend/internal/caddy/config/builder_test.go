@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -945,11 +944,7 @@ func TestTLSBuilder_Build_WithOffProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithCloudflareProvider(t *testing.T) {
-	// Store original env value and restore after test
-	originalValue := os.Getenv("CLOUDFLARE_API_TOKEN")
-	defer os.Setenv("CLOUDFLARE_API_TOKEN", originalValue)
-
-	os.Setenv("CLOUDFLARE_API_TOKEN", "test-cf-token")
+	t.Setenv("CLOUDFLARE_API_TOKEN", "test-cf-token")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -978,11 +973,8 @@ func TestTLSBuilder_Build_WithCloudflareProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithCloudflareProvider_MissingCredentials(t *testing.T) {
-	// Store original env value and restore after test
-	originalValue := os.Getenv("CLOUDFLARE_API_TOKEN")
-	defer os.Setenv("CLOUDFLARE_API_TOKEN", originalValue)
-
-	os.Unsetenv("CLOUDFLARE_API_TOKEN")
+	// Set to empty to simulate missing credentials
+	t.Setenv("CLOUDFLARE_API_TOKEN", "")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1027,10 +1019,7 @@ func TestTLSBuilder_Build_WithRoute53Provider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithDuckDNSProvider(t *testing.T) {
-	originalValue := os.Getenv("DUCKDNS_API_TOKEN")
-	defer os.Setenv("DUCKDNS_API_TOKEN", originalValue)
-
-	os.Setenv("DUCKDNS_API_TOKEN", "test-duckdns-token")
+	t.Setenv("DUCKDNS_API_TOKEN", "test-duckdns-token")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1055,10 +1044,7 @@ func TestTLSBuilder_Build_WithDuckDNSProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithDigitalOceanProvider(t *testing.T) {
-	originalValue := os.Getenv("DO_AUTH_TOKEN")
-	defer os.Setenv("DO_AUTH_TOKEN", originalValue)
-
-	os.Setenv("DO_AUTH_TOKEN", "test-do-token")
+	t.Setenv("DO_AUTH_TOKEN", "test-do-token")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1083,10 +1069,7 @@ func TestTLSBuilder_Build_WithDigitalOceanProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithHetznerProvider(t *testing.T) {
-	originalValue := os.Getenv("HETZNER_API_TOKEN")
-	defer os.Setenv("HETZNER_API_TOKEN", originalValue)
-
-	os.Setenv("HETZNER_API_TOKEN", "test-hetzner-token")
+	t.Setenv("HETZNER_API_TOKEN", "test-hetzner-token")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1111,15 +1094,8 @@ func TestTLSBuilder_Build_WithHetznerProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithPorkbunProvider(t *testing.T) {
-	originalKey := os.Getenv("PORKBUN_API_KEY")
-	originalSecret := os.Getenv("PORKBUN_API_SECRET_KEY")
-	defer func() {
-		os.Setenv("PORKBUN_API_KEY", originalKey)
-		os.Setenv("PORKBUN_API_SECRET_KEY", originalSecret)
-	}()
-
-	os.Setenv("PORKBUN_API_KEY", "test-porkbun-key")
-	os.Setenv("PORKBUN_API_SECRET_KEY", "test-porkbun-secret")
+	t.Setenv("PORKBUN_API_KEY", "test-porkbun-key")
+	t.Setenv("PORKBUN_API_SECRET_KEY", "test-porkbun-secret")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1145,10 +1121,7 @@ func TestTLSBuilder_Build_WithPorkbunProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithVultrProvider(t *testing.T) {
-	originalValue := os.Getenv("VULTR_API_KEY")
-	defer os.Setenv("VULTR_API_KEY", originalValue)
-
-	os.Setenv("VULTR_API_KEY", "test-vultr-key")
+	t.Setenv("VULTR_API_KEY", "test-vultr-key")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1173,15 +1146,8 @@ func TestTLSBuilder_Build_WithVultrProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithNamecheapProvider(t *testing.T) {
-	originalKey := os.Getenv("NAMECHEAP_API_KEY")
-	originalUser := os.Getenv("NAMECHEAP_API_USER")
-	defer func() {
-		os.Setenv("NAMECHEAP_API_KEY", originalKey)
-		os.Setenv("NAMECHEAP_API_USER", originalUser)
-	}()
-
-	os.Setenv("NAMECHEAP_API_KEY", "test-namecheap-key")
-	os.Setenv("NAMECHEAP_API_USER", "test-namecheap-user")
+	t.Setenv("NAMECHEAP_API_KEY", "test-namecheap-key")
+	t.Setenv("NAMECHEAP_API_USER", "test-namecheap-user")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1207,21 +1173,10 @@ func TestTLSBuilder_Build_WithNamecheapProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithOVHProvider(t *testing.T) {
-	originalEndpoint := os.Getenv("OVH_ENDPOINT")
-	originalAppKey := os.Getenv("OVH_APPLICATION_KEY")
-	originalAppSecret := os.Getenv("OVH_APPLICATION_SECRET")
-	originalConsumer := os.Getenv("OVH_CONSUMER_KEY")
-	defer func() {
-		os.Setenv("OVH_ENDPOINT", originalEndpoint)
-		os.Setenv("OVH_APPLICATION_KEY", originalAppKey)
-		os.Setenv("OVH_APPLICATION_SECRET", originalAppSecret)
-		os.Setenv("OVH_CONSUMER_KEY", originalConsumer)
-	}()
-
-	os.Setenv("OVH_ENDPOINT", "ovh-eu")
-	os.Setenv("OVH_APPLICATION_KEY", "test-ovh-app-key")
-	os.Setenv("OVH_APPLICATION_SECRET", "test-ovh-app-secret")
-	os.Setenv("OVH_CONSUMER_KEY", "test-ovh-consumer-key")
+	t.Setenv("OVH_ENDPOINT", "ovh-eu")
+	t.Setenv("OVH_APPLICATION_KEY", "test-ovh-app-key")
+	t.Setenv("OVH_APPLICATION_SECRET", "test-ovh-app-secret")
+	t.Setenv("OVH_CONSUMER_KEY", "test-ovh-consumer-key")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1246,24 +1201,11 @@ func TestTLSBuilder_Build_WithOVHProvider(t *testing.T) {
 }
 
 func TestTLSBuilder_Build_WithAzureProvider(t *testing.T) {
-	originalTenant := os.Getenv("AZURE_TENANT_ID")
-	originalClient := os.Getenv("AZURE_CLIENT_ID")
-	originalSecret := os.Getenv("AZURE_CLIENT_SECRET")
-	originalSub := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	originalRG := os.Getenv("AZURE_RESOURCE_GROUP")
-	defer func() {
-		os.Setenv("AZURE_TENANT_ID", originalTenant)
-		os.Setenv("AZURE_CLIENT_ID", originalClient)
-		os.Setenv("AZURE_CLIENT_SECRET", originalSecret)
-		os.Setenv("AZURE_SUBSCRIPTION_ID", originalSub)
-		os.Setenv("AZURE_RESOURCE_GROUP", originalRG)
-	}()
-
-	os.Setenv("AZURE_TENANT_ID", "test-tenant")
-	os.Setenv("AZURE_CLIENT_ID", "test-client")
-	os.Setenv("AZURE_CLIENT_SECRET", "test-secret")
-	os.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
-	os.Setenv("AZURE_RESOURCE_GROUP", "test-rg")
+	t.Setenv("AZURE_TENANT_ID", "test-tenant")
+	t.Setenv("AZURE_CLIENT_ID", "test-client")
+	t.Setenv("AZURE_CLIENT_SECRET", "test-secret")
+	t.Setenv("AZURE_SUBSCRIPTION_ID", "test-subscription")
+	t.Setenv("AZURE_RESOURCE_GROUP", "test-rg")
 
 	settings := &Settings{
 		AdminEmail:   "admin@example.com",
@@ -1325,10 +1267,7 @@ func TestTLSBuilder_GetCredential_FromSettings(t *testing.T) {
 }
 
 func TestTLSBuilder_GetCredential_FromEnv(t *testing.T) {
-	originalValue := os.Getenv("TEST_CREDENTIAL_KEY")
-	defer os.Setenv("TEST_CREDENTIAL_KEY", originalValue)
-
-	os.Setenv("TEST_CREDENTIAL_KEY", "from-env")
+	t.Setenv("TEST_CREDENTIAL_KEY", "from-env")
 
 	settings := &Settings{
 		DNSCredentials: nil, // No settings credentials
@@ -1760,4 +1699,71 @@ func TestBuilder_FullIntegration_MultipleProxyTypes(t *testing.T) {
 	assert.Contains(t, tlsDomains, "api.example.com")
 	assert.Contains(t, tlsDomains, "old.example.com")
 	assert.Contains(t, tlsDomains, "docs.example.com")
+}
+
+func TestBuilder_FullIntegration_SecurityRoutes(t *testing.T) {
+	// Create a proxy with BlockExploits enabled
+	proxy := createReverseProxy(1, "secure-api", "secure.example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
+	proxy.BlockExploits = true
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{proxy})
+
+	config, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	server := config.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+
+	// Should have security routes (6) + proxy route (1) + catch-all (1) = 8 routes
+	assert.GreaterOrEqual(t, len(server.Routes), 8, "Expected at least 8 routes (6 security + 1 proxy + 1 catch-all)")
+
+	// Verify security routes are present (they should be first)
+	// Check first route is a security route (SQL injection)
+	firstRoute := server.Routes[0]
+	require.Len(t, firstRoute.Match, 1, "First route should have 1 matcher")
+
+	// Check that the route has host matching for our hostname
+	hostMatcher, hasHost := firstRoute.Match[0]["host"]
+	if hasHost {
+		hosts, ok := hostMatcher.([]string)
+		require.True(t, ok)
+		assert.Contains(t, hosts, "secure.example.com")
+	}
+
+	// Verify security route has 403 response
+	require.Len(t, firstRoute.Handle, 1)
+	assert.Equal(t, "static_response", firstRoute.Handle[0]["handler"])
+	assert.Equal(t, 403, firstRoute.Handle[0]["status_code"])
+}
+
+func TestBuilder_FullIntegration_NoSecurityRoutesWhenDisabled(t *testing.T) {
+	// Create a proxy with BlockExploits disabled
+	proxy := createReverseProxy(1, "api", "api.example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
+	proxy.BlockExploits = false
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{proxy})
+
+	config, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, config)
+
+	server := config.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+
+	// Should have only proxy route (1) + catch-all (1) = 2 routes
+	assert.Equal(t, 2, len(server.Routes), "Expected 2 routes (1 proxy + 1 catch-all)")
+
+	// First route should be the proxy route, not a security route
+	firstRoute := server.Routes[0]
+	if len(firstRoute.Handle) > 0 {
+		// Security routes return static_response with 403
+		// Proxy routes use reverse_proxy or subroute handler
+		handler := firstRoute.Handle[0]["handler"]
+		assert.NotEqual(t, "static_response", handler, "First route should not be a security route")
+	}
 }

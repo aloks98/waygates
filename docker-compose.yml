@@ -50,9 +50,8 @@ services:
       # UI settings
       - UI_ENABLED=true
       - UI_PATH=/app/ui
-      # Caddy file-based configuration
+      # Caddy JSON configuration
       - CADDY_BASE_PATH=/etc/caddy
-      - CADDY_CADDYFILE_PATH=/etc/caddy/Caddyfile
       - CADDY_BINARY=/usr/bin/caddy
     dns:
       - 1.1.1.1

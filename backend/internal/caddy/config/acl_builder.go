@@ -157,7 +157,9 @@ func (b *ACLBuilder) buildAllModeRoutes(
 	}
 
 	// 2. For ALL mode, combine bypass and allow IPs - requests must come from these IPs
-	allAllowedIPs := append(bypassIPs, allowIPs...)
+	allAllowedIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
+	allAllowedIPs = append(allAllowedIPs, bypassIPs...)
+	allAllowedIPs = append(allAllowedIPs, allowIPs...)
 	if len(allAllowedIPs) > 0 {
 		// Deny requests NOT from allowed IPs
 		route := b.buildIPDenyNotInListRoute(hostname, pathPattern, allAllowedIPs)
@@ -292,7 +294,9 @@ func (b *ACLBuilder) buildAuthRoute(
 		AddPathToMatcher(matcher, pathPattern)
 	}
 
-	excludeIPs := append(bypassIPs, allowIPs...)
+	excludeIPs := make([]string, 0, len(bypassIPs)+len(allowIPs))
+	excludeIPs = append(excludeIPs, bypassIPs...)
+	excludeIPs = append(excludeIPs, allowIPs...)
 	if len(excludeIPs) > 0 {
 		notMatcher := NewNotMatcher(NewRemoteIPMatcher(excludeIPs...))
 		matcher = CombineMatchers(matcher, notMatcher)

@@ -22,21 +22,19 @@ const (
 
 // Reloader handles Caddy configuration validation and reloading
 type Reloader struct {
-	caddyBinary   string
-	caddyfilePath string
-	adminAPIURL   string
-	httpClient    *http.Client
-	logger        *zap.Logger
-	mu            sync.Mutex
-	lastReload    time.Time
-	reloadCount   int
+	caddyBinary string
+	adminAPIURL string
+	httpClient  *http.Client
+	logger      *zap.Logger
+	mu          sync.Mutex
+	lastReload  time.Time
+	reloadCount int
 }
 
 // ReloaderConfig holds configuration for the Reloader
 type ReloaderConfig struct {
-	CaddyBinary   string // Path to caddy binary (default: "caddy")
-	CaddyfilePath string // Path to Caddyfile (default: "/etc/caddy/Caddyfile")
-	AdminAPIURL   string // Caddy admin API URL (default: "http://localhost:2019")
+	CaddyBinary string // Path to caddy binary (default: "caddy")
+	AdminAPIURL string // Caddy admin API URL (default: "http://localhost:2019")
 }
 
 // NewReloader creates a new Reloader
@@ -44,17 +42,13 @@ func NewReloader(cfg ReloaderConfig, logger *zap.Logger) *Reloader {
 	if cfg.CaddyBinary == "" {
 		cfg.CaddyBinary = "caddy"
 	}
-	if cfg.CaddyfilePath == "" {
-		cfg.CaddyfilePath = "/etc/caddy/Caddyfile"
-	}
 	if cfg.AdminAPIURL == "" {
 		cfg.AdminAPIURL = DefaultAdminAPIURL
 	}
 
 	return &Reloader{
-		caddyBinary:   cfg.CaddyBinary,
-		caddyfilePath: cfg.CaddyfilePath,
-		adminAPIURL:   cfg.AdminAPIURL,
+		caddyBinary: cfg.CaddyBinary,
+		adminAPIURL: cfg.AdminAPIURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -62,14 +56,14 @@ func NewReloader(cfg ReloaderConfig, logger *zap.Logger) *Reloader {
 	}
 }
 
-// ValidationError represents a Caddyfile validation error
+// ValidationError represents a configuration validation error
 type ValidationError struct {
 	Message string
 	Output  string
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("caddyfile validation failed: %s", e.Message)
+	return fmt.Sprintf("configuration validation failed: %s", e.Message)
 }
 
 // ReloadResult contains the result of a reload operation
@@ -80,198 +74,25 @@ type ReloadResult struct {
 	ReloadCount int
 }
 
-// Validate validates the Caddyfile without reloading
-func (r *Reloader) Validate(ctx context.Context) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return r.validateInternal(ctx)
-}
-
-// validateInternal performs validation (must be called with lock held)
-func (r *Reloader) validateInternal(ctx context.Context) error {
-	r.logger.Debug("Validating Caddyfile", zap.String("path", r.caddyfilePath))
-
-	cmd := exec.CommandContext(ctx, r.caddyBinary, "validate", "--config", r.caddyfilePath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		output := strings.TrimSpace(stderr.String())
-		if output == "" {
-			output = strings.TrimSpace(stdout.String())
-		}
-
-		r.logger.Error("Caddyfile validation failed",
-			zap.String("path", r.caddyfilePath),
-			zap.String("output", output),
-			zap.Error(err))
-
-		return &ValidationError{
-			Message: extractValidationError(output),
-			Output:  output,
-		}
-	}
-
-	r.logger.Debug("Caddyfile validation successful")
-	return nil
-}
-
-// Reload validates and reloads the Caddy configuration
-func (r *Reloader) Reload(ctx context.Context) (*ReloadResult, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	start := time.Now()
-
-	// Validate first
-	if err := r.validateInternal(ctx); err != nil {
-		return nil, err
-	}
-
-	// Reload
-	r.logger.Info("Reloading Caddy configuration", zap.String("path", r.caddyfilePath))
-
-	cmd := exec.CommandContext(ctx, r.caddyBinary, "reload", "--config", r.caddyfilePath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		output := strings.TrimSpace(stderr.String())
-		if output == "" {
-			output = strings.TrimSpace(stdout.String())
-		}
-
-		r.logger.Error("Caddy reload failed",
-			zap.String("path", r.caddyfilePath),
-			zap.String("output", output),
-			zap.Error(err))
-
-		return nil, fmt.Errorf("caddy reload failed: %s", output)
-	}
-
-	r.lastReload = time.Now()
-	r.reloadCount++
-	duration := time.Since(start)
-
-	r.logger.Info("Caddy configuration reloaded successfully",
-		zap.Duration("duration", duration),
-		zap.Int("reload_count", r.reloadCount))
-
-	return &ReloadResult{
-		Success:     true,
-		Message:     "Configuration reloaded successfully",
-		Duration:    duration,
-		ReloadCount: r.reloadCount,
-	}, nil
-}
-
-// ForceReload reloads without validation (use with caution)
-func (r *Reloader) ForceReload(ctx context.Context) (*ReloadResult, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	start := time.Now()
-
-	r.logger.Warn("Force reloading Caddy configuration (skipping validation)")
-
-	cmd := exec.CommandContext(ctx, r.caddyBinary, "reload", "--config", r.caddyfilePath, "--force")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		output := strings.TrimSpace(stderr.String())
-		if output == "" {
-			output = strings.TrimSpace(stdout.String())
-		}
-
-		r.logger.Error("Caddy force reload failed",
-			zap.String("output", output),
-			zap.Error(err))
-
-		return nil, fmt.Errorf("caddy force reload failed: %s", output)
-	}
-
-	r.lastReload = time.Now()
-	r.reloadCount++
-	duration := time.Since(start)
-
-	r.logger.Info("Caddy configuration force reloaded",
-		zap.Duration("duration", duration))
-
-	return &ReloadResult{
-		Success:     true,
-		Message:     "Configuration force reloaded",
-		Duration:    duration,
-		ReloadCount: r.reloadCount,
-	}, nil
-}
-
 // GetStatus returns the current reloader status
 func (r *Reloader) GetStatus() ReloaderStatus {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	return ReloaderStatus{
-		CaddyBinary:   r.caddyBinary,
-		CaddyfilePath: r.caddyfilePath,
-		AdminAPIURL:   r.adminAPIURL,
-		LastReload:    r.lastReload,
-		ReloadCount:   r.reloadCount,
+		CaddyBinary: r.caddyBinary,
+		AdminAPIURL: r.adminAPIURL,
+		LastReload:  r.lastReload,
+		ReloadCount: r.reloadCount,
 	}
 }
 
 // ReloaderStatus contains status information about the reloader
 type ReloaderStatus struct {
-	CaddyBinary   string
-	CaddyfilePath string
-	AdminAPIURL   string
-	LastReload    time.Time
-	ReloadCount   int
-}
-
-// AdaptAndReload adapts a Caddyfile to JSON format and reloads
-// This is useful for debugging or when you need the JSON output
-func (r *Reloader) AdaptAndReload(ctx context.Context) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// Adapt Caddyfile to JSON
-	r.logger.Debug("Adapting Caddyfile to JSON")
-
-	cmd := exec.CommandContext(ctx, r.caddyBinary, "adapt", "--config", r.caddyfilePath)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		output := strings.TrimSpace(stderr.String())
-		return "", fmt.Errorf("failed to adapt Caddyfile: %s", output)
-	}
-
-	jsonConfig := strings.TrimSpace(stdout.String())
-
-	// Now reload
-	reloadCmd := exec.CommandContext(ctx, r.caddyBinary, "reload", "--config", r.caddyfilePath)
-	reloadCmd.Stdout = &bytes.Buffer{}
-	reloadCmd.Stderr = &stderr
-
-	if err := reloadCmd.Run(); err != nil {
-		output := strings.TrimSpace(stderr.String())
-		return jsonConfig, fmt.Errorf("failed to reload after adapt: %s", output)
-	}
-
-	r.lastReload = time.Now()
-	r.reloadCount++
-
-	return jsonConfig, nil
+	CaddyBinary string
+	AdminAPIURL string
+	LastReload  time.Time
+	ReloadCount int
 }
 
 // extractValidationError extracts a clean error message from Caddy output
@@ -409,7 +230,7 @@ func (r *Reloader) ReloadJSON(ctx context.Context, configPath string) (*ReloadRe
 			zap.Error(err))
 		return nil, fmt.Errorf("sending request to admin API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 

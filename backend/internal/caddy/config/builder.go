@@ -19,7 +19,6 @@ type Builder struct {
 	aclBuilder  *ACLBuilder
 
 	// Configuration inputs
-	settings    *Settings
 	httpProxies []models.Proxy
 	aclGroups   map[int64]*models.ACLGroup
 	aclAssigns  map[int64][]models.ProxyACLAssignment
@@ -188,12 +187,13 @@ func (b *Builder) BuildCompactJSON() ([]byte, error) {
 func (b *Builder) buildHTTPRoutes() ([]*HTTPRoute, error) {
 	var routes []*HTTPRoute
 
-	for _, proxy := range b.httpProxies {
+	for i := range b.httpProxies {
+		proxy := &b.httpProxies[i]
 		if !proxy.IsActive {
 			continue
 		}
 
-		proxyRoutes, err := b.buildProxyRoutes(&proxy)
+		proxyRoutes, err := b.buildProxyRoutes(proxy)
 		if err != nil {
 			b.logger.Warn("Failed to build routes for proxy",
 				zap.Int("proxy_id", proxy.ID),
@@ -211,26 +211,48 @@ func (b *Builder) buildHTTPRoutes() ([]*HTTPRoute, error) {
 
 // buildProxyRoutes builds routes for a single proxy.
 func (b *Builder) buildProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
+	var routes []*HTTPRoute
+
+	// Add security routes if BlockExploits is enabled
+	if proxy.BlockExploits {
+		securityRoutes := SecurityRoutesForHost(proxy.Hostname)
+		routes = append(routes, securityRoutes...)
+		b.logger.Debug("Added security routes for proxy",
+			zap.String("hostname", proxy.Hostname),
+			zap.Int("security_routes", len(securityRoutes)))
+	}
+
 	// Check for ACL assignments
 	assignments := b.aclAssigns[int64(proxy.ID)]
 	hasACL := len(assignments) > 0 && b.aclBuilder != nil
 
+	var proxyRoutes []*HTTPRoute
+	var err error
+
 	switch proxy.Type {
 	case models.ProxyTypeReverseProxy:
 		if hasACL {
-			return b.httpBuilder.BuildReverseProxyRoutesWithACL(proxy, assignments, b.aclGroups, b.aclBuilder)
+			proxyRoutes, err = b.httpBuilder.BuildReverseProxyRoutesWithACL(proxy, assignments, b.aclGroups, b.aclBuilder)
+		} else {
+			proxyRoutes, err = b.httpBuilder.BuildReverseProxyRoutes(proxy)
 		}
-		return b.httpBuilder.BuildReverseProxyRoutes(proxy)
 
 	case models.ProxyTypeRedirect:
-		return b.httpBuilder.BuildRedirectRoutes(proxy)
+		proxyRoutes, err = b.httpBuilder.BuildRedirectRoutes(proxy)
 
 	case models.ProxyTypeStatic:
-		return b.httpBuilder.BuildStaticRoutes(proxy)
+		proxyRoutes, err = b.httpBuilder.BuildStaticRoutes(proxy)
 
 	default:
 		return nil, fmt.Errorf("unknown proxy type: %s", proxy.Type)
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	routes = append(routes, proxyRoutes...)
+	return routes, nil
 }
 
 // buildCatchAllRoute builds the catch-all route for unmatched requests.
@@ -250,7 +272,8 @@ func (b *Builder) buildCatchAllRoute() *HTTPRoute {
 func (b *Builder) collectTLSDomains() []string {
 	domainSet := make(map[string]bool)
 
-	for _, proxy := range b.httpProxies {
+	for i := range b.httpProxies {
+		proxy := &b.httpProxies[i]
 		if !proxy.IsActive {
 			continue
 		}

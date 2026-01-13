@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
@@ -686,20 +688,50 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 	t.Run("success - calls sync service UpdateCatchAll", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
-		settingsRepo := &MockSettingsRepository{}
-		fileManager := &MockFileManager{
-			WriteCatchAllFileFunc: func(content string) error {
-				return nil
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{}, 0, nil
 			},
 		}
-		reloader := &MockReloader{}
-		builder := &MockBuilder{}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "redirect", RedirectURL: "https://example.com"}, nil
+			},
+		}
+		aclRepo := &SyncMockACLRepository{
+			ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+				return []models.ACLGroup{}, 0, nil
+			},
+		}
+		fileManager := &MockFileManager{
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/config.json"
+			},
+			BackupJSONConfigFunc: func(path string) error {
+				return nil
+			},
+			WriteJSONConfigFunc: func(path string, data []byte) error {
+				return nil
+			},
+			FileExistsFunc: func(path string) bool {
+				return true
+			},
+		}
+		reloader := &MockReloader{
+			ValidateJSONFunc: func(configPath string) error {
+				return nil
+			},
+			ReloadJSONFunc: func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+				return &caddy.ReloadResult{Success: true}, nil
+			},
+		}
 
 		syncSvc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    proxyRepo,
 			SettingsRepo: settingsRepo,
+			ACLRepo:      aclRepo,
 			FileManager:  fileManager,
 			Reloader:     reloader,
-			Builder:      builder,
 		})
 
 		svc := NewTestableSettingsService(mock, nil)
@@ -714,23 +746,50 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("error - sync service UpdateCatchAll fails", func(t *testing.T) {
+	t.Run("error - sync service UpdateCatchAll fails on JSON write", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
-		settingsRepo := &MockSettingsRepository{
-			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
-				return nil, errors.New("settings error")
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{}, 0, nil
 			},
 		}
-		fileManager := &MockFileManager{}
-		reloader := &MockReloader{}
-		builder := &MockBuilder{}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "default"}, nil
+			},
+		}
+		aclRepo := &SyncMockACLRepository{
+			ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+				return []models.ACLGroup{}, 0, nil
+			},
+		}
+		fileManager := &MockFileManager{
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/config.json"
+			},
+			FileExistsFunc: func(path string) bool {
+				return true
+			},
+			BackupJSONConfigFunc: func(path string) error {
+				return nil
+			},
+			WriteJSONConfigFunc: func(path string, data []byte) error {
+				return errors.New("disk full")
+			},
+		}
+		reloader := &MockReloader{
+			ValidateJSONFunc: func(configPath string) error {
+				return nil
+			},
+		}
 
 		syncSvc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    proxyRepo,
 			SettingsRepo: settingsRepo,
+			ACLRepo:      aclRepo,
 			FileManager:  fileManager,
 			Reloader:     reloader,
-			Builder:      builder,
 		})
 
 		svc := NewTestableSettingsService(mock, nil)
@@ -743,7 +802,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 
 		err := svc.SetNotFoundSettings(settings)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "settings error")
+		assert.Contains(t, err.Error(), "disk full")
 	})
 }
 

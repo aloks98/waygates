@@ -75,9 +75,9 @@ func SetupContainerEnvironment(t *testing.T) *ContainerTestEnv {
 	}
 	env.PostgresContainer = postgresContainer
 
-	// Get the path to test Caddyfile
-	// This Caddyfile disables TLS automation for testing
-	testCaddyfile := findTestCaddyfile(t)
+	// Get the path to test JSON config
+	// This config disables TLS automation for testing
+	testJSONConfig := findTestJSONConfig(t)
 
 	// Use pre-built image (run `docker build -t waygates-test:latest .` before running tests)
 	// This avoids issues with platform variables in Docker BuildKit
@@ -87,8 +87,8 @@ func SetupContainerEnvironment(t *testing.T) *ContainerTestEnv {
 		Networks:     []string{testNetwork.Name},
 		Files: []testcontainers.ContainerFile{
 			{
-				HostFilePath:      testCaddyfile,
-				ContainerFilePath: "/etc/caddy/Caddyfile",
+				HostFilePath:      testJSONConfig,
+				ContainerFilePath: "/etc/caddy/caddy.json",
 				FileMode:          0o644,
 			},
 		},
@@ -317,9 +317,9 @@ func (env *ContainerTestEnv) ReadCatchAllFile(t *testing.T) (string, error) {
 	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/catchall.conf"})
 }
 
-// ReadMainCaddyfile reads the main Caddyfile from the container
-func (env *ContainerTestEnv) ReadMainCaddyfile(t *testing.T) (string, error) {
-	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/Caddyfile"})
+// ReadJSONConfig reads the Caddy JSON config from the container
+func (env *ContainerTestEnv) ReadJSONConfig(t *testing.T) (string, error) {
+	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/caddy.json"})
 }
 
 // WaitForProxyFile waits for a proxy file to exist with timeout
@@ -421,8 +421,8 @@ func (env *ContainerTestEnv) WaitForSyncComplete(t *testing.T, timeout time.Dura
 	t.Logf("Warning: sync did not complete within %v timeout", timeout)
 }
 
-// findTestCaddyfile locates the test Caddyfile
-func findTestCaddyfile(t *testing.T) string {
+// findTestJSONConfig locates the test JSON config
+func findTestJSONConfig(t *testing.T) string {
 	// Get the current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -430,18 +430,18 @@ func findTestCaddyfile(t *testing.T) string {
 	}
 
 	// Try relative path from test directory
-	testdataPath := filepath.Join(cwd, "testdata", "Caddyfile.test")
+	testdataPath := filepath.Join(cwd, "testdata", "caddy.json.test")
 	if _, err := os.Stat(testdataPath); err == nil {
 		return testdataPath
 	}
 
 	// Try from project root (when running from project root)
-	projectPath := filepath.Join(cwd, "backend", "tests", "integration", "testdata", "Caddyfile.test")
+	projectPath := filepath.Join(cwd, "backend", "tests", "integration", "testdata", "caddy.json.test")
 	if _, err := os.Stat(projectPath); err == nil {
 		return projectPath
 	}
 
-	t.Fatalf("Could not find test Caddyfile. Checked:\n- %s\n- %s", testdataPath, projectPath)
+	t.Fatalf("Could not find test JSON config. Checked:\n- %s\n- %s", testdataPath, projectPath)
 	return ""
 }
 
@@ -1164,19 +1164,20 @@ func TestIntegration_SyncAPI(t *testing.T) {
 		// Wait for sync to complete (with polling)
 		env.WaitForSyncComplete(t, 5*time.Second)
 
-		// Verify Caddyfile was generated
-		content, err := env.ReadMainCaddyfile(t)
+		// Verify JSON config was generated
+		content, err := env.ReadJSONConfig(t)
 		if err != nil {
-			t.Fatalf("Failed to read Caddyfile: %v", err)
+			t.Fatalf("Failed to read JSON config: %v", err)
 		}
 
-		if !strings.Contains(content, "import sites/*.conf") {
-			t.Error("Caddyfile should import sites/*.conf")
+		// Check for valid JSON structure
+		if !strings.Contains(content, `"apps"`) {
+			t.Error("JSON config should contain 'apps' key")
 		}
-		if !strings.Contains(content, "import catchall.conf") {
-			t.Error("Caddyfile should import catchall.conf")
+		if !strings.Contains(content, `"http"`) {
+			t.Error("JSON config should contain 'http' app")
 		}
-		t.Logf("Main Caddyfile content:\n%s", content)
+		t.Logf("Caddy JSON config:\n%s", content)
 	})
 }
 

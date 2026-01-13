@@ -136,8 +136,18 @@ func AddRemoteIPToMatcher(m MatcherSet, ranges ...string) MatcherSet {
 // Used for bypassing authentication on static assets.
 func StaticAssetExtensions() []string {
 	return []string{
-		"*.ico", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.webp",
-		"*.css", "*.js", "*.woff", "*.woff2", "*.ttf", "*.map",
+		// Images
+		"*.ico", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.webp", "*.avif",
+		// Stylesheets
+		"*.css",
+		// Scripts
+		"*.js", "*.mjs",
+		// Fonts
+		"*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf",
+		// Source maps
+		"*.map",
+		// Web manifests
+		"*.webmanifest", "*.json",
 	}
 }
 
@@ -145,9 +155,21 @@ func StaticAssetExtensions() []string {
 // Used for bypassing authentication on static assets.
 func StaticAssetPaths() []string {
 	return []string{
+		// Common root files
 		"/favicon.ico",
 		"/robots.txt",
 		"/sitemap.xml",
+		"/manifest.json",
+		// Common static directories
+		"/static/*",
+		"/assets/*",
+		"/images/*",
+		"/css/*",
+		"/js/*",
+		"/fonts/*",
+		"/media/*",
+		// Well-known paths
+		"/.well-known/*",
 	}
 }
 
