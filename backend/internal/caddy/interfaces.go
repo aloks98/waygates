@@ -13,8 +13,10 @@ type FileManagerInterface interface {
 	ReadJSONConfig(path string) ([]byte, error)
 	WriteJSONConfig(path string, data []byte) error
 	ConfigChanged(path string, newData []byte) (bool, error)
+
+	// Backup methods
 	BackupJSONConfig(path string) error
-	CleanupOldBackups(maxBackups int) error
+	CleanupOldBackupsByAge(retentionDays int) error
 }
 
 // ReloaderInterface defines the interface for Caddy reload operations

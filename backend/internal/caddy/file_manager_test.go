@@ -353,7 +353,7 @@ func TestFileManager_ConfigChanged_Nonexistent(t *testing.T) {
 	}
 }
 
-func TestFileManager_CleanupOldBackups(t *testing.T) {
+func TestFileManager_CleanupOldBackupsByAge(t *testing.T) {
 	logger := zap.NewNop()
 	tempDir := t.TempDir()
 
@@ -362,24 +362,29 @@ func TestFileManager_CleanupOldBackups(t *testing.T) {
 
 	backupDir := fm.GetBackupDir()
 
-	// Create 15 backup files with different timestamps
-	for i := 0; i < 15; i++ {
-		filename := fmt.Sprintf("caddy.json.2024010%d_120000.backup", i)
+	// Create 5 backups with different ages
+	for i := 0; i < 5; i++ {
+		filename := fmt.Sprintf("caddy.json.2026010%d_120000.backup", i)
 		backupPath := filepath.Join(backupDir, filename)
 		if err := os.WriteFile(backupPath, []byte("backup"), 0644); err != nil {
 			t.Fatalf("Failed to create backup: %v", err)
 		}
-		// Set modification time to ensure ordering
-		modTime := time.Now().Add(time.Duration(-15+i) * time.Hour)
+		// Set modification time: 0,1,2 days old (keep) and 10,11 days old (delete)
+		var modTime time.Time
+		if i < 3 {
+			modTime = time.Now().Add(time.Duration(-i) * 24 * time.Hour)
+		} else {
+			modTime = time.Now().Add(time.Duration(-10-i) * 24 * time.Hour)
+		}
 		if err := os.Chtimes(backupPath, modTime, modTime); err != nil {
 			t.Fatalf("Failed to set mtime: %v", err)
 		}
 	}
 
-	// Clean up, keeping only 5
-	err := fm.CleanupOldBackups(5)
+	// Clean up, keeping only backups from last 7 days
+	err := fm.CleanupOldBackupsByAge(7)
 	if err != nil {
-		t.Fatalf("CleanupOldBackups failed: %v", err)
+		t.Fatalf("CleanupOldBackupsByAge failed: %v", err)
 	}
 
 	// Count remaining backups
@@ -395,12 +400,13 @@ func TestFileManager_CleanupOldBackups(t *testing.T) {
 		}
 	}
 
-	if backupCount != 5 {
-		t.Errorf("Expected 5 backups after cleanup, got %d", backupCount)
+	// Should have 3 recent backups remaining
+	if backupCount != 3 {
+		t.Errorf("Expected 3 backups after cleanup, got %d", backupCount)
 	}
 }
 
-func TestFileManager_CleanupOldBackups_NothingToClean(t *testing.T) {
+func TestFileManager_CleanupOldBackupsByAge_NothingToClean(t *testing.T) {
 	logger := zap.NewNop()
 	tempDir := t.TempDir()
 
@@ -408,22 +414,22 @@ func TestFileManager_CleanupOldBackups_NothingToClean(t *testing.T) {
 	_ = fm.EnsureDirectories()
 
 	// Cleanup with no backups - should not error
-	err := fm.CleanupOldBackups(10)
+	err := fm.CleanupOldBackupsByAge(7)
 	if err != nil {
-		t.Errorf("CleanupOldBackups should not error when no backups exist: %v", err)
+		t.Errorf("CleanupOldBackupsByAge should not error when no backups exist: %v", err)
 	}
 }
 
-func TestFileManager_CleanupOldBackups_DefaultMax(t *testing.T) {
+func TestFileManager_CleanupOldBackupsByAge_DefaultRetention(t *testing.T) {
 	logger := zap.NewNop()
 	tempDir := t.TempDir()
 
 	fm := NewFileManager(tempDir, logger)
 	_ = fm.EnsureDirectories()
 
-	// Pass 0 to use default
-	err := fm.CleanupOldBackups(0)
+	// Pass 0 to use default retention
+	err := fm.CleanupOldBackupsByAge(0)
 	if err != nil {
-		t.Errorf("CleanupOldBackups with 0 should use default: %v", err)
+		t.Errorf("CleanupOldBackupsByAge with 0 should use default: %v", err)
 	}
 }

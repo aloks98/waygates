@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,8 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// DefaultMaxBackups is the default number of backups to retain
-const DefaultMaxBackups = 10
+// DefaultRetentionDays is the default number of days to retain backups
+const DefaultRetentionDays = 7
 
 // FileManager handles Caddy JSON configuration file operations
 type FileManager struct {
@@ -132,14 +131,16 @@ func (m *FileManager) BackupJSONConfig(path string) error {
 	return nil
 }
 
-// CleanupOldBackups removes old backups, keeping only the most recent maxBackups
-func (m *FileManager) CleanupOldBackups(maxBackups int) error {
+// CleanupOldBackupsByAge removes backups older than the specified retention period
+func (m *FileManager) CleanupOldBackupsByAge(retentionDays int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if maxBackups <= 0 {
-		maxBackups = DefaultMaxBackups
+	if retentionDays <= 0 {
+		retentionDays = DefaultRetentionDays
 	}
+
+	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
 
 	// List all backup files
 	entries, err := os.ReadDir(m.backupDir)
@@ -150,18 +151,9 @@ func (m *FileManager) CleanupOldBackups(maxBackups int) error {
 		return fmt.Errorf("failed to read backup directory: %w", err)
 	}
 
-	// Filter for backup files and collect with modification times
-	type backupFile struct {
-		name    string
-		modTime time.Time
-	}
-	var backups []backupFile
-
+	deletedCount := 0
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".backup") {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".backup") {
 			continue
 		}
 
@@ -170,39 +162,23 @@ func (m *FileManager) CleanupOldBackups(maxBackups int) error {
 			continue
 		}
 
-		backups = append(backups, backupFile{
-			name:    entry.Name(),
-			modTime: info.ModTime(),
-		})
-	}
-
-	// If we have fewer backups than max, nothing to clean up
-	if len(backups) <= maxBackups {
-		return nil
-	}
-
-	// Sort by modification time (newest first)
-	sort.Slice(backups, func(i, j int) bool {
-		return backups[i].modTime.After(backups[j].modTime)
-	})
-
-	// Delete backups beyond maxBackups
-	deletedCount := 0
-	for i := maxBackups; i < len(backups); i++ {
-		backupPath := filepath.Join(m.backupDir, backups[i].name)
-		if err := os.Remove(backupPath); err != nil {
-			m.logger.Warn("Failed to delete old backup",
-				zap.String("path", backupPath),
-				zap.Error(err))
-			continue
+		// Delete if older than cutoff time
+		if info.ModTime().Before(cutoffTime) {
+			backupPath := filepath.Join(m.backupDir, entry.Name())
+			if err := os.Remove(backupPath); err != nil {
+				m.logger.Warn("Failed to delete old backup",
+					zap.String("path", backupPath),
+					zap.Error(err))
+				continue
+			}
+			deletedCount++
 		}
-		deletedCount++
 	}
 
 	if deletedCount > 0 {
-		m.logger.Info("Cleaned up old backups",
+		m.logger.Info("Cleaned up old backups by age",
 			zap.Int("deleted", deletedCount),
-			zap.Int("remaining", maxBackups))
+			zap.Int("retention_days", retentionDays))
 	}
 
 	return nil

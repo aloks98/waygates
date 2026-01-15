@@ -79,13 +79,13 @@ type MockFileManager struct {
 	FileExistsFunc        func(path string) bool
 
 	// JSON configuration methods
-	GetJSONConfigPathFunc func() string
-	GetBackupDirFunc      func() string
-	ReadJSONConfigFunc    func(path string) ([]byte, error)
-	WriteJSONConfigFunc   func(path string, data []byte) error
-	ConfigChangedFunc     func(path string, newData []byte) (bool, error)
-	BackupJSONConfigFunc  func(path string) error
-	CleanupOldBackupsFunc func(maxBackups int) error
+	GetJSONConfigPathFunc      func() string
+	GetBackupDirFunc           func() string
+	ReadJSONConfigFunc         func(path string) ([]byte, error)
+	WriteJSONConfigFunc        func(path string, data []byte) error
+	ConfigChangedFunc          func(path string, newData []byte) (bool, error)
+	BackupJSONConfigFunc       func(path string) error
+	CleanupOldBackupsByAgeFunc func(retentionDays int) error
 }
 
 func (m *MockFileManager) EnsureDirectories() error {
@@ -145,9 +145,9 @@ func (m *MockFileManager) BackupJSONConfig(path string) error {
 	return nil
 }
 
-func (m *MockFileManager) CleanupOldBackups(maxBackups int) error {
-	if m.CleanupOldBackupsFunc != nil {
-		return m.CleanupOldBackupsFunc(maxBackups)
+func (m *MockFileManager) CleanupOldBackupsByAge(retentionDays int) error {
+	if m.CleanupOldBackupsByAgeFunc != nil {
+		return m.CleanupOldBackupsByAgeFunc(retentionDays)
 	}
 	return nil
 }

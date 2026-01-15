@@ -46,6 +46,9 @@ type SyncService struct {
 	waygatesVerifyURL string
 	waygatesLoginURL  string
 
+	// Backup configuration
+	configRetentionDays int // Days to retain backups
+
 	// Sync state
 	ticker   *time.Ticker
 	stopChan chan struct{}
@@ -69,6 +72,9 @@ type SyncServiceConfig struct {
 	WaygatesVerifyURL string // Waygates auth verify URL for ACL
 	WaygatesLoginURL  string // Waygates auth login URL for ACL
 	StoragePath       string // Caddy storage path (default: /data)
+
+	// Backup configuration
+	ConfigRetentionDays int // Days to retain backups (default: 7)
 }
 
 // NewSyncService creates a new sync service
@@ -80,17 +86,18 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 	logger := cfg.Logger.Named("sync-service")
 
 	svc := &SyncService{
-		proxyRepo:         cfg.ProxyRepo,
-		settingsRepo:      cfg.SettingsRepo,
-		aclRepo:           cfg.ACLRepo,
-		fileManager:       cfg.FileManager,
-		reloader:          cfg.Reloader,
-		logger:            logger,
-		email:             cfg.Email,
-		acmeProvider:      cfg.ACMEProvider,
-		waygatesVerifyURL: cfg.WaygatesVerifyURL,
-		waygatesLoginURL:  cfg.WaygatesLoginURL,
-		stopChan:          make(chan struct{}),
+		proxyRepo:           cfg.ProxyRepo,
+		settingsRepo:        cfg.SettingsRepo,
+		aclRepo:             cfg.ACLRepo,
+		fileManager:         cfg.FileManager,
+		reloader:            cfg.Reloader,
+		logger:              logger,
+		email:               cfg.Email,
+		acmeProvider:        cfg.ACMEProvider,
+		waygatesVerifyURL:   cfg.WaygatesVerifyURL,
+		waygatesLoginURL:    cfg.WaygatesLoginURL,
+		configRetentionDays: cfg.ConfigRetentionDays,
+		stopChan:            make(chan struct{}),
 		status: SyncStatus{
 			LastSyncSuccess: true,
 		},
@@ -370,14 +377,14 @@ func (s *SyncService) performFullSyncJSON() error {
 		return nil
 	}
 
-	// 9. Backup existing config before overwriting (only when config changed)
+	// 9. Backup existing config before overwriting
 	if err := s.fileManager.BackupJSONConfig(jsonConfigPath); err != nil {
 		s.logger.Warn("Failed to backup JSON config", zap.Error(err))
 		// Continue anyway - backup is optional
 	}
 
-	// 10. Cleanup old backups (keep last 10)
-	if err := s.fileManager.CleanupOldBackups(caddy.DefaultMaxBackups); err != nil {
+	// 10. Cleanup old backups by age
+	if err := s.fileManager.CleanupOldBackupsByAge(s.configRetentionDays); err != nil {
 		s.logger.Warn("Failed to cleanup old backups", zap.Error(err))
 	}
 

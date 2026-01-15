@@ -81,17 +81,18 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Services - SyncService must be created first as ProxyService depends on it
 	syncService := service.NewSyncService(service.SyncServiceConfig{
-		ProxyRepo:         proxyRepo,
-		SettingsRepo:      settingsRepo,
-		ACLRepo:           aclRepo,
-		FileManager:       caddyFileManager,
-		Reloader:          caddyReloader,
-		Logger:            logger,
-		Email:             cfg.Caddy.Email,
-		ACMEProvider:      cfg.Caddy.ACMEProvider,
-		WaygatesVerifyURL: cfg.ACL.WaygatesVerifyURL,
-		WaygatesLoginURL:  cfg.ACL.WaygatesLoginURL,
-		StoragePath:       cfg.Caddy.StoragePath,
+		ProxyRepo:           proxyRepo,
+		SettingsRepo:        settingsRepo,
+		ACLRepo:             aclRepo,
+		FileManager:         caddyFileManager,
+		Reloader:            caddyReloader,
+		Logger:              logger,
+		Email:               cfg.Caddy.Email,
+		ACMEProvider:        cfg.Caddy.ACMEProvider,
+		WaygatesVerifyURL:   cfg.ACL.WaygatesVerifyURL,
+		WaygatesLoginURL:    cfg.ACL.WaygatesLoginURL,
+		StoragePath:         cfg.Caddy.StoragePath,
+		ConfigRetentionDays: cfg.Caddy.ConfigRetentionDays,
 	})
 
 	proxyService := service.NewProxyService(service.ProxyServiceConfig{
