@@ -952,24 +952,8 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 			if group.WaygatesAuth.Enabled {
 				response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
 			}
-
-			// Collect OAuth providers from WaygatesAuth.AllowedProviders
-			// OAuth providers should be available even if Waygates username/password login is disabled
-			// Only include providers that are actually available (env vars configured)
-			for _, providerID := range group.WaygatesAuth.AllowedProviders {
-				pid := strings.ToLower(providerID)
-				// Skip if provider is not available (env vars not configured)
-				if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
-					continue
-				}
-				if _, exists := oauthProviderMap[pid]; !exists {
-					oauthProviderMap[pid] = UnionOAuthProvider{
-						ID:      providerID,
-						Name:    formatProviderName(providerID),
-						Enabled: true,
-					}
-				}
-			}
+			// Note: WaygatesAuth.AllowedProviders is a legacy field.
+			// OAuth providers are now controlled by OAuthProviderRestrictions below.
 		}
 
 		// Collect OAuth providers from OAuthProviderRestrictions

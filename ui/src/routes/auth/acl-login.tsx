@@ -1,7 +1,7 @@
 import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/titanium';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
-import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, Lock, RefreshCw, ShieldOff } from 'lucide-react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
 import { publicApi } from '@/lib/api';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
@@ -141,7 +141,8 @@ function ACLLoginContent({
     available: true,
     enabled: p.enabled,
   }));
-  const hasOAuthProviders = oauthProviders.length > 0;
+  // Only consider OAuth providers that are actually enabled
+  const hasOAuthProviders = oauthProviders.some((p) => p.enabled);
   // Consider basic auth as an available method (handled by browser, not this form)
   const hasAnyAuthMethod = showWaygatesAuth || hasOAuthProviders || hasBasicAuth;
 
@@ -179,13 +180,25 @@ function ACLLoginContent({
 
       {/* Show message if no auth methods available */}
       {authOptions?.requires_auth && !hasAnyAuthMethod && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>
-            No authentication methods are configured for this resource. Please contact the
-            administrator.
-          </AlertDescription>
-        </Alert>
+        <div className="flex flex-col items-center py-6 text-center">
+          <div className="rounded-full bg-destructive/10 p-4 mb-4">
+            <ShieldOff className="size-8 text-destructive" />
+          </div>
+          <h2 className="text-lg font-semibold text-foreground mb-2">
+            No Sign-in Methods Available
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-xs mb-4">
+            This resource requires authentication, but no sign-in methods have been configured by
+            the administrator.
+          </p>
+          <Alert variant="destructive" className="text-left">
+            <AlertCircle className="size-4" />
+            <AlertDescription>
+              Please contact your system administrator to enable authentication options for this
+              resource.
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
       {/* Basic auth info - show when only basic auth is available */}
