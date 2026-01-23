@@ -1,7 +1,8 @@
 import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/titanium';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
-import { AlertCircle, Lock, RefreshCw, ShieldOff } from 'lucide-react';
+import { AlertCircle, CheckCircle, Lock, RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
 import { publicApi } from '@/lib/api';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
@@ -168,36 +169,18 @@ function ACLLoginContent({
       {/* Host badge */}
       {host && <HostBadge host={host} />}
 
-      {/* Show message if no auth required */}
+      {/* Show redirecting state when no auth required */}
       {authOptions && !authOptions.requires_auth && (
-        <Alert>
-          <AlertCircle className="size-4" />
-          <AlertDescription>
-            No authentication is required for this resource. You can access it directly.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Show message if no auth methods available */}
-      {authOptions?.requires_auth && !hasAnyAuthMethod && (
         <div className="flex flex-col items-center py-6 text-center">
-          <div className="rounded-full bg-destructive/10 p-4 mb-4">
-            <ShieldOff className="size-8 text-destructive" />
+          <div className="rounded-full bg-green-500/10 p-4 mb-4">
+            <CheckCircle className="size-8 text-green-500" />
           </div>
-          <h2 className="text-lg font-semibold text-foreground mb-2">
-            No Sign-in Methods Available
-          </h2>
-          <p className="text-sm text-muted-foreground max-w-xs mb-4">
-            This resource requires authentication, but no sign-in methods have been configured by
-            the administrator.
+          <h2 className="text-lg font-semibold text-foreground mb-2">No Authentication Required</h2>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            {redirectUrl
+              ? 'This resource is publicly accessible. Redirecting you now...'
+              : 'This resource is publicly accessible. You can access it directly.'}
           </p>
-          <Alert variant="destructive" className="text-left">
-            <AlertCircle className="size-4" />
-            <AlertDescription>
-              Please contact your system administrator to enable authentication options for this
-              resource.
-            </AlertDescription>
-          </Alert>
         </div>
       )}
 
@@ -276,6 +259,17 @@ export function ACLLoginPage() {
     isLoading: isAuthOptionsLoading,
     isError: isAuthOptionsError,
   } = useAuthOptions(host);
+
+  // Redirect if no auth is required
+  useEffect(() => {
+    if (authOptions && !authOptions.requires_auth && redirectUrl) {
+      // Small delay to show feedback before redirect
+      const timer = setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [authOptions, redirectUrl]);
 
   const isLoading = isBrandingLoading || isAuthOptionsLoading;
   const effectiveBranding = branding || defaultBranding;

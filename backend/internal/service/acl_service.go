@@ -923,10 +923,10 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 	}
 
 	// 4. Build union of auth options
+	// RequiresAuth will be computed after we know what auth methods are available
 	response := &AuthOptionsResponse{
-		Hostname:     hostname,
-		ProxyID:      int64(proxy.ID),
-		RequiresAuth: true,
+		Hostname: hostname,
+		ProxyID:  int64(proxy.ID),
 	}
 
 	oauthProviderMap := make(map[string]UnionOAuthProvider)
@@ -1025,6 +1025,13 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 	if hasBasicAuthUsers && !hasSecureAuth {
 		response.BasicAuthEnabled = true
 	}
+
+	// RequiresAuth is true only if at least one interactive auth method is available
+	// (IP rules are handled at the proxy level, not via the login page)
+	hasWaygatesAuth := response.WaygatesAuth != nil && response.WaygatesAuth.Enabled
+	hasOAuth := len(response.OAuthProviders) > 0
+	hasBasicAuth := response.BasicAuthEnabled
+	response.RequiresAuth = hasWaygatesAuth || hasOAuth || hasBasicAuth
 
 	return response, nil
 }
