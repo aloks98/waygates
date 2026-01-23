@@ -99,18 +99,25 @@ type groupAccessResult struct {
 	DenialReason                 string
 }
 
+// OAuthProviderChecker is an interface for checking OAuth provider availability
+type OAuthProviderChecker interface {
+	IsAvailable(id string) bool
+}
+
 // ACLService handles ACL business logic
 type ACLService struct {
-	aclRepo   repository.ACLRepositoryInterface
-	proxyRepo repository.ProxyRepositoryInterface
-	logger    *zap.Logger
+	aclRepo      repository.ACLRepositoryInterface
+	proxyRepo    repository.ProxyRepositoryInterface
+	oauthChecker OAuthProviderChecker
+	logger       *zap.Logger
 }
 
 // ACLServiceConfig holds configuration for ACLService
 type ACLServiceConfig struct {
-	ACLRepo   repository.ACLRepositoryInterface
-	ProxyRepo repository.ProxyRepositoryInterface
-	Logger    *zap.Logger
+	ACLRepo      repository.ACLRepositoryInterface
+	ProxyRepo    repository.ProxyRepositoryInterface
+	OAuthChecker OAuthProviderChecker
+	Logger       *zap.Logger
 }
 
 // NewACLService creates a new ACL service
@@ -120,9 +127,10 @@ func NewACLService(cfg ACLServiceConfig) *ACLService {
 	}
 
 	return &ACLService{
-		aclRepo:   cfg.ACLRepo,
-		proxyRepo: cfg.ProxyRepo,
-		logger:    cfg.Logger.Named("acl-service"),
+		aclRepo:      cfg.ACLRepo,
+		proxyRepo:    cfg.ProxyRepo,
+		oauthChecker: cfg.OAuthChecker,
+		logger:       cfg.Logger.Named("acl-service"),
 	}
 }
 
@@ -947,8 +955,13 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 
 			// Collect OAuth providers from WaygatesAuth.AllowedProviders
 			// OAuth providers should be available even if Waygates username/password login is disabled
+			// Only include providers that are actually available (env vars configured)
 			for _, providerID := range group.WaygatesAuth.AllowedProviders {
 				pid := strings.ToLower(providerID)
+				// Skip if provider is not available (env vars not configured)
+				if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
+					continue
+				}
 				if _, exists := oauthProviderMap[pid]; !exists {
 					oauthProviderMap[pid] = UnionOAuthProvider{
 						ID:      providerID,
@@ -960,12 +973,17 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 		}
 
 		// Collect OAuth providers from OAuthProviderRestrictions
+		// Only include providers that are actually available (env vars configured)
 		for i := range group.OAuthProviderRestrictions {
 			restriction := &group.OAuthProviderRestrictions[i]
 			if !restriction.Enabled {
 				continue
 			}
 			pid := strings.ToLower(restriction.Provider)
+			// Skip if provider is not available (env vars not configured)
+			if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
+				continue
+			}
 			if _, exists := oauthProviderMap[pid]; !exists {
 				oauthProviderMap[pid] = UnionOAuthProvider{
 					ID:      restriction.Provider,

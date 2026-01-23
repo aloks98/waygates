@@ -105,9 +105,10 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	auditService := service.NewAuditService(auditLogRepo, settingsService, logger)
 	aclService := service.NewACLService(service.ACLServiceConfig{
-		ACLRepo:   aclRepo,
-		ProxyRepo: proxyRepo,
-		Logger:    logger,
+		ACLRepo:      aclRepo,
+		ProxyRepo:    proxyRepo,
+		OAuthChecker: auth.NewOAuthCheckerAdapter(oauthProviderManager),
+		Logger:       logger,
 	})
 
 	// Ensure Caddy directories exist

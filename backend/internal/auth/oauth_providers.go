@@ -236,6 +236,22 @@ func (m *OAuthProviderManager) IsAvailable(id OAuthProviderID) bool {
 	return ok && p.Enabled // Enabled means env vars are present
 }
 
+// OAuthCheckerAdapter wraps OAuthProviderManager to satisfy the OAuthProviderChecker interface
+type OAuthCheckerAdapter struct {
+	manager *OAuthProviderManager
+}
+
+// NewOAuthCheckerAdapter creates an adapter that wraps OAuthProviderManager
+func NewOAuthCheckerAdapter(manager *OAuthProviderManager) *OAuthCheckerAdapter {
+	return &OAuthCheckerAdapter{manager: manager}
+}
+
+// IsAvailable checks if a provider has env vars configured (string version)
+// This method satisfies the service.OAuthProviderChecker interface
+func (a *OAuthCheckerAdapter) IsAvailable(id string) bool {
+	return a.manager.IsAvailable(OAuthProviderID(id))
+}
+
 // GetEnabledProviders returns enabled providers.
 //
 // Deprecated: Use GetAvailableProviders instead.

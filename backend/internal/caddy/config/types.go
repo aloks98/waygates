@@ -127,7 +127,7 @@ type HTTPHandler map[string]interface{}
 
 // AutoHTTPSConfig configures automatic HTTPS behavior.
 type AutoHTTPSConfig struct {
-	Disabled          bool     `json:"disabled,omitempty"`
+	Disabled          bool     `json:"disable,omitempty"`
 	DisableRedirects  bool     `json:"disable_redirects,omitempty"`
 	DisableCerts      bool     `json:"disable_certs,omitempty"`
 	Skip              []string `json:"skip,omitempty"`
