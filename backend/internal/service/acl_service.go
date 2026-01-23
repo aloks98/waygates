@@ -952,18 +952,20 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 			if group.WaygatesAuth.Enabled {
 				response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
 			}
-			// Note: WaygatesAuth.AllowedProviders is a legacy field.
-			// OAuth providers are now controlled by OAuthProviderRestrictions below.
 		}
 
-		// Collect OAuth providers from OAuthProviderRestrictions
-		// Only include providers that are actually available (env vars configured)
+		// Build a set of providers that have explicit OAuthProviderRestrictions
+		// These take precedence over AllowedProviders
+		restrictedProviders := make(map[string]bool)
 		for i := range group.OAuthProviderRestrictions {
 			restriction := &group.OAuthProviderRestrictions[i]
+			pid := strings.ToLower(restriction.Provider)
+			restrictedProviders[pid] = true
+
+			// Only include if enabled
 			if !restriction.Enabled {
 				continue
 			}
-			pid := strings.ToLower(restriction.Provider)
 			// Skip if provider is not available (env vars not configured)
 			if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
 				continue
@@ -973,6 +975,31 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 					ID:      restriction.Provider,
 					Name:    formatProviderName(restriction.Provider),
 					Enabled: true,
+				}
+			}
+		}
+
+		// Collect OAuth providers from WaygatesAuth.AllowedProviders
+		// Only include if NO OAuthProviderRestriction exists for this provider
+		// (OAuthProviderRestrictions take precedence when they exist)
+		if group.WaygatesAuth != nil {
+			for _, providerID := range group.WaygatesAuth.AllowedProviders {
+				pid := strings.ToLower(providerID)
+				// Skip if there's an explicit restriction for this provider
+				// (the restriction's Enabled flag controls visibility)
+				if restrictedProviders[pid] {
+					continue
+				}
+				// Skip if provider is not available (env vars not configured)
+				if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
+					continue
+				}
+				if _, exists := oauthProviderMap[pid]; !exists {
+					oauthProviderMap[pid] = UnionOAuthProvider{
+						ID:      providerID,
+						Name:    formatProviderName(providerID),
+						Enabled: true,
+					}
 				}
 			}
 		}
