@@ -1,5 +1,5 @@
-import { Outlet } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { Outlet } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { AppSidebar } from '@/components/layout';
 import { api } from '@/lib/api';
