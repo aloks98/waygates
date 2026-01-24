@@ -31,7 +31,7 @@ func NewSettingsHandler(settingsService service.SettingsServiceInterface, auditS
 }
 
 // GetAll returns all settings as a key-value map
-func (h *SettingsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+func (h *SettingsHandler) GetAll(w http.ResponseWriter, _ *http.Request) {
 	settings, err := h.settingsService.GetAll()
 	if err != nil {
 		if h.logger != nil {
@@ -111,7 +111,7 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetNotFound returns the 404 page configuration
-func (h *SettingsHandler) GetNotFound(w http.ResponseWriter, r *http.Request) {
+func (h *SettingsHandler) GetNotFound(w http.ResponseWriter, _ *http.Request) {
 	settings, err := h.settingsService.GetNotFoundSettings()
 	if err != nil {
 		if h.logger != nil {

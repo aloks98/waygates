@@ -281,7 +281,7 @@ func (env *ContainerTestEnv) MakeAuthenticatedRequest(t *testing.T, method, path
 }
 
 // ExecInContainer executes a command inside the waygates container
-func (env *ContainerTestEnv) ExecInContainer(t *testing.T, cmd []string) (string, error) {
+func (env *ContainerTestEnv) ExecInContainer(_ *testing.T, cmd []string) (string, error) {
 	exitCode, reader, err := env.WaygatesContainer.Exec(env.ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("exec failed: %w", err)

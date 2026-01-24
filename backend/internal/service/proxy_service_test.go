@@ -212,7 +212,7 @@ func TestListProxies(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &MockProxyRepository{
-				ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				ListFunc: func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
 					return tc.mockProxies, tc.mockTotal, tc.mockErr
 				},
 			}
@@ -278,7 +278,7 @@ func TestGetProxyByID(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &MockProxyRepository{
-				GetByIDFunc: func(id int) (*models.Proxy, error) {
+				GetByIDFunc: func(_ int) (*models.Proxy, error) {
 					return tc.mockProxy, tc.mockErr
 				},
 			}
@@ -370,7 +370,7 @@ func TestCreateProxy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			deleteCallCount := 0
 			repo := &MockProxyRepository{
-				HostnameExistsFunc: func(hostname string, excludeID int) (bool, error) {
+				HostnameExistsFunc: func(_ string, _ int) (bool, error) {
 					return tc.hostnameExists, tc.hostnameCheckErr
 				},
 				CreateFunc: func(proxy *models.Proxy) error {
@@ -379,13 +379,13 @@ func TestCreateProxy(t *testing.T) {
 					}
 					return tc.createErr
 				},
-				DeleteFunc: func(id int) error {
+				DeleteFunc: func(_ int) error {
 					deleteCallCount++
 					return nil
 				},
 			}
 			syncer := &MockProxySyncer{
-				SyncProxyFunc: func(proxy *models.Proxy) error {
+				SyncProxyFunc: func(_ *models.Proxy) error {
 					return tc.syncErr
 				},
 			}
@@ -501,25 +501,25 @@ func TestUpdateProxy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			removeProxyCalled := false
 			repo := &MockProxyRepository{
-				GetByIDFunc: func(id int) (*models.Proxy, error) {
+				GetByIDFunc: func(_ int) (*models.Proxy, error) {
 					if tc.getExistingErr != nil {
 						return nil, tc.getExistingErr
 					}
 					return existingProxy, nil
 				},
-				HostnameExistsFunc: func(hostname string, excludeID int) (bool, error) {
+				HostnameExistsFunc: func(_ string, _ int) (bool, error) {
 					return tc.hostnameExists, nil
 				},
-				UpdateFunc: func(proxy *models.Proxy) error {
+				UpdateFunc: func(_ *models.Proxy) error {
 					return tc.updateErr
 				},
 			}
 			syncer := &MockProxySyncer{
-				RemoveProxyFunc: func(proxyID int, hostname string) error {
+				RemoveProxyFunc: func(_ int, _ string) error {
 					removeProxyCalled = true
 					return nil
 				},
-				SyncProxyFunc: func(proxy *models.Proxy) error {
+				SyncProxyFunc: func(_ *models.Proxy) error {
 					return tc.syncErr
 				},
 			}
@@ -606,12 +606,12 @@ func TestDeleteProxy(t *testing.T) {
 					}
 					return &models.Proxy{ID: id, Hostname: "test.example.com"}, nil
 				},
-				DeleteFunc: func(id int) error {
+				DeleteFunc: func(_ int) error {
 					return tc.deleteErr
 				},
 			}
 			syncer := &MockProxySyncer{
-				RemoveProxyFunc: func(proxyID int, hostname string) error {
+				RemoveProxyFunc: func(_ int, _ string) error {
 					removeProxyCalled = true
 					return nil
 				},
@@ -700,14 +700,14 @@ func TestEnableProxy(t *testing.T) {
 						IsActive: tc.proxyIsActive,
 					}, nil
 				},
-				UpdateStatusFunc: func(id int, isActive bool) error {
+				UpdateStatusFunc: func(_ int, isActive bool) error {
 					updateStatusCallCount++
 					lastStatusUpdate = isActive
 					return tc.updateStatusErr
 				},
 			}
 			syncer := &MockProxySyncer{
-				EnableProxyFunc: func(proxyID int, hostname string) error {
+				EnableProxyFunc: func(_ int, _ string) error {
 					return tc.enableSyncErr
 				},
 			}
@@ -797,14 +797,14 @@ func TestDisableProxy(t *testing.T) {
 						IsActive: tc.proxyIsActive,
 					}, nil
 				},
-				UpdateStatusFunc: func(id int, isActive bool) error {
+				UpdateStatusFunc: func(_ int, isActive bool) error {
 					updateStatusCalled = true
 					lastStatusUpdate = isActive
 					return tc.updateStatusErr
 				},
 			}
 			syncer := &MockProxySyncer{
-				DisableProxyFunc: func(proxyID int, hostname string) error {
+				DisableProxyFunc: func(_ int, _ string) error {
 					return nil
 				},
 			}
@@ -1000,18 +1000,18 @@ func TestUpdateProxy_TypeChange(t *testing.T) {
 	}
 
 	repo := &MockProxyRepository{
-		GetByIDFunc: func(id int) (*models.Proxy, error) {
+		GetByIDFunc: func(_ int) (*models.Proxy, error) {
 			return existingProxy, nil
 		},
-		HostnameExistsFunc: func(hostname string, excludeID int) (bool, error) {
+		HostnameExistsFunc: func(_ string, _ int) (bool, error) {
 			return false, nil
 		},
-		UpdateFunc: func(proxy *models.Proxy) error {
+		UpdateFunc: func(_ *models.Proxy) error {
 			return nil
 		},
 	}
 	syncer := &MockProxySyncer{
-		SyncProxyFunc: func(proxy *models.Proxy) error {
+		SyncProxyFunc: func(_ *models.Proxy) error {
 			return nil
 		},
 	}

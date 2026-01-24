@@ -24,13 +24,13 @@ func NewSyncHandler(syncService service.SyncServiceInterface, logger *zap.Logger
 }
 
 // GetStatus returns the current sync status
-func (h *SyncHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+func (h *SyncHandler) GetStatus(w http.ResponseWriter, _ *http.Request) {
 	status := h.syncService.GetStatus()
 	utils.Success(w, status, "Sync status retrieved successfully")
 }
 
 // Trigger manually triggers a full sync
-func (h *SyncHandler) Trigger(w http.ResponseWriter, r *http.Request) {
+func (h *SyncHandler) Trigger(w http.ResponseWriter, _ *http.Request) {
 	if err := h.syncService.FullSync(); err != nil {
 		if h.logger != nil {
 			h.logger.Error("Manual sync trigger failed", zap.Error(err))

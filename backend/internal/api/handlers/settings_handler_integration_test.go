@@ -66,7 +66,7 @@ func TestSettingsHandler_GetAll_Error(t *testing.T) {
 
 func TestSettingsHandler_Get_Success(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		GetFunc: func(key string) (string, error) {
+		GetFunc: func(_ string) (string, error) {
 			return "test_value", nil
 		},
 	}
@@ -88,7 +88,7 @@ func TestSettingsHandler_Get_Success(t *testing.T) {
 
 func TestSettingsHandler_Get_NotFound(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		GetFunc: func(key string) (string, error) {
+		GetFunc: func(_ string) (string, error) {
 			return "", errors.New("not found")
 		},
 	}
@@ -110,7 +110,7 @@ func TestSettingsHandler_Get_NotFound(t *testing.T) {
 
 func TestSettingsHandler_Update_Success(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		SetFunc: func(key, value string) error {
+		SetFunc: func(_, _ string) error {
 			return nil
 		},
 	}
@@ -151,7 +151,7 @@ func TestSettingsHandler_Update_InvalidBody(t *testing.T) {
 
 func TestSettingsHandler_Update_Error(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		SetFunc: func(key, value string) error {
+		SetFunc: func(_, _ string) error {
 			return errors.New("database error")
 		},
 	}
@@ -216,7 +216,7 @@ func TestSettingsHandler_GetNotFound_Error(t *testing.T) {
 
 func TestSettingsHandler_UpdateNotFound_Success(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+		SetNotFoundSettingsFunc: func(_ *models.NotFoundSettings) error {
 			return nil
 		},
 	}
@@ -267,7 +267,7 @@ func TestSettingsHandler_UpdateNotFound_RedirectWithoutURL(t *testing.T) {
 
 func TestSettingsHandler_UpdateNotFound_Error(t *testing.T) {
 	mockService := &mocks.MockSettingsService{
-		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+		SetNotFoundSettingsFunc: func(_ *models.NotFoundSettings) error {
 			return errors.New("database error")
 		},
 	}

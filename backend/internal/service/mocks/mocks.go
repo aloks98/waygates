@@ -360,7 +360,7 @@ type MockAuditService struct {
 	LogACLBasicAuthAddFunc           func(ctx context.Context, userID int, groupID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthUpdateFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
 	LogACLBasicAuthDeleteFunc        func(ctx context.Context, userID int, authUserID int, groupName, username, ip, userAgent string) error
-	LogACLWaygatesAuthUpdateFunc     func(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error
+	LogACLWaygatesAuthUpdateFunc     func(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error
 	LogACLAssignmentCreateFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, pathPattern, ip, userAgent string) error
 	LogACLAssignmentUpdateFunc       func(ctx context.Context, userID int, assignment *models.ProxyACLAssignment, changes map[string]interface{}, ip, userAgent string) error
 	LogACLAssignmentDeleteFunc       func(ctx context.Context, userID int, proxyID int, proxyName string, groupID int, groupName, ip, userAgent string) error
@@ -626,9 +626,9 @@ func (m *MockAuditService) LogACLBasicAuthDelete(ctx context.Context, userID int
 }
 
 // LogACLWaygatesAuthUpdate implements AuditServiceInterface.
-func (m *MockAuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error {
+func (m *MockAuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error {
 	if m.LogACLWaygatesAuthUpdateFunc != nil {
-		return m.LogACLWaygatesAuthUpdateFunc(ctx, userID, groupID, groupName, newConfig, changes, ip, userAgent)
+		return m.LogACLWaygatesAuthUpdateFunc(ctx, userID, groupID, groupName, changes, ip, userAgent)
 	}
 	return nil
 }

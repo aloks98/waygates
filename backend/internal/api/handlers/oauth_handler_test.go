@@ -33,106 +33,106 @@ type oauthMockACLService struct {
 }
 
 // Group Management
-func (m *oauthMockACLService) CreateGroup(group *models.ACLGroup, createdBy int) error {
+func (m *oauthMockACLService) CreateGroup(_ *models.ACLGroup, _ int) error {
 	return nil
 }
-func (m *oauthMockACLService) GetGroup(id int) (*models.ACLGroup, error) { return nil, nil }
-func (m *oauthMockACLService) GetGroupByName(name string) (*models.ACLGroup, error) {
+func (m *oauthMockACLService) GetGroup(_ int) (*models.ACLGroup, error) { return nil, nil }
+func (m *oauthMockACLService) GetGroupByName(_ string) (*models.ACLGroup, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) ListGroups(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error) {
+func (m *oauthMockACLService) ListGroups(_ service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) UpdateGroup(id int, updates *models.ACLGroup) error {
+func (m *oauthMockACLService) UpdateGroup(_ int, _ *models.ACLGroup) error {
 	return nil
 }
-func (m *oauthMockACLService) DeleteGroup(id int) error { return nil }
-func (m *oauthMockACLService) DeleteGroupWithSync(id int, syncFn service.SyncCallback) error {
+func (m *oauthMockACLService) DeleteGroup(_ int) error { return nil }
+func (m *oauthMockACLService) DeleteGroupWithSync(_ int, _ service.SyncCallback) error {
 	return nil
 }
 
 // IP Rules
-func (m *oauthMockACLService) AddIPRule(groupID int, rule *models.ACLIPRule) error {
+func (m *oauthMockACLService) AddIPRule(_ int, _ *models.ACLIPRule) error {
 	return nil
 }
-func (m *oauthMockACLService) UpdateIPRule(id int, rule *models.ACLIPRule) error {
+func (m *oauthMockACLService) UpdateIPRule(_ int, _ *models.ACLIPRule) error {
 	return nil
 }
-func (m *oauthMockACLService) DeleteIPRule(id int) error { return nil }
+func (m *oauthMockACLService) DeleteIPRule(_ int) error { return nil }
 
 // Basic Auth
-func (m *oauthMockACLService) AddBasicAuthUser(groupID int, username, password string) error {
+func (m *oauthMockACLService) AddBasicAuthUser(_ int, _, _ string) error {
 	return nil
 }
-func (m *oauthMockACLService) UpdateBasicAuthPassword(id int, password string) error {
+func (m *oauthMockACLService) UpdateBasicAuthPassword(_ int, _ string) error {
 	return nil
 }
-func (m *oauthMockACLService) DeleteBasicAuthUser(id int) error { return nil }
+func (m *oauthMockACLService) DeleteBasicAuthUser(_ int) error { return nil }
 
 // External Providers
-func (m *oauthMockACLService) AddExternalProvider(groupID int, provider *models.ACLExternalProvider) error {
+func (m *oauthMockACLService) AddExternalProvider(_ int, _ *models.ACLExternalProvider) error {
 	return nil
 }
-func (m *oauthMockACLService) UpdateExternalProvider(id int, provider *models.ACLExternalProvider) error {
+func (m *oauthMockACLService) UpdateExternalProvider(_ int, _ *models.ACLExternalProvider) error {
 	return nil
 }
-func (m *oauthMockACLService) DeleteExternalProvider(id int) error { return nil }
+func (m *oauthMockACLService) DeleteExternalProvider(_ int) error { return nil }
 
 // Waygates Auth Config
-func (m *oauthMockACLService) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error) {
+func (m *oauthMockACLService) GetWaygatesAuth(_ int) (*models.ACLWaygatesAuth, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) ConfigureWaygatesAuth(groupID int, config *models.ACLWaygatesAuth) error {
+func (m *oauthMockACLService) ConfigureWaygatesAuth(_ int, _ *models.ACLWaygatesAuth) error {
 	return nil
 }
 
 // Proxy Assignment
-func (m *oauthMockACLService) AssignToProxy(proxyID, groupID int, pathPattern string, priority int) error {
+func (m *oauthMockACLService) AssignToProxy(_, _ int, _ string, _ int) error {
 	return nil
 }
-func (m *oauthMockACLService) UpdateProxyAssignment(id int, pathPattern string, priority int, enabled bool) error {
+func (m *oauthMockACLService) UpdateProxyAssignment(_ int, _ string, _ int, _ bool) error {
 	return nil
 }
-func (m *oauthMockACLService) RemoveFromProxy(proxyID, groupID int) error { return nil }
-func (m *oauthMockACLService) GetProxyACL(proxyID int) ([]models.ProxyACLAssignment, error) {
+func (m *oauthMockACLService) RemoveFromProxy(_, _ int) error { return nil }
+func (m *oauthMockACLService) GetProxyACL(_ int) ([]models.ProxyACLAssignment, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) GetGroupUsage(groupID int) ([]models.ProxyACLAssignment, error) {
+func (m *oauthMockACLService) GetGroupUsage(_ int) ([]models.ProxyACLAssignment, error) {
 	return nil, nil
 }
 
 // Branding
 func (m *oauthMockACLService) GetBranding() (*models.ACLBranding, error) { return nil, nil }
-func (m *oauthMockACLService) UpdateBranding(branding *models.ACLBranding) error {
+func (m *oauthMockACLService) UpdateBranding(_ *models.ACLBranding) error {
 	return nil
 }
 
 // OAuth Provider Restrictions
-func (m *oauthMockACLService) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+func (m *oauthMockACLService) GetOAuthProviderRestrictions(_ int) ([]models.ACLOAuthProviderRestriction, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) SetOAuthProviderRestriction(groupID int, provider string, emails, domains []string, enabled bool) error {
+func (m *oauthMockACLService) SetOAuthProviderRestriction(_ int, _ string, _, _ []string, _ bool) error {
 	return nil
 }
-func (m *oauthMockACLService) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+func (m *oauthMockACLService) DeleteOAuthProviderRestriction(_ int, _ string) error {
 	return nil
 }
 
 // Access Verification
-func (m *oauthMockACLService) VerifyAccess(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+func (m *oauthMockACLService) VerifyAccess(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 	return nil, nil
 }
 
 // Auth Options
-func (m *oauthMockACLService) GetAuthOptionsForProxy(hostname string) (*service.AuthOptionsResponse, error) {
+func (m *oauthMockACLService) GetAuthOptionsForProxy(_ string) (*service.AuthOptionsResponse, error) {
 	return nil, nil
 }
 
 // Session Management
-func (m *oauthMockACLService) CreateSession(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+func (m *oauthMockACLService) CreateSession(_ int, _ *int, _, _ string, _ int) (*models.ACLSession, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) CreateOAuthSession(email, provider string, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+func (m *oauthMockACLService) CreateOAuthSession(_, _ string, _ *int, _, _ string, _ int) (*models.ACLSession, error) {
 	return nil, nil
 }
 func (m *oauthMockACLService) CreateSessionWithParams(params service.CreateSessionParams) (*models.ACLSession, error) {
@@ -144,11 +144,11 @@ func (m *oauthMockACLService) CreateSessionWithParams(params service.CreateSessi
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 	}, nil
 }
-func (m *oauthMockACLService) ValidateSession(token string) (*models.ACLSession, error) {
+func (m *oauthMockACLService) ValidateSession(_ string) (*models.ACLSession, error) {
 	return nil, nil
 }
-func (m *oauthMockACLService) RevokeSession(token string) error { return nil }
-func (m *oauthMockACLService) RevokeUserSessions(userID int) error {
+func (m *oauthMockACLService) RevokeSession(_ string) error { return nil }
+func (m *oauthMockACLService) RevokeUserSessions(_ int) error {
 	return nil
 }
 func (m *oauthMockACLService) CleanupExpiredSessions() (int64, error) { return 0, nil }
@@ -810,7 +810,7 @@ func TestOAuthHandler_findOrCreateUser(t *testing.T) {
 				Username: "existing",
 			},
 			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return &models.User{
 						ID:       1,
 						Email:    "existing@example.com",
@@ -833,7 +833,7 @@ func TestOAuthHandler_findOrCreateUser(t *testing.T) {
 				Username: "newuser",
 			},
 			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 				repo.CreateFunc = func(user *models.User) error {
@@ -891,7 +891,7 @@ func TestOAuthHandler_findOrCreateUser(t *testing.T) {
 				Username: "erroruser",
 			},
 			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrInvalidDB
 				}
 			},
@@ -907,10 +907,10 @@ func TestOAuthHandler_findOrCreateUser(t *testing.T) {
 				Username: "createerror",
 			},
 			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
-				repo.CreateFunc = func(user *models.User) error {
+				repo.CreateFunc = func(_ *models.User) error {
 					return gorm.ErrInvalidDB
 				}
 			},

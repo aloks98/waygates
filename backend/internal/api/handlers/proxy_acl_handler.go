@@ -336,32 +336,32 @@ func (h *ProxyACLHandler) RemoveACLFromProxy(w http.ResponseWriter, r *http.Requ
 	utils.Success(w, nil, "ACL removed from proxy successfully")
 }
 
-// buildProxyACLAssignmentChanges builds a map of changes between old and new proxy ACL assignment
-func buildProxyACLAssignmentChanges(old, new *models.ProxyACLAssignment) map[string]interface{} {
+// buildProxyACLAssignmentChanges builds a map of changes between old and updated proxy ACL assignment
+func buildProxyACLAssignmentChanges(old, updated *models.ProxyACLAssignment) map[string]interface{} {
 	changes := make(map[string]interface{})
 
 	if old == nil {
 		return changes
 	}
 
-	if old.PathPattern != new.PathPattern {
+	if old.PathPattern != updated.PathPattern {
 		changes["path_pattern"] = map[string]interface{}{
 			"old": old.PathPattern,
-			"new": new.PathPattern,
+			"new": updated.PathPattern,
 		}
 	}
 
-	if old.Priority != new.Priority {
+	if old.Priority != updated.Priority {
 		changes["priority"] = map[string]interface{}{
 			"old": old.Priority,
-			"new": new.Priority,
+			"new": updated.Priority,
 		}
 	}
 
-	if old.Enabled != new.Enabled {
+	if old.Enabled != updated.Enabled {
 		changes["enabled"] = map[string]interface{}{
 			"old": old.Enabled,
-			"new": new.Enabled,
+			"new": updated.Enabled,
 		}
 	}
 

@@ -237,7 +237,7 @@ func TestSettingsService_Get(t *testing.T) {
 		{
 			name:        "error - key not found",
 			key:         "nonexistent",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: true,
 			errorMsg:    "setting not found",
 		},
@@ -313,14 +313,14 @@ func TestSettingsService_GetWithDefault(t *testing.T) {
 			name:         "returns default for non-existing key",
 			key:          "missing_key",
 			defaultValue: "default_value",
-			setupRepo:    func(m *mockSettingsRepoInterface) {},
+			setupRepo:    func(_ *mockSettingsRepoInterface) {},
 			expected:     "default_value",
 		},
 		{
 			name:         "returns empty default when specified",
 			key:          "missing",
 			defaultValue: "",
-			setupRepo:    func(m *mockSettingsRepoInterface) {},
+			setupRepo:    func(_ *mockSettingsRepoInterface) {},
 			expected:     "",
 		},
 		{
@@ -363,7 +363,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - new setting",
 			key:         "new_key",
 			value:       "new_value",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -379,7 +379,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - empty value",
 			key:         "empty_key",
 			value:       "",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -396,7 +396,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - value with unicode",
 			key:         "unicode_key",
 			value:       "Hello, 世界! 🌍",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 	}
@@ -448,7 +448,7 @@ func TestSettingsService_GetAll(t *testing.T) {
 		},
 		{
 			name:        "success - empty settings",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expected:    map[string]string{},
 			expectError: false,
 		},
@@ -513,7 +513,7 @@ func TestSettingsService_Delete(t *testing.T) {
 		{
 			name:        "success - delete non-existing (no-op)",
 			key:         "nonexistent",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -634,7 +634,7 @@ func TestSettingsService_SetNotFoundSettings(t *testing.T) {
 				Mode:        "redirect",
 				RedirectURL: "https://new.example.com/404",
 			},
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -643,7 +643,7 @@ func TestSettingsService_SetNotFoundSettings(t *testing.T) {
 				Mode:        "default",
 				RedirectURL: "",
 			},
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -689,7 +689,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
 		proxyRepo := &MockProxyRepository{
-			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			ListFunc: func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
 				return []models.Proxy{}, 0, nil
 			},
 		}
@@ -699,7 +699,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 			},
 		}
 		aclRepo := &SyncMockACLRepository{
-			ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 				return []models.ACLGroup{}, 0, nil
 			},
 		}
@@ -707,21 +707,21 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 			GetJSONConfigPathFunc: func() string {
 				return "/etc/caddy/config.json"
 			},
-			BackupJSONConfigFunc: func(path string) error {
+			BackupJSONConfigFunc: func(_ string) error {
 				return nil
 			},
-			WriteJSONConfigFunc: func(path string, data []byte) error {
+			WriteJSONConfigFunc: func(_ string, _ []byte) error {
 				return nil
 			},
-			FileExistsFunc: func(path string) bool {
+			FileExistsFunc: func(_ string) bool {
 				return true
 			},
 		}
 		reloader := &MockReloader{
-			ValidateJSONFunc: func(configPath string) error {
+			ValidateJSONFunc: func(_ string) error {
 				return nil
 			},
-			ReloadJSONFunc: func(ctx context.Context, configPath string) (*caddy.ReloadResult, error) {
+			ReloadJSONFunc: func(_ context.Context, _ string) (*caddy.ReloadResult, error) {
 				return &caddy.ReloadResult{Success: true}, nil
 			},
 		}
@@ -750,7 +750,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
 		proxyRepo := &MockProxyRepository{
-			ListFunc: func(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			ListFunc: func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
 				return []models.Proxy{}, 0, nil
 			},
 		}
@@ -760,7 +760,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 			},
 		}
 		aclRepo := &SyncMockACLRepository{
-			ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+			ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 				return []models.ACLGroup{}, 0, nil
 			},
 		}
@@ -768,18 +768,18 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 			GetJSONConfigPathFunc: func() string {
 				return "/etc/caddy/config.json"
 			},
-			FileExistsFunc: func(path string) bool {
+			FileExistsFunc: func(_ string) bool {
 				return true
 			},
-			BackupJSONConfigFunc: func(path string) error {
+			BackupJSONConfigFunc: func(_ string) error {
 				return nil
 			},
-			WriteJSONConfigFunc: func(path string, data []byte) error {
+			WriteJSONConfigFunc: func(_ string, _ []byte) error {
 				return errors.New("disk full")
 			},
 		}
 		reloader := &MockReloader{
-			ValidateJSONFunc: func(configPath string) error {
+			ValidateJSONFunc: func(_ string) error {
 				return nil
 			},
 		}

@@ -18,7 +18,7 @@ import (
 
 func TestProxyHandler_ListProxies_Success(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return &models.ProxyListResponse{
 				Items: []models.Proxy{
 					{ID: 1, Name: "Test Proxy", Hostname: "test.example.com", Type: models.ProxyTypeReverseProxy},
@@ -127,7 +127,7 @@ func TestProxyHandler_ListProxies_InvalidStatus(t *testing.T) {
 
 func TestProxyHandler_ListProxies_ServiceError(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -173,7 +173,7 @@ func TestProxyHandler_GetProxy_Success(t *testing.T) {
 
 func TestProxyHandler_GetProxy_NotFound(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -211,7 +211,7 @@ func TestProxyHandler_GetProxy_InvalidID(t *testing.T) {
 
 func TestProxyHandler_DeleteProxy_Success(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -233,7 +233,7 @@ func TestProxyHandler_DeleteProxy_Success(t *testing.T) {
 
 func TestProxyHandler_DeleteProxy_NotFound(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -255,7 +255,7 @@ func TestProxyHandler_DeleteProxy_NotFound(t *testing.T) {
 
 func TestProxyHandler_EnableProxy_Success(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -277,7 +277,7 @@ func TestProxyHandler_EnableProxy_Success(t *testing.T) {
 
 func TestProxyHandler_EnableProxy_AlreadyEnabled(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return service.ErrProxyAlreadyEnabled
 		},
 	}
@@ -299,7 +299,7 @@ func TestProxyHandler_EnableProxy_AlreadyEnabled(t *testing.T) {
 
 func TestProxyHandler_DisableProxy_Success(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -321,7 +321,7 @@ func TestProxyHandler_DisableProxy_Success(t *testing.T) {
 
 func TestProxyHandler_DisableProxy_AlreadyDisabled(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return service.ErrProxyAlreadyDisabled
 		},
 	}
@@ -388,7 +388,7 @@ func TestProxyHandler_UpdateProxy_Success(t *testing.T) {
 		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
 			return &models.Proxy{ID: id, Name: "Old Name", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
@@ -412,7 +412,7 @@ func TestProxyHandler_UpdateProxy_Success(t *testing.T) {
 
 func TestProxyHandler_UpdateProxy_NotFound(t *testing.T) {
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -439,7 +439,7 @@ func TestProxyHandler_UpdateProxy_HostnameConflict(t *testing.T) {
 		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
 			return &models.Proxy{ID: id, Name: "Existing", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.ErrHostnameConflict
 		},
 	}

@@ -119,7 +119,7 @@ func (tdb *TestDB) Cleanup(t *testing.T) {
 }
 
 // CleanTables truncates all test tables for clean state between tests
-func (tdb *TestDB) CleanTables(t *testing.T) {
+func (tdb *TestDB) CleanTables(_ *testing.T) {
 	// Delete in correct order due to foreign keys
 	tdb.DB.Exec("DELETE FROM audit_logs")
 	tdb.DB.Exec("DELETE FROM proxies")

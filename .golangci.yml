@@ -4,32 +4,53 @@ run:
   timeout: 5m
   modules-download-mode: readonly
 
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
 formatters:
   enable:
+    - gci
     - gofmt
     - goimports
 
   settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/aloks98/waygates)
+
     gofmt:
       simplify: true
+
     goimports:
       local-prefixes:
         - github.com/aloks98/waygates
 
 linters:
   enable:
+    # Core linters
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - misspell
-    - unconvert
-    - gocritic
+
+    # Revive - comprehensive linter
     - revive
+
+    # Additional useful linters
+    - bodyclose
+    - copyloopvar
+    - durationcheck
     - errorlint
+    - gocritic
+    - gosec
+    - misspell
     - nilerr
     - prealloc
+    - unconvert
 
   settings:
     gocritic:
@@ -39,34 +60,60 @@ linters:
       disabled-checks:
         - hugeParam
         - unnecessaryDefer
+
     revive:
+      severity: warning
+      confidence: 0.8
       rules:
+        # Default revive rules
         - name: blank-imports
         - name: context-as-argument
         - name: context-keys-type
         - name: dot-imports
+        - name: empty-block
+        - name: error-naming
         - name: error-return
         - name: error-strings
-        - name: error-naming
+        - name: errorf
         - name: exported
-        - name: if-return
         - name: increment-decrement
-        - name: var-declaration
+        - name: indent-error-flow
+        - name: package-comments
         - name: range
         - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
         - name: time-naming
         - name: unexported-return
-        - name: indent-error-flow
-        - name: errorf
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: var-declaration
+        - name: var-naming
+
     staticcheck:
       checks:
         - all
         - -ST1000
         - -ST1005
         - -QF1003
+
     misspell:
       locale: US
 
-issues:
-  max-issues-per-linter: 50
-  max-same-issues: 10
+  exclusions:
+    presets:
+      - std-error-handling
+      - common-false-positives
+    rules:
+      - text: 'should have a package comment'
+        linters: [ revive ]
+      - text: 'exported \S+ \S+ should have comment( \(or a comment on this block\))? or be unexported'
+        linters: [ revive ]
+      - text: 'avoid meaningless package names'
+        path: 'internal/utils/'
+        linters: [ revive ]
+      - path: '_test\.go'
+        linters:
+          - bodyclose
+          - errcheck
+          - gosec

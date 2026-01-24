@@ -9,13 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
-
 	"github.com/aloks98/goauth/middleware"
 	"github.com/aloks98/goauth/store"
 	"github.com/aloks98/goauth/token"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/service/mocks"
@@ -214,7 +213,7 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
 					if identifier == "test@example.com" {
 						return &models.User{ID: 1, Email: "test@example.com"}, nil
@@ -232,9 +231,9 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				callCount := 0
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					callCount++
 					if callCount == 1 {
 						return nil, gorm.ErrRecordNotFound // Email not found
@@ -252,8 +251,8 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, errors.New("database error")
 				}
 			},
@@ -267,11 +266,11 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
-				userRepo.CreateFunc = func(user *models.User) error {
+				userRepo.CreateFunc = func(_ *models.User) error {
 					return errors.New("database error")
 				}
 			},
@@ -286,7 +285,7 @@ func TestRegister(t *testing.T) {
 				Password: "password123",
 			},
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 				userRepo.CreateFunc = func(user *models.User) error {
@@ -296,7 +295,7 @@ func TestRegister(t *testing.T) {
 				userRepo.CountFunc = func() (int64, error) {
 					return 1, nil
 				}
-				authProvider.AssignRoleFunc = func(ctx context.Context, userID, role string) error {
+				authProvider.AssignRoleFunc = func(_ context.Context, _, _ string) error {
 					return errors.New("rbac error")
 				}
 			},
@@ -311,7 +310,7 @@ func TestRegister(t *testing.T) {
 				Password: "password123",
 			},
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 				userRepo.CreateFunc = func(user *models.User) error {
@@ -321,7 +320,7 @@ func TestRegister(t *testing.T) {
 				userRepo.CountFunc = func() (int64, error) {
 					return 1, nil // First user
 				}
-				authProvider.AssignRoleFunc = func(ctx context.Context, userID, role string) error {
+				authProvider.AssignRoleFunc = func(_ context.Context, _, role string) error {
 					if role != "admin" {
 						return errors.New("expected admin role for first user")
 					}
@@ -338,8 +337,8 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 				userRepo.CreateFunc = func(user *models.User) error {
@@ -427,8 +426,8 @@ func TestLogin(t *testing.T) {
 				Identifier: "nonexistent",
 				Password:   "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 			},
@@ -440,8 +439,8 @@ func TestLogin(t *testing.T) {
 				Identifier: "testuser",
 				Password:   "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, errors.New("database error")
 				}
 			},
@@ -453,8 +452,8 @@ func TestLogin(t *testing.T) {
 				Identifier: "testuser",
 				Password:   "wrongpassword",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return testUser, nil
 				}
 			},
@@ -467,10 +466,10 @@ func TestLogin(t *testing.T) {
 				Password:   "password123",
 			},
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return testUser, nil
 				}
-				authProvider.GenerateTokenPairFunc = func(ctx context.Context, userID string, metadata map[string]any) (*token.Pair, error) {
+				authProvider.GenerateTokenPairFunc = func(_ context.Context, _ string, _ map[string]any) (*token.Pair, error) {
 					return nil, errors.New("token error")
 				}
 			},
@@ -482,8 +481,8 @@ func TestLogin(t *testing.T) {
 				Identifier: "testuser",
 				Password:   "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return testUser, nil
 				}
 			},
@@ -549,7 +548,7 @@ func TestRefreshToken(t *testing.T) {
 				RefreshToken: "invalid-token",
 			},
 			setupMocks: func(authProvider *MockAuthProvider) {
-				authProvider.RefreshTokensFunc = func(ctx context.Context, refreshToken string) (*token.Pair, error) {
+				authProvider.RefreshTokensFunc = func(_ context.Context, _ string) (*token.Pair, error) {
 					return nil, errors.New("invalid token")
 				}
 			},
@@ -671,8 +670,8 @@ func TestGetMe(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 			},
@@ -685,7 +684,7 @@ func TestGetMe(t *testing.T) {
 				return r.WithContext(ctx)
 			},
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return &models.User{
 						ID:       1,
 						Name:     "Test User",
@@ -693,7 +692,7 @@ func TestGetMe(t *testing.T) {
 						Email:    "test@example.com",
 					}, nil
 				}
-				authProvider.GetUserPermissionsFunc = func(ctx context.Context, userID string) (*store.UserPermissions, error) {
+				authProvider.GetUserPermissionsFunc = func(_ context.Context, _ string) (*store.UserPermissions, error) {
 					return &store.UserPermissions{
 						RoleLabel:   "admin",
 						Permissions: []string{"read", "write"},
@@ -709,7 +708,7 @@ func TestGetMe(t *testing.T) {
 				return r.WithContext(ctx)
 			},
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return &models.User{
 						ID:       1,
 						Name:     "Test User",
@@ -717,7 +716,7 @@ func TestGetMe(t *testing.T) {
 						Email:    "test@example.com",
 					}, nil
 				}
-				authProvider.GetUserPermissionsFunc = func(ctx context.Context, userID string) (*store.UserPermissions, error) {
+				authProvider.GetUserPermissionsFunc = func(_ context.Context, _ string) (*store.UserPermissions, error) {
 					return nil, errors.New("permissions error")
 				}
 			},
@@ -1079,12 +1078,12 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				testUser := makeTestUser(t, "oldpassword123")
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return testUser, nil
 				}
-				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+				userRepo.UpdatePasswordFunc = func(_ int, _ string) error {
 					return nil
 				}
 			},
@@ -1233,12 +1232,12 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				testUser := makeTestUser(t, "oldpassword123")
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return testUser, nil
 				}
-				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+				userRepo.UpdatePasswordFunc = func(_ int, _ string) error {
 					return nil
 				}
 			},
@@ -1254,8 +1253,8 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "999")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
 			},
@@ -1278,9 +1277,9 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				testUser := makeTestUser(t, "correctpassword123")
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return testUser, nil
 				}
 			},
@@ -1303,12 +1302,12 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
 				testUser := makeTestUser(t, "oldpassword123")
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return testUser, nil
 				}
-				userRepo.UpdatePasswordFunc = func(id int, passwordHash string) error {
+				userRepo.UpdatePasswordFunc = func(_ int, _ string) error {
 					return errors.New("database connection error")
 				}
 			},
@@ -1331,8 +1330,8 @@ func TestChangePassword(t *testing.T) {
 				ctx := context.WithValue(r.Context(), middleware.UserIDKey, "1")
 				return r.WithContext(ctx)
 			},
-			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
-				userRepo.GetByIDFunc = func(id int) (*models.User, error) {
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByIDFunc = func(_ int) (*models.User, error) {
 					return nil, errors.New("database connection error")
 				}
 			},
@@ -1404,7 +1403,7 @@ func TestChangePassword_WithAuditLogging(t *testing.T) {
 
 	auditLogCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogPasswordChangeFunc: func(ctx context.Context, userID int, username string, ip, userAgent string) error {
+		LogPasswordChangeFunc: func(_ context.Context, userID int, username string, _, _ string) error {
 			auditLogCalled = true
 			assert.Equal(t, 1, userID)
 			assert.Equal(t, "testuser", username)
@@ -1413,10 +1412,10 @@ func TestChangePassword_WithAuditLogging(t *testing.T) {
 	}
 
 	userRepo := &MockUserRepository{
-		GetByIDFunc: func(id int) (*models.User, error) {
+		GetByIDFunc: func(_ int) (*models.User, error) {
 			return testUser, nil
 		},
-		UpdatePasswordFunc: func(id int, passwordHash string) error {
+		UpdatePasswordFunc: func(_ int, _ string) error {
 			return nil
 		},
 	}
@@ -1457,14 +1456,14 @@ func TestChangePassword_AuditLoggingNotCalledOnFailure(t *testing.T) {
 
 	auditLogCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogPasswordChangeFunc: func(ctx context.Context, userID int, username string, ip, userAgent string) error {
+		LogPasswordChangeFunc: func(_ context.Context, _ int, _ string, _, _ string) error {
 			auditLogCalled = true
 			return nil
 		},
 	}
 
 	userRepo := &MockUserRepository{
-		GetByIDFunc: func(id int) (*models.User, error) {
+		GetByIDFunc: func(_ int) (*models.User, error) {
 			return testUser, nil
 		},
 	}
@@ -1506,10 +1505,10 @@ func TestChangePassword_PasswordHashActuallyUpdated(t *testing.T) {
 
 	var updatedHash string
 	userRepo := &MockUserRepository{
-		GetByIDFunc: func(id int) (*models.User, error) {
+		GetByIDFunc: func(_ int) (*models.User, error) {
 			return testUser, nil
 		},
-		UpdatePasswordFunc: func(id int, passwordHash string) error {
+		UpdatePasswordFunc: func(_ int, passwordHash string) error {
 			updatedHash = passwordHash
 			return nil
 		},
@@ -1557,7 +1556,7 @@ func TestChangePassword_CorrectUserIDUsed(t *testing.T) {
 			getByIDCalledWith = id
 			return testUser, nil
 		},
-		UpdatePasswordFunc: func(id int, passwordHash string) error {
+		UpdatePasswordFunc: func(id int, _ string) error {
 			updatePasswordCalledWith = id
 			return nil
 		},

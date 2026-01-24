@@ -89,7 +89,7 @@ func TestProxyACLHandler_GetProxyACL_Success(t *testing.T) {
 
 func TestProxyACLHandler_GetProxyACL_NoAssignments(t *testing.T) {
 	mockService := &MockACLService{
-		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil
 		},
 	}
@@ -113,7 +113,7 @@ func TestProxyACLHandler_GetProxyACL_NoAssignments(t *testing.T) {
 
 func TestProxyACLHandler_GetProxyACL_ProxyNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -143,7 +143,7 @@ func TestProxyACLHandler_GetProxyACL_InvalidProxyID(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_Success(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
 			return nil
 		},
 		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
@@ -174,11 +174,11 @@ func TestProxyACLHandler_AssignACLToProxy_Success(t *testing.T) {
 func TestProxyACLHandler_AssignACLToProxy_DefaultPathPattern(t *testing.T) {
 	var capturedPathPattern string
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int) error {
 			capturedPathPattern = pathPattern
 			return nil
 		},
-		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil
 		},
 	}
@@ -198,7 +198,7 @@ func TestProxyACLHandler_AssignACLToProxy_DefaultPathPattern(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_DuplicatePath(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
 			return service.ErrProxyACLExists
 		},
 	}
@@ -216,7 +216,7 @@ func TestProxyACLHandler_AssignACLToProxy_DuplicatePath(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_ProxyNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -234,7 +234,7 @@ func TestProxyACLHandler_AssignACLToProxy_ProxyNotFound(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -288,7 +288,7 @@ func TestProxyACLHandler_AssignACLToProxy_NegativeACLGroupID(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_InvalidPathPattern(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
 			return service.ErrInvalidPathPattern
 		},
 	}
@@ -334,7 +334,7 @@ func TestProxyACLHandler_AssignACLToProxy_InvalidProxyID(t *testing.T) {
 
 func TestProxyACLHandler_UpdateProxyACLAssignment_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateProxyAssignmentFunc: func(id int, pathPattern string, priority int, enabled bool) error {
+		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, _ bool) error {
 			return nil
 		},
 	}
@@ -352,7 +352,7 @@ func TestProxyACLHandler_UpdateProxyACLAssignment_Success(t *testing.T) {
 
 func TestProxyACLHandler_UpdateProxyACLAssignment_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateProxyAssignmentFunc: func(id int, pathPattern string, priority int, enabled bool) error {
+		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, _ bool) error {
 			return service.ErrProxyACLNotFound
 		},
 	}
@@ -370,7 +370,7 @@ func TestProxyACLHandler_UpdateProxyACLAssignment_NotFound(t *testing.T) {
 
 func TestProxyACLHandler_UpdateProxyACLAssignment_InvalidPathPattern(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateProxyAssignmentFunc: func(id int, pathPattern string, priority int, enabled bool) error {
+		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, _ bool) error {
 			return service.ErrInvalidPathPattern
 		},
 	}
@@ -389,7 +389,7 @@ func TestProxyACLHandler_UpdateProxyACLAssignment_InvalidPathPattern(t *testing.
 func TestProxyACLHandler_UpdateProxyACLAssignment_DisableAssignment(t *testing.T) {
 	var capturedEnabled bool
 	mockService := &MockACLService{
-		UpdateProxyAssignmentFunc: func(id int, pathPattern string, priority int, enabled bool) error {
+		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, enabled bool) error {
 			capturedEnabled = enabled
 			return nil
 		},
@@ -449,7 +449,7 @@ func TestProxyACLHandler_UpdateProxyACLAssignment_InvalidJSON(t *testing.T) {
 
 func TestProxyACLHandler_RemoveACLFromProxy_Success(t *testing.T) {
 	mockService := &MockACLService{
-		RemoveFromProxyFunc: func(proxyID, groupID int) error {
+		RemoveFromProxyFunc: func(_, _ int) error {
 			return nil
 		},
 	}
@@ -465,7 +465,7 @@ func TestProxyACLHandler_RemoveACLFromProxy_Success(t *testing.T) {
 
 func TestProxyACLHandler_RemoveACLFromProxy_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		RemoveFromProxyFunc: func(proxyID, groupID int) error {
+		RemoveFromProxyFunc: func(_, _ int) error {
 			return service.ErrProxyACLNotFound
 		},
 	}
@@ -679,11 +679,11 @@ func TestProxyACLHandler_LargeProxyID(t *testing.T) {
 func TestProxyACLHandler_SpecialCharactersInPathPattern(t *testing.T) {
 	var capturedPattern string
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int) error {
 			capturedPattern = pathPattern
 			return nil
 		},
-		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil
 		},
 	}

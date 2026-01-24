@@ -92,7 +92,7 @@ type OAuthProvidersResponse struct {
 // ListProviders handles GET /api/auth/oauth/providers
 // Returns a list of OAuth providers that are available (env vars configured)
 // This is a public endpoint used by the login page to show available OAuth options
-func (h *OAuthHandler) ListProviders(w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) ListProviders(w http.ResponseWriter, _ *http.Request) {
 	// Get all available providers (env vars configured)
 	providers := h.providerManager.GetAvailableProvidersPublic()
 
@@ -694,7 +694,7 @@ func getString(data map[string]interface{}, key string) string {
 }
 
 // findOrCreateUser finds an existing user by email or creates a new one
-func (h *OAuthHandler) findOrCreateUser(ctx context.Context, providerID auth.OAuthProviderID, userInfo *OAuthUserInfo) (*models.User, error) {
+func (h *OAuthHandler) findOrCreateUser(_ context.Context, providerID auth.OAuthProviderID, userInfo *OAuthUserInfo) (*models.User, error) {
 	// Try to find user by email
 	user, err := h.userRepo.GetByUsernameOrEmail(userInfo.Email)
 	if err == nil {

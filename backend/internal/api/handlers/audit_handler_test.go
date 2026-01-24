@@ -38,7 +38,7 @@ func TestNewAuditHandler(t *testing.T) {
 func TestAuditHandler_List_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+		ListAuditLogsFunc: func(_ repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return &models.AuditLogListResponse{
 				Items: []models.AuditLog{
 					{ID: 1, Action: "proxy.create", Status: "success"},
@@ -212,7 +212,6 @@ func TestAuditHandler_List_WithIPAddressFilters(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var capturedParams repository.AuditLogListParams
@@ -343,7 +342,7 @@ func TestAuditHandler_List_InvalidStatus(t *testing.T) {
 func TestAuditHandler_List_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+		ListAuditLogsFunc: func(_ repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -364,7 +363,7 @@ func TestAuditHandler_List_ServiceError(t *testing.T) {
 func TestAuditHandler_GetByID_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		GetAuditLogByIDFunc: func(id int) (*models.AuditLog, error) {
+		GetAuditLogByIDFunc: func(_ int) (*models.AuditLog, error) {
 			return &models.AuditLog{
 				ID:        1,
 				Action:    "proxy.create",
@@ -396,7 +395,7 @@ func TestAuditHandler_GetByID_Success(t *testing.T) {
 func TestAuditHandler_GetByID_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		GetAuditLogByIDFunc: func(id int) (*models.AuditLog, error) {
+		GetAuditLogByIDFunc: func(_ int) (*models.AuditLog, error) {
 			return nil, errors.New("not found")
 		},
 	}
@@ -626,7 +625,7 @@ func TestAuditHandler_UpdateConfig_InvalidJSON(t *testing.T) {
 func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		SetConfigFunc: func(config *models.AuditConfig) error {
+		SetConfigFunc: func(_ *models.AuditConfig) error {
 			return errors.New("database error")
 		},
 	}
@@ -666,7 +665,7 @@ func TestAuditHandler_UpdateConfig_ServiceError(t *testing.T) {
 func TestAuditHandler_Export_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+		ListAuditLogsFunc: func(_ repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			resourceType := "proxy"
 			resourceID := 1
 			resourceName := "Test Proxy"
@@ -715,7 +714,7 @@ func TestAuditHandler_Export_Success(t *testing.T) {
 func TestAuditHandler_Export_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+		ListAuditLogsFunc: func(_ repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -836,7 +835,7 @@ func TestIntPtrToString(t *testing.T) {
 func TestAuditHandler_ResponseFormat(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockAuditService{
-		ListAuditLogsFunc: func(params repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
+		ListAuditLogsFunc: func(_ repository.AuditLogListParams) (*models.AuditLogListResponse, error) {
 			return &models.AuditLogListResponse{
 				Items:      []models.AuditLog{},
 				Total:      0,
@@ -919,7 +918,6 @@ func TestSplitAndTrim(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := splitAndTrim(tc.input)
@@ -1074,7 +1072,6 @@ func TestParseFilterParam(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			result := parseFilterParam(tc.input)
@@ -1119,7 +1116,6 @@ func TestParseFilterParam_InvalidOperatorForField(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/api/audit-logs?"+tc.query, nil)

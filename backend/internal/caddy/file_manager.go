@@ -39,6 +39,7 @@ func NewFileManager(basePath string, logger *zap.Logger) *FileManager {
 func (m *FileManager) EnsureDirectories() error {
 	dirs := []string{m.basePath, m.backupDir}
 	for _, dir := range dirs {
+		// nolint:gosec // G301: 0755 permissions needed for Caddy to read config files
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
@@ -110,6 +111,7 @@ func (m *FileManager) BackupJSONConfig(path string) error {
 	}
 
 	// Ensure backup directory exists
+	// nolint:gosec // G301: 0755 permissions needed for backup directory access
 	if err := os.MkdirAll(m.backupDir, 0755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
@@ -188,6 +190,7 @@ func (m *FileManager) CleanupOldBackupsByAge(retentionDays int) error {
 func (m *FileManager) atomicWriteBytes(path string, data []byte) error {
 	// Create parent directory if needed
 	dir := filepath.Dir(path)
+	// nolint:gosec // G301: 0755 permissions needed for Caddy to read config files
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
@@ -223,6 +226,7 @@ func (m *FileManager) atomicWriteBytes(path string, data []byte) error {
 	}
 
 	// Set permissions
+	// nolint:gosec // G302: 0644 permissions needed for Caddy to read config files
 	if err := os.Chmod(tempPath, 0644); err != nil {
 		return fmt.Errorf("failed to set permissions: %w", err)
 	}

@@ -205,7 +205,7 @@ func (m *mockSettingsService) GetNotFoundSettings() (*models.NotFoundSettings, e
 	return &models.NotFoundSettings{Mode: "default"}, nil
 }
 
-func (m *mockSettingsService) SetNotFoundSettings(settings *models.NotFoundSettings) error {
+func (m *mockSettingsService) SetNotFoundSettings(_ *models.NotFoundSettings) error {
 	return nil
 }
 

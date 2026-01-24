@@ -122,6 +122,7 @@ func extractValidationError(output string) string {
 
 // TestConnection tests if Caddy is running and responding
 func (r *Reloader) TestConnection(ctx context.Context) error {
+	// nolint:gosec // G204: caddyBinary is set at initialization, not from user input
 	cmd := exec.CommandContext(ctx, r.caddyBinary, "version")
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
@@ -143,6 +144,7 @@ func (r *Reloader) ValidateJSON(configPath string) error {
 
 	r.logger.Debug("Validating JSON configuration", zap.String("path", configPath))
 
+	// nolint:gosec // G204: caddyBinary is set at initialization, configPath is sanitized
 	cmd := exec.Command(r.caddyBinary, "validate", "--config", configPath)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -179,6 +181,7 @@ func (r *Reloader) ReloadJSON(ctx context.Context, configPath string) (*ReloadRe
 	// Validate the JSON configuration first
 	r.logger.Debug("Validating JSON configuration before reload", zap.String("path", configPath))
 
+	// nolint:gosec // G204: caddyBinary is set at initialization, configPath is sanitized
 	validateCmd := exec.CommandContext(ctx, r.caddyBinary, "validate", "--config", configPath)
 	var validateStdout, validateStderr bytes.Buffer
 	validateCmd.Stdout = &validateStdout

@@ -1271,7 +1271,7 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 	// Audit logging for Waygates auth configuration update
 	if h.auditService != nil {
 		changes := buildWaygatesAuthChanges(oldConfig, config)
-		_ = h.auditService.LogACLWaygatesAuthUpdate(r.Context(), userID, groupID, group.Name, config, changes, getClientIP(r), r.UserAgent())
+		_ = h.auditService.LogACLWaygatesAuthUpdate(r.Context(), userID, groupID, group.Name, changes, getClientIP(r), r.UserAgent())
 	}
 
 	// Sync all proxies using this ACL group
@@ -1285,7 +1285,7 @@ func (h *ACLHandler) ConfigureWaygatesAuth(w http.ResponseWriter, r *http.Reques
 // =============================================================================
 
 // GetBranding handles GET /api/acl/branding
-func (h *ACLHandler) GetBranding(w http.ResponseWriter, r *http.Request) {
+func (h *ACLHandler) GetBranding(w http.ResponseWriter, _ *http.Request) {
 	branding, err := h.aclService.GetBranding()
 	if err != nil {
 		utils.InternalError(w, "Failed to get branding configuration")
@@ -1583,13 +1583,13 @@ func (h *ACLHandler) DeleteOAuthProviderRestriction(w http.ResponseWriter, r *ht
 // =============================================================================
 
 // buildACLGroupChanges builds a map of changes between old and new ACL group
-func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
+func buildACLGroupChanges(old, updated *models.ACLGroup) map[string]interface{} {
 	changes := make(map[string]interface{})
 
-	if old.Name != new.Name {
+	if old.Name != updated.Name {
 		changes["name"] = map[string]interface{}{
 			"old": old.Name,
-			"new": new.Name,
+			"new": updated.Name,
 		}
 	}
 
@@ -1598,8 +1598,8 @@ func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
 	if old.Description != nil {
 		oldDesc = *old.Description
 	}
-	if new.Description != nil {
-		newDesc = *new.Description
+	if updated.Description != nil {
+		newDesc = *updated.Description
 	}
 	if oldDesc != newDesc {
 		changes["description"] = map[string]interface{}{
@@ -1608,38 +1608,38 @@ func buildACLGroupChanges(old, new *models.ACLGroup) map[string]interface{} {
 		}
 	}
 
-	if old.CombinationMode != new.CombinationMode {
+	if old.CombinationMode != updated.CombinationMode {
 		changes["combination_mode"] = map[string]interface{}{
 			"old": old.CombinationMode,
-			"new": new.CombinationMode,
+			"new": updated.CombinationMode,
 		}
 	}
 
 	return changes
 }
 
-// buildIPRuleChanges builds a map of changes between old and new IP rule
-func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
+// buildIPRuleChanges builds a map of changes between old and updated IP rule
+func buildIPRuleChanges(old, updated *models.ACLIPRule) map[string]interface{} {
 	changes := make(map[string]interface{})
 
-	if old.RuleType != new.RuleType {
+	if old.RuleType != updated.RuleType {
 		changes["rule_type"] = map[string]interface{}{
 			"old": old.RuleType,
-			"new": new.RuleType,
+			"new": updated.RuleType,
 		}
 	}
 
-	if old.CIDR != new.CIDR {
+	if old.CIDR != updated.CIDR {
 		changes["cidr"] = map[string]interface{}{
 			"old": old.CIDR,
-			"new": new.CIDR,
+			"new": updated.CIDR,
 		}
 	}
 
-	if old.Priority != new.Priority {
+	if old.Priority != updated.Priority {
 		changes["priority"] = map[string]interface{}{
 			"old": old.Priority,
-			"new": new.Priority,
+			"new": updated.Priority,
 		}
 	}
 
@@ -1648,8 +1648,8 @@ func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
 	if old.Description != nil {
 		oldDesc = *old.Description
 	}
-	if new.Description != nil {
-		newDesc = *new.Description
+	if updated.Description != nil {
+		newDesc = *updated.Description
 	}
 	if oldDesc != newDesc {
 		changes["description"] = map[string]interface{}{
@@ -1662,7 +1662,7 @@ func buildIPRuleChanges(old, new *models.ACLIPRule) map[string]interface{} {
 }
 
 // buildWaygatesAuthChanges builds a map of changes between old and new Waygates auth config
-func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]interface{} {
+func buildWaygatesAuthChanges(old, updated *models.ACLWaygatesAuth) map[string]interface{} {
 	changes := make(map[string]interface{})
 
 	// Handle nil old config (first-time configuration)
@@ -1670,74 +1670,74 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 		old = &models.ACLWaygatesAuth{}
 	}
 
-	if old.Enabled != new.Enabled {
+	if old.Enabled != updated.Enabled {
 		changes["enabled"] = map[string]interface{}{
 			"old": old.Enabled,
-			"new": new.Enabled,
+			"new": updated.Enabled,
 		}
 	}
 
-	if old.Require2FA != new.Require2FA {
+	if old.Require2FA != updated.Require2FA {
 		changes["require_2fa"] = map[string]interface{}{
 			"old": old.Require2FA,
-			"new": new.Require2FA,
+			"new": updated.Require2FA,
 		}
 	}
 
-	if old.SessionTTL != new.SessionTTL {
+	if old.SessionTTL != updated.SessionTTL {
 		changes["session_ttl"] = map[string]interface{}{
 			"old": old.SessionTTL,
-			"new": new.SessionTTL,
+			"new": updated.SessionTTL,
 		}
 	}
 
 	// Track allowed_roles changes
 	oldRoles := joinStrings(old.AllowedRoles)
-	newRoles := joinStrings(new.AllowedRoles)
+	newRoles := joinStrings(updated.AllowedRoles)
 	if oldRoles != newRoles {
 		changes["allowed_roles"] = map[string]interface{}{
 			"old": old.AllowedRoles,
-			"new": new.AllowedRoles,
+			"new": updated.AllowedRoles,
 		}
 	}
 
 	// Track allowed_domains changes
 	oldDomains := joinStrings(old.AllowedDomains)
-	newDomains := joinStrings(new.AllowedDomains)
+	newDomains := joinStrings(updated.AllowedDomains)
 	if oldDomains != newDomains {
 		changes["allowed_domains"] = map[string]interface{}{
 			"old": old.AllowedDomains,
-			"new": new.AllowedDomains,
+			"new": updated.AllowedDomains,
 		}
 	}
 
 	// Track allowed_providers changes
 	oldProviders := joinStrings(old.AllowedProviders)
-	newProviders := joinStrings(new.AllowedProviders)
+	newProviders := joinStrings(updated.AllowedProviders)
 	if oldProviders != newProviders {
 		changes["allowed_providers"] = map[string]interface{}{
 			"old": old.AllowedProviders,
-			"new": new.AllowedProviders,
+			"new": updated.AllowedProviders,
 		}
 	}
 
 	// Track allowed_emails changes
 	oldEmails := joinStrings(old.AllowedEmails)
-	newEmails := joinStrings(new.AllowedEmails)
+	newEmails := joinStrings(updated.AllowedEmails)
 	if oldEmails != newEmails {
 		changes["allowed_emails"] = map[string]interface{}{
 			"old": old.AllowedEmails,
-			"new": new.AllowedEmails,
+			"new": updated.AllowedEmails,
 		}
 	}
 
 	// Track allowed_users changes
 	oldUsers := joinStrings(old.AllowedUsers)
-	newUsers := joinStrings(new.AllowedUsers)
+	newUsers := joinStrings(updated.AllowedUsers)
 	if oldUsers != newUsers {
 		changes["allowed_users"] = map[string]interface{}{
 			"old": old.AllowedUsers,
-			"new": new.AllowedUsers,
+			"new": updated.AllowedUsers,
 		}
 	}
 
@@ -1745,7 +1745,7 @@ func buildWaygatesAuthChanges(old, new *models.ACLWaygatesAuth) map[string]inter
 }
 
 // buildBrandingChanges builds a map of changes between old and new branding
-func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
+func buildBrandingChanges(old, updated *models.ACLBranding) map[string]interface{} {
 	changes := make(map[string]interface{})
 
 	// Handle nil old branding (first-time configuration)
@@ -1753,24 +1753,24 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 		old = &models.ACLBranding{}
 	}
 
-	if old.Title != new.Title {
+	if old.Title != updated.Title {
 		changes["title"] = map[string]interface{}{
 			"old": old.Title,
-			"new": new.Title,
+			"new": updated.Title,
 		}
 	}
 
-	if old.PrimaryColor != new.PrimaryColor {
+	if old.PrimaryColor != updated.PrimaryColor {
 		changes["primary_color"] = map[string]interface{}{
 			"old": old.PrimaryColor,
-			"new": new.PrimaryColor,
+			"new": updated.PrimaryColor,
 		}
 	}
 
-	if old.BackgroundColor != new.BackgroundColor {
+	if old.BackgroundColor != updated.BackgroundColor {
 		changes["background_color"] = map[string]interface{}{
 			"old": old.BackgroundColor,
-			"new": new.BackgroundColor,
+			"new": updated.BackgroundColor,
 		}
 	}
 
@@ -1779,8 +1779,8 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 	if old.Subtitle != nil {
 		oldSubtitle = *old.Subtitle
 	}
-	if new.Subtitle != nil {
-		newSubtitle = *new.Subtitle
+	if updated.Subtitle != nil {
+		newSubtitle = *updated.Subtitle
 	}
 	if oldSubtitle != newSubtitle {
 		changes["subtitle"] = map[string]interface{}{
@@ -1794,8 +1794,8 @@ func buildBrandingChanges(old, new *models.ACLBranding) map[string]interface{} {
 	if old.LogoURL != nil {
 		oldLogoURL = *old.LogoURL
 	}
-	if new.LogoURL != nil {
-		newLogoURL = *new.LogoURL
+	if updated.LogoURL != nil {
+		newLogoURL = *updated.LogoURL
 	}
 	if oldLogoURL != newLogoURL {
 		changes["logo_url"] = map[string]interface{}{

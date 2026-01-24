@@ -93,7 +93,7 @@ func (a *Adapter) ExtractUserID(claims interface{}) string {
 }
 
 // ExtractPermissions implements middleware.ClaimsExtractor
-func (a *Adapter) ExtractPermissions(claims interface{}) []string {
+func (a *Adapter) ExtractPermissions(_ interface{}) []string {
 	// Permissions are checked via RBAC, not stored in token
 	return nil
 }
@@ -128,7 +128,7 @@ func (a *Adapter) ValidateAPIKey(ctx context.Context, rawKey string) (*middlewar
 
 // ErrorHandler returns a custom error handler that uses our response utilities
 func ErrorHandler() middleware.ErrorHandler {
-	return func(w http.ResponseWriter, r *http.Request, err error) {
+	return func(w http.ResponseWriter, _ *http.Request, err error) {
 		code := middleware.ErrorToHTTPStatus(err)
 		switch code {
 		case http.StatusUnauthorized:

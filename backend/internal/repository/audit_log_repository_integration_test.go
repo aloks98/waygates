@@ -1279,7 +1279,7 @@ func TestAuditLogRepository_ConcurrentOperations(t *testing.T) {
 		errors := make(chan error, numGoroutines)
 
 		for i := 0; i < numGoroutines; i++ {
-			go func(index int) {
+			go func(_ int) {
 				log := &models.AuditLog{
 					UserID: &user.ID,
 					Action: models.AuditActionProxyCreate,

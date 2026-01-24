@@ -1272,7 +1272,7 @@ const (
 )
 
 // evaluateIPRules evaluates IP rules against a remote IP
-func (s *ACLService) evaluateIPRules(rules []models.ACLIPRule, remoteIP string, combinationMode string) (ipRuleResult, bool) {
+func (s *ACLService) evaluateIPRules(rules []models.ACLIPRule, remoteIP string) (ipRuleResult, bool) {
 	if len(rules) == 0 {
 		return ipRuleNoMatch, false
 	}
@@ -1902,7 +1902,7 @@ func (s *ACLService) evaluateGroupAuth(group *models.ACLGroup, request *ACLVerif
 
 	// For "any" mode, an IP allow (not just bypass) is sufficient
 	if group.CombinationMode == models.ACLCombinationModeAny {
-		ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+		ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP)
 		if ipResult == ipRuleAllow || ipResult == ipRuleBypass {
 			result.Allowed = true
 			return result, nil
@@ -1988,7 +1988,7 @@ func (s *ACLService) evaluateGroupAuth(group *models.ACLGroup, request *ACLVerif
 			(len(group.BasicAuthUsers) > 0 && !groupHasSecureAuth)
 		if !hasAuthRequirements {
 			// No auth requirements, IP check (non-deny) is enough
-			ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+			ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP)
 			if ipResult != ipRuleDeny {
 				result.Allowed = true
 				return result, nil

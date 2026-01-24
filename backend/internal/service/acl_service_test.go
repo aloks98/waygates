@@ -486,7 +486,7 @@ func TestCreateGroup_Success(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateGroupFunc: func(group *models.ACLGroup) error {
@@ -582,7 +582,7 @@ func TestCreateGroup_WithExplicitCombinationMode(t *testing.T) {
 	var createdGroup *models.ACLGroup
 
 	aclRepo := &MockACLRepository{
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateGroupFunc: func(group *models.ACLGroup) error {
@@ -634,7 +634,7 @@ func TestGetGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -651,7 +651,7 @@ func TestListGroups_Success(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 			return []models.ACLGroup{
 				{ID: 1, Name: "Group 1"},
 				{ID: 2, Name: "Group 2"},
@@ -709,10 +709,10 @@ func TestUpdateGroup_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id, Name: "Old Name", CombinationMode: models.ACLCombinationModeAny}, nil
 		},
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		UpdateGroupFunc: func(group *models.ACLGroup) error {
+		UpdateGroupFunc: func(_ *models.ACLGroup) error {
 			return nil
 		},
 	}
@@ -729,7 +729,7 @@ func TestUpdateGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -774,7 +774,7 @@ func TestDeleteGroup_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id, Name: "Test"}, nil
 		},
-		DeleteGroupFunc: func(id int) error {
+		DeleteGroupFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -796,7 +796,7 @@ func TestDeleteGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -847,7 +847,7 @@ func TestAddIPRule_GroupNotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -889,7 +889,7 @@ func TestUpdateIPRule_Success(t *testing.T) {
 		GetIPRuleByIDFunc: func(id int) (*models.ACLIPRule, error) {
 			return &models.ACLIPRule{ID: id, RuleType: models.ACLIPRuleTypeAllow, CIDR: "192.168.1.0/24"}, nil
 		},
-		UpdateIPRuleFunc: func(rule *models.ACLIPRule) error {
+		UpdateIPRuleFunc: func(_ *models.ACLIPRule) error {
 			return nil
 		},
 	}
@@ -911,7 +911,7 @@ func TestDeleteIPRule_Success(t *testing.T) {
 		GetIPRuleByIDFunc: func(id int) (*models.ACLIPRule, error) {
 			return &models.ACLIPRule{ID: id}, nil
 		},
-		DeleteIPRuleFunc: func(id int) error {
+		DeleteIPRuleFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -942,7 +942,7 @@ func TestAddBasicAuthUser_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetBasicAuthUserFunc: func(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+		GetBasicAuthUserFunc: func(_ int, _ string) (*models.ACLBasicAuthUser, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateBasicAuthUserFunc: func(user *models.ACLBasicAuthUser) error {
@@ -1011,7 +1011,7 @@ func TestAddBasicAuthUser_UserExists(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetBasicAuthUserFunc: func(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+		GetBasicAuthUserFunc: func(_ int, username string) (*models.ACLBasicAuthUser, error) {
 			return &models.ACLBasicAuthUser{ID: 1, Username: username}, nil
 		},
 	}
@@ -1060,7 +1060,7 @@ func TestDeleteBasicAuthUser_Success(t *testing.T) {
 		GetBasicAuthUserByIDFunc: func(id int) (*models.ACLBasicAuthUser, error) {
 			return &models.ACLBasicAuthUser{ID: id}, nil
 		},
-		DeleteBasicAuthUserFunc: func(id int) error {
+		DeleteBasicAuthUserFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1149,10 +1149,10 @@ func TestConfigureWaygatesAuth_Create(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
+		CreateWaygatesAuthFunc: func(_ *models.ACLWaygatesAuth) error {
 			createCalled = true
 			return nil
 		},
@@ -1182,7 +1182,7 @@ func TestConfigureWaygatesAuth_Update(t *testing.T) {
 		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
 			return &models.ACLWaygatesAuth{ID: 1, ACLGroupID: groupID}, nil
 		},
-		UpdateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
+		UpdateWaygatesAuthFunc: func(_ *models.ACLWaygatesAuth) error {
 			updateCalled = true
 			return nil
 		},
@@ -1209,7 +1209,7 @@ func TestConfigureWaygatesAuth_DefaultSessionTTL(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
@@ -1264,7 +1264,7 @@ func TestAssignToProxy_ProxyNotFound(t *testing.T) {
 	t.Parallel()
 
 	proxyRepo := &MockProxyRepository{
-		GetByIDFunc: func(id int) (*models.Proxy, error) {
+		GetByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1281,7 +1281,7 @@ func TestAssignToProxy_GroupNotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1327,7 +1327,7 @@ func TestRemoveFromProxy_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteProxyACLAssignmentByProxyAndGroupFunc: func(proxyID, groupID int) error {
+		DeleteProxyACLAssignmentByProxyAndGroupFunc: func(_, _ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1376,7 +1376,7 @@ func TestUpdateBranding_Success(t *testing.T) {
 	updateCalled := false
 
 	aclRepo := &MockACLRepository{
-		UpdateBrandingFunc: func(branding *models.ACLBranding) error {
+		UpdateBrandingFunc: func(_ *models.ACLBranding) error {
 			updateCalled = true
 			return nil
 		},
@@ -1483,7 +1483,7 @@ func TestValidateSession_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
+		GetSessionByTokenFunc: func(_ string) (*models.ACLSession, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1520,7 +1520,7 @@ func TestValidateSession_Expired(t *testing.T) {
 				ExpiresAt:    time.Now().Add(-1 * time.Hour), // Expired
 			}, nil
 		},
-		DeleteSessionFunc: func(token string) error {
+		DeleteSessionFunc: func(_ string) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1544,7 +1544,7 @@ func TestRevokeSession_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteSessionFunc: func(token string) error {
+		DeleteSessionFunc: func(_ string) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1568,7 +1568,7 @@ func TestRevokeUserSessions_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteUserSessionsFunc: func(userID int) error {
+		DeleteUserSessionsFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1615,7 +1615,7 @@ func TestVerifyAccess_NoProxyFound(t *testing.T) {
 	t.Parallel()
 
 	proxyRepo := &MockProxyRepository{
-		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+		GetByHostnameFunc: func(_ string) (*models.Proxy, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1644,7 +1644,7 @@ func TestVerifyAccess_NoACLAssignments(t *testing.T) {
 		},
 	}
 	aclRepo := &MockACLRepository{
-		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLAssignmentsFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil // No assignments
 		},
 	}
@@ -1684,7 +1684,7 @@ func TestVerifyAccess_IPDeny(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -1861,7 +1861,7 @@ func TestVerifyAccess_BasicAuth_WrongPassword(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -1912,7 +1912,7 @@ func TestVerifyAccess_WaygatesSession(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
@@ -2492,7 +2492,7 @@ func TestVerifyAccess_IPDenyBlocksWithinGroup(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -2711,7 +2711,7 @@ func TestVerifyAccess_DenyTakesPrecedenceWithinGroup(t *testing.T) {
 						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 					}, nil
 				},
-				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+				GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 					return group, nil
 				},
 				GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -3514,7 +3514,7 @@ func TestGetAuthOptionsForProxy_BasicAuthOnlyEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3570,7 +3570,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenWaygatesEnabled(t *testing.
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3627,7 +3627,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenOAuthEnabled(t *testing.T) 
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3690,7 +3690,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenBothWaygatesAndOAuthEnabled
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3797,7 +3797,7 @@ func TestGetAuthOptionsForProxy_NoAssignments(t *testing.T) {
 	}
 
 	aclRepo := &MockACLRepository{
-		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLAssignmentsFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil // No assignments
 		},
 	}
@@ -3860,7 +3860,7 @@ func TestGetAuthOptionsForProxy_AssignmentWithNoAuthMethods(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3919,7 +3919,7 @@ func TestGetAuthOptionsForProxy_AssignmentWithWaygatesAuthDisabled(t *testing.T)
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3971,7 +3971,7 @@ func TestGetAuthOptionsForProxy_AssignmentWithDisabledACL(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: false},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4017,7 +4017,7 @@ func TestGetAuthOptionsForProxy_RequiresAuthTrueWithWaygatesAuth(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4068,7 +4068,7 @@ func TestGetAuthOptionsForProxy_RequiresAuthTrueWithOAuthProviders(t *testing.T)
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4116,7 +4116,7 @@ func TestGetAuthOptionsForProxy_RequiresAuthTrueWithBasicAuth(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4182,7 +4182,7 @@ func TestGetAuthOptionsForProxy_OAuthProviderRestrictionTakesPrecedence(t *testi
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4252,7 +4252,7 @@ func TestGetAuthOptionsForProxy_OAuthRestrictionEnabledAddsProvider(t *testing.T
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4325,7 +4325,7 @@ func TestGetAuthOptionsForProxy_OnlyOAuthRestriction(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4388,7 +4388,7 @@ func TestGetAuthOptionsForProxy_AllOAuthProvidersDisabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4452,7 +4452,7 @@ func TestGetAuthOptionsForProxy_MixedOAuthEnabledDisabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4494,7 +4494,7 @@ func TestGetAuthOptionsForProxy_ProxyNotFound(t *testing.T) {
 	t.Parallel()
 
 	proxyRepo := &MockProxyRepository{
-		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+		GetByHostnameFunc: func(_ string) (*models.Proxy, error) {
 			return nil, errors.New("proxy not found")
 		},
 	}
@@ -4620,7 +4620,7 @@ func TestGetAuthOptionsForProxy_OAuthCheckerFiltersUnavailable(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -4706,7 +4706,7 @@ func TestVerifyAccess_BasicAuthSkippedWhenWaygatesEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4775,7 +4775,7 @@ func TestVerifyAccess_BasicAuthSkippedWhenOAuthEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4892,7 +4892,7 @@ func TestVerifyAccess_BasicAuthInvalidWhenOnlyAuthMethod(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -5038,7 +5038,7 @@ func TestVerifyAccess_BasicAuthOverrideInSameGroup(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -5104,7 +5104,7 @@ func TestVerifyAccess_BasicAuthAllModeSkippedWithSecureAuth(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -5174,7 +5174,7 @@ func TestVerifyAccess_WaygatesSessionStillWorksWithBasicAuthConfigured(t *testin
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
@@ -5671,7 +5671,7 @@ func TestVerifyAccess_UnparseableIP_FailClosed(t *testing.T) {
 						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true, ACLGroup: group},
 					}, nil
 				},
-				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+				GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 					return group, nil
 				},
 				GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -5844,7 +5844,7 @@ func TestVerifyAccess_PathMatchingBoundary(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/api/*", Enabled: true, ACLGroup: apiGroup},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return apiGroup, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {

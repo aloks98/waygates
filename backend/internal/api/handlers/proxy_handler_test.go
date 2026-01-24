@@ -9,11 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/aloks98/goauth/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/aloks98/goauth/middleware"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -57,7 +56,7 @@ func TestNewProxyHandler(t *testing.T) {
 func TestListProxies_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return &models.ProxyListResponse{
 				Items: []models.Proxy{
 					{ID: 1, Name: "Proxy 1", Hostname: "proxy1.example.com"},
@@ -142,7 +141,6 @@ func TestListProxies_ValidationErrors(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			mockService := &mocks.MockProxyService{}
@@ -161,7 +159,7 @@ func TestListProxies_ValidationErrors(t *testing.T) {
 func TestListProxies_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -182,7 +180,7 @@ func TestListProxies_ServiceError(t *testing.T) {
 func TestGetProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
 	}
@@ -232,7 +230,7 @@ func TestGetProxy_InvalidID(t *testing.T) {
 func TestGetProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -252,7 +250,7 @@ func TestGetProxy_NotFound(t *testing.T) {
 func TestGetProxy_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -276,7 +274,7 @@ func TestGetProxy_ServiceError(t *testing.T) {
 func TestCreateProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			proxy.ID = 1
 			return nil
 		},
@@ -357,7 +355,7 @@ func TestCreateProxy_InvalidJSON(t *testing.T) {
 func TestCreateProxy_HostnameConflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(_ *models.Proxy, _ int) error {
 			return service.ErrHostnameConflict
 		},
 	}
@@ -378,7 +376,7 @@ func TestCreateProxy_HostnameConflict(t *testing.T) {
 func TestCreateProxy_CaddyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(_ *models.Proxy, _ int) error {
 			return service.NewCaddyError("caddy validation failed")
 		},
 	}
@@ -399,7 +397,7 @@ func TestCreateProxy_CaddyError(t *testing.T) {
 func TestCreateProxy_ValidationError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(_ *models.Proxy, _ int) error {
 			return errors.New("validation: hostname is required")
 		},
 	}
@@ -423,10 +421,10 @@ func TestCreateProxy_ValidationError(t *testing.T) {
 func TestUpdateProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
@@ -495,7 +493,7 @@ func TestUpdateProxy_InvalidJSON(t *testing.T) {
 func TestUpdateProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -517,10 +515,10 @@ func TestUpdateProxy_NotFound(t *testing.T) {
 func TestUpdateProxy_HostnameConflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "old.example.com", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.ErrHostnameConflict
 		},
 	}
@@ -542,10 +540,10 @@ func TestUpdateProxy_HostnameConflict(t *testing.T) {
 func TestUpdateProxy_CaddyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.NewCaddyError("caddy reload failed")
 		},
 	}
@@ -567,10 +565,10 @@ func TestUpdateProxy_CaddyError(t *testing.T) {
 func TestUpdateProxy_ValidationError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return errors.New("validation: invalid hostname format")
 		},
 	}
@@ -596,7 +594,7 @@ func TestUpdateProxy_ValidationError(t *testing.T) {
 func TestDeleteProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -632,7 +630,7 @@ func TestDeleteProxy_InvalidID(t *testing.T) {
 func TestDeleteProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -652,7 +650,7 @@ func TestDeleteProxy_NotFound(t *testing.T) {
 func TestDeleteProxy_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return errors.New("database error")
 		},
 	}
@@ -676,7 +674,7 @@ func TestDeleteProxy_ServiceError(t *testing.T) {
 func TestEnableProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -712,7 +710,7 @@ func TestEnableProxy_InvalidID(t *testing.T) {
 func TestEnableProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -732,7 +730,7 @@ func TestEnableProxy_NotFound(t *testing.T) {
 func TestEnableProxy_AlreadyEnabled(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return service.ErrProxyAlreadyEnabled
 		},
 	}
@@ -752,7 +750,7 @@ func TestEnableProxy_AlreadyEnabled(t *testing.T) {
 func TestEnableProxy_CaddyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return service.NewCaddyError("caddy error")
 		},
 	}
@@ -772,7 +770,7 @@ func TestEnableProxy_CaddyError(t *testing.T) {
 func TestEnableProxy_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return errors.New("unknown error")
 		},
 	}
@@ -796,7 +794,7 @@ func TestEnableProxy_ServiceError(t *testing.T) {
 func TestDisableProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -832,7 +830,7 @@ func TestDisableProxy_InvalidID(t *testing.T) {
 func TestDisableProxy_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -852,7 +850,7 @@ func TestDisableProxy_NotFound(t *testing.T) {
 func TestDisableProxy_AlreadyDisabled(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return service.ErrProxyAlreadyDisabled
 		},
 	}
@@ -872,7 +870,7 @@ func TestDisableProxy_AlreadyDisabled(t *testing.T) {
 func TestDisableProxy_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return errors.New("unknown error")
 		},
 	}
@@ -1243,10 +1241,10 @@ func TestListProxies_TypeNotOperator(t *testing.T) {
 func TestUpdateProxy_WithoutSSLEnabled_FetchExisting(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Existing", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, proxy *models.Proxy) error {
 			assert.True(t, proxy.SSLEnabled, "SSLEnabled should be preserved from existing proxy")
 			return nil
 		},
@@ -1272,7 +1270,7 @@ func TestUpdateProxy_WithoutSSLEnabled_FetchExisting(t *testing.T) {
 func TestUpdateProxy_WithoutSSLEnabled_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, service.ErrProxyNotFound
 		},
 	}
@@ -1297,7 +1295,7 @@ func TestUpdateProxy_WithoutSSLEnabled_NotFound(t *testing.T) {
 func TestUpdateProxy_WithoutSSLEnabled_GetError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -1327,7 +1325,7 @@ func TestCreateProxy_SSLEnabledExplicitlyFalse(t *testing.T) {
 	t.Parallel()
 	var capturedProxy *models.Proxy
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			capturedProxy = proxy
 			proxy.ID = 1
 			return nil
@@ -1354,7 +1352,7 @@ func TestCreateProxy_SSLEnabledDefault(t *testing.T) {
 	t.Parallel()
 	var capturedProxy *models.Proxy
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			capturedProxy = proxy
 			proxy.ID = 1
 			return nil
@@ -1384,13 +1382,13 @@ func TestCreateProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			proxy.ID = 1
 			return nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyCreateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+		LogProxyCreateFunc: func(_ context.Context, userID int, _ *models.Proxy, _, _ string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
 			return nil
@@ -1417,15 +1415,15 @@ func TestUpdateProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: false}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+		LogProxyUpdateFunc: func(_ context.Context, userID int, _ *models.Proxy, changes map[string]interface{}, _, _ string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
 			// Verify changes were captured
@@ -1456,15 +1454,15 @@ func TestDeleteProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyDeleteFunc: func(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error {
+		LogProxyDeleteFunc: func(_ context.Context, userID int, _ int, proxyName, hostname string, _, _ string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
 			assert.Equal(t, "Test Proxy", proxyName)
@@ -1489,10 +1487,10 @@ func TestDeleteProxy_WithAuditService(t *testing.T) {
 func TestDeleteProxy_WithAuditService_GetProxyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, errors.New("proxy not found for audit")
 		},
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -1514,15 +1512,15 @@ func TestEnableProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyEnableFunc: func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+		LogProxyEnableFunc: func(_ context.Context, userID int, _ *models.Proxy, _, _ string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
 			return nil
@@ -1545,10 +1543,10 @@ func TestEnableProxy_WithAuditService(t *testing.T) {
 func TestEnableProxy_WithAuditService_GetProxyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, errors.New("proxy not found for audit")
 		},
 	}
@@ -1570,15 +1568,15 @@ func TestDisableProxy_WithAuditService(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyDisableFunc: func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+		LogProxyDisableFunc: func(_ context.Context, userID int, _ *models.Proxy, _, _ string) error {
 			auditCalled = true
 			assert.Equal(t, 123, userID)
 			return nil
@@ -1601,10 +1599,10 @@ func TestDisableProxy_WithAuditService(t *testing.T) {
 func TestDisableProxy_WithAuditService_GetProxyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, errors.New("proxy not found for audit")
 		},
 	}
@@ -1629,16 +1627,16 @@ func TestDisableProxy_WithAuditService_GetProxyError(t *testing.T) {
 func TestUpdateProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
 	auditCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+		LogProxyUpdateFunc: func(_ context.Context, _ int, _ *models.Proxy, _ map[string]interface{}, _, _ string) error {
 			auditCalled = true
 			return nil
 		},
@@ -1666,16 +1664,16 @@ func TestUpdateProxy_WithoutUserID_NoAudit(t *testing.T) {
 func TestDeleteProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
-		DeleteProxyFunc: func(id int) error {
+		DeleteProxyFunc: func(_ int) error {
 			return nil
 		},
 	}
 	auditCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyDeleteFunc: func(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error {
+		LogProxyDeleteFunc: func(_ context.Context, _ int, _ int, _, _ string, _, _ string) error {
 			auditCalled = true
 			return nil
 		},
@@ -1697,16 +1695,16 @@ func TestDeleteProxy_WithoutUserID_NoAudit(t *testing.T) {
 func TestEnableProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		EnableProxyFunc: func(id int) error {
+		EnableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy"}, nil
 		},
 	}
 	auditCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyEnableFunc: func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+		LogProxyEnableFunc: func(_ context.Context, _ int, _ *models.Proxy, _, _ string) error {
 			auditCalled = true
 			return nil
 		},
@@ -1728,16 +1726,16 @@ func TestEnableProxy_WithoutUserID_NoAudit(t *testing.T) {
 func TestDisableProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		DisableProxyFunc: func(id int) error {
+		DisableProxyFunc: func(_ int) error {
 			return nil
 		},
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy"}, nil
 		},
 	}
 	auditCalled := false
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyDisableFunc: func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
+		LogProxyDisableFunc: func(_ context.Context, _ int, _ *models.Proxy, _, _ string) error {
 			auditCalled = true
 			return nil
 		},
@@ -1770,7 +1768,7 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 		SSLEnabled: true,
 		IsActive:   true,
 	}
-	new := &models.Proxy{
+	updated := &models.Proxy{
 		ID:         1,
 		Name:       "Test Proxy",
 		Hostname:   "test.example.com",
@@ -1779,7 +1777,7 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 		IsActive:   true,
 	}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	assert.Nil(t, changes, "should return nil when no changes")
 }
@@ -1787,9 +1785,9 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 func TestBuildProxyChanges_HostnameChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{Hostname: "old.example.com"}
-	new := &models.Proxy{Hostname: "new.example.com"}
+	updated := &models.Proxy{Hostname: "new.example.com"}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "hostname")
@@ -1801,9 +1799,9 @@ func TestBuildProxyChanges_HostnameChange(t *testing.T) {
 func TestBuildProxyChanges_NameChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{Name: "Old Name"}
-	new := &models.Proxy{Name: "New Name"}
+	updated := &models.Proxy{Name: "New Name"}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "name")
@@ -1815,9 +1813,9 @@ func TestBuildProxyChanges_NameChange(t *testing.T) {
 func TestBuildProxyChanges_TypeChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{Type: "reverse_proxy"}
-	new := &models.Proxy{Type: "redirect"}
+	updated := &models.Proxy{Type: "redirect"}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "type")
@@ -1829,9 +1827,9 @@ func TestBuildProxyChanges_TypeChange(t *testing.T) {
 func TestBuildProxyChanges_SSLEnabledChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{SSLEnabled: true}
-	new := &models.Proxy{SSLEnabled: false}
+	updated := &models.Proxy{SSLEnabled: false}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "ssl_enabled")
@@ -1843,9 +1841,9 @@ func TestBuildProxyChanges_SSLEnabledChange(t *testing.T) {
 func TestBuildProxyChanges_IsActiveChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{IsActive: true}
-	new := &models.Proxy{IsActive: false}
+	updated := &models.Proxy{IsActive: false}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "is_active")
@@ -1857,9 +1855,9 @@ func TestBuildProxyChanges_IsActiveChange(t *testing.T) {
 func TestBuildProxyChanges_UpstreamsChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{Upstreams: []interface{}{"http://localhost:8080"}}
-	new := &models.Proxy{Upstreams: []interface{}{"http://localhost:9090"}}
+	updated := &models.Proxy{Upstreams: []interface{}{"http://localhost:9090"}}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "upstreams")
@@ -1868,9 +1866,9 @@ func TestBuildProxyChanges_UpstreamsChange(t *testing.T) {
 func TestBuildProxyChanges_RedirectChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{RedirectConfig: models.JSONField{"url": "https://old.example.com"}}
-	new := &models.Proxy{RedirectConfig: models.JSONField{"url": "https://new.example.com"}}
+	updated := &models.Proxy{RedirectConfig: models.JSONField{"url": "https://new.example.com"}}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "redirect")
@@ -1883,13 +1881,13 @@ func TestBuildProxyChanges_MultipleChanges(t *testing.T) {
 		Hostname:   "old.example.com",
 		SSLEnabled: true,
 	}
-	new := &models.Proxy{
+	updated := &models.Proxy{
 		Name:       "New Name",
 		Hostname:   "new.example.com",
 		SSLEnabled: false,
 	}
 
-	changes := buildProxyChanges(old, new)
+	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	assert.Len(t, changes, 3, "should have 3 changes")
@@ -1902,7 +1900,7 @@ func TestUpdateProxy_WithAuditService_ChangesTracked(t *testing.T) {
 	t.Parallel()
 	var capturedChanges map[string]interface{}
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{
 				ID:         1,
 				Name:       "Old Name",
@@ -1912,12 +1910,12 @@ func TestUpdateProxy_WithAuditService_ChangesTracked(t *testing.T) {
 				IsActive:   true,
 			}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+		LogProxyUpdateFunc: func(_ context.Context, _ int, _ *models.Proxy, changes map[string]interface{}, _, _ string) error {
 			capturedChanges = changes
 			return nil
 		},
@@ -1966,7 +1964,7 @@ func TestUpdateProxy_WithAuditService_NoChanges(t *testing.T) {
 	t.Parallel()
 	var capturedChanges map[string]interface{}
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{
 				ID:         1,
 				Name:       "Same Name",
@@ -1975,12 +1973,12 @@ func TestUpdateProxy_WithAuditService_NoChanges(t *testing.T) {
 				SSLEnabled: true,
 			}, nil
 		},
-		UpdateProxyFunc: func(id int, proxy *models.Proxy) error {
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
 		},
 	}
 	mockAuditService := &mocks.MockAuditService{
-		LogProxyUpdateFunc: func(ctx context.Context, userID int, proxy *models.Proxy, changes map[string]interface{}, ip, userAgent string) error {
+		LogProxyUpdateFunc: func(_ context.Context, _ int, _ *models.Proxy, changes map[string]interface{}, _, _ string) error {
 			capturedChanges = changes
 			return nil
 		},
@@ -2052,7 +2050,7 @@ func TestJsonEqual_Maps(t *testing.T) {
 
 func BenchmarkListProxies(b *testing.B) {
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return &models.ProxyListResponse{
 				Items: []models.Proxy{
 					{ID: 1, Name: "Proxy 1", Hostname: "proxy1.example.com"},
@@ -2074,7 +2072,7 @@ func BenchmarkListProxies(b *testing.B) {
 
 func BenchmarkListProxies_WithFilters(b *testing.B) {
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
 		},
 	}
@@ -2090,7 +2088,7 @@ func BenchmarkListProxies_WithFilters(b *testing.B) {
 
 func BenchmarkGetProxy(b *testing.B) {
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test Proxy", Hostname: "test.example.com"}, nil
 		},
 	}
@@ -2109,7 +2107,7 @@ func BenchmarkGetProxy(b *testing.B) {
 
 func BenchmarkCreateProxy(b *testing.B) {
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			proxy.ID = 1
 			return nil
 		},
@@ -2157,7 +2155,7 @@ func BenchmarkGetStats(b *testing.B) {
 func TestListProxies_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		ListProxiesFunc: func(req service.ListProxiesRequest) (*models.ProxyListResponse, error) {
+		ListProxiesFunc: func(_ service.ListProxiesRequest) (*models.ProxyListResponse, error) {
 			return &models.ProxyListResponse{Items: []models.Proxy{}, Total: 0}, nil
 		},
 	}
@@ -2179,7 +2177,7 @@ func TestListProxies_ContextCancellation(t *testing.T) {
 func TestGetProxy_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
-		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
 			return &models.Proxy{ID: 1, Name: "Test", Hostname: "test.example.com"}, nil
 		},
 	}
@@ -2204,7 +2202,7 @@ func TestCreateProxy_ContextCancellation(t *testing.T) {
 	t.Parallel()
 	createCalled := false
 	mockService := &mocks.MockProxyService{
-		CreateProxyFunc: func(proxy *models.Proxy, userID int) error {
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
 			createCalled = true
 			proxy.ID = 1
 			return nil

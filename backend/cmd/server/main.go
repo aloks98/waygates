@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	// PostgreSQL driver
+	_ "github.com/lib/pq"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -20,9 +22,6 @@ import (
 	"github.com/aloks98/waygates/backend/internal/database"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
-
-	// PostgreSQL driver
-	_ "github.com/lib/pq"
 )
 
 func main() {

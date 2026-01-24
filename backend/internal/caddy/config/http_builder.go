@@ -45,7 +45,7 @@ func (b *HTTPBuilder) BuildReverseProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute
 
 	// Create the route
 	route := NewHTTPRoute()
-	route.AddMatch(NewHostMatcher(formatHostname(proxy.Hostname, proxy.SSLEnabled)))
+	route.AddMatch(NewHostMatcher(proxy.Hostname))
 	route.AddHandler(handlerToMap(handler))
 	route.SetTerminal(true)
 
@@ -72,7 +72,7 @@ func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(
 		return nil, fmt.Errorf("reverse proxy requires at least one upstream")
 	}
 
-	hostname := formatHostname(proxy.Hostname, proxy.SSLEnabled)
+	hostname := proxy.Hostname
 	handler := b.buildReverseProxyHandler(proxy, upstreams)
 
 	// Sort assignments by priority (lower number = higher priority)
@@ -138,7 +138,7 @@ func (b *HTTPBuilder) BuildRedirectRoutes(proxy *models.Proxy) ([]*HTTPRoute, er
 	handler := NewRedirectHandler(targetURL, statusCode)
 
 	route := NewHTTPRoute()
-	route.AddMatch(NewHostMatcher(formatHostname(proxy.Hostname, proxy.SSLEnabled)))
+	route.AddMatch(NewHostMatcher(proxy.Hostname))
 	route.AddHandler(ToHTTPHandler(handler))
 	route.SetTerminal(true)
 
@@ -162,7 +162,7 @@ func (b *HTTPBuilder) BuildStaticRoutes(proxy *models.Proxy) ([]*HTTPRoute, erro
 		handler.WithBrowse("")
 	}
 
-	hostname := formatHostname(proxy.Hostname, proxy.SSLEnabled)
+	hostname := proxy.Hostname
 	var routes []*HTTPRoute
 
 	// If try_files is configured (for SPAs), add a rewrite route
@@ -404,14 +404,6 @@ func (b *HTTPBuilder) parseStaticConfig(config models.JSONField) (*StaticConfig,
 	}
 
 	return sc, nil
-}
-
-// formatHostname formats the hostname for route matching.
-// If SSL is disabled, returns the hostname as-is (Caddy will handle HTTP only).
-func formatHostname(hostname string, sslEnabled bool) string {
-	// In JSON config, we just use the hostname directly
-	// The server's listen addresses determine HTTP vs HTTPS
-	return hostname
 }
 
 // mapLBStrategy maps strategy names to Caddy's policy names.

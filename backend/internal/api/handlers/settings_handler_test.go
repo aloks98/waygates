@@ -138,7 +138,7 @@ func TestSettingsHandler_Unit_Get_Success(t *testing.T) {
 func TestSettingsHandler_Unit_Get_NotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockSettingsService{
-		GetFunc: func(key string) (string, error) {
+		GetFunc: func(_ string) (string, error) {
 			return "", errors.New("setting not found")
 		},
 	}
@@ -236,7 +236,7 @@ func TestSettingsHandler_Update_InvalidJSON(t *testing.T) {
 func TestSettingsHandler_Update_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockSettingsService{
-		SetFunc: func(key, value string) error {
+		SetFunc: func(_, _ string) error {
 			return errors.New("database error")
 		},
 	}
@@ -259,7 +259,7 @@ func TestSettingsHandler_Update_EmptyValue(t *testing.T) {
 	t.Parallel()
 	var capturedValue string
 	mockService := &mocks.MockSettingsService{
-		SetFunc: func(key, value string) error {
+		SetFunc: func(_, value string) error {
 			capturedValue = value
 			return nil
 		},
@@ -466,7 +466,7 @@ func TestSettingsHandler_Unit_UpdateNotFound_RedirectWithoutURL(t *testing.T) {
 func TestSettingsHandler_UpdateNotFound_ServiceError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockSettingsService{
-		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+		SetNotFoundSettingsFunc: func(_ *models.NotFoundSettings) error {
 			return errors.New("database error")
 		},
 	}
