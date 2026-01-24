@@ -22,7 +22,7 @@ import {
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
 import { type ACLAssignment, ACLSelector } from './acl-selector';
@@ -77,6 +77,17 @@ function normalizeUpstreams(
   }));
 }
 
+// Helper to get a valid lb_strategy value
+function getValidLbStrategy(
+  strategy: string | undefined,
+): 'round_robin' | 'least_conn' | 'ip_hash' | 'random' {
+  const validStrategies = ['round_robin', 'least_conn', 'ip_hash', 'random'] as const;
+  if (strategy && validStrategies.includes(strategy as (typeof validStrategies)[number])) {
+    return strategy as (typeof validStrategies)[number];
+  }
+  return 'round_robin';
+}
+
 export function ReverseProxyForm({
   initialData,
   initialACLAssignments,
@@ -89,8 +100,27 @@ export function ReverseProxyForm({
     initialACLAssignments ?? [],
   );
 
-  const form = useForm({
-    defaultValues: {
+  // Compute default values based on initialData
+  // This ensures the form is always initialized with the correct values
+  const defaultValues = useMemo<ReverseProxyFormValues>(() => {
+    if (initialData) {
+      const upstreamData = normalizeUpstreams(initialData);
+      return {
+        name: initialData.name || '',
+        hostname: initialData.hostname || '',
+        description: initialData.description || '',
+        upstreams: upstreamData,
+        ssl_enabled: initialData.ssl_enabled ?? true,
+        block_exploits: initialData.block_exploits ?? true,
+        tls_insecure_skip_verify: initialData.tls_insecure_skip_verify ?? false,
+        lb_strategy: getValidLbStrategy(initialData.load_balancing?.strategy),
+        health_check_enabled: initialData.load_balancing?.health_checks?.enabled ?? false,
+        health_check_path: initialData.load_balancing?.health_checks?.path || '/health',
+        health_check_interval: initialData.load_balancing?.health_checks?.interval || '30s',
+        health_check_timeout: initialData.load_balancing?.health_checks?.timeout || '5s',
+      };
+    }
+    return {
       name: '',
       hostname: '',
       description: '',
@@ -103,7 +133,11 @@ export function ReverseProxyForm({
       health_check_path: '/health',
       health_check_interval: '30s',
       health_check_timeout: '5s',
-    } as ReverseProxyFormValues,
+    };
+  }, [initialData]);
+
+  const form = useForm({
+    defaultValues,
     validators: {
       onSubmit: reverseProxySchema,
     },
@@ -139,38 +173,14 @@ export function ReverseProxyForm({
     },
   });
 
+  // Reset form when initialData changes (for edit mode)
+  // Use defaultValues from useMemo to avoid duplication
   useEffect(() => {
     if (initialData) {
-      const upstreamData = normalizeUpstreams(initialData);
-
-      setUpstreams(upstreamData);
-
-      form.setFieldValue('name', initialData.name || '');
-      form.setFieldValue('hostname', initialData.hostname || '');
-      form.setFieldValue('description', initialData.description || '');
-      form.setFieldValue('upstreams', upstreamData);
-      form.setFieldValue('ssl_enabled', initialData.ssl_enabled ?? true);
-      form.setFieldValue('block_exploits', initialData.block_exploits ?? true);
-      form.setFieldValue('tls_insecure_skip_verify', initialData.tls_insecure_skip_verify ?? false);
-      form.setFieldValue('lb_strategy', initialData.load_balancing?.strategy || 'round_robin');
-      form.setFieldValue(
-        'health_check_enabled',
-        initialData.load_balancing?.health_checks?.enabled ?? false,
-      );
-      form.setFieldValue(
-        'health_check_path',
-        initialData.load_balancing?.health_checks?.path || '/health',
-      );
-      form.setFieldValue(
-        'health_check_interval',
-        initialData.load_balancing?.health_checks?.interval || '30s',
-      );
-      form.setFieldValue(
-        'health_check_timeout',
-        initialData.load_balancing?.health_checks?.timeout || '5s',
-      );
+      setUpstreams(normalizeUpstreams(initialData));
+      form.reset(defaultValues);
     }
-  }, [initialData, form.setFieldValue]);
+  }, [initialData, form, defaultValues]);
 
   // Update ACL assignments when initialACLAssignments changes (async load)
   useEffect(() => {
