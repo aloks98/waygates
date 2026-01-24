@@ -1,6 +1,6 @@
 .PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
 .PHONY: backend-run backend-build backend-test backend-test-coverage migrate-create
-.PHONY: lint lint-backend lint-ui format format-backend format-ui check setup-tools
+.PHONY: lint lint-backend lint-ui format format-backend check setup-tools
 
 # Default target
 help:
@@ -28,11 +28,10 @@ help:
 	@echo "Linting & Formatting:"
 	@echo "  make lint          - Run linters on both backend and UI"
 	@echo "  make lint-backend  - Run golangci-lint on backend"
-	@echo "  make lint-ui       - Run Biome linter on UI"
+	@echo "  make lint-ui       - Lint and format UI with Biome"
 	@echo "  make format        - Format both backend and UI code"
 	@echo "  make format-backend - Format Go code with gofmt/goimports"
-	@echo "  make format-ui     - Format UI code with Biome"
-	@echo "  make check         - Run all checks (lint + format check)"
+	@echo "  make check         - Run all checks (lint + tests)"
 	@echo ""
 	@echo "Database Migrations:"
 	@echo "  make migrate-create NAME=name - Create new migration files"
@@ -183,14 +182,14 @@ lint-backend:
 	@golangci-lint run ./backend/...
 	@echo "✓ Backend lint complete"
 
-# Lint UI with Biome
+# Lint and format UI with Biome
 lint-ui:
-	@echo "Linting UI..."
-	@cd ui && pnpm lint
-	@echo "✓ UI lint complete"
+	@echo "Linting and formatting UI..."
+	@cd ui && pnpm check:fix
+	@echo "✓ UI check complete"
 
 # Format all code
-format: format-backend format-ui
+format: format-backend lint-ui
 
 # Format backend with gofmt and goimports
 format-backend:
@@ -198,12 +197,6 @@ format-backend:
 	@gofmt -w -s backend/
 	@goimports -w -local github.com/aloks98/waygates backend/
 	@echo "✓ Backend formatted"
-
-# Format UI with Biome
-format-ui:
-	@echo "Formatting UI..."
-	@cd ui && pnpm format
-	@echo "✓ UI formatted"
 
 # Run all checks (lint + tests)
 check: lint backend-test

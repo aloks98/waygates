@@ -1,4 +1,4 @@
-import ky, { type KyInstance, type Options } from 'ky';
+import ky, { type KyInstance } from 'ky';
 import { useAuthStore } from '../stores/auth';
 import type { ApiResponse, TokenPair } from '../types/api';
 
@@ -61,20 +61,28 @@ export const api: KyInstance = ky.create({
       },
     ],
     afterResponse: [
-      async (request, options, response) => {
-        if (response.status === 401 && !request.url.includes('/auth/refresh')) {
+      async (request, _options, response) => {
+        // Skip refresh logic for auth endpoints to prevent loops
+        if (response.status === 401 && !request.url.includes('/auth/')) {
           const tokens = await handleTokenRefresh();
 
           if (tokens) {
-            const retryOptions: Options = {
-              ...options,
-              headers: {
-                ...Object.fromEntries(request.headers.entries()),
-                Authorization: `Bearer ${tokens.access_token}`,
-              },
-            };
-            return ky(request.url, retryOptions);
+            // Use native fetch for retry to avoid ky's prefixUrl handling
+            // request.url is already the full absolute URL
+            const headers = new Headers(request.headers);
+            headers.set('Authorization', `Bearer ${tokens.access_token}`);
+
+            return fetch(request.url, {
+              method: request.method,
+              headers,
+              body: request.body,
+              credentials: request.credentials,
+            });
           }
+
+          // Refresh failed - ensure user is logged out
+          const { logout } = useAuthStore.getState();
+          logout();
         }
         return response;
       },
