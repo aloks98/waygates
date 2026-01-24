@@ -2,11 +2,10 @@ package caddy
 
 import (
 	"context"
-	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,7 +23,7 @@ func TestNewReloader_Defaults(t *testing.T) {
 	r := NewReloader(cfg, logger)
 
 	assert.Equal(t, "caddy", r.caddyBinary, "Expected default caddy binary 'caddy'")
-	assert.Equal(t, "/etc/caddy/Caddyfile", r.caddyfilePath, "Expected default path '/etc/caddy/Caddyfile'")
+	assert.Equal(t, DefaultAdminAPIURL, r.adminAPIURL, "Expected default admin API URL")
 }
 
 // Test NewReloader with custom configuration
@@ -32,14 +31,14 @@ func TestNewReloader_CustomConfig(t *testing.T) {
 	t.Parallel()
 	logger := zap.NewNop()
 	cfg := ReloaderConfig{
-		CaddyBinary:   "/usr/local/bin/caddy",
-		CaddyfilePath: "/custom/path/Caddyfile",
+		CaddyBinary: "/usr/local/bin/caddy",
+		AdminAPIURL: "http://localhost:3000",
 	}
 
 	r := NewReloader(cfg, logger)
 
 	assert.Equal(t, "/usr/local/bin/caddy", r.caddyBinary, "Expected custom binary path")
-	assert.Equal(t, "/custom/path/Caddyfile", r.caddyfilePath, "Expected custom config path")
+	assert.Equal(t, "http://localhost:3000", r.adminAPIURL, "Expected custom admin API URL")
 }
 
 // Test GetStatus returns correct status information
@@ -47,15 +46,15 @@ func TestReloaderStatus(t *testing.T) {
 	t.Parallel()
 	logger := zap.NewNop()
 	cfg := ReloaderConfig{
-		CaddyBinary:   "/usr/bin/caddy",
-		CaddyfilePath: "/etc/caddy/Caddyfile",
+		CaddyBinary: "/usr/bin/caddy",
+		AdminAPIURL: "http://localhost:2019",
 	}
 
 	r := NewReloader(cfg, logger)
 	status := r.GetStatus()
 
 	assert.Equal(t, "/usr/bin/caddy", status.CaddyBinary, "Status CaddyBinary mismatch")
-	assert.Equal(t, "/etc/caddy/Caddyfile", status.CaddyfilePath, "Status CaddyfilePath mismatch")
+	assert.Equal(t, "http://localhost:2019", status.AdminAPIURL, "Status AdminAPIURL mismatch")
 	assert.Equal(t, 0, status.ReloadCount, "Initial reload count should be 0")
 	assert.True(t, status.LastReload.IsZero(), "Initial last reload should be zero time")
 }
@@ -68,7 +67,7 @@ func TestValidationError(t *testing.T) {
 		Output:  "line 5: unexpected token",
 	}
 
-	expected := "caddyfile validation failed: invalid syntax"
+	expected := "configuration validation failed: invalid syntax"
 	assert.Equal(t, expected, err.Error(), "ValidationError.Error() mismatch")
 }
 
@@ -101,1084 +100,349 @@ func TestExtractValidationError(t *testing.T) {
 			expected: "unexpected token at position 5",
 		},
 		{
-			name:     "Empty string",
+			name:     "Empty output",
 			input:    "",
 			expected: "validation failed with unknown error",
 		},
 		{
 			name:     "Only whitespace",
-			input:    "   \n  \n  ",
+			input:    "   \n   \n   ",
 			expected: "validation failed with unknown error",
-		},
-		{
-			name:     "Error in middle of output",
-			input:    "INFO starting caddy\nError: adapter error\nINFO done",
-			expected: "adapter error",
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			result := extractValidationError(tt.input)
-			assert.Equal(t, tt.expected, result, "extractValidationError mismatch")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := extractValidationError(tc.input)
+			assert.Equal(t, tc.expected, result, "extractValidationError result mismatch")
 		})
 	}
 }
 
-// Test ReloadResult struct
+// Test ReloadResult fields
 func TestReloadResult(t *testing.T) {
 	t.Parallel()
-	result := ReloadResult{
+
+	result := &ReloadResult{
 		Success:     true,
-		Message:     "OK",
-		Duration:    100 * time.Millisecond,
+		Message:     "Configuration reloaded successfully",
 		ReloadCount: 5,
 	}
 
-	assert.True(t, result.Success, "Expected success to be true")
-	assert.Equal(t, 5, result.ReloadCount, "Expected reload count 5")
-	assert.Equal(t, "OK", result.Message, "Expected message 'OK'")
-	assert.Equal(t, 100*time.Millisecond, result.Duration, "Expected duration 100ms")
+	assert.True(t, result.Success, "Expected Success to be true")
+	assert.Equal(t, "Configuration reloaded successfully", result.Message)
+	assert.Equal(t, 5, result.ReloadCount)
 }
 
-// Test Validate with successful validation
-func TestReloader_Validate_Success(t *testing.T) {
+// Test TestConnection with invalid binary
+func TestTestConnection_InvalidBinary(t *testing.T) {
 	t.Parallel()
-
-	// Create a mock caddy script that returns success for validate
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        echo "Valid configuration"
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	// Create a mock Caddyfile
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte(":8080 { respond \"Hello\" }"), 0644)
-	require.NoError(t, err)
-
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
+	r := NewReloader(ReloaderConfig{
+		CaddyBinary: "/nonexistent/caddy/binary",
+	}, logger)
 
 	ctx := context.Background()
-	err = r.Validate(ctx)
-	assert.NoError(t, err, "Validate should succeed with valid config")
+	err := r.TestConnection(ctx)
+	assert.Error(t, err, "TestConnection should fail with invalid binary")
+	assert.Contains(t, err.Error(), "caddy not available")
 }
 
-// Test Validate with validation failure
-func TestReloader_Validate_Failure(t *testing.T) {
+// Test TestConnection with context cancellation
+func TestTestConnection_ContextCancelled(t *testing.T) {
 	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        echo "Error: invalid directive on line 5" >&2
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("invalid config"), 0644)
-	require.NoError(t, err)
-
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err = r.Validate(ctx)
-
-	require.Error(t, err, "Validate should fail with invalid config")
-
-	var validationErr *ValidationError
-	require.True(t, errors.As(err, &validationErr), "Error should be ValidationError")
-	assert.Contains(t, validationErr.Message, "invalid directive", "Error message should contain directive info")
-}
-
-// Test Validate with stdout error output (when stderr is empty)
-func TestReloader_Validate_StdoutError(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        echo "Error: syntax error"
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("bad config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err = r.Validate(ctx)
-
-	require.Error(t, err)
-	var validationErr *ValidationError
-	require.True(t, errors.As(err, &validationErr))
-	assert.Contains(t, validationErr.Output, "syntax error")
-}
-
-// Test Validate with invalid binary path
-func TestReloader_Validate_InvalidBinary(t *testing.T) {
-	t.Parallel()
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   "/nonexistent/binary/caddy",
-		CaddyfilePath: "/tmp/Caddyfile",
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err := r.Validate(ctx)
-
-	require.Error(t, err, "Validate should fail with nonexistent binary")
-}
-
-// Test Validate with nonexistent Caddyfile path
-func TestReloader_Validate_InvalidPath(t *testing.T) {
-	t.Parallel()
-
-	// Check if caddy is available for this test
-	if _, err := exec.LookPath("caddy"); err != nil {
-		t.Skip("Caddy binary not available, skipping test")
-	}
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyfilePath: "/nonexistent/path/Caddyfile",
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err := r.Validate(ctx)
-	require.Error(t, err, "Validation should fail for nonexistent file")
-}
-
-// Test Validate with context cancellation
-func TestReloader_Validate_ContextCancellation(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	// Create a script that sleeps to allow cancellation
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-sleep 10
-exit 0
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
+	r := NewReloader(ReloaderConfig{
+		CaddyBinary: "sleep", // Use sleep to simulate slow command
+	}, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	err = r.Validate(ctx)
-	require.Error(t, err, "Validate should fail with canceled context")
+	err := r.TestConnection(ctx)
+	assert.Error(t, err, "TestConnection should fail with canceled context")
 }
 
-// Test Reload with successful reload
-func TestReloader_Reload_Success(t *testing.T) {
+// Test ValidateJSON with invalid binary
+func TestValidateJSON_InvalidBinary(t *testing.T) {
 	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        echo "Valid configuration"
-        exit 0
-        ;;
-    "reload")
-        echo "Configuration reloaded"
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte(":8080 { respond \"Hello\" }"), 0644)
-	require.NoError(t, err)
-
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
+	r := NewReloader(ReloaderConfig{
+		CaddyBinary: "/nonexistent/caddy/binary",
+	}, logger)
 
-	ctx := context.Background()
-	result, err := r.Reload(ctx)
-
-	require.NoError(t, err, "Reload should succeed")
-	require.NotNil(t, result, "Result should not be nil")
-	assert.True(t, result.Success, "Result.Success should be true")
-	assert.Equal(t, 1, result.ReloadCount, "ReloadCount should be 1")
-	assert.Greater(t, result.Duration, time.Duration(0), "Duration should be positive")
-
-	// Verify status is updated
-	status := r.GetStatus()
-	assert.Equal(t, 1, status.ReloadCount, "Status ReloadCount should be 1")
-	assert.False(t, status.LastReload.IsZero(), "LastReload should be set")
-}
-
-// Test Reload increments reload count correctly
-func TestReloader_Reload_IncrementCount(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-exit 0
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-
-	// Reload multiple times
-	for i := 1; i <= 3; i++ {
-		result, err := r.Reload(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, i, result.ReloadCount, "ReloadCount should increment")
-	}
-
-	status := r.GetStatus()
-	assert.Equal(t, 3, status.ReloadCount, "Final ReloadCount should be 3")
-}
-
-// Test Reload with validation failure
-func TestReloader_Reload_ValidationFailure(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        echo "Error: invalid config" >&2
-        exit 1
-        ;;
-    "reload")
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("bad config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	result, err := r.Reload(ctx)
-
-	require.Error(t, err, "Reload should fail when validation fails")
-	assert.Nil(t, result, "Result should be nil on failure")
+	err := r.ValidateJSON("/some/config.json")
+	assert.Error(t, err, "ValidateJSON should fail with invalid binary")
 
 	var validationErr *ValidationError
-	assert.True(t, errors.As(err, &validationErr), "Error should be ValidationError")
+	assert.ErrorAs(t, err, &validationErr, "error should be ValidationError")
 }
 
-// Test Reload with reload command failure
-func TestReloader_Reload_ReloadFailure(t *testing.T) {
+// Test ReloadJSON with successful admin API response
+func TestReloadJSON_AdminAPISuccess(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        exit 0
-        ;;
-    "reload")
-        echo "Error: could not reload config" >&2
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
+	// Create a mock admin API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/load", r.URL.Path)
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
+	// Create a temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "caddy.json")
+	configContent := `{"admin": {"listen": "localhost:2019"}}`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err, "failed to write test config")
 
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	r := &Reloader{
+		caddyBinary: "echo", // Use echo as a dummy validator (always succeeds)
+		adminAPIURL: server.URL,
+		httpClient:  server.Client(),
+		logger:      logger,
 	}
-	r := NewReloader(cfg, logger)
 
 	ctx := context.Background()
-	result, err := r.Reload(ctx)
+	result, err := r.ReloadJSON(ctx, configPath)
 
-	require.Error(t, err, "Reload should fail when reload command fails")
-	assert.Nil(t, result, "Result should be nil on failure")
-	assert.Contains(t, err.Error(), "caddy reload failed", "Error should indicate reload failure")
+	require.NoError(t, err, "ReloadJSON should not return error")
+	require.NotNil(t, result, "result should not be nil")
+	assert.True(t, result.Success, "result.Success should be true")
+	assert.Equal(t, 1, result.ReloadCount, "reload count should be 1")
+	assert.Greater(t, result.Duration, time.Duration(0), "duration should be positive")
 }
 
-// Test Reload with stdout error (stderr empty)
-func TestReloader_Reload_StdoutError(t *testing.T) {
+// Test ReloadJSON with admin API error response
+func TestReloadJSON_AdminAPIError(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        exit 0
-        ;;
-    "reload")
-        echo "reload error from stdout"
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
+	// Create a mock admin API server that returns an error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte("invalid configuration"))
+	}))
+	defer server.Close()
 
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
+	// Create a temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "caddy.json")
+	configContent := `{"admin": {"listen": "localhost:2019"}}`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err, "failed to write test config")
 
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	r := &Reloader{
+		caddyBinary: "echo",
+		adminAPIURL: server.URL,
+		httpClient:  server.Client(),
+		logger:      logger,
 	}
-	r := NewReloader(cfg, logger)
 
 	ctx := context.Background()
-	result, err := r.Reload(ctx)
+	result, err := r.ReloadJSON(ctx, configPath)
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "reload error from stdout")
+	assert.Error(t, err, "ReloadJSON should return error for bad status")
+	assert.Nil(t, result, "result should be nil on error")
+	assert.Contains(t, err.Error(), "400")
 }
 
-// Test ForceReload with successful reload
-func TestReloader_ForceReload_Success(t *testing.T) {
+// Test ReloadJSON with nonexistent config file
+func TestReloadJSON_FileNotFound(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "reload")
-        echo "Force reload successful"
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	r := &Reloader{
+		caddyBinary: "echo",
+		adminAPIURL: "http://localhost:2019",
+		httpClient:  &http.Client{Timeout: 5 * time.Second},
+		logger:      logger,
 	}
-	r := NewReloader(cfg, logger)
 
 	ctx := context.Background()
-	result, err := r.ForceReload(ctx)
+	result, err := r.ReloadJSON(ctx, "/nonexistent/path/caddy.json")
 
-	require.NoError(t, err, "ForceReload should succeed")
-	require.NotNil(t, result)
-	assert.True(t, result.Success)
-	assert.Equal(t, 1, result.ReloadCount)
-	assert.Contains(t, result.Message, "force reloaded")
+	assert.Error(t, err, "ReloadJSON should return error for nonexistent file")
+	assert.Nil(t, result, "result should be nil on error")
 }
 
-// Test ForceReload with failure
-func TestReloader_ForceReload_Failure(t *testing.T) {
+// Test ReloadJSON updates status correctly
+func TestReloadJSON_UpdatesStatus(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "reload")
-        echo "Error: force reload failed" >&2
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
+	// Create a mock admin API server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
+	// Create a temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "caddy.json")
+	configContent := `{"admin": {"listen": "localhost:2019"}}`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err, "failed to write test config")
 
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	r := &Reloader{
+		caddyBinary: "echo",
+		adminAPIURL: server.URL,
+		httpClient:  server.Client(),
+		logger:      logger,
 	}
-	r := NewReloader(cfg, logger)
 
-	ctx := context.Background()
-	result, err := r.ForceReload(ctx)
-
-	require.Error(t, err, "ForceReload should fail")
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "caddy force reload failed")
-}
-
-// Test ForceReload with stdout error
-func TestReloader_ForceReload_StdoutError(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "reload")
-        echo "stdout error message"
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	result, err := r.ForceReload(ctx)
-
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "stdout error message")
-}
-
-// Test AdaptAndReload with successful execution
-func TestReloader_AdaptAndReload_Success(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "adapt")
-        echo '{"apps":{"http":{}}}'
-        exit 0
-        ;;
-    "reload")
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte(":8080 { respond \"Hello\" }"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	jsonConfig, err := r.AdaptAndReload(ctx)
-
-	require.NoError(t, err, "AdaptAndReload should succeed")
-	assert.Contains(t, jsonConfig, "apps", "JSON config should contain apps")
-
-	// Verify reload count is incremented
+	// Check initial status
 	status := r.GetStatus()
-	assert.Equal(t, 1, status.ReloadCount)
-}
-
-// Test AdaptAndReload with adapt failure
-func TestReloader_AdaptAndReload_AdaptFailure(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "adapt")
-        echo "Error: failed to adapt config" >&2
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("bad config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
+	assert.Equal(t, 0, status.ReloadCount, "initial reload count should be 0")
+	assert.True(t, status.LastReload.IsZero(), "initial LastReload should be zero")
 
 	ctx := context.Background()
-	jsonConfig, err := r.AdaptAndReload(ctx)
 
-	require.Error(t, err, "AdaptAndReload should fail when adapt fails")
-	assert.Empty(t, jsonConfig)
-	assert.Contains(t, err.Error(), "failed to adapt Caddyfile")
+	// First reload
+	_, err = r.ReloadJSON(ctx, configPath)
+	require.NoError(t, err)
+
+	status = r.GetStatus()
+	assert.Equal(t, 1, status.ReloadCount, "reload count should be 1")
+	assert.False(t, status.LastReload.IsZero(), "LastReload should not be zero")
+
+	firstReloadTime := status.LastReload
+
+	// Small delay to ensure time difference
+	time.Sleep(10 * time.Millisecond)
+
+	// Second reload
+	_, err = r.ReloadJSON(ctx, configPath)
+	require.NoError(t, err)
+
+	status = r.GetStatus()
+	assert.Equal(t, 2, status.ReloadCount, "reload count should be 2")
+	assert.True(t, status.LastReload.After(firstReloadTime), "LastReload should be updated")
 }
 
-// Test AdaptAndReload with reload failure after successful adapt
-func TestReloader_AdaptAndReload_ReloadFailure(t *testing.T) {
+// Test ReloadJSON with context timeout
+func TestReloadJSON_ContextTimeout(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "adapt")
-        echo '{"apps":{}}'
-        exit 0
-        ;;
-    "reload")
-        echo "Error: reload failed after adapt" >&2
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
+	// Create a slow server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(2 * time.Second)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
+	// Create a temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "caddy.json")
+	configContent := `{"admin": {"listen": "localhost:2019"}}`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err, "failed to write test config")
 
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	jsonConfig, err := r.AdaptAndReload(ctx)
-
-	require.Error(t, err, "AdaptAndReload should fail when reload fails")
-	// JSON config should still be returned even though reload failed
-	assert.Contains(t, jsonConfig, "apps")
-	assert.Contains(t, err.Error(), "failed to reload after adapt")
-}
-
-// Test TestConnection with successful connection
-func TestReloader_TestConnection_Success(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "version")
-        echo "v2.7.5"
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary: scriptPath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err = r.TestConnection(ctx)
-
-	assert.NoError(t, err, "TestConnection should succeed")
-}
-
-// Test TestConnection with invalid binary
-func TestReloader_TestConnection_InvalidBinary(t *testing.T) {
-	t.Parallel()
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary: "/nonexistent/binary",
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err := r.TestConnection(ctx)
-
-	require.Error(t, err, "TestConnection should fail for invalid binary")
-	assert.Contains(t, err.Error(), "caddy not available")
-}
-
-// Test TestConnection with failing caddy command
-func TestReloader_TestConnection_CommandFailure(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-exit 1
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary: scriptPath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	err = r.TestConnection(ctx)
-
-	require.Error(t, err, "TestConnection should fail when command fails")
-}
-
-// Test concurrent access to Reloader (thread safety)
-func TestReloader_ConcurrentAccess(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-exit 0
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	numGoroutines := 10
-
-	// Run multiple concurrent operations
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(3)
-
-		go func() {
-			defer wg.Done()
-			_ = r.Validate(ctx)
-		}()
-
-		go func() {
-			defer wg.Done()
-			_, _ = r.Reload(ctx)
-		}()
-
-		go func() {
-			defer wg.Done()
-			_ = r.GetStatus()
-		}()
+	r := &Reloader{
+		caddyBinary: "echo",
+		adminAPIURL: server.URL,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		logger:      logger,
 	}
 
-	wg.Wait()
-
-	// Verify final state is consistent
-	status := r.GetStatus()
-	assert.GreaterOrEqual(t, status.ReloadCount, 0, "ReloadCount should be non-negative")
-}
-
-// Test context timeout during Validate
-func TestReloader_Validate_ContextTimeout(t *testing.T) {
-	t.Parallel()
-
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	// Script that sleeps longer than context timeout
-	script := `#!/usr/bin/env bash
-sleep 5
-exit 0
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
+	// Create a context that times out quickly
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	err = r.Validate(ctx)
-	require.Error(t, err, "Validate should fail with context timeout")
+	_, err = r.ReloadJSON(ctx, configPath)
+	assert.Error(t, err, "ReloadJSON should fail with context timeout")
 }
 
-// Test context timeout during Reload
-func TestReloader_Reload_ContextTimeout(t *testing.T) {
+// Test ReloadJSON with validation failure (invalid caddy binary simulating validation error)
+func TestReloadJSON_ValidationFailure(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	// Script that completes validation but sleeps during reload
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        exit 0
-        ;;
-    "reload")
-        sleep 5
-        exit 0
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
 	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	result, err := r.Reload(ctx)
-	require.Error(t, err, "Reload should fail with context timeout")
-	assert.Nil(t, result)
-}
-
-// Integration test - only runs if caddy binary is available
-func TestReloader_Integration(t *testing.T) {
-	// Check if caddy is available
-	if _, err := exec.LookPath("caddy"); err != nil {
-		t.Skip("Caddy binary not available, skipping integration test")
+	r := &Reloader{
+		caddyBinary: "/nonexistent/caddy", // Will fail validation
+		adminAPIURL: "http://localhost:2019",
+		httpClient:  &http.Client{Timeout: 5 * time.Second},
+		logger:      logger,
 	}
 
-	logger := zap.NewNop()
-	tempDir := t.TempDir()
-
-	// Create a valid Caddyfile
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	validConfig := `{
-    admin off
-}
-
-:8080 {
-    respond "Hello"
-}
-`
-	err := os.WriteFile(caddyfilePath, []byte(validConfig), 0644)
-	require.NoError(t, err, "Failed to write Caddyfile")
-
-	cfg := ReloaderConfig{
-		CaddyfilePath: caddyfilePath,
-	}
-	r := NewReloader(cfg, logger)
+	// Create a temp config file
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "caddy.json")
+	configContent := `{"admin": {"listen": "localhost:2019"}}`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err, "failed to write test config")
 
 	ctx := context.Background()
+	result, err := r.ReloadJSON(ctx, configPath)
 
-	// Test validation of valid config
-	t.Run("Validate valid config", func(t *testing.T) {
-		err := r.Validate(ctx)
-		assert.NoError(t, err, "Valid config should pass validation")
-	})
+	assert.Error(t, err, "ReloadJSON should fail when validation fails")
+	assert.Nil(t, result, "result should be nil on validation failure")
 
-	// Test validation of invalid config
-	t.Run("Validate invalid config", func(t *testing.T) {
-		invalidConfig := `{
-    invalid_directive
-}
-`
-		err := os.WriteFile(caddyfilePath, []byte(invalidConfig), 0644)
-		require.NoError(t, err, "Failed to write invalid Caddyfile")
-
-		err = r.Validate(ctx)
-		require.Error(t, err, "Invalid config should fail validation")
-
-		// Check it's a ValidationError
-		var validationErr *ValidationError
-		assert.True(t, errors.As(err, &validationErr), "Expected ValidationError")
-	})
-
-	// Test TestConnection
-	t.Run("Test connection", func(t *testing.T) {
-		err := r.TestConnection(ctx)
-		assert.NoError(t, err, "TestConnection should succeed when caddy is available")
-	})
+	var validationErr *ValidationError
+	assert.ErrorAs(t, err, &validationErr, "error should be ValidationError")
 }
 
-// Test Reload does not update state on failure
-func TestReloader_Reload_NoStateUpdateOnFailure(t *testing.T) {
+// Test DefaultAdminAPIURL constant
+func TestDefaultAdminAPIURL(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "http://localhost:2019", DefaultAdminAPIURL)
+}
+
+// Test ReloaderStatus struct
+func TestReloaderStatus_Fields(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "validate")
-        exit 0
-        ;;
-    "reload")
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	now := time.Now()
+	status := ReloaderStatus{
+		CaddyBinary: "/usr/bin/caddy",
+		AdminAPIURL: "http://localhost:2019",
+		LastReload:  now,
+		ReloadCount: 10,
 	}
-	r := NewReloader(cfg, logger)
 
-	ctx := context.Background()
-
-	// Get initial status
-	initialStatus := r.GetStatus()
-
-	// Attempt reload (will fail)
-	_, err = r.Reload(ctx)
-	require.Error(t, err)
-
-	// Verify state was not updated
-	finalStatus := r.GetStatus()
-	assert.Equal(t, initialStatus.ReloadCount, finalStatus.ReloadCount, "ReloadCount should not change on failure")
-	assert.Equal(t, initialStatus.LastReload, finalStatus.LastReload, "LastReload should not change on failure")
+	assert.Equal(t, "/usr/bin/caddy", status.CaddyBinary)
+	assert.Equal(t, "http://localhost:2019", status.AdminAPIURL)
+	assert.Equal(t, now, status.LastReload)
+	assert.Equal(t, 10, status.ReloadCount)
 }
 
-// Test ForceReload does not update state on failure
-func TestReloader_ForceReload_NoStateUpdateOnFailure(t *testing.T) {
+// Test ValidationError with empty values
+func TestValidationError_EmptyValues(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-exit 1
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	err := &ValidationError{
+		Message: "",
+		Output:  "",
 	}
-	r := NewReloader(cfg, logger)
 
-	ctx := context.Background()
-
-	// Get initial status
-	initialStatus := r.GetStatus()
-
-	// Attempt force reload (will fail)
-	_, err = r.ForceReload(ctx)
-	require.Error(t, err)
-
-	// Verify state was not updated
-	finalStatus := r.GetStatus()
-	assert.Equal(t, initialStatus.ReloadCount, finalStatus.ReloadCount, "ReloadCount should not change on failure")
-	assert.Equal(t, initialStatus.LastReload, finalStatus.LastReload, "LastReload should not change on failure")
+	assert.Equal(t, "configuration validation failed: ", err.Error())
 }
 
-// Test AdaptAndReload does not update state on adapt failure
-func TestReloader_AdaptAndReload_NoStateUpdateOnAdaptFailure(t *testing.T) {
+// Test ReloadResult with duration
+func TestReloadResult_Duration(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	scriptPath := filepath.Join(tempDir, "caddy")
-	script := `#!/usr/bin/env bash
-case "$1" in
-    "adapt")
-        exit 1
-        ;;
-    *)
-        exit 1
-        ;;
-esac
-`
-	err := os.WriteFile(scriptPath, []byte(script), 0755)
-	require.NoError(t, err)
-
-	caddyfilePath := filepath.Join(tempDir, "Caddyfile")
-	err = os.WriteFile(caddyfilePath, []byte("config"), 0644)
-	require.NoError(t, err)
-
-	logger := zap.NewNop()
-	cfg := ReloaderConfig{
-		CaddyBinary:   scriptPath,
-		CaddyfilePath: caddyfilePath,
+	result := &ReloadResult{
+		Success:     true,
+		Message:     "OK",
+		Duration:    150 * time.Millisecond,
+		ReloadCount: 1,
 	}
-	r := NewReloader(cfg, logger)
 
-	ctx := context.Background()
+	assert.Equal(t, 150*time.Millisecond, result.Duration)
+}
 
-	// Get initial status
-	initialStatus := r.GetStatus()
+// Test NewReloader creates http client with timeout
+func TestNewReloader_HttpClientTimeout(t *testing.T) {
+	t.Parallel()
+	logger := zap.NewNop()
 
-	// Attempt adapt and reload (will fail)
-	_, err = r.AdaptAndReload(ctx)
-	require.Error(t, err)
+	r := NewReloader(ReloaderConfig{}, logger)
 
-	// Verify state was not updated
-	finalStatus := r.GetStatus()
-	assert.Equal(t, initialStatus.ReloadCount, finalStatus.ReloadCount, "ReloadCount should not change on failure")
+	assert.NotNil(t, r.httpClient)
+	assert.Equal(t, 30*time.Second, r.httpClient.Timeout)
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/aloks98/waygates/backend/internal/api/middleware"
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/caddy"
-	"github.com/aloks98/waygates/backend/internal/caddy/caddyfile"
 	"github.com/aloks98/waygates/backend/internal/config"
 	"github.com/aloks98/waygates/backend/internal/repository"
 	"github.com/aloks98/waygates/backend/internal/service"
@@ -60,21 +59,14 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	r.Use(chiMiddleware.Timeout(60 * time.Second))
 	r.Use(middleware.BodyLimit(middleware.DefaultBodyLimit)) // 1MB body limit
 
-	// Initialize Caddy file-based components
+	// Initialize Caddy components
 	// Use environment variables if set (for testing), otherwise use Docker defaults
 	caddyBasePath := getEnvOrDefault("CADDY_BASE_PATH", "/etc/caddy")
-	caddyfilePath := getEnvOrDefault("CADDY_CADDYFILE_PATH", "/etc/caddy/Caddyfile")
 	caddyBinary := getEnvOrDefault("CADDY_BINARY", "caddy")
 
-	caddyBuilder := caddyfile.NewBuilderWithOptions(caddyfile.BuilderOptions{
-		Logger:            logger,
-		WaygatesVerifyURL: cfg.ACL.WaygatesVerifyURL,
-		WaygatesLoginURL:  cfg.ACL.WaygatesLoginURL,
-	})
 	caddyFileManager := caddy.NewFileManager(caddyBasePath, logger)
 	caddyReloader := caddy.NewReloader(caddy.ReloaderConfig{
-		CaddyBinary:   caddyBinary,
-		CaddyfilePath: caddyfilePath,
+		CaddyBinary: caddyBinary,
 	}, logger)
 
 	// Repositories
@@ -89,15 +81,18 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Services - SyncService must be created first as ProxyService depends on it
 	syncService := service.NewSyncService(service.SyncServiceConfig{
-		ProxyRepo:    proxyRepo,
-		SettingsRepo: settingsRepo,
-		ACLRepo:      aclRepo,
-		Builder:      caddyBuilder,
-		FileManager:  caddyFileManager,
-		Reloader:     caddyReloader,
-		Logger:       logger,
-		Email:        cfg.Caddy.Email,
-		ACMEProvider: cfg.Caddy.ACMEProvider,
+		ProxyRepo:           proxyRepo,
+		SettingsRepo:        settingsRepo,
+		ACLRepo:             aclRepo,
+		FileManager:         caddyFileManager,
+		Reloader:            caddyReloader,
+		Logger:              logger,
+		Email:               cfg.Caddy.Email,
+		ACMEProvider:        cfg.Caddy.ACMEProvider,
+		WaygatesVerifyURL:   cfg.ACL.WaygatesVerifyURL,
+		WaygatesLoginURL:    cfg.ACL.WaygatesLoginURL,
+		StoragePath:         cfg.Caddy.StoragePath,
+		ConfigRetentionDays: cfg.Caddy.ConfigRetentionDays,
 	})
 
 	proxyService := service.NewProxyService(service.ProxyServiceConfig{
@@ -110,9 +105,10 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	auditService := service.NewAuditService(auditLogRepo, settingsService, logger)
 	aclService := service.NewACLService(service.ACLServiceConfig{
-		ACLRepo:   aclRepo,
-		ProxyRepo: proxyRepo,
-		Logger:    logger,
+		ACLRepo:      aclRepo,
+		ProxyRepo:    proxyRepo,
+		OAuthChecker: auth.NewOAuthCheckerAdapter(oauthProviderManager),
+		Logger:       logger,
 	})
 
 	// Ensure Caddy directories exist

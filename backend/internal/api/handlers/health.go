@@ -32,7 +32,7 @@ func NewHealthHandlerWithDB(db *gorm.DB) *HealthHandler {
 }
 
 // HealthCheck returns the health status of the service
-func (h *HealthHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+func (h *HealthHandler) HealthCheck(w http.ResponseWriter, _ *http.Request) {
 	uptime := time.Since(h.startTime)
 
 	// Check database health

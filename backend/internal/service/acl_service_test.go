@@ -486,7 +486,7 @@ func TestCreateGroup_Success(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateGroupFunc: func(group *models.ACLGroup) error {
@@ -582,7 +582,7 @@ func TestCreateGroup_WithExplicitCombinationMode(t *testing.T) {
 	var createdGroup *models.ACLGroup
 
 	aclRepo := &MockACLRepository{
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateGroupFunc: func(group *models.ACLGroup) error {
@@ -634,7 +634,7 @@ func TestGetGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -651,7 +651,7 @@ func TestListGroups_Success(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		ListGroupsFunc: func(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 			return []models.ACLGroup{
 				{ID: 1, Name: "Group 1"},
 				{ID: 2, Name: "Group 2"},
@@ -709,10 +709,10 @@ func TestUpdateGroup_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id, Name: "Old Name", CombinationMode: models.ACLCombinationModeAny}, nil
 		},
-		GetGroupByNameFunc: func(name string) (*models.ACLGroup, error) {
+		GetGroupByNameFunc: func(_ string) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		UpdateGroupFunc: func(group *models.ACLGroup) error {
+		UpdateGroupFunc: func(_ *models.ACLGroup) error {
 			return nil
 		},
 	}
@@ -729,7 +729,7 @@ func TestUpdateGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -774,7 +774,7 @@ func TestDeleteGroup_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id, Name: "Test"}, nil
 		},
-		DeleteGroupFunc: func(id int) error {
+		DeleteGroupFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -796,7 +796,7 @@ func TestDeleteGroup_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -847,7 +847,7 @@ func TestAddIPRule_GroupNotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -889,7 +889,7 @@ func TestUpdateIPRule_Success(t *testing.T) {
 		GetIPRuleByIDFunc: func(id int) (*models.ACLIPRule, error) {
 			return &models.ACLIPRule{ID: id, RuleType: models.ACLIPRuleTypeAllow, CIDR: "192.168.1.0/24"}, nil
 		},
-		UpdateIPRuleFunc: func(rule *models.ACLIPRule) error {
+		UpdateIPRuleFunc: func(_ *models.ACLIPRule) error {
 			return nil
 		},
 	}
@@ -911,7 +911,7 @@ func TestDeleteIPRule_Success(t *testing.T) {
 		GetIPRuleByIDFunc: func(id int) (*models.ACLIPRule, error) {
 			return &models.ACLIPRule{ID: id}, nil
 		},
-		DeleteIPRuleFunc: func(id int) error {
+		DeleteIPRuleFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -942,7 +942,7 @@ func TestAddBasicAuthUser_Success(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetBasicAuthUserFunc: func(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+		GetBasicAuthUserFunc: func(_ int, _ string) (*models.ACLBasicAuthUser, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateBasicAuthUserFunc: func(user *models.ACLBasicAuthUser) error {
@@ -1011,7 +1011,7 @@ func TestAddBasicAuthUser_UserExists(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetBasicAuthUserFunc: func(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+		GetBasicAuthUserFunc: func(_ int, username string) (*models.ACLBasicAuthUser, error) {
 			return &models.ACLBasicAuthUser{ID: 1, Username: username}, nil
 		},
 	}
@@ -1060,7 +1060,7 @@ func TestDeleteBasicAuthUser_Success(t *testing.T) {
 		GetBasicAuthUserByIDFunc: func(id int) (*models.ACLBasicAuthUser, error) {
 			return &models.ACLBasicAuthUser{ID: id}, nil
 		},
-		DeleteBasicAuthUserFunc: func(id int) error {
+		DeleteBasicAuthUserFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1149,10 +1149,10 @@ func TestConfigureWaygatesAuth_Create(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
+		CreateWaygatesAuthFunc: func(_ *models.ACLWaygatesAuth) error {
 			createCalled = true
 			return nil
 		},
@@ -1182,7 +1182,7 @@ func TestConfigureWaygatesAuth_Update(t *testing.T) {
 		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
 			return &models.ACLWaygatesAuth{ID: 1, ACLGroupID: groupID}, nil
 		},
-		UpdateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
+		UpdateWaygatesAuthFunc: func(_ *models.ACLWaygatesAuth) error {
 			updateCalled = true
 			return nil
 		},
@@ -1209,7 +1209,7 @@ func TestConfigureWaygatesAuth_DefaultSessionTTL(t *testing.T) {
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 		CreateWaygatesAuthFunc: func(auth *models.ACLWaygatesAuth) error {
@@ -1264,7 +1264,7 @@ func TestAssignToProxy_ProxyNotFound(t *testing.T) {
 	t.Parallel()
 
 	proxyRepo := &MockProxyRepository{
-		GetByIDFunc: func(id int) (*models.Proxy, error) {
+		GetByIDFunc: func(_ int) (*models.Proxy, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1281,7 +1281,7 @@ func TestAssignToProxy_GroupNotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1327,7 +1327,7 @@ func TestRemoveFromProxy_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteProxyACLAssignmentByProxyAndGroupFunc: func(proxyID, groupID int) error {
+		DeleteProxyACLAssignmentByProxyAndGroupFunc: func(_, _ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1376,7 +1376,7 @@ func TestUpdateBranding_Success(t *testing.T) {
 	updateCalled := false
 
 	aclRepo := &MockACLRepository{
-		UpdateBrandingFunc: func(branding *models.ACLBranding) error {
+		UpdateBrandingFunc: func(_ *models.ACLBranding) error {
 			updateCalled = true
 			return nil
 		},
@@ -1483,7 +1483,7 @@ func TestValidateSession_NotFound(t *testing.T) {
 	t.Parallel()
 
 	aclRepo := &MockACLRepository{
-		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
+		GetSessionByTokenFunc: func(_ string) (*models.ACLSession, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1520,7 +1520,7 @@ func TestValidateSession_Expired(t *testing.T) {
 				ExpiresAt:    time.Now().Add(-1 * time.Hour), // Expired
 			}, nil
 		},
-		DeleteSessionFunc: func(token string) error {
+		DeleteSessionFunc: func(_ string) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1544,7 +1544,7 @@ func TestRevokeSession_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteSessionFunc: func(token string) error {
+		DeleteSessionFunc: func(_ string) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1568,7 +1568,7 @@ func TestRevokeUserSessions_Success(t *testing.T) {
 	deleteCalled := false
 
 	aclRepo := &MockACLRepository{
-		DeleteUserSessionsFunc: func(userID int) error {
+		DeleteUserSessionsFunc: func(_ int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -1615,7 +1615,7 @@ func TestVerifyAccess_NoProxyFound(t *testing.T) {
 	t.Parallel()
 
 	proxyRepo := &MockProxyRepository{
-		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+		GetByHostnameFunc: func(_ string) (*models.Proxy, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -1644,7 +1644,7 @@ func TestVerifyAccess_NoACLAssignments(t *testing.T) {
 		},
 	}
 	aclRepo := &MockACLRepository{
-		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		GetProxyACLAssignmentsFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			return []models.ProxyACLAssignment{}, nil // No assignments
 		},
 	}
@@ -1684,7 +1684,7 @@ func TestVerifyAccess_IPDeny(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -1861,7 +1861,7 @@ func TestVerifyAccess_BasicAuth_WrongPassword(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -1912,7 +1912,7 @@ func TestVerifyAccess_WaygatesSession(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
@@ -2492,7 +2492,7 @@ func TestVerifyAccess_IPDenyBlocksWithinGroup(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -2711,7 +2711,7 @@ func TestVerifyAccess_DenyTakesPrecedenceWithinGroup(t *testing.T) {
 						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Priority: 0, Enabled: true},
 					}, nil
 				},
-				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+				GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 					return group, nil
 				},
 				GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -3514,7 +3514,7 @@ func TestGetAuthOptionsForProxy_BasicAuthOnlyEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3570,7 +3570,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenWaygatesEnabled(t *testing.
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3627,7 +3627,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenOAuthEnabled(t *testing.T) 
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3690,7 +3690,7 @@ func TestGetAuthOptionsForProxy_BasicAuthDisabledWhenBothWaygatesAndOAuthEnabled
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 	}
@@ -3778,6 +3778,899 @@ func TestGetAuthOptionsForProxy_MultipleGroupsWithMixedAuth(t *testing.T) {
 }
 
 // =============================================================================
+// GetAuthOptionsForProxy Tests - RequiresAuth Behavior
+// =============================================================================
+// These tests ensure that RequiresAuth is correctly computed based on actual
+// auth method availability, not just the presence of ACL assignments.
+// This was a bug fix - RequiresAuth was incorrectly set to true just because
+// ACL assignments existed, even when no auth methods were configured.
+
+// TestGetAuthOptionsForProxy_NoAssignments tests that when no ACL assignments exist,
+// RequiresAuth should be false.
+func TestGetAuthOptionsForProxy_NoAssignments(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil // No assignments
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be false when no ACL assignments exist")
+	}
+	if response.BasicAuthEnabled {
+		t.Error("Expected BasicAuthEnabled to be false")
+	}
+	if response.WaygatesAuth != nil {
+		t.Error("Expected WaygatesAuth to be nil")
+	}
+	if len(response.OAuthProviders) != 0 {
+		t.Errorf("Expected no OAuth providers, got: %d", len(response.OAuthProviders))
+	}
+}
+
+// TestGetAuthOptionsForProxy_AssignmentWithNoAuthMethods tests that RequiresAuth is FALSE
+// when ACL assignments exist but NO auth methods are configured.
+// This is the key test for the bug fix - previously RequiresAuth was incorrectly true
+// just because assignments existed.
+func TestGetAuthOptionsForProxy_AssignmentWithNoAuthMethods(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// ACL group with NO auth methods configured - only IP rules or empty
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "ip-only-group",
+		CombinationMode: models.ACLCombinationModeAny,
+		// No WaygatesAuth (nil)
+		// No BasicAuthUsers (empty)
+		// No OAuthProviderRestrictions (empty)
+		IPRules: []models.ACLIPRule{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				CIDR:       "10.0.0.0/8",
+				RuleType:   models.ACLIPRuleTypeAllow,
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// KEY ASSERTION: RequiresAuth should be FALSE because no auth methods are configured
+	// even though an ACL assignment exists
+	if response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be FALSE when ACL assignment exists but no auth methods are configured")
+	}
+	if response.BasicAuthEnabled {
+		t.Error("Expected BasicAuthEnabled to be false")
+	}
+	if response.WaygatesAuth != nil {
+		t.Error("Expected WaygatesAuth to be nil")
+	}
+	if len(response.OAuthProviders) != 0 {
+		t.Errorf("Expected no OAuth providers, got: %d", len(response.OAuthProviders))
+	}
+}
+
+// TestGetAuthOptionsForProxy_AssignmentWithWaygatesAuthDisabled tests that RequiresAuth
+// is FALSE when WaygatesAuth exists but is disabled (Enabled: false).
+func TestGetAuthOptionsForProxy_AssignmentWithWaygatesAuthDisabled(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// ACL group with WaygatesAuth configured but DISABLED
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "disabled-waygates",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    false, // Explicitly disabled
+		},
+		// No BasicAuthUsers
+		// No OAuthProviderRestrictions
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// WaygatesAuth is disabled, so no auth methods are available
+	if response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be FALSE when WaygatesAuth is disabled")
+	}
+	// WaygatesAuth should NOT be in the response when it's disabled
+	if response.WaygatesAuth != nil && response.WaygatesAuth.Enabled {
+		t.Error("Expected WaygatesAuth to not be enabled in response")
+	}
+}
+
+// TestGetAuthOptionsForProxy_AssignmentWithDisabledACL tests that RequiresAuth
+// is FALSE when the ACL assignment itself is disabled.
+func TestGetAuthOptionsForProxy_AssignmentWithDisabledACL(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// ACL group with WaygatesAuth enabled
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "enabled-waygates",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				// Assignment is DISABLED
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: false},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Assignment is disabled, so no auth methods should be available
+	if response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be FALSE when ACL assignment is disabled")
+	}
+}
+
+// TestGetAuthOptionsForProxy_RequiresAuthTrueWithWaygatesAuth tests that RequiresAuth
+// is TRUE when WaygatesAuth is enabled.
+func TestGetAuthOptionsForProxy_RequiresAuthTrueWithWaygatesAuth(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "waygates-enabled",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 1,
+			Enabled:    true,
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE when WaygatesAuth is enabled")
+	}
+	if response.WaygatesAuth == nil || !response.WaygatesAuth.Enabled {
+		t.Error("Expected WaygatesAuth to be enabled in response")
+	}
+}
+
+// TestGetAuthOptionsForProxy_RequiresAuthTrueWithOAuthProviders tests that RequiresAuth
+// is TRUE when OAuth providers are available.
+func TestGetAuthOptionsForProxy_RequiresAuthTrueWithOAuthProviders(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-enabled",
+		CombinationMode: models.ACLCombinationModeAny,
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "google",
+				Enabled:    true,
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE when OAuth providers are available")
+	}
+	if len(response.OAuthProviders) != 1 {
+		t.Errorf("Expected 1 OAuth provider, got: %d", len(response.OAuthProviders))
+	}
+}
+
+// TestGetAuthOptionsForProxy_RequiresAuthTrueWithBasicAuth tests that RequiresAuth
+// is TRUE when basic auth users exist (and no more secure methods are available).
+func TestGetAuthOptionsForProxy_RequiresAuthTrueWithBasicAuth(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	testUser := &models.ACLBasicAuthUser{ID: 1, Username: "admin"}
+	_ = testUser.SetPassword("password123", 10)
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "basic-auth",
+		CombinationMode: models.ACLCombinationModeAny,
+		BasicAuthUsers:  []models.ACLBasicAuthUser{*testUser},
+		// No WaygatesAuth, no OAuth - so basic auth should be enabled
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE when basic auth users exist")
+	}
+	if !response.BasicAuthEnabled {
+		t.Error("Expected BasicAuthEnabled to be true when only basic auth is configured")
+	}
+}
+
+// =============================================================================
+// GetAuthOptionsForProxy Tests - OAuth Provider Precedence Logic
+// =============================================================================
+// These tests verify that OAuthProviderRestrictions take precedence over
+// WaygatesAuth.AllowedProviders when both are configured.
+
+// TestGetAuthOptionsForProxy_OAuthProviderRestrictionTakesPrecedence tests that
+// OAuthProviderRestrictions override AllowedProviders when there's a conflict.
+func TestGetAuthOptionsForProxy_OAuthProviderRestrictionTakesPrecedence(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// AllowedProviders says google and github are allowed,
+	// but OAuthProviderRestriction says google is DISABLED
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-precedence",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:               1,
+			ACLGroupID:       1,
+			Enabled:          true,
+			AllowedProviders: []string{"google", "github"}, // Both allowed at WaygatesAuth level
+		},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "google",
+				Enabled:    false, // Explicitly DISABLED - should override AllowedProviders
+			},
+			// No restriction for "github" - should fall back to AllowedProviders
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should have exactly 1 provider: github (google is disabled by OAuthProviderRestriction)
+	if len(response.OAuthProviders) != 1 {
+		t.Errorf("Expected 1 OAuth provider (github only), got: %d", len(response.OAuthProviders))
+	}
+
+	// Verify it's github, not google
+	foundGithub := false
+	for _, p := range response.OAuthProviders {
+		if p.ID == "github" {
+			foundGithub = true
+		}
+		if p.ID == "google" {
+			t.Error("Google should NOT appear in OAuth providers because it's disabled by OAuthProviderRestriction")
+		}
+	}
+	if !foundGithub {
+		t.Error("Expected github to be in OAuth providers (fallback from AllowedProviders)")
+	}
+}
+
+// TestGetAuthOptionsForProxy_OAuthRestrictionEnabledOverridesAllowedProviders tests that
+// when a provider has an ENABLED restriction, it appears even if not in AllowedProviders.
+func TestGetAuthOptionsForProxy_OAuthRestrictionEnabledAddsProvider(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// AllowedProviders only lists google, but OAuthProviderRestriction enables github
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-restriction-adds",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:               1,
+			ACLGroupID:       1,
+			Enabled:          true,
+			AllowedProviders: []string{"google"}, // Only google
+		},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "github",
+				Enabled:    true, // Explicitly enabled - should appear
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should have both providers: google (from AllowedProviders) and github (from OAuthProviderRestriction)
+	if len(response.OAuthProviders) != 2 {
+		t.Errorf("Expected 2 OAuth providers (google and github), got: %d", len(response.OAuthProviders))
+	}
+
+	foundGoogle, foundGithub := false, false
+	for _, p := range response.OAuthProviders {
+		if p.ID == "google" {
+			foundGoogle = true
+		}
+		if p.ID == "github" {
+			foundGithub = true
+		}
+	}
+	if !foundGoogle {
+		t.Error("Expected google to be in OAuth providers (from AllowedProviders)")
+	}
+	if !foundGithub {
+		t.Error("Expected github to be in OAuth providers (from OAuthProviderRestriction)")
+	}
+}
+
+// TestGetAuthOptionsForProxy_OnlyOAuthRestriction tests that OAuth providers can
+// come solely from OAuthProviderRestrictions without WaygatesAuth.AllowedProviders.
+func TestGetAuthOptionsForProxy_OnlyOAuthRestriction(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// No AllowedProviders in WaygatesAuth, only OAuthProviderRestrictions
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-restriction-only",
+		CombinationMode: models.ACLCombinationModeAny,
+		// No WaygatesAuth - nil
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "google",
+				Enabled:    true,
+			},
+			{
+				ID:         2,
+				ACLGroupID: 1,
+				Provider:   "github",
+				Enabled:    true,
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE when OAuth providers are available")
+	}
+	if len(response.OAuthProviders) != 2 {
+		t.Errorf("Expected 2 OAuth providers, got: %d", len(response.OAuthProviders))
+	}
+}
+
+// TestGetAuthOptionsForProxy_AllOAuthProvidersDisabled tests that RequiresAuth is FALSE
+// when all OAuth providers are disabled via OAuthProviderRestrictions.
+func TestGetAuthOptionsForProxy_AllOAuthProvidersDisabled(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "all-oauth-disabled",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:               1,
+			ACLGroupID:       1,
+			Enabled:          false, // WaygatesAuth disabled
+			AllowedProviders: []string{"google", "github"},
+		},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "google",
+				Enabled:    false, // Disabled
+			},
+			{
+				ID:         2,
+				ACLGroupID: 1,
+				Provider:   "github",
+				Enabled:    false, // Disabled
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// All auth methods are disabled
+	if response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be FALSE when all OAuth providers are disabled and WaygatesAuth is disabled")
+	}
+	if len(response.OAuthProviders) != 0 {
+		t.Errorf("Expected no OAuth providers when all are disabled, got: %d", len(response.OAuthProviders))
+	}
+}
+
+// TestGetAuthOptionsForProxy_MixedOAuthEnabledDisabled tests correct filtering
+// when some OAuth providers are enabled and some are disabled.
+func TestGetAuthOptionsForProxy_MixedOAuthEnabledDisabled(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "mixed-oauth",
+		CombinationMode: models.ACLCombinationModeAny,
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{
+				ID:         1,
+				ACLGroupID: 1,
+				Provider:   "google",
+				Enabled:    true, // Enabled
+			},
+			{
+				ID:         2,
+				ACLGroupID: 1,
+				Provider:   "github",
+				Enabled:    false, // Disabled
+			},
+			{
+				ID:         3,
+				ACLGroupID: 1,
+				Provider:   "microsoft",
+				Enabled:    true, // Enabled
+			},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE when some OAuth providers are enabled")
+	}
+
+	// Should have google and microsoft, but NOT github
+	if len(response.OAuthProviders) != 2 {
+		t.Errorf("Expected 2 OAuth providers (google, microsoft), got: %d", len(response.OAuthProviders))
+	}
+
+	providerIDs := make(map[string]bool)
+	for _, p := range response.OAuthProviders {
+		providerIDs[p.ID] = true
+	}
+
+	if !providerIDs["google"] {
+		t.Error("Expected google to be in OAuth providers")
+	}
+	if providerIDs["github"] {
+		t.Error("Expected github to NOT be in OAuth providers (disabled)")
+	}
+	if !providerIDs["microsoft"] {
+		t.Error("Expected microsoft to be in OAuth providers")
+	}
+}
+
+// TestGetAuthOptionsForProxy_ProxyNotFound tests error handling when proxy doesn't exist.
+func TestGetAuthOptionsForProxy_ProxyNotFound(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(_ string) (*models.Proxy, error) {
+			return nil, errors.New("proxy not found")
+		},
+	}
+
+	aclRepo := &MockACLRepository{}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	_, err := svc.GetAuthOptionsForProxy("nonexistent.com")
+	if err == nil {
+		t.Error("Expected error when proxy not found")
+	}
+}
+
+// TestGetAuthOptionsForProxy_MultipleGroupsUnionAuthOptions tests that auth options
+// from multiple groups are properly unioned.
+func TestGetAuthOptionsForProxy_MultipleGroupsUnionAuthOptions(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	// Group 1 has google OAuth
+	group1 := &models.ACLGroup{
+		ID:              1,
+		Name:            "group1",
+		CombinationMode: models.ACLCombinationModeAny,
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{ID: 1, ACLGroupID: 1, Provider: "google", Enabled: true},
+		},
+	}
+
+	// Group 2 has github OAuth and WaygatesAuth
+	group2 := &models.ACLGroup{
+		ID:              2,
+		Name:            "group2",
+		CombinationMode: models.ACLCombinationModeAny,
+		WaygatesAuth: &models.ACLWaygatesAuth{
+			ID:         1,
+			ACLGroupID: 2,
+			Enabled:    true,
+		},
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{ID: 2, ACLGroupID: 2, Provider: "github", Enabled: true},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group1, PathPattern: "/*", Enabled: true},
+				{ID: 2, ProxyID: proxyID, ACLGroupID: 2, ACLGroup: group2, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+			if id == 1 {
+				return group1, nil
+			}
+			return group2, nil
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !response.RequiresAuth {
+		t.Error("Expected RequiresAuth to be TRUE")
+	}
+
+	// Should have WaygatesAuth enabled (from group2)
+	if response.WaygatesAuth == nil || !response.WaygatesAuth.Enabled {
+		t.Error("Expected WaygatesAuth to be enabled (from group2)")
+	}
+
+	// Should have both google (from group1) and github (from group2)
+	if len(response.OAuthProviders) != 2 {
+		t.Errorf("Expected 2 OAuth providers (google, github), got: %d", len(response.OAuthProviders))
+	}
+
+	providerIDs := make(map[string]bool)
+	for _, p := range response.OAuthProviders {
+		providerIDs[p.ID] = true
+	}
+	if !providerIDs["google"] {
+		t.Error("Expected google from group1")
+	}
+	if !providerIDs["github"] {
+		t.Error("Expected github from group2")
+	}
+}
+
+// TestGetAuthOptionsForProxy_OAuthCheckerFiltersUnavailable tests that OAuth providers
+// are filtered out when the OAuthChecker indicates they're not available.
+func TestGetAuthOptionsForProxy_OAuthCheckerFiltersUnavailable(t *testing.T) {
+	t.Parallel()
+
+	proxyRepo := &MockProxyRepository{
+		GetByHostnameFunc: func(hostname string) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Hostname: hostname}, nil
+		},
+	}
+
+	group := &models.ACLGroup{
+		ID:              1,
+		Name:            "oauth-check",
+		CombinationMode: models.ACLCombinationModeAny,
+		OAuthProviderRestrictions: []models.ACLOAuthProviderRestriction{
+			{ID: 1, ACLGroupID: 1, Provider: "google", Enabled: true},
+			{ID: 2, ACLGroupID: 1, Provider: "github", Enabled: true},
+		},
+	}
+
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentsFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
+			}, nil
+		},
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
+			return group, nil
+		},
+	}
+
+	// Mock OAuth checker that says only google is available (github is not configured)
+	oauthChecker := &mockOAuthChecker{
+		availableProviders: map[string]bool{
+			"google": true,
+			"github": false, // Not available (env vars not configured)
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{
+		ACLRepo:      aclRepo,
+		ProxyRepo:    proxyRepo,
+		OAuthChecker: oauthChecker,
+	})
+
+	response, err := svc.GetAuthOptionsForProxy("example.com")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// Should only have google (github is filtered out by OAuthChecker)
+	if len(response.OAuthProviders) != 1 {
+		t.Errorf("Expected 1 OAuth provider (google only), got: %d", len(response.OAuthProviders))
+	}
+
+	if len(response.OAuthProviders) > 0 && response.OAuthProviders[0].ID != "google" {
+		t.Errorf("Expected google provider, got: %s", response.OAuthProviders[0].ID)
+	}
+}
+
+// mockOAuthChecker is a mock implementation of OAuthProviderChecker for testing.
+type mockOAuthChecker struct {
+	availableProviders map[string]bool
+}
+
+func (m *mockOAuthChecker) IsAvailable(id string) bool {
+	if m.availableProviders == nil {
+		return true // Default to available if not configured
+	}
+	available, exists := m.availableProviders[id]
+	if !exists {
+		return false
+	}
+	return available
+}
+
+// =============================================================================
 // VerifyAccess Tests - Basic Auth Override Behavior
 // =============================================================================
 
@@ -3813,7 +4706,7 @@ func TestVerifyAccess_BasicAuthSkippedWhenWaygatesEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -3882,7 +4775,7 @@ func TestVerifyAccess_BasicAuthSkippedWhenOAuthEnabled(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -3999,7 +4892,7 @@ func TestVerifyAccess_BasicAuthInvalidWhenOnlyAuthMethod(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4145,7 +5038,7 @@ func TestVerifyAccess_BasicAuthOverrideInSameGroup(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4211,7 +5104,7 @@ func TestVerifyAccess_BasicAuthAllModeSkippedWithSecureAuth(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4281,7 +5174,7 @@ func TestVerifyAccess_WaygatesSessionStillWorksWithBasicAuthConfigured(t *testin
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, ACLGroup: group, PathPattern: "/*", Enabled: true},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return group, nil
 		},
 		GetSessionByTokenFunc: func(token string) (*models.ACLSession, error) {
@@ -4778,7 +5671,7 @@ func TestVerifyAccess_UnparseableIP_FailClosed(t *testing.T) {
 						{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/*", Enabled: true, ACLGroup: group},
 					}, nil
 				},
-				GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+				GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 					return group, nil
 				},
 				GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -4951,7 +5844,7 @@ func TestVerifyAccess_PathMatchingBoundary(t *testing.T) {
 				{ID: 1, ProxyID: proxyID, ACLGroupID: 1, PathPattern: "/api/*", Enabled: true, ACLGroup: apiGroup},
 			}, nil
 		},
-		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupByIDFunc: func(_ int) (*models.ACLGroup, error) {
 			return apiGroup, nil
 		},
 		GetBrandingFunc: func() (*models.ACLBranding, error) {
@@ -5015,4 +5908,923 @@ func TestVerifyAccess_PathMatchingBoundary(t *testing.T) {
 			}
 		})
 	}
+}
+
+// =============================================================================
+// Additional Tests for Uncovered Methods
+// =============================================================================
+
+// TestACLService_GetGroupByName tests retrieving an ACL group by name
+func TestACLService_GetGroupByName(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupName string
+		setupRepo func(*MockACLRepository)
+		wantGroup *models.ACLGroup
+		wantErr   error
+	}{
+		{
+			name:      "success - existing group",
+			groupName: "test-group",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(name string) (*models.ACLGroup, error) {
+					return &models.ACLGroup{
+						ID:   1,
+						Name: name,
+					}, nil
+				}
+			},
+			wantGroup: &models.ACLGroup{ID: 1, Name: "test-group"},
+			wantErr:   nil,
+		},
+		{
+			name:      "error - group not found",
+			groupName: "nonexistent",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(_ string) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantGroup: nil,
+			wantErr:   ErrACLGroupNotFound,
+		},
+		{
+			name:      "error - database error",
+			groupName: "test-group",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(_ string) (*models.ACLGroup, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantGroup: nil,
+			wantErr:   errors.New("getting ACL group by name: database error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			group, err := svc.GetGroupByName(tt.groupName)
+
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Errorf("expected error containing '%v', got nil", tt.wantErr)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if group == nil || group.Name != tt.wantGroup.Name {
+					t.Errorf("expected group %+v, got %+v", tt.wantGroup, group)
+				}
+			}
+		})
+	}
+}
+
+// TestACLService_UpdateExternalProvider tests updating an external auth provider
+func TestACLService_UpdateExternalProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        int
+		provider  *models.ACLExternalProvider
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name: "success - update provider",
+			id:   1,
+			provider: &models.ACLExternalProvider{
+				ProviderType:    models.ACLProviderTypeAuthelia,
+				Name:            "Updated Auth",
+				VerifyURL:       "http://auth.example.com/verify",
+				AuthRedirectURL: ptr("http://auth.example.com/login"),
+				HeadersToCopy:   []string{"X-User", "X-Token"},
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{
+						ID:           id,
+						ACLGroupID:   1,
+						ProviderType: models.ACLProviderTypeAuthelia,
+						Name:         "Original Auth",
+						VerifyURL:    "http://old.example.com/verify",
+					}, nil
+				}
+				m.UpdateExternalProviderFunc = func(_ *models.ACLExternalProvider) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "error - provider not found",
+			id:   999,
+			provider: &models.ACLExternalProvider{
+				ProviderType: models.ACLProviderTypeAuthelia,
+				Name:         "Test",
+				VerifyURL:    "http://test.example.com",
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(_ int) (*models.ACLExternalProvider, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "error - validation fails",
+			id:   1,
+			provider: &models.ACLExternalProvider{
+				ProviderType: "", // Invalid - empty type
+				Name:         "Test",
+				VerifyURL:    "http://test.example.com",
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{
+						ID:           id,
+						ACLGroupID:   1,
+						ProviderType: models.ACLProviderTypeAuthelia,
+						Name:         "Original",
+						VerifyURL:    "http://old.example.com",
+					}, nil
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.UpdateExternalProvider(tt.id, tt.provider)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_DeleteExternalProvider tests deleting an external auth provider
+func TestACLService_DeleteExternalProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        int
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name: "success - delete provider",
+			id:   1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{ID: id}, nil
+				}
+				m.DeleteExternalProviderFunc = func(_ int) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "error - provider not found",
+			id:   999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(_ int) (*models.ACLExternalProvider, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "error - delete fails",
+			id:   1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{ID: id}, nil
+				}
+				m.DeleteExternalProviderFunc = func(_ int) error {
+					return errors.New("database error")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.DeleteExternalProvider(tt.id)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_GetWaygatesAuth tests retrieving Waygates auth config
+func TestACLService_GetWaygatesAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantAuth  *models.ACLWaygatesAuth
+		wantErr   error
+	}{
+		{
+			name:    "success - existing auth config",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetWaygatesAuthFunc = func(groupID int) (*models.ACLWaygatesAuth, error) {
+					return &models.ACLWaygatesAuth{
+						ACLGroupID: groupID,
+						Enabled:    true,
+						SessionTTL: 86400,
+					}, nil
+				}
+			},
+			wantAuth: &models.ACLWaygatesAuth{ACLGroupID: 1, Enabled: true, SessionTTL: 86400},
+			wantErr:  nil,
+		},
+		{
+			name:    "error - group not found",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantAuth: nil,
+			wantErr:  ErrACLGroupNotFound,
+		},
+		{
+			name:    "error - auth not found",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetWaygatesAuthFunc = func(_ int) (*models.ACLWaygatesAuth, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantAuth: nil,
+			wantErr:  ErrWaygatesAuthNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			auth, err := svc.GetWaygatesAuth(tt.groupID)
+
+			if tt.wantErr != nil {
+				if err == nil || !errors.Is(err, tt.wantErr) {
+					t.Errorf("expected error %v, got %v", tt.wantErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if auth == nil || auth.ACLGroupID != tt.wantAuth.ACLGroupID {
+					t.Errorf("expected auth %+v, got %+v", tt.wantAuth, auth)
+				}
+			}
+		})
+	}
+}
+
+// TestACLService_UpdateProxyAssignment tests updating a proxy ACL assignment
+func TestACLService_UpdateProxyAssignment(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          int
+		pathPattern string
+		priority    int
+		enabled     bool
+		setupRepo   func(*MockACLRepository)
+		wantErr     bool
+	}{
+		{
+			name:        "success - update assignment",
+			id:          1,
+			pathPattern: "/api/*",
+			priority:    20,
+			enabled:     true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentByIDFunc = func(id int) (*models.ProxyACLAssignment, error) {
+					return &models.ProxyACLAssignment{
+						ID:          id,
+						ProxyID:     1,
+						ACLGroupID:  1,
+						PathPattern: "/*",
+						Priority:    10,
+						Enabled:     true,
+					}, nil
+				}
+				m.UpdateProxyACLAssignmentFunc = func(_ *models.ProxyACLAssignment) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:        "error - assignment not found",
+			id:          999,
+			pathPattern: "/api/*",
+			priority:    20,
+			enabled:     true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentByIDFunc = func(_ int) (*models.ProxyACLAssignment, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name:        "error - invalid path pattern",
+			id:          1,
+			pathPattern: "[invalid",
+			priority:    20,
+			enabled:     true,
+			setupRepo:   func(_ *MockACLRepository) {},
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.UpdateProxyAssignment(tt.id, tt.pathPattern, tt.priority, tt.enabled)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_GetProxyACL tests retrieving proxy ACL assignments
+func TestACLService_GetProxyACL(t *testing.T) {
+	tests := []struct {
+		name      string
+		proxyID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple assignments",
+			proxyID: 1,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2},
+					}, nil
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no assignments",
+			proxyID: 1,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - database error",
+			proxyID: 999,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			assignments, err := svc.GetProxyACL(tt.proxyID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(assignments) != tt.wantCount {
+				t.Errorf("expected %d assignments, got %d", tt.wantCount, len(assignments))
+			}
+		})
+	}
+}
+
+// TestACLService_GetGroupUsage tests retrieving group usage (which proxies use a group)
+func TestACLService_GetGroupUsage(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple usages",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(groupID int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{
+						{ID: 1, ProxyID: 1, ACLGroupID: groupID},
+						{ID: 2, ProxyID: 2, ACLGroupID: groupID},
+						{ID: 3, ProxyID: 3, ACLGroupID: groupID},
+					}, nil
+				}
+			},
+			wantCount: 3,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no usages",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - database error",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			assignments, err := svc.GetGroupUsage(tt.groupID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(assignments) != tt.wantCount {
+				t.Errorf("expected %d assignments, got %d", tt.wantCount, len(assignments))
+			}
+		})
+	}
+}
+
+// TestACLService_GetOAuthProviderRestrictions tests retrieving OAuth restrictions
+func TestACLService_GetOAuthProviderRestrictions(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple restrictions",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionsFunc = func(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+					return []models.ACLOAuthProviderRestriction{
+						{ACLGroupID: groupID, Provider: "google", AllowedEmails: []string{"user@example.com"}},
+						{ACLGroupID: groupID, Provider: "github", AllowedDomains: []string{"example.com"}},
+					}, nil
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no restrictions",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionsFunc = func(_ int) ([]models.ACLOAuthProviderRestriction, error) {
+					return []models.ACLOAuthProviderRestriction{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - group not found",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			restrictions, err := svc.GetOAuthProviderRestrictions(tt.groupID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(restrictions) != tt.wantCount {
+				t.Errorf("expected %d restrictions, got %d", tt.wantCount, len(restrictions))
+			}
+		})
+	}
+}
+
+// TestACLService_SetOAuthProviderRestriction tests setting OAuth restrictions
+func TestACLService_SetOAuthProviderRestriction(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		provider  string
+		emails    []string
+		domains   []string
+		enabled   bool
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:     "success - create new restriction",
+			groupID:  1,
+			provider: "google",
+			emails:   []string{"admin@example.com"},
+			domains:  []string{"example.com"},
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(_ int, _ string) (*models.ACLOAuthProviderRestriction, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				m.CreateOAuthProviderRestrictionFunc = func(_ *models.ACLOAuthProviderRestriction) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "success - update existing restriction",
+			groupID:  1,
+			provider: "google",
+			emails:   []string{"new@example.com"},
+			domains:  nil,
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+					return &models.ACLOAuthProviderRestriction{
+						ID:         1,
+						ACLGroupID: groupID,
+						Provider:   provider,
+					}, nil
+				}
+				m.UpdateOAuthProviderRestrictionFunc = func(_ *models.ACLOAuthProviderRestriction) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "error - group not found",
+			groupID:  999,
+			provider: "google",
+			emails:   []string{"test@example.com"},
+			domains:  nil,
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.SetOAuthProviderRestriction(tt.groupID, tt.provider, tt.emails, tt.domains, tt.enabled)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_DeleteOAuthProviderRestriction tests deleting OAuth restrictions
+func TestACLService_DeleteOAuthProviderRestriction(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		provider  string
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:     "success - delete restriction",
+			groupID:  1,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+					return &models.ACLOAuthProviderRestriction{
+						ID:         1,
+						ACLGroupID: groupID,
+						Provider:   provider,
+					}, nil
+				}
+				m.DeleteOAuthProviderRestrictionFunc = func(_ int, _ string) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "error - group not found",
+			groupID:  999,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name:     "error - restriction not found",
+			groupID:  1,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(_ int, _ string) (*models.ACLOAuthProviderRestriction, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.DeleteOAuthProviderRestriction(tt.groupID, tt.provider)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_CreateOAuthSession tests creating an OAuth session
+func TestACLService_CreateOAuthSession(t *testing.T) {
+	proxyID := 1
+	tests := []struct {
+		name      string
+		proxyID   *int
+		email     string
+		provider  string
+		ip        string
+		userAgent string
+		ttl       int
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:      "success - create session",
+			proxyID:   &proxyID,
+			email:     "user@example.com",
+			provider:  "google",
+			ip:        "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			ttl:       86400,
+			setupRepo: func(m *MockACLRepository) {
+				m.CreateSessionFunc = func(_ *models.ACLSession) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:      "error - database error",
+			proxyID:   &proxyID,
+			email:     "user@example.com",
+			provider:  "google",
+			ip:        "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			ttl:       86400,
+			setupRepo: func(m *MockACLRepository) {
+				m.CreateSessionFunc = func(_ *models.ACLSession) error {
+					return errors.New("database error")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			session, err := svc.CreateOAuthSession(tt.email, tt.provider, tt.proxyID, tt.ip, tt.userAgent, tt.ttl)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && session == nil {
+				t.Error("expected session, got nil")
+			}
+		})
+	}
+}
+
+// TestACLService_FormatProviderName tests the provider name formatting
+func TestACLService_FormatProviderName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"google", "Google"},
+		{"github", "GitHub"},
+		{"GITHUB", "GitHub"},
+		{"microsoft", "Microsoft"},
+		{"MICROSOFT", "Microsoft"},
+		{"gitlab", "GitLab"},
+		{"okta", "Okta"},
+		{"auth0", "Auth0"},
+		{"unknown", "Unknown"},
+		{"", ""},
+		{"custom_provider", "Custom_provider"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := formatProviderName(tt.input)
+			if result != tt.expected {
+				t.Errorf("formatProviderName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestACLService_SingleIPToNetwork tests single IP to network conversion (method on service)
+func TestACLService_SingleIPToNetwork(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		wantNet string
+		wantNil bool
+	}{
+		{
+			name:    "valid IPv4",
+			ip:      "192.168.1.1",
+			wantNet: "192.168.1.1/32",
+			wantNil: false,
+		},
+		{
+			name:    "valid IPv6",
+			ip:      "::1",
+			wantNet: "::1/128",
+			wantNil: false,
+		},
+		{
+			name:    "invalid IP",
+			ip:      "not-an-ip",
+			wantNet: "",
+			wantNil: true,
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			network := svc.singleIPToNetwork(tt.ip)
+
+			if tt.wantNil && network != nil {
+				t.Errorf("expected nil, got %v", network)
+			}
+			if !tt.wantNil && network == nil {
+				t.Errorf("expected network, got nil")
+			}
+			if !tt.wantNil && network.String() != tt.wantNet {
+				t.Errorf("expected %s, got %s", tt.wantNet, network.String())
+			}
+		})
+	}
+}
+
+// ptr is a helper function to create a pointer to a string
+func ptr(s string) *string {
+	return &s
 }

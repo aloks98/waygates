@@ -160,7 +160,7 @@ func TestSetAuth(t *testing.T) {
 	}
 }
 
-func TestAdapter_ImplementsInterfaces(t *testing.T) {
+func TestAdapter_ImplementsInterfaces(_ *testing.T) {
 	// Compile-time check that Adapter implements required interfaces
 	var _ middleware.TokenValidator = (*Adapter)(nil)
 	var _ middleware.ClaimsExtractor = (*Adapter)(nil)

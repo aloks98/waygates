@@ -99,18 +99,25 @@ type groupAccessResult struct {
 	DenialReason                 string
 }
 
+// OAuthProviderChecker is an interface for checking OAuth provider availability
+type OAuthProviderChecker interface {
+	IsAvailable(id string) bool
+}
+
 // ACLService handles ACL business logic
 type ACLService struct {
-	aclRepo   repository.ACLRepositoryInterface
-	proxyRepo repository.ProxyRepositoryInterface
-	logger    *zap.Logger
+	aclRepo      repository.ACLRepositoryInterface
+	proxyRepo    repository.ProxyRepositoryInterface
+	oauthChecker OAuthProviderChecker
+	logger       *zap.Logger
 }
 
 // ACLServiceConfig holds configuration for ACLService
 type ACLServiceConfig struct {
-	ACLRepo   repository.ACLRepositoryInterface
-	ProxyRepo repository.ProxyRepositoryInterface
-	Logger    *zap.Logger
+	ACLRepo      repository.ACLRepositoryInterface
+	ProxyRepo    repository.ProxyRepositoryInterface
+	OAuthChecker OAuthProviderChecker
+	Logger       *zap.Logger
 }
 
 // NewACLService creates a new ACL service
@@ -120,9 +127,10 @@ func NewACLService(cfg ACLServiceConfig) *ACLService {
 	}
 
 	return &ACLService{
-		aclRepo:   cfg.ACLRepo,
-		proxyRepo: cfg.ProxyRepo,
-		logger:    cfg.Logger.Named("acl-service"),
+		aclRepo:      cfg.ACLRepo,
+		proxyRepo:    cfg.ProxyRepo,
+		oauthChecker: cfg.OAuthChecker,
+		logger:       cfg.Logger.Named("acl-service"),
 	}
 }
 
@@ -915,10 +923,10 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 	}
 
 	// 4. Build union of auth options
+	// RequiresAuth will be computed after we know what auth methods are available
 	response := &AuthOptionsResponse{
-		Hostname:     hostname,
-		ProxyID:      int64(proxy.ID),
-		RequiresAuth: true,
+		Hostname: hostname,
+		ProxyID:  int64(proxy.ID),
 	}
 
 	oauthProviderMap := make(map[string]UnionOAuthProvider)
@@ -944,33 +952,54 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 			if group.WaygatesAuth.Enabled {
 				response.WaygatesAuth = &UnionWaygatesAuth{Enabled: true}
 			}
+		}
 
-			// Collect OAuth providers from WaygatesAuth.AllowedProviders
-			// OAuth providers should be available even if Waygates username/password login is disabled
+		// Build a set of providers that have explicit OAuthProviderRestrictions
+		// These take precedence over AllowedProviders
+		restrictedProviders := make(map[string]bool)
+		for i := range group.OAuthProviderRestrictions {
+			restriction := &group.OAuthProviderRestrictions[i]
+			pid := strings.ToLower(restriction.Provider)
+			restrictedProviders[pid] = true
+
+			// Only include if enabled
+			if !restriction.Enabled {
+				continue
+			}
+			// Skip if provider is not available (env vars not configured)
+			if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
+				continue
+			}
+			if _, exists := oauthProviderMap[pid]; !exists {
+				oauthProviderMap[pid] = UnionOAuthProvider{
+					ID:      restriction.Provider,
+					Name:    formatProviderName(restriction.Provider),
+					Enabled: true,
+				}
+			}
+		}
+
+		// Collect OAuth providers from WaygatesAuth.AllowedProviders
+		// Only include if NO OAuthProviderRestriction exists for this provider
+		// (OAuthProviderRestrictions take precedence when they exist)
+		if group.WaygatesAuth != nil {
 			for _, providerID := range group.WaygatesAuth.AllowedProviders {
 				pid := strings.ToLower(providerID)
+				// Skip if there's an explicit restriction for this provider
+				// (the restriction's Enabled flag controls visibility)
+				if restrictedProviders[pid] {
+					continue
+				}
+				// Skip if provider is not available (env vars not configured)
+				if s.oauthChecker != nil && !s.oauthChecker.IsAvailable(pid) {
+					continue
+				}
 				if _, exists := oauthProviderMap[pid]; !exists {
 					oauthProviderMap[pid] = UnionOAuthProvider{
 						ID:      providerID,
 						Name:    formatProviderName(providerID),
 						Enabled: true,
 					}
-				}
-			}
-		}
-
-		// Collect OAuth providers from OAuthProviderRestrictions
-		for i := range group.OAuthProviderRestrictions {
-			restriction := &group.OAuthProviderRestrictions[i]
-			if !restriction.Enabled {
-				continue
-			}
-			pid := strings.ToLower(restriction.Provider)
-			if _, exists := oauthProviderMap[pid]; !exists {
-				oauthProviderMap[pid] = UnionOAuthProvider{
-					ID:      restriction.Provider,
-					Name:    formatProviderName(restriction.Provider),
-					Enabled: true,
 				}
 			}
 		}
@@ -996,6 +1025,13 @@ func (s *ACLService) GetAuthOptionsForProxy(hostname string) (*AuthOptionsRespon
 	if hasBasicAuthUsers && !hasSecureAuth {
 		response.BasicAuthEnabled = true
 	}
+
+	// RequiresAuth is true only if at least one interactive auth method is available
+	// (IP rules are handled at the proxy level, not via the login page)
+	hasWaygatesAuth := response.WaygatesAuth != nil && response.WaygatesAuth.Enabled
+	hasOAuth := len(response.OAuthProviders) > 0
+	hasBasicAuth := response.BasicAuthEnabled
+	response.RequiresAuth = hasWaygatesAuth || hasOAuth || hasBasicAuth
 
 	return response, nil
 }
@@ -1236,7 +1272,7 @@ const (
 )
 
 // evaluateIPRules evaluates IP rules against a remote IP
-func (s *ACLService) evaluateIPRules(rules []models.ACLIPRule, remoteIP string, combinationMode string) (ipRuleResult, bool) {
+func (s *ACLService) evaluateIPRules(rules []models.ACLIPRule, remoteIP string) (ipRuleResult, bool) {
 	if len(rules) == 0 {
 		return ipRuleNoMatch, false
 	}
@@ -1866,7 +1902,7 @@ func (s *ACLService) evaluateGroupAuth(group *models.ACLGroup, request *ACLVerif
 
 	// For "any" mode, an IP allow (not just bypass) is sufficient
 	if group.CombinationMode == models.ACLCombinationModeAny {
-		ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+		ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP)
 		if ipResult == ipRuleAllow || ipResult == ipRuleBypass {
 			result.Allowed = true
 			return result, nil
@@ -1952,7 +1988,7 @@ func (s *ACLService) evaluateGroupAuth(group *models.ACLGroup, request *ACLVerif
 			(len(group.BasicAuthUsers) > 0 && !groupHasSecureAuth)
 		if !hasAuthRequirements {
 			// No auth requirements, IP check (non-deny) is enough
-			ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP, group.CombinationMode)
+			ipResult, _ := s.evaluateIPRules(group.IPRules, request.RemoteIP)
 			if ipResult != ipRuleDeny {
 				result.Allowed = true
 				return result, nil

@@ -79,7 +79,7 @@ func (h *AuditHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetStats returns aggregate statistics for audit logs
-func (h *AuditHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+func (h *AuditHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	stats, err := h.auditService.GetStats()
 	if err != nil {
 		if h.logger != nil {
@@ -149,7 +149,7 @@ func (h *AuditHandler) Export(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetConfig returns the audit configuration
-func (h *AuditHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
+func (h *AuditHandler) GetConfig(w http.ResponseWriter, _ *http.Request) {
 	config, err := h.auditService.GetConfig()
 	if err != nil {
 		if h.logger != nil {
@@ -182,7 +182,7 @@ func (h *AuditHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetEventGroups returns the available audit event groups for configuration UI
-func (h *AuditHandler) GetEventGroups(w http.ResponseWriter, r *http.Request) {
+func (h *AuditHandler) GetEventGroups(w http.ResponseWriter, _ *http.Request) {
 	groups := models.GetAuditEventGroups()
 	utils.Success(w, groups, "Audit event groups retrieved successfully")
 }

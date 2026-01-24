@@ -495,7 +495,7 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetStats handles GET /api/proxies/stats
-func (h *ProxyHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+func (h *ProxyHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	stats, err := h.service.GetStats()
 	if err != nil {
 		if h.logger != nil {
@@ -511,62 +511,62 @@ func (h *ProxyHandler) GetStats(w http.ResponseWriter, r *http.Request) {
 // buildProxyChanges compares old and new proxy values and returns a map of changes.
 // Each changed field is represented as {"old": oldValue, "new": newValue}.
 // Returns nil if no tracked fields changed.
-func buildProxyChanges(old, new *models.Proxy) map[string]interface{} {
+func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	changes := make(map[string]interface{})
 
 	// Track hostname changes
-	if old.Hostname != new.Hostname {
+	if old.Hostname != updated.Hostname {
 		changes["hostname"] = map[string]interface{}{
 			"old": old.Hostname,
-			"new": new.Hostname,
+			"new": updated.Hostname,
 		}
 	}
 
 	// Track type changes
-	if old.Type != new.Type {
+	if old.Type != updated.Type {
 		changes["type"] = map[string]interface{}{
 			"old": old.Type,
-			"new": new.Type,
+			"new": updated.Type,
 		}
 	}
 
 	// Track ssl_enabled changes
-	if old.SSLEnabled != new.SSLEnabled {
+	if old.SSLEnabled != updated.SSLEnabled {
 		changes["ssl_enabled"] = map[string]interface{}{
 			"old": old.SSLEnabled,
-			"new": new.SSLEnabled,
+			"new": updated.SSLEnabled,
 		}
 	}
 
 	// Track is_active changes
-	if old.IsActive != new.IsActive {
+	if old.IsActive != updated.IsActive {
 		changes["is_active"] = map[string]interface{}{
 			"old": old.IsActive,
-			"new": new.IsActive,
+			"new": updated.IsActive,
 		}
 	}
 
 	// Track name changes
-	if old.Name != new.Name {
+	if old.Name != updated.Name {
 		changes["name"] = map[string]interface{}{
 			"old": old.Name,
-			"new": new.Name,
+			"new": updated.Name,
 		}
 	}
 
 	// Track upstreams changes (compare JSON representation)
-	if !jsonEqual(old.Upstreams, new.Upstreams) {
+	if !jsonEqual(old.Upstreams, updated.Upstreams) {
 		changes["upstreams"] = map[string]interface{}{
 			"old": old.Upstreams,
-			"new": new.Upstreams,
+			"new": updated.Upstreams,
 		}
 	}
 
 	// Track redirect config changes
-	if !jsonEqual(old.RedirectConfig, new.RedirectConfig) {
+	if !jsonEqual(old.RedirectConfig, updated.RedirectConfig) {
 		changes["redirect"] = map[string]interface{}{
 			"old": old.RedirectConfig,
-			"new": new.RedirectConfig,
+			"new": updated.RedirectConfig,
 		}
 	}
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
@@ -235,7 +237,7 @@ func TestSettingsService_Get(t *testing.T) {
 		{
 			name:        "error - key not found",
 			key:         "nonexistent",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: true,
 			errorMsg:    "setting not found",
 		},
@@ -311,14 +313,14 @@ func TestSettingsService_GetWithDefault(t *testing.T) {
 			name:         "returns default for non-existing key",
 			key:          "missing_key",
 			defaultValue: "default_value",
-			setupRepo:    func(m *mockSettingsRepoInterface) {},
+			setupRepo:    func(_ *mockSettingsRepoInterface) {},
 			expected:     "default_value",
 		},
 		{
 			name:         "returns empty default when specified",
 			key:          "missing",
 			defaultValue: "",
-			setupRepo:    func(m *mockSettingsRepoInterface) {},
+			setupRepo:    func(_ *mockSettingsRepoInterface) {},
 			expected:     "",
 		},
 		{
@@ -361,7 +363,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - new setting",
 			key:         "new_key",
 			value:       "new_value",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -377,7 +379,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - empty value",
 			key:         "empty_key",
 			value:       "",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -394,7 +396,7 @@ func TestSettingsService_Set(t *testing.T) {
 			name:        "success - value with unicode",
 			key:         "unicode_key",
 			value:       "Hello, 世界! 🌍",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 	}
@@ -446,7 +448,7 @@ func TestSettingsService_GetAll(t *testing.T) {
 		},
 		{
 			name:        "success - empty settings",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expected:    map[string]string{},
 			expectError: false,
 		},
@@ -511,7 +513,7 @@ func TestSettingsService_Delete(t *testing.T) {
 		{
 			name:        "success - delete non-existing (no-op)",
 			key:         "nonexistent",
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -632,7 +634,7 @@ func TestSettingsService_SetNotFoundSettings(t *testing.T) {
 				Mode:        "redirect",
 				RedirectURL: "https://new.example.com/404",
 			},
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -641,7 +643,7 @@ func TestSettingsService_SetNotFoundSettings(t *testing.T) {
 				Mode:        "default",
 				RedirectURL: "",
 			},
-			setupRepo:   func(m *mockSettingsRepoInterface) {},
+			setupRepo:   func(_ *mockSettingsRepoInterface) {},
 			expectError: false,
 		},
 		{
@@ -686,20 +688,50 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 	t.Run("success - calls sync service UpdateCatchAll", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
-		settingsRepo := &MockSettingsRepository{}
-		fileManager := &MockFileManager{
-			WriteCatchAllFileFunc: func(content string) error {
-				return nil
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{}, 0, nil
 			},
 		}
-		reloader := &MockReloader{}
-		builder := &MockBuilder{}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "redirect", RedirectURL: "https://example.com"}, nil
+			},
+		}
+		aclRepo := &SyncMockACLRepository{
+			ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+				return []models.ACLGroup{}, 0, nil
+			},
+		}
+		fileManager := &MockFileManager{
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/config.json"
+			},
+			BackupJSONConfigFunc: func(_ string) error {
+				return nil
+			},
+			WriteJSONConfigFunc: func(_ string, _ []byte) error {
+				return nil
+			},
+			FileExistsFunc: func(_ string) bool {
+				return true
+			},
+		}
+		reloader := &MockReloader{
+			ValidateJSONFunc: func(_ string) error {
+				return nil
+			},
+			ReloadJSONFunc: func(_ context.Context, _ string) (*caddy.ReloadResult, error) {
+				return &caddy.ReloadResult{Success: true}, nil
+			},
+		}
 
 		syncSvc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    proxyRepo,
 			SettingsRepo: settingsRepo,
+			ACLRepo:      aclRepo,
 			FileManager:  fileManager,
 			Reloader:     reloader,
-			Builder:      builder,
 		})
 
 		svc := NewTestableSettingsService(mock, nil)
@@ -714,23 +746,50 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("error - sync service UpdateCatchAll fails", func(t *testing.T) {
+	t.Run("error - sync service UpdateCatchAll fails on JSON write", func(t *testing.T) {
 		t.Parallel()
 		mock := newMockSettingsRepoInterface()
-		settingsRepo := &MockSettingsRepository{
-			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
-				return nil, errors.New("settings error")
+		proxyRepo := &MockProxyRepository{
+			ListFunc: func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+				return []models.Proxy{}, 0, nil
 			},
 		}
-		fileManager := &MockFileManager{}
-		reloader := &MockReloader{}
-		builder := &MockBuilder{}
+		settingsRepo := &MockSettingsRepository{
+			GetNotFoundSettingsFunc: func() (*models.NotFoundSettings, error) {
+				return &models.NotFoundSettings{Mode: "default"}, nil
+			},
+		}
+		aclRepo := &SyncMockACLRepository{
+			ListGroupsFunc: func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+				return []models.ACLGroup{}, 0, nil
+			},
+		}
+		fileManager := &MockFileManager{
+			GetJSONConfigPathFunc: func() string {
+				return "/etc/caddy/config.json"
+			},
+			FileExistsFunc: func(_ string) bool {
+				return true
+			},
+			BackupJSONConfigFunc: func(_ string) error {
+				return nil
+			},
+			WriteJSONConfigFunc: func(_ string, _ []byte) error {
+				return errors.New("disk full")
+			},
+		}
+		reloader := &MockReloader{
+			ValidateJSONFunc: func(_ string) error {
+				return nil
+			},
+		}
 
 		syncSvc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    proxyRepo,
 			SettingsRepo: settingsRepo,
+			ACLRepo:      aclRepo,
 			FileManager:  fileManager,
 			Reloader:     reloader,
-			Builder:      builder,
 		})
 
 		svc := NewTestableSettingsService(mock, nil)
@@ -743,7 +802,7 @@ func TestSettingsService_SetNotFoundSettings_WithSyncService(t *testing.T) {
 
 		err := svc.SetNotFoundSettings(settings)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "settings error")
+		assert.Contains(t, err.Error(), "disk full")
 	})
 }
 

@@ -1,7 +1,8 @@
 import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/titanium';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
-import { AlertCircle, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, Lock, RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
 import { publicApi } from '@/lib/api';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
@@ -141,74 +142,77 @@ function ACLLoginContent({
     available: true,
     enabled: p.enabled,
   }));
-  const hasOAuthProviders = oauthProviders.length > 0;
-  // Consider basic auth as an available method (handled by browser, not this form)
-  const hasAnyAuthMethod = showWaygatesAuth || hasOAuthProviders || hasBasicAuth;
+  // Only consider OAuth providers that are actually enabled
+  const hasOAuthProviders = oauthProviders.some((p) => p.enabled);
+
+  // Check if auth is required (default to true if no authOptions yet)
+  const requiresAuth = authOptions?.requires_auth ?? true;
 
   return (
     <div className="space-y-6">
-      {/* Header with logo and title */}
-      <div className="text-center space-y-2">
-        {branding.logo_url ? (
-          <img
-            src={branding.logo_url}
-            alt={branding.title}
-            className="h-12 w-auto mx-auto object-contain"
-          />
-        ) : (
-          <div className="h-12 w-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-            <Lock className="size-6 text-primary" />
+      {/* Header - only show login header when auth is required */}
+      {requiresAuth ? (
+        <div className="text-center space-y-2">
+          {branding.logo_url ? (
+            <img
+              src={branding.logo_url}
+              alt={branding.title}
+              className="h-12 w-auto mx-auto object-contain"
+            />
+          ) : (
+            <div className="h-12 w-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="size-6 text-primary" />
+            </div>
+          )}
+          <h1 className="text-2xl font-semibold tracking-tight">{branding.title}</h1>
+          {branding.subtitle && (
+            <p className="text-sm text-muted-foreground">{branding.subtitle}</p>
+          )}
+        </div>
+      ) : (
+        /* Show success state when no auth required */
+        <div className="flex flex-col items-center py-4 text-center">
+          <div className="rounded-full bg-green-500/10 p-4 mb-4">
+            <CheckCircle className="size-8 text-green-500" />
           </div>
-        )}
-        <h1 className="text-2xl font-semibold tracking-tight">{branding.title}</h1>
-        {branding.subtitle && <p className="text-sm text-muted-foreground">{branding.subtitle}</p>}
-      </div>
+          <h1 className="text-2xl font-semibold tracking-tight">No Authentication Required</h1>
+          <p className="text-sm text-muted-foreground max-w-xs mt-2">
+            {redirectUrl
+              ? 'This resource is publicly accessible. Redirecting you now...'
+              : 'This resource is publicly accessible. You can access it directly.'}
+          </p>
+        </div>
+      )}
 
-      {/* Host badge */}
+      {/* Host badge - always show if host is available */}
       {host && <HostBadge host={host} />}
 
-      {/* Show message if no auth required */}
-      {authOptions && !authOptions.requires_auth && (
-        <Alert>
-          <AlertCircle className="size-4" />
-          <AlertDescription>
-            No authentication is required for this resource. You can access it directly.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Show message if no auth methods available */}
-      {authOptions?.requires_auth && !hasAnyAuthMethod && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>
-            No authentication methods are configured for this resource. Please contact the
-            administrator.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Basic auth info - show when only basic auth is available */}
-      {hasBasicAuth && !showWaygatesAuth && !hasOAuthProviders && (
-        <Alert>
-          <Lock className="size-4" />
-          <AlertDescription>
-            This resource uses HTTP Basic Authentication. Your browser will prompt you for
-            credentials when you access the protected resource.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Waygates login form */}
-      {showWaygatesAuth && (
-        <ACLLoginForm redirectUrl={redirectUrl} primaryColor={branding.primary_color} />
-      )}
-
-      {/* OAuth providers */}
-      {hasOAuthProviders && (
+      {/* Auth methods - only show when auth is required */}
+      {requiresAuth && (
         <>
-          {showWaygatesAuth && <Divider text="or" />}
-          <OAuthProvidersList providers={oauthProviders} redirectUrl={redirectUrl} />
+          {/* Basic auth info - show when only basic auth is available */}
+          {hasBasicAuth && !showWaygatesAuth && !hasOAuthProviders && (
+            <Alert>
+              <Lock className="size-4" />
+              <AlertDescription>
+                This resource uses HTTP Basic Authentication. Your browser will prompt you for
+                credentials when you access the protected resource.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Waygates login form */}
+          {showWaygatesAuth && (
+            <ACLLoginForm redirectUrl={redirectUrl} primaryColor={branding.primary_color} />
+          )}
+
+          {/* OAuth providers */}
+          {hasOAuthProviders && (
+            <>
+              {showWaygatesAuth && <Divider text="or" />}
+              <OAuthProvidersList providers={oauthProviders} redirectUrl={redirectUrl} />
+            </>
+          )}
         </>
       )}
 
@@ -263,6 +267,17 @@ export function ACLLoginPage() {
     isLoading: isAuthOptionsLoading,
     isError: isAuthOptionsError,
   } = useAuthOptions(host);
+
+  // Redirect if no auth is required
+  useEffect(() => {
+    if (authOptions && !authOptions.requires_auth && redirectUrl) {
+      // Small delay to show feedback before redirect
+      const timer = setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [authOptions, redirectUrl]);
 
   const isLoading = isBrandingLoading || isAuthOptionsLoading;
   const effectiveBranding = branding || defaultBranding;

@@ -64,7 +64,7 @@ func createTestACLUser(password string) *models.User {
 
 func TestACLVerifyHandler_Verify_NoACLConfigured(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			return &service.ACLVerifyResponse{
 				Allowed: true,
 				Headers: map[string]string{},
@@ -85,7 +85,7 @@ func TestACLVerifyHandler_Verify_NoACLConfigured(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_IPBypassMatch(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			// Simulate IP bypass - no further auth required
 			return &service.ACLVerifyResponse{
 				Allowed:      true,
@@ -109,7 +109,7 @@ func TestACLVerifyHandler_Verify_IPBypassMatch(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_IPDeny(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			return &service.ACLVerifyResponse{
 				Allowed:      false,
 				RequiresAuth: false,
@@ -131,7 +131,7 @@ func TestACLVerifyHandler_Verify_IPDeny(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_NoSessionAuthRequired(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			return &service.ACLVerifyResponse{
 				Allowed:      false,
 				RequiresAuth: true,
@@ -154,7 +154,7 @@ func TestACLVerifyHandler_Verify_NoSessionAuthRequired(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_ValidSession(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			return &service.ACLVerifyResponse{
 				Allowed: true,
 				User: &models.User{
@@ -226,7 +226,7 @@ func TestACLVerifyHandler_Verify_ValidBasicAuth(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_InvalidBasicAuth(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			// Basic auth fails
 			return &service.ACLVerifyResponse{
 				Allowed:      false,
@@ -251,7 +251,7 @@ func TestACLVerifyHandler_Verify_InvalidBasicAuth(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_ExpiredSession(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			// Session expired
 			return &service.ACLVerifyResponse{
 				Allowed:      false,
@@ -277,7 +277,7 @@ func TestACLVerifyHandler_Verify_ExpiredSession(t *testing.T) {
 
 func TestACLVerifyHandler_Verify_InternalError(t *testing.T) {
 	mockService := &MockACLService{
-		VerifyAccessFunc: func(request *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
+		VerifyAccessFunc: func(_ *service.ACLVerifyRequest) (*service.ACLVerifyResponse, error) {
 			return nil, errors.New("database connection error")
 		},
 	}
@@ -370,7 +370,7 @@ func TestACLVerifyHandler_Login_Success(t *testing.T) {
 	}
 
 	mockACLService := &MockACLService{
-		CreateSessionFunc: func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+		CreateSessionFunc: func(userID int, _ *int, _, _ string, _ int) (*models.ACLSession, error) {
 			uid := userID
 			return &models.ACLSession{
 				ID:           1,
@@ -410,7 +410,7 @@ func TestACLVerifyHandler_Login_InvalidCredentials_WrongPassword(t *testing.T) {
 	testUser := createTestACLUser("correctpassword")
 
 	mockUserRepo := &mocks.MockUserRepository{
-		GetByUsernameOrEmailFunc: func(identifier string) (*models.User, error) {
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
 			return testUser, nil
 		},
 	}
@@ -430,7 +430,7 @@ func TestACLVerifyHandler_Login_InvalidCredentials_WrongPassword(t *testing.T) {
 
 func TestACLVerifyHandler_Login_InvalidCredentials_UserNotFound(t *testing.T) {
 	mockUserRepo := &mocks.MockUserRepository{
-		GetByUsernameOrEmailFunc: func(identifier string) (*models.User, error) {
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
 			return nil, errors.New("user not found")
 		},
 	}
@@ -489,13 +489,13 @@ func TestACLVerifyHandler_Login_WithRedirect(t *testing.T) {
 	testUser := createTestACLUser(testPassword)
 
 	mockUserRepo := &mocks.MockUserRepository{
-		GetByUsernameOrEmailFunc: func(identifier string) (*models.User, error) {
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
 			return testUser, nil
 		},
 	}
 
 	mockACLService := &MockACLService{
-		CreateSessionFunc: func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+		CreateSessionFunc: func(userID int, _ *int, _, _ string, _ int) (*models.ACLSession, error) {
 			uid := userID
 			return &models.ACLSession{
 				ID:           1,
@@ -529,13 +529,13 @@ func TestACLVerifyHandler_Login_SessionCreationError(t *testing.T) {
 	testUser := createTestACLUser(testPassword)
 
 	mockUserRepo := &mocks.MockUserRepository{
-		GetByUsernameOrEmailFunc: func(identifier string) (*models.User, error) {
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
 			return testUser, nil
 		},
 	}
 
 	mockACLService := &MockACLService{
-		CreateSessionFunc: func(userID int, proxyID *int, ip, userAgent string, ttl int) (*models.ACLSession, error) {
+		CreateSessionFunc: func(_ int, _ *int, _, _ string, _ int) (*models.ACLSession, error) {
 			return nil, errors.New("failed to create session")
 		},
 	}
@@ -604,7 +604,7 @@ func TestACLVerifyHandler_Logout_NoSession(t *testing.T) {
 
 func TestACLVerifyHandler_Logout_RevokeError(t *testing.T) {
 	mockACLService := &MockACLService{
-		RevokeSessionFunc: func(token string) error {
+		RevokeSessionFunc: func(_ string) error {
 			return errors.New("database error")
 		},
 	}
@@ -699,7 +699,7 @@ func TestACLVerifyHandler_GetSession_NoSession(t *testing.T) {
 
 func TestACLVerifyHandler_GetSession_ExpiredSession(t *testing.T) {
 	mockACLService := &MockACLService{
-		ValidateSessionFunc: func(token string) (*models.ACLSession, error) {
+		ValidateSessionFunc: func(_ string) (*models.ACLSession, error) {
 			return nil, service.ErrSessionExpired
 		},
 	}
@@ -739,7 +739,7 @@ func TestACLVerifyHandler_GetSession_ExpiredSession(t *testing.T) {
 
 func TestACLVerifyHandler_GetSession_InvalidSession(t *testing.T) {
 	mockACLService := &MockACLService{
-		ValidateSessionFunc: func(token string) (*models.ACLSession, error) {
+		ValidateSessionFunc: func(_ string) (*models.ACLSession, error) {
 			return nil, service.ErrSessionNotFound
 		},
 	}

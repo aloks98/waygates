@@ -400,15 +400,15 @@ type MockACLRepository struct {
 	GetExternalProviderByIDFunc func(id int) (*models.ACLExternalProvider, error)
 }
 
-func (m *MockACLRepository) CreateGroup(group *models.ACLGroup) error             { return nil }
-func (m *MockACLRepository) GetGroupByID(id int) (*models.ACLGroup, error)        { return nil, nil }
-func (m *MockACLRepository) GetGroupByName(name string) (*models.ACLGroup, error) { return nil, nil }
-func (m *MockACLRepository) ListGroups(params repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+func (m *MockACLRepository) CreateGroup(_ *models.ACLGroup) error              { return nil }
+func (m *MockACLRepository) GetGroupByID(_ int) (*models.ACLGroup, error)      { return nil, nil }
+func (m *MockACLRepository) GetGroupByName(_ string) (*models.ACLGroup, error) { return nil, nil }
+func (m *MockACLRepository) ListGroups(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
 	return nil, 0, nil
 }
-func (m *MockACLRepository) UpdateGroup(group *models.ACLGroup) error  { return nil }
-func (m *MockACLRepository) DeleteGroup(id int) error                  { return nil }
-func (m *MockACLRepository) CreateIPRule(rule *models.ACLIPRule) error { return nil }
+func (m *MockACLRepository) UpdateGroup(_ *models.ACLGroup) error   { return nil }
+func (m *MockACLRepository) DeleteGroup(_ int) error                { return nil }
+func (m *MockACLRepository) CreateIPRule(_ *models.ACLIPRule) error { return nil }
 func (m *MockACLRepository) GetIPRuleByID(id int) (*models.ACLIPRule, error) {
 	if m.GetIPRuleByIDFunc != nil {
 		return m.GetIPRuleByIDFunc(id)
@@ -422,9 +422,9 @@ func (m *MockACLRepository) ListIPRules(groupID int) ([]models.ACLIPRule, error)
 	}
 	return []models.ACLIPRule{}, nil
 }
-func (m *MockACLRepository) UpdateIPRule(rule *models.ACLIPRule) error               { return nil }
-func (m *MockACLRepository) DeleteIPRule(id int) error                               { return nil }
-func (m *MockACLRepository) CreateBasicAuthUser(user *models.ACLBasicAuthUser) error { return nil }
+func (m *MockACLRepository) UpdateIPRule(_ *models.ACLIPRule) error               { return nil }
+func (m *MockACLRepository) DeleteIPRule(_ int) error                             { return nil }
+func (m *MockACLRepository) CreateBasicAuthUser(_ *models.ACLBasicAuthUser) error { return nil }
 func (m *MockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUser, error) {
 	if m.GetBasicAuthUserByIDFunc != nil {
 		return m.GetBasicAuthUserByIDFunc(id)
@@ -432,7 +432,7 @@ func (m *MockACLRepository) GetBasicAuthUserByID(id int) (*models.ACLBasicAuthUs
 	// Return a default user with group ID 1 for tests that don't need specific behavior
 	return &models.ACLBasicAuthUser{ID: id, ACLGroupID: 1}, nil
 }
-func (m *MockACLRepository) GetBasicAuthUser(groupID int, username string) (*models.ACLBasicAuthUser, error) {
+func (m *MockACLRepository) GetBasicAuthUser(_ int, _ string) (*models.ACLBasicAuthUser, error) {
 	return nil, nil
 }
 func (m *MockACLRepository) ListBasicAuthUsers(groupID int) ([]models.ACLBasicAuthUser, error) {
@@ -441,9 +441,9 @@ func (m *MockACLRepository) ListBasicAuthUsers(groupID int) ([]models.ACLBasicAu
 	}
 	return []models.ACLBasicAuthUser{}, nil
 }
-func (m *MockACLRepository) UpdateBasicAuthUser(user *models.ACLBasicAuthUser) error { return nil }
-func (m *MockACLRepository) DeleteBasicAuthUser(id int) error                        { return nil }
-func (m *MockACLRepository) CreateExternalProvider(provider *models.ACLExternalProvider) error {
+func (m *MockACLRepository) UpdateBasicAuthUser(_ *models.ACLBasicAuthUser) error { return nil }
+func (m *MockACLRepository) DeleteBasicAuthUser(_ int) error                      { return nil }
+func (m *MockACLRepository) CreateExternalProvider(_ *models.ACLExternalProvider) error {
 	return nil
 }
 func (m *MockACLRepository) GetExternalProviderByID(id int) (*models.ACLExternalProvider, error) {
@@ -459,69 +459,69 @@ func (m *MockACLRepository) ListExternalProviders(groupID int) ([]models.ACLExte
 	}
 	return []models.ACLExternalProvider{}, nil
 }
-func (m *MockACLRepository) UpdateExternalProvider(provider *models.ACLExternalProvider) error {
+func (m *MockACLRepository) UpdateExternalProvider(_ *models.ACLExternalProvider) error {
 	return nil
 }
-func (m *MockACLRepository) DeleteExternalProvider(id int) error { return nil }
-func (m *MockACLRepository) GetWaygatesAuth(groupID int) (*models.ACLWaygatesAuth, error) {
+func (m *MockACLRepository) DeleteExternalProvider(_ int) error { return nil }
+func (m *MockACLRepository) GetWaygatesAuth(_ int) (*models.ACLWaygatesAuth, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) CreateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
-func (m *MockACLRepository) UpdateWaygatesAuth(auth *models.ACLWaygatesAuth) error { return nil }
-func (m *MockACLRepository) DeleteWaygatesAuth(groupID int) error                  { return nil }
-func (m *MockACLRepository) GetOAuthProviderRestrictions(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+func (m *MockACLRepository) CreateWaygatesAuth(_ *models.ACLWaygatesAuth) error { return nil }
+func (m *MockACLRepository) UpdateWaygatesAuth(_ *models.ACLWaygatesAuth) error { return nil }
+func (m *MockACLRepository) DeleteWaygatesAuth(_ int) error                     { return nil }
+func (m *MockACLRepository) GetOAuthProviderRestrictions(_ int) ([]models.ACLOAuthProviderRestriction, error) {
 	return []models.ACLOAuthProviderRestriction{}, nil
 }
-func (m *MockACLRepository) GetOAuthProviderRestriction(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+func (m *MockACLRepository) GetOAuthProviderRestriction(_ int, _ string) (*models.ACLOAuthProviderRestriction, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) CreateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+func (m *MockACLRepository) CreateOAuthProviderRestriction(_ *models.ACLOAuthProviderRestriction) error {
 	return nil
 }
-func (m *MockACLRepository) UpdateOAuthProviderRestriction(restriction *models.ACLOAuthProviderRestriction) error {
+func (m *MockACLRepository) UpdateOAuthProviderRestriction(_ *models.ACLOAuthProviderRestriction) error {
 	return nil
 }
-func (m *MockACLRepository) DeleteOAuthProviderRestriction(groupID int, provider string) error {
+func (m *MockACLRepository) DeleteOAuthProviderRestriction(_ int, _ string) error {
 	return nil
 }
-func (m *MockACLRepository) CreateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
+func (m *MockACLRepository) CreateProxyACLAssignment(_ *models.ProxyACLAssignment) error {
 	return nil
 }
-func (m *MockACLRepository) GetProxyACLAssignments(proxyID int) ([]models.ProxyACLAssignment, error) {
+func (m *MockACLRepository) GetProxyACLAssignments(_ int) ([]models.ProxyACLAssignment, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) GetProxyACLAssignmentsByGroup(groupID int) ([]models.ProxyACLAssignment, error) {
+func (m *MockACLRepository) GetProxyACLAssignmentsByGroup(_ int) ([]models.ProxyACLAssignment, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) UpdateProxyACLAssignment(assignment *models.ProxyACLAssignment) error {
+func (m *MockACLRepository) UpdateProxyACLAssignment(_ *models.ProxyACLAssignment) error {
 	return nil
 }
-func (m *MockACLRepository) DeleteProxyACLAssignment(id int) error { return nil }
-func (m *MockACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+func (m *MockACLRepository) DeleteProxyACLAssignment(_ int) error { return nil }
+func (m *MockACLRepository) GetProxyACLAssignmentByID(_ int) (*models.ProxyACLAssignment, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error {
+func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(_, _ int) error {
 	return nil
 }
-func (m *MockACLRepository) GetBranding() (*models.ACLBranding, error)         { return nil, nil }
-func (m *MockACLRepository) UpdateBranding(branding *models.ACLBranding) error { return nil }
-func (m *MockACLRepository) CreateSession(session *models.ACLSession) error    { return nil }
-func (m *MockACLRepository) GetSessionByToken(token string) (*models.ACLSession, error) {
+func (m *MockACLRepository) GetBranding() (*models.ACLBranding, error)  { return nil, nil }
+func (m *MockACLRepository) UpdateBranding(_ *models.ACLBranding) error { return nil }
+func (m *MockACLRepository) CreateSession(_ *models.ACLSession) error   { return nil }
+func (m *MockACLRepository) GetSessionByToken(_ string) (*models.ACLSession, error) {
 	return nil, nil
 }
-func (m *MockACLRepository) DeleteSession(token string) error      { return nil }
+func (m *MockACLRepository) DeleteSession(_ string) error          { return nil }
 func (m *MockACLRepository) DeleteExpiredSessions() (int64, error) { return 0, nil }
-func (m *MockACLRepository) DeleteUserSessions(userID int) error   { return nil }
-func (m *MockACLRepository) DeleteProxySessions(proxyID int) error { return nil }
+func (m *MockACLRepository) DeleteUserSessions(_ int) error        { return nil }
+func (m *MockACLRepository) DeleteProxySessions(_ int) error       { return nil }
 
 // GetDB implements ACLRepositoryInterface.
 func (m *MockACLRepository) GetDB() *gorm.DB { return nil }
 
 // DeleteGroupWithTx implements ACLRepositoryInterface.
-func (m *MockACLRepository) DeleteGroupWithTx(tx *gorm.DB, id int) error { return nil }
+func (m *MockACLRepository) DeleteGroupWithTx(_ *gorm.DB, _ int) error { return nil }
 
 // GetProxyACLAssignmentsByGroupWithTx implements ACLRepositoryInterface.
-func (m *MockACLRepository) GetProxyACLAssignmentsByGroupWithTx(tx *gorm.DB, groupID int) ([]models.ProxyACLAssignment, error) {
+func (m *MockACLRepository) GetProxyACLAssignmentsByGroupWithTx(_ *gorm.DB, _ int) ([]models.ProxyACLAssignment, error) {
 	return nil, nil
 }
 
@@ -598,7 +598,7 @@ func createAuthenticatedRequest(method, url string, body interface{}) *http.Requ
 
 func TestACLHandler_ListGroups_Success(t *testing.T) {
 	mockService := &MockACLService{
-		ListGroupsFunc: func(params service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error) {
+		ListGroupsFunc: func(_ service.ListACLGroupsRequest) (*models.ACLGroupListResponse, error) {
 			return &models.ACLGroupListResponse{
 				Items: []models.ACLGroup{
 					{ID: 1, Name: "Test Group", CombinationMode: models.ACLCombinationModeAny},
@@ -689,7 +689,7 @@ func TestACLHandler_GetGroup_Success(t *testing.T) {
 
 func TestACLHandler_GetGroup_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetGroupFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, service.ErrACLGroupNotFound
 		},
 	}
@@ -739,7 +739,7 @@ func TestACLHandler_CreateGroup_InvalidCombinationMode(t *testing.T) {
 
 func TestACLHandler_CreateGroup_DuplicateName(t *testing.T) {
 	mockService := &MockACLService{
-		CreateGroupFunc: func(group *models.ACLGroup, createdBy int) error {
+		CreateGroupFunc: func(_ *models.ACLGroup, _ int) error {
 			return service.ErrACLGroupNameExists
 		},
 	}
@@ -757,7 +757,7 @@ func TestACLHandler_CreateGroup_DuplicateName(t *testing.T) {
 
 func TestACLHandler_UpdateGroup_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateGroupFunc: func(id int, updates *models.ACLGroup) error {
+		UpdateGroupFunc: func(_ int, _ *models.ACLGroup) error {
 			return nil
 		},
 		GetGroupFunc: func(id int) (*models.ACLGroup, error) {
@@ -782,7 +782,7 @@ func TestACLHandler_UpdateGroup_Success(t *testing.T) {
 
 func TestACLHandler_UpdateGroup_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateGroupFunc: func(id int, updates *models.ACLGroup) error {
+		UpdateGroupFunc: func(_ int, _ *models.ACLGroup) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -812,7 +812,7 @@ func TestACLHandler_UpdateGroup_ValidationError(t *testing.T) {
 
 func TestACLHandler_DeleteGroup_Success(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteGroupFunc: func(id int) error {
+		DeleteGroupFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -828,7 +828,7 @@ func TestACLHandler_DeleteGroup_Success(t *testing.T) {
 
 func TestACLHandler_DeleteGroup_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteGroupWithSyncFunc: func(id int, syncFn service.SyncCallback) error {
+		DeleteGroupWithSyncFunc: func(_ int, _ service.SyncCallback) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -872,7 +872,7 @@ func TestACLHandler_ListIPRules_Success(t *testing.T) {
 
 func TestACLHandler_ListIPRules_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetGroupFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, service.ErrACLGroupNotFound
 		},
 	}
@@ -888,7 +888,7 @@ func TestACLHandler_ListIPRules_GroupNotFound(t *testing.T) {
 
 func TestACLHandler_AddIPRule_Success(t *testing.T) {
 	mockService := &MockACLService{
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},
@@ -907,7 +907,7 @@ func TestACLHandler_AddIPRule_Success(t *testing.T) {
 
 func TestACLHandler_AddIPRule_InvalidCIDR(t *testing.T) {
 	mockService := &MockACLService{
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, _ *models.ACLIPRule) error {
 			return service.ErrInvalidCIDR
 		},
 	}
@@ -925,7 +925,7 @@ func TestACLHandler_AddIPRule_InvalidCIDR(t *testing.T) {
 
 func TestACLHandler_AddIPRule_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, _ *models.ACLIPRule) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -979,7 +979,7 @@ func TestACLHandler_AddIPRule_InvalidRuleType(t *testing.T) {
 
 func TestACLHandler_UpdateIPRule_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateIPRuleFunc: func(id int, rule *models.ACLIPRule) error {
+		UpdateIPRuleFunc: func(_ int, _ *models.ACLIPRule) error {
 			return nil
 		},
 	}
@@ -997,7 +997,7 @@ func TestACLHandler_UpdateIPRule_Success(t *testing.T) {
 
 func TestACLHandler_UpdateIPRule_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateIPRuleFunc: func(id int, rule *models.ACLIPRule) error {
+		UpdateIPRuleFunc: func(_ int, _ *models.ACLIPRule) error {
 			return service.ErrIPRuleNotFound
 		},
 	}
@@ -1015,7 +1015,7 @@ func TestACLHandler_UpdateIPRule_NotFound(t *testing.T) {
 
 func TestACLHandler_DeleteIPRule_Success(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteIPRuleFunc: func(id int) error {
+		DeleteIPRuleFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -1031,7 +1031,7 @@ func TestACLHandler_DeleteIPRule_Success(t *testing.T) {
 
 func TestACLHandler_DeleteIPRule_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteIPRuleFunc: func(id int) error {
+		DeleteIPRuleFunc: func(_ int) error {
 			return service.ErrIPRuleNotFound
 		},
 	}
@@ -1075,7 +1075,7 @@ func TestACLHandler_ListBasicAuthUsers_Success(t *testing.T) {
 
 func TestACLHandler_AddBasicAuthUser_Success(t *testing.T) {
 	mockService := &MockACLService{
-		AddBasicAuthUserFunc: func(groupID int, username, password string) error {
+		AddBasicAuthUserFunc: func(_ int, _, _ string) error {
 			return nil
 		},
 	}
@@ -1093,7 +1093,7 @@ func TestACLHandler_AddBasicAuthUser_Success(t *testing.T) {
 
 func TestACLHandler_AddBasicAuthUser_DuplicateUsername(t *testing.T) {
 	mockService := &MockACLService{
-		AddBasicAuthUserFunc: func(groupID int, username, password string) error {
+		AddBasicAuthUserFunc: func(_ int, _, _ string) error {
 			return service.ErrBasicAuthUserExists
 		},
 	}
@@ -1147,7 +1147,7 @@ func TestACLHandler_AddBasicAuthUser_PasswordTooShort(t *testing.T) {
 
 func TestACLHandler_UpdateBasicAuthUser_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateBasicAuthPasswordFunc: func(id int, password string) error {
+		UpdateBasicAuthPasswordFunc: func(_ int, _ string) error {
 			return nil
 		},
 	}
@@ -1165,7 +1165,7 @@ func TestACLHandler_UpdateBasicAuthUser_Success(t *testing.T) {
 
 func TestACLHandler_UpdateBasicAuthUser_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateBasicAuthPasswordFunc: func(id int, password string) error {
+		UpdateBasicAuthPasswordFunc: func(_ int, _ string) error {
 			return service.ErrBasicAuthUserNotFound
 		},
 	}
@@ -1183,7 +1183,7 @@ func TestACLHandler_UpdateBasicAuthUser_NotFound(t *testing.T) {
 
 func TestACLHandler_DeleteBasicAuthUser_Success(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteBasicAuthUserFunc: func(id int) error {
+		DeleteBasicAuthUserFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -1199,7 +1199,7 @@ func TestACLHandler_DeleteBasicAuthUser_Success(t *testing.T) {
 
 func TestACLHandler_DeleteBasicAuthUser_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteBasicAuthUserFunc: func(id int) error {
+		DeleteBasicAuthUserFunc: func(_ int) error {
 			return service.ErrBasicAuthUserNotFound
 		},
 	}
@@ -1242,7 +1242,7 @@ func TestACLHandler_ListExternalProviders_Success(t *testing.T) {
 
 func TestACLHandler_AddExternalProvider_Success(t *testing.T) {
 	mockService := &MockACLService{
-		AddExternalProviderFunc: func(groupID int, provider *models.ACLExternalProvider) error {
+		AddExternalProviderFunc: func(_ int, provider *models.ACLExternalProvider) error {
 			provider.ID = 1
 			return nil
 		},
@@ -1311,7 +1311,7 @@ func TestACLHandler_AddExternalProvider_MissingVerifyURL(t *testing.T) {
 
 func TestACLHandler_UpdateExternalProvider_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateExternalProviderFunc: func(id int, provider *models.ACLExternalProvider) error {
+		UpdateExternalProviderFunc: func(_ int, _ *models.ACLExternalProvider) error {
 			return nil
 		},
 	}
@@ -1333,7 +1333,7 @@ func TestACLHandler_UpdateExternalProvider_Success(t *testing.T) {
 
 func TestACLHandler_UpdateExternalProvider_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateExternalProviderFunc: func(id int, provider *models.ACLExternalProvider) error {
+		UpdateExternalProviderFunc: func(_ int, _ *models.ACLExternalProvider) error {
 			return service.ErrExternalProviderNotFound
 		},
 	}
@@ -1355,7 +1355,7 @@ func TestACLHandler_UpdateExternalProvider_NotFound(t *testing.T) {
 
 func TestACLHandler_DeleteExternalProvider_Success(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteExternalProviderFunc: func(id int) error {
+		DeleteExternalProviderFunc: func(_ int) error {
 			return nil
 		},
 	}
@@ -1371,7 +1371,7 @@ func TestACLHandler_DeleteExternalProvider_Success(t *testing.T) {
 
 func TestACLHandler_DeleteExternalProvider_NotFound(t *testing.T) {
 	mockService := &MockACLService{
-		DeleteExternalProviderFunc: func(id int) error {
+		DeleteExternalProviderFunc: func(_ int) error {
 			return service.ErrExternalProviderNotFound
 		},
 	}
@@ -1412,7 +1412,7 @@ func TestACLHandler_GetWaygatesAuth_Success(t *testing.T) {
 
 func TestACLHandler_GetWaygatesAuth_NotConfigured(t *testing.T) {
 	mockService := &MockACLService{
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, service.ErrWaygatesAuthNotFound
 		},
 	}
@@ -1429,7 +1429,7 @@ func TestACLHandler_GetWaygatesAuth_NotConfigured(t *testing.T) {
 
 func TestACLHandler_GetWaygatesAuth_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetWaygatesAuthFunc: func(groupID int) (*models.ACLWaygatesAuth, error) {
+		GetWaygatesAuthFunc: func(_ int) (*models.ACLWaygatesAuth, error) {
 			return nil, service.ErrACLGroupNotFound
 		},
 	}
@@ -1445,7 +1445,7 @@ func TestACLHandler_GetWaygatesAuth_GroupNotFound(t *testing.T) {
 
 func TestACLHandler_ConfigureWaygatesAuth_Success(t *testing.T) {
 	mockService := &MockACLService{
-		ConfigureWaygatesAuthFunc: func(groupID int, config *models.ACLWaygatesAuth) error {
+		ConfigureWaygatesAuthFunc: func(_ int, _ *models.ACLWaygatesAuth) error {
 			return nil
 		},
 	}
@@ -1468,7 +1468,7 @@ func TestACLHandler_ConfigureWaygatesAuth_Success(t *testing.T) {
 
 func TestACLHandler_ConfigureWaygatesAuth_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		ConfigureWaygatesAuthFunc: func(groupID int, config *models.ACLWaygatesAuth) error {
+		ConfigureWaygatesAuthFunc: func(_ int, _ *models.ACLWaygatesAuth) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -1516,7 +1516,7 @@ func TestACLHandler_GetBranding_Success(t *testing.T) {
 
 func TestACLHandler_UpdateBranding_Success(t *testing.T) {
 	mockService := &MockACLService{
-		UpdateBrandingFunc: func(branding *models.ACLBranding) error {
+		UpdateBrandingFunc: func(_ *models.ACLBranding) error {
 			return nil
 		},
 	}
@@ -1588,7 +1588,7 @@ func TestACLHandler_GetGroupUsage_Success(t *testing.T) {
 
 func TestACLHandler_GetGroupUsage_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetGroupFunc: func(id int) (*models.ACLGroup, error) {
+		GetGroupFunc: func(_ int) (*models.ACLGroup, error) {
 			return nil, service.ErrACLGroupNotFound
 		},
 	}
@@ -1814,7 +1814,7 @@ func TestACLHandler_GetAuthOptions_EmptyHostname(t *testing.T) {
 
 func TestACLHandler_GetAuthOptions_ProxyNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		GetAuthOptionsForProxyFunc: func(hostname string) (*service.AuthOptionsResponse, error) {
+		GetAuthOptionsForProxyFunc: func(_ string) (*service.AuthOptionsResponse, error) {
 			return nil, fmt.Errorf("proxy not found")
 		},
 	}
@@ -1909,7 +1909,7 @@ func TestACLHandler_SyncProxiesUsingGroup_MultipleProxies(t *testing.T) {
 				{ID: 3, ProxyID: 30, ACLGroupID: groupID},
 			}, nil
 		},
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},
@@ -1952,7 +1952,7 @@ func TestACLHandler_SyncProxiesUsingGroup_SyncErrors_ContinuesWithOthers(t *test
 				{ID: 3, ProxyID: 30, ACLGroupID: groupID}, // Should still sync
 			}, nil
 		},
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},
@@ -1984,7 +1984,7 @@ func TestACLHandler_SyncProxiesUsingGroup_NilSyncService(t *testing.T) {
 				{ID: 1, ProxyID: 10, ACLGroupID: groupID},
 			}, nil
 		},
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},
@@ -2006,11 +2006,11 @@ func TestACLHandler_SyncProxiesUsingGroup_NilSyncService(t *testing.T) {
 func TestACLHandler_SyncProxiesUsingGroup_GetGroupUsageError(t *testing.T) {
 	mockSync := &MockSyncService{}
 	mockService := &MockACLService{
-		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+		GetGroupUsageFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			// Error getting group usage - should be handled gracefully
 			return nil, fmt.Errorf("database error")
 		},
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},
@@ -2034,11 +2034,11 @@ func TestACLHandler_SyncProxiesUsingGroup_GetGroupUsageError(t *testing.T) {
 func TestACLHandler_SyncProxiesUsingGroup_NoProxiesUsing(t *testing.T) {
 	mockSync := &MockSyncService{}
 	mockService := &MockACLService{
-		GetGroupUsageFunc: func(groupID int) ([]models.ProxyACLAssignment, error) {
+		GetGroupUsageFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
 			// No proxies using this group
 			return []models.ProxyACLAssignment{}, nil
 		},
-		AddIPRuleFunc: func(groupID int, rule *models.ACLIPRule) error {
+		AddIPRuleFunc: func(_ int, rule *models.ACLIPRule) error {
 			rule.ID = 1
 			return nil
 		},

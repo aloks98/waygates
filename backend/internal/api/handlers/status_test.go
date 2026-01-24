@@ -37,7 +37,7 @@ func TestNewStatusHandler(t *testing.T) {
 func TestStatusHandler_GetStatus_AllHealthy(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}
@@ -72,7 +72,7 @@ func TestStatusHandler_GetStatus_AllHealthy(t *testing.T) {
 func TestStatusHandler_GetStatus_CaddyUnhealthy(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return errors.New("connection refused")
 		},
 	}
@@ -103,7 +103,7 @@ func TestStatusHandler_GetStatus_CaddyUnhealthy(t *testing.T) {
 func TestStatusHandler_GetStatus_NoUsers(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}
@@ -134,7 +134,7 @@ func TestStatusHandler_GetStatus_NoUsers(t *testing.T) {
 func TestStatusHandler_GetStatus_UserCountError(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}
@@ -156,7 +156,7 @@ func TestStatusHandler_GetStatus_UserCountError(t *testing.T) {
 func TestStatusHandler_GetStatus_BothUnhealthy(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return errors.New("caddy not running")
 		},
 	}
@@ -189,7 +189,7 @@ func TestStatusHandler_GetStatus_BothUnhealthy(t *testing.T) {
 func TestStatusHandler_GetStatus_ResponseFormat(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}
@@ -227,7 +227,7 @@ func TestStatusHandler_GetStatus_ResponseFormat(t *testing.T) {
 func TestStatusHandler_GetStatus_SuccessMessage(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}
@@ -292,7 +292,7 @@ func TestStatusHandler_GetStatus_CaddyTimeout(t *testing.T) {
 func TestStatusHandler_GetStatus_ManyUsers(t *testing.T) {
 	t.Parallel()
 	mockReloader := &mocks.MockReloader{
-		TestConnectionFunc: func(ctx context.Context) error {
+		TestConnectionFunc: func(_ context.Context) error {
 			return nil
 		},
 	}

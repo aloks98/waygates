@@ -336,6 +336,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	// Log audit event
 	if h.auditService != nil && userID > 0 {
+		// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
 		if user, err := h.userRepo.GetByID(int(userID)); err == nil {
 			_ = h.auditService.LogLogout(ctx, int(userID), user.Username, getClientIP(r), r.UserAgent())
 		}
@@ -376,6 +377,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the current user
+	// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
 	user, err := h.userRepo.GetByID(int(userID))
 	if err != nil {
 		if h.logger != nil {
@@ -405,6 +407,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update user in database - we need to update the password hash
+	// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
 	if err := h.userRepo.UpdatePassword(int(userID), user.PasswordHash); err != nil {
 		if h.logger != nil {
 			h.logger.Error("Failed to update password in database",
@@ -417,6 +420,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	// Log audit event
 	if h.auditService != nil {
+		// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
 		_ = h.auditService.LogPasswordChange(ctx, int(userID), user.Username, getClientIP(r), r.UserAgent())
 	}
 
@@ -432,6 +436,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
 	user, err := h.userRepo.GetByID(int(userID))
 	if err != nil {
 		if h.logger != nil {

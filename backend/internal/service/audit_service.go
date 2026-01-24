@@ -37,7 +37,7 @@ func NewAuditService(
 }
 
 // LogEvent is the main method for creating audit entries
-func (s *AuditService) LogEvent(ctx context.Context, event models.AuditEvent) error {
+func (s *AuditService) LogEvent(_ context.Context, event models.AuditEvent) error {
 	// Check if event category is enabled
 	if !s.isEventEnabled(event.Action) {
 		s.logger.Debug("Skipping audit log (category disabled)",
@@ -697,7 +697,7 @@ func (s *AuditService) LogACLBasicAuthDelete(ctx context.Context, userID int, au
 }
 
 // LogACLWaygatesAuthUpdate logs a Waygates auth configuration change event
-func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, newConfig *models.ACLWaygatesAuth, changes map[string]interface{}, ip, userAgent string) error {
+func (s *AuditService) LogACLWaygatesAuthUpdate(ctx context.Context, userID int, groupID int, groupName string, changes map[string]interface{}, ip, userAgent string) error {
 	details := map[string]interface{}{
 		"group_id":   groupID,
 		"group_name": groupName,
