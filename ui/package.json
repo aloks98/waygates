@@ -7,9 +7,6 @@
     "dev": "rsbuild dev",
     "build": "rsbuild build",
     "preview": "rsbuild preview",
-    "lint": "biome lint src",
-    "lint:fix": "biome lint --write src",
-    "format": "biome format --write src",
     "check": "biome check src",
     "check:fix": "biome check --write --unsafe src"
   },
