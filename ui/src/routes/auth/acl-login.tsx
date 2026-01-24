@@ -165,7 +165,9 @@ function ACLLoginContent({
             </div>
           )}
           <h1 className="text-2xl font-semibold tracking-tight">{branding.title}</h1>
-          {branding.subtitle && <p className="text-sm text-muted-foreground">{branding.subtitle}</p>}
+          {branding.subtitle && (
+            <p className="text-sm text-muted-foreground">{branding.subtitle}</p>
+          )}
         </div>
       ) : (
         /* Show success state when no auth required */

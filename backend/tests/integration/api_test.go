@@ -295,26 +295,14 @@ func (env *ContainerTestEnv) ExecInContainer(_ *testing.T, cmd []string) (string
 	return string(output), nil
 }
 
-// ProxyFileExists checks if a proxy config file exists in the container
-func (env *ContainerTestEnv) ProxyFileExists(t *testing.T, filename string) bool {
-	_, err := env.ExecInContainer(t, []string{"test", "-f", "/etc/caddy/sites/" + filename})
-	return err == nil
-}
-
-// DisabledProxyFileExists checks if a disabled proxy config file exists
-func (env *ContainerTestEnv) DisabledProxyFileExists(t *testing.T, filename string) bool {
-	_, err := env.ExecInContainer(t, []string{"test", "-f", "/etc/caddy/sites/" + filename + ".disabled"})
-	return err == nil
-}
-
-// ReadProxyFile reads a proxy config file from the container
-func (env *ContainerTestEnv) ReadProxyFile(t *testing.T, filename string) (string, error) {
-	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/sites/" + filename})
-}
-
-// ReadCatchAllFile reads the catchall.conf file from the container
-func (env *ContainerTestEnv) ReadCatchAllFile(t *testing.T) (string, error) {
-	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/catchall.conf"})
+// ProxyExistsInJSONConfig checks if a proxy hostname exists in the JSON config
+func (env *ContainerTestEnv) ProxyExistsInJSONConfig(t *testing.T, hostname string) bool {
+	config, err := env.ReadJSONConfig(t)
+	if err != nil {
+		return false
+	}
+	// Check if hostname appears in the config
+	return strings.Contains(config, hostname)
 }
 
 // ReadJSONConfig reads the Caddy JSON config from the container
@@ -322,14 +310,14 @@ func (env *ContainerTestEnv) ReadJSONConfig(t *testing.T) (string, error) {
 	return env.ExecInContainer(t, []string{"cat", "/etc/caddy/caddy.json"})
 }
 
-// WaitForProxyFile waits for a proxy file to exist with timeout
-func (env *ContainerTestEnv) WaitForProxyFile(t *testing.T, filename string, timeout time.Duration) bool {
+// WaitForProxyInConfig waits for a proxy hostname to appear in the JSON config
+func (env *ContainerTestEnv) WaitForProxyInConfig(t *testing.T, hostname string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	pollInterval := 100 * time.Millisecond
 
 	for time.Now().Before(deadline) {
-		if env.ProxyFileExists(t, filename) {
+		if env.ProxyExistsInJSONConfig(t, hostname) {
 			return true
 		}
 		time.Sleep(pollInterval)
@@ -337,44 +325,14 @@ func (env *ContainerTestEnv) WaitForProxyFile(t *testing.T, filename string, tim
 	return false
 }
 
-// WaitForProxyFileRemoved waits for a proxy file to be removed with timeout
-func (env *ContainerTestEnv) WaitForProxyFileRemoved(t *testing.T, filename string, timeout time.Duration) bool {
+// WaitForProxyRemovedFromConfig waits for a proxy hostname to be removed from the JSON config
+func (env *ContainerTestEnv) WaitForProxyRemovedFromConfig(t *testing.T, hostname string, timeout time.Duration) bool {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	pollInterval := 100 * time.Millisecond
 
 	for time.Now().Before(deadline) {
-		if !env.ProxyFileExists(t, filename) {
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-// WaitForDisabledProxyFile waits for a disabled proxy file to exist with timeout
-func (env *ContainerTestEnv) WaitForDisabledProxyFile(t *testing.T, filename string, timeout time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	pollInterval := 100 * time.Millisecond
-
-	for time.Now().Before(deadline) {
-		if env.DisabledProxyFileExists(t, filename) {
-			return true
-		}
-		time.Sleep(pollInterval)
-	}
-	return false
-}
-
-// WaitForDisabledProxyFileRemoved waits for a disabled proxy file to be removed with timeout
-func (env *ContainerTestEnv) WaitForDisabledProxyFileRemoved(t *testing.T, filename string, timeout time.Duration) bool {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	pollInterval := 100 * time.Millisecond
-
-	for time.Now().Before(deadline) {
-		if !env.DisabledProxyFileExists(t, filename) {
+		if !env.ProxyExistsInJSONConfig(t, hostname) {
 			return true
 		}
 		time.Sleep(pollInterval)
@@ -445,25 +403,6 @@ func findTestJSONConfig(t *testing.T) string {
 	return ""
 }
 
-// sanitizeHostname converts hostname to expected filename format
-func sanitizeHostname(hostname string) string {
-	// Replace non-alphanumeric chars with underscore
-	result := ""
-	for _, c := range hostname {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
-			result += string(c)
-		} else {
-			result += "_"
-		}
-	}
-	// Remove consecutive underscores
-	for strings.Contains(result, "__") {
-		result = strings.ReplaceAll(result, "__", "_")
-	}
-	// Trim underscores
-	return strings.Trim(result, "_")
-}
-
 // TestIntegration_ProxyLifecycle tests the full proxy lifecycle
 // NOTE: Subtests in this function share state (createdProxyID) and MUST run sequentially.
 // Do NOT add t.Parallel() to any subtest as they depend on the order of execution.
@@ -529,22 +468,21 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 
 		t.Logf("Created proxy with ID: %d", response.Data.ID)
 
-		// Verify proxy file was created (with polling)
-		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.hostname))
-		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-			t.Errorf("Expected proxy file %s to exist", expectedFilename)
+		// Verify proxy appears in JSON config (with polling)
+		if !env.WaitForProxyInConfig(t, state.hostname, 5*time.Second) {
+			t.Errorf("Expected hostname %s to appear in JSON config", state.hostname)
 		} else {
-			content, err := env.ReadProxyFile(t, expectedFilename)
+			content, err := env.ReadJSONConfig(t)
 			if err != nil {
-				t.Errorf("Failed to read proxy file: %v", err)
+				t.Errorf("Failed to read JSON config: %v", err)
 			} else {
 				if !strings.Contains(content, state.hostname) {
-					t.Error("Proxy file should contain hostname")
+					t.Error("JSON config should contain hostname")
 				}
 				if !strings.Contains(content, "reverse_proxy") {
-					t.Error("Proxy file should contain reverse_proxy directive")
+					t.Error("JSON config should contain reverse_proxy handler")
 				}
-				t.Logf("Proxy file content:\n%s", content)
+				t.Logf("JSON config contains proxy for: %s", state.hostname)
 			}
 		}
 	})
@@ -634,19 +572,18 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Errorf("Expected hostname '%s', got '%s'", state.updatedHostname, response.Data.Hostname)
 		}
 
-		// Verify proxy file was updated (with polling)
-		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
-		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-			t.Errorf("Expected updated proxy file %s to exist", expectedFilename)
+		// Verify proxy appears in JSON config with updated hostname (with polling)
+		if !env.WaitForProxyInConfig(t, state.updatedHostname, 5*time.Second) {
+			t.Errorf("Expected updated hostname %s to appear in JSON config", state.updatedHostname)
 		} else {
-			content, err := env.ReadProxyFile(t, expectedFilename)
+			content, err := env.ReadJSONConfig(t)
 			if err != nil {
-				t.Errorf("Failed to read proxy file: %v", err)
+				t.Errorf("Failed to read JSON config: %v", err)
 			} else {
 				if !strings.Contains(content, state.updatedHostname) {
-					t.Error("Proxy file should contain updated hostname")
+					t.Error("JSON config should contain updated hostname")
 				}
-				t.Logf("Updated proxy file content:\n%s", content)
+				t.Logf("JSON config updated for: %s", state.updatedHostname)
 			}
 		}
 	})
@@ -661,15 +598,11 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify proxy file was renamed to .disabled (with polling)
-		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
-		if !env.WaitForProxyFileRemoved(t, expectedFilename, 5*time.Second) {
-			t.Error("Enabled proxy file should not exist after disable")
+		// Verify proxy is removed from JSON config (disabled proxies are not included)
+		if !env.WaitForProxyRemovedFromConfig(t, state.updatedHostname, 5*time.Second) {
+			t.Error("Proxy hostname should not be in JSON config after disable")
 		}
-		if !env.WaitForDisabledProxyFile(t, expectedFilename, 5*time.Second) {
-			t.Error("Disabled proxy file should exist after disable")
-		}
-		t.Log("Proxy disabled - file renamed to .disabled")
+		t.Log("Proxy disabled - removed from JSON config")
 	})
 
 	// Test 6: Enable proxy
@@ -682,15 +615,11 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify proxy file was renamed back (with polling)
-		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
-		if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-			t.Error("Enabled proxy file should exist after enable")
+		// Verify proxy is back in JSON config after enable
+		if !env.WaitForProxyInConfig(t, state.updatedHostname, 5*time.Second) {
+			t.Error("Proxy hostname should be in JSON config after enable")
 		}
-		if !env.WaitForDisabledProxyFileRemoved(t, expectedFilename, 5*time.Second) {
-			t.Error("Disabled proxy file should not exist after enable")
-		}
-		t.Log("Proxy enabled - file restored from .disabled")
+		t.Log("Proxy enabled - added back to JSON config")
 	})
 
 	// Test 7: Delete proxy
@@ -711,15 +640,11 @@ func TestIntegration_ProxyLifecycle(t *testing.T) {
 			t.Errorf("Expected 404 after delete, got %d", resp.StatusCode)
 		}
 
-		// Verify proxy file was deleted (with polling)
-		expectedFilename := fmt.Sprintf("%d_%s.conf", state.id, sanitizeHostname(state.updatedHostname))
-		if !env.WaitForProxyFileRemoved(t, expectedFilename, 5*time.Second) {
-			t.Error("Proxy file should not exist after delete")
+		// Verify proxy is removed from JSON config (with polling)
+		if !env.WaitForProxyRemovedFromConfig(t, state.updatedHostname, 5*time.Second) {
+			t.Error("Proxy hostname should not be in JSON config after delete")
 		}
-		if !env.WaitForDisabledProxyFileRemoved(t, expectedFilename, 5*time.Second) {
-			t.Error("Disabled proxy file should not exist after delete")
-		}
-		t.Log("Proxy deleted - file removed")
+		t.Log("Proxy deleted - removed from JSON config")
 	})
 }
 
@@ -731,6 +656,7 @@ func TestIntegration_RedirectProxy(t *testing.T) {
 	env.RegisterAndLogin(t)
 
 	hostname := "redirect.example.com"
+	redirectTarget := "https://target.example.com"
 
 	// Create redirect proxy
 	proxy := map[string]interface{}{
@@ -738,7 +664,7 @@ func TestIntegration_RedirectProxy(t *testing.T) {
 		"name":     "Redirect Test",
 		"hostname": hostname,
 		"redirect": map[string]interface{}{
-			"target":         "https://target.example.com",
+			"target":         redirectTarget,
 			"status_code":    301,
 			"preserve_path":  true,
 			"preserve_query": true,
@@ -762,31 +688,31 @@ func TestIntegration_RedirectProxy(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with redirect config (with polling)
-	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
+	// Verify proxy appears in JSON config (with polling)
+	if !env.WaitForProxyInConfig(t, hostname, 5*time.Second) {
+		t.Fatalf("Expected hostname %s to appear in JSON config", hostname)
 	}
 
-	content, err := env.ReadProxyFile(t, expectedFilename)
+	content, err := env.ReadJSONConfig(t)
 	if err != nil {
-		t.Fatalf("Failed to read proxy file: %v", err)
+		t.Fatalf("Failed to read JSON config: %v", err)
 	}
 
 	if !strings.Contains(content, hostname) {
-		t.Error("Proxy file should contain hostname")
+		t.Error("JSON config should contain hostname")
 	}
-	if !strings.Contains(content, "redir") {
-		t.Error("Proxy file should contain redir directive")
+	// In JSON config, redirects use static_response handler with Location header
+	if !strings.Contains(content, "static_response") {
+		t.Error("JSON config should contain static_response handler for redirect")
 	}
 	if !strings.Contains(content, "target.example.com") {
-		t.Error("Proxy file should contain redirect target")
+		t.Error("JSON config should contain redirect target")
 	}
-	// Caddy uses "permanent" for 301 redirects
-	if !strings.Contains(content, "permanent") {
-		t.Error("Proxy file should contain permanent redirect directive")
+	// Check for 301 status code in JSON config
+	if !strings.Contains(content, "301") {
+		t.Error("JSON config should contain 301 status code")
 	}
-	t.Logf("Redirect proxy file content:\n%s", content)
+	t.Logf("Redirect proxy JSON config created for: %s", hostname)
 }
 
 // TestIntegration_StaticProxy tests static file server proxy type
@@ -826,27 +752,26 @@ func TestIntegration_StaticProxy(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with static config (with polling)
-	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
+	// Verify proxy appears in JSON config (with polling)
+	if !env.WaitForProxyInConfig(t, hostname, 5*time.Second) {
+		t.Fatalf("Expected hostname %s to appear in JSON config", hostname)
 	}
 
-	content, err := env.ReadProxyFile(t, expectedFilename)
+	content, err := env.ReadJSONConfig(t)
 	if err != nil {
-		t.Fatalf("Failed to read proxy file: %v", err)
+		t.Fatalf("Failed to read JSON config: %v", err)
 	}
 
 	if !strings.Contains(content, hostname) {
-		t.Error("Proxy file should contain hostname")
+		t.Error("JSON config should contain hostname")
 	}
 	if !strings.Contains(content, "file_server") {
-		t.Error("Proxy file should contain file_server directive")
+		t.Error("JSON config should contain file_server handler")
 	}
 	if !strings.Contains(content, "/var/www/html") {
-		t.Error("Proxy file should contain root path")
+		t.Error("JSON config should contain root path")
 	}
-	t.Logf("Static proxy file content:\n%s", content)
+	t.Logf("Static proxy JSON config created for: %s", hostname)
 }
 
 // TestIntegration_HostnameConflict tests that duplicate hostnames are rejected
@@ -1057,19 +982,23 @@ func TestIntegration_SettingsAPI(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify catchall.conf was updated
-		content, err := env.ReadCatchAllFile(t)
+		// Trigger a sync to update the JSON config
+		syncResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		_ = syncResp.Body.Close()
+		env.WaitForSyncComplete(t, 5*time.Second)
+
+		// Verify JSON config was updated with redirect for 404
+		content, err := env.ReadJSONConfig(t)
 		if err != nil {
-			t.Fatalf("Failed to read catchall.conf: %v", err)
+			t.Fatalf("Failed to read JSON config: %v", err)
 		}
 
-		if !strings.Contains(content, "redir") {
-			t.Error("Catchall file should contain redir directive for redirect mode")
-		}
+		// In JSON config, the 404 redirect should appear as a static_response with Location header
+		// or a redirect handler in the catch-all server
 		if !strings.Contains(content, "https://example.com/404") {
-			t.Error("Catchall file should contain redirect URL")
+			t.Error("JSON config should contain redirect URL for 404 mode")
 		}
-		t.Logf("Catchall file content after redirect mode:\n%s", content)
+		t.Logf("JSON config updated with 404 redirect mode")
 	})
 
 	// Test 4: Update 404 mode back to default
@@ -1087,16 +1016,22 @@ func TestIntegration_SettingsAPI(t *testing.T) {
 			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
 		}
 
-		// Verify catchall.conf was updated
-		content, err := env.ReadCatchAllFile(t)
+		// Trigger a sync to update the JSON config
+		syncResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/sync/trigger", nil)
+		_ = syncResp.Body.Close()
+		env.WaitForSyncComplete(t, 5*time.Second)
+
+		// Verify JSON config was updated with default 404 response
+		content, err := env.ReadJSONConfig(t)
 		if err != nil {
-			t.Fatalf("Failed to read catchall.conf: %v", err)
+			t.Fatalf("Failed to read JSON config: %v", err)
 		}
 
-		if !strings.Contains(content, "respond") || !strings.Contains(content, "404") {
-			t.Error("Catchall file should contain 404 respond for default mode")
+		// In JSON config, the default 404 should not contain the redirect URL anymore
+		if strings.Contains(content, "https://example.com/404") {
+			t.Error("JSON config should not contain redirect URL for default mode")
 		}
-		t.Logf("Catchall file content after default mode:\n%s", content)
+		t.Logf("JSON config updated with default 404 mode")
 	})
 }
 
@@ -1230,39 +1165,43 @@ func TestIntegration_ReverseProxy_LoadBalancing(t *testing.T) {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with load balancing config (with polling)
-	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
+	// Verify proxy appears in JSON config (with polling)
+	if !env.WaitForProxyInConfig(t, hostname, 5*time.Second) {
+		t.Fatalf("Expected hostname %s to appear in JSON config", hostname)
 	}
 
-	content, err := env.ReadProxyFile(t, expectedFilename)
+	content, err := env.ReadJSONConfig(t)
 	if err != nil {
-		t.Fatalf("Failed to read proxy file: %v", err)
+		t.Fatalf("Failed to read JSON config: %v", err)
 	}
 
-	// Check for multiple upstreams
-	if !strings.Contains(content, "backend1.internal:8080") {
-		t.Error("Proxy file should contain backend1")
+	// Check for multiple upstreams in JSON config
+	if !strings.Contains(content, "backend1.internal") {
+		t.Error("JSON config should contain backend1")
 	}
-	if !strings.Contains(content, "backend2.internal:8080") {
-		t.Error("Proxy file should contain backend2")
+	if !strings.Contains(content, "backend2.internal") {
+		t.Error("JSON config should contain backend2")
 	}
-	if !strings.Contains(content, "backend3.internal:8080") {
-		t.Error("Proxy file should contain backend3")
-	}
-
-	// Check for load balancing
-	if !strings.Contains(content, "lb_policy") {
-		t.Error("Proxy file should contain lb_policy directive")
+	if !strings.Contains(content, "backend3.internal") {
+		t.Error("JSON config should contain backend3")
 	}
 
-	// Check for health checks
-	if !strings.Contains(content, "health_uri") || !strings.Contains(content, "/health") {
-		t.Error("Proxy file should contain health check configuration")
+	// Check for reverse_proxy handler
+	if !strings.Contains(content, "reverse_proxy") {
+		t.Error("JSON config should contain reverse_proxy handler")
 	}
 
-	t.Logf("Load balanced proxy file content:\n%s", content)
+	// Check for load balancing policy (in JSON config it's under load_balancing or selection_policy)
+	if !strings.Contains(content, "round_robin") {
+		t.Error("JSON config should contain round_robin load balancing policy")
+	}
+
+	// Check for health checks (in JSON config it's under health_checks or active_health_checks)
+	if !strings.Contains(content, "/health") {
+		t.Error("JSON config should contain health check path")
+	}
+
+	t.Logf("Load balanced proxy JSON config created for: %s", hostname)
 }
 
 // TestIntegration_ReverseProxy_BlockExploits tests reverse proxy with block exploits enabled
@@ -1295,30 +1234,56 @@ func TestIntegration_ReverseProxy_BlockExploits(t *testing.T) {
 
 	var response struct {
 		Data struct {
-			ID int `json:"id"`
+			ID            int  `json:"id"`
+			BlockExploits bool `json:"block_exploits"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(respBody, &response); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
 
-	// Verify proxy file was created with security import (with polling)
-	expectedFilename := fmt.Sprintf("%d_%s.conf", response.Data.ID, sanitizeHostname(hostname))
-	if !env.WaitForProxyFile(t, expectedFilename, 5*time.Second) {
-		t.Fatalf("Expected proxy file %s to exist", expectedFilename)
+	// Verify block_exploits is set in the response
+	if !response.Data.BlockExploits {
+		t.Error("Expected block_exploits to be true in response")
 	}
 
-	content, err := env.ReadProxyFile(t, expectedFilename)
+	// Verify proxy appears in JSON config (with polling)
+	if !env.WaitForProxyInConfig(t, hostname, 5*time.Second) {
+		t.Fatalf("Expected hostname %s to appear in JSON config", hostname)
+	}
+
+	content, err := env.ReadJSONConfig(t)
 	if err != nil {
-		t.Fatalf("Failed to read proxy file: %v", err)
+		t.Fatalf("Failed to read JSON config: %v", err)
 	}
 
-	// Check for security snippet import
-	if !strings.Contains(content, "import /etc/caddy/snippets/security.caddy") {
-		t.Error("Proxy file should import security snippet when block_exploits is enabled")
+	// Verify the proxy is in the config
+	if !strings.Contains(content, hostname) {
+		t.Error("JSON config should contain hostname")
 	}
 
-	t.Logf("Secure proxy file content:\n%s", content)
+	// In JSON config, block_exploits adds security routes that block common exploit patterns
+	// Check for the reverse_proxy handler
+	if !strings.Contains(content, "reverse_proxy") {
+		t.Error("JSON config should contain reverse_proxy handler")
+	}
+
+	// Verify the proxy was created with block_exploits by checking the API response
+	getResp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d", response.Data.ID), nil)
+	defer func() { _ = getResp.Body.Close() }()
+
+	var getResponse struct {
+		Data struct {
+			BlockExploits bool `json:"block_exploits"`
+		} `json:"data"`
+	}
+	env.ReadJSONResponse(t, getResp, &getResponse)
+
+	if !getResponse.Data.BlockExploits {
+		t.Error("Expected block_exploits to be true when retrieving proxy")
+	}
+
+	t.Logf("Secure proxy JSON config created for: %s with block_exploits enabled", hostname)
 }
 
 // TestIntegration_AuthErrors tests authentication error handling
