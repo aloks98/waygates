@@ -1383,3 +1383,922 @@ func TestIntegration_AuthErrors(t *testing.T) {
 		t.Log("Correctly rejected request with empty Bearer token")
 	})
 }
+
+// TestIntegration_ACLGroupLifecycle tests the full ACL group lifecycle
+func TestIntegration_ACLGroupLifecycle(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// State for sequential tests
+	type aclState struct {
+		groupID     int
+		ipRuleID    int
+		basicAuthID int
+	}
+	state := &aclState{}
+
+	// Test 1: Create ACL group
+	t.Run("CreateACLGroup", func(t *testing.T) {
+		createReq := map[string]interface{}{
+			"name":             "Test ACL Group",
+			"description":      "Test group for integration tests",
+			"combination_mode": "any",
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", createReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 201, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				ID              int    `json:"id"`
+				Name            string `json:"name"`
+				Description     string `json:"description"`
+				CombinationMode string `json:"combination_mode"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response.Data.ID == 0 {
+			t.Error("Expected group ID to be set")
+		}
+		state.groupID = response.Data.ID
+
+		if response.Data.Name != "Test ACL Group" {
+			t.Errorf("Expected name 'Test ACL Group', got '%s'", response.Data.Name)
+		}
+		if response.Data.CombinationMode != "any" {
+			t.Errorf("Expected combination_mode 'any', got '%s'", response.Data.CombinationMode)
+		}
+
+		t.Logf("Created ACL group with ID: %d", state.groupID)
+	})
+
+	// Test 2: List ACL groups
+	t.Run("ListACLGroups", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/acl/groups", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Items []struct {
+					ID   int    `json:"id"`
+					Name string `json:"name"`
+				} `json:"items"`
+				Total int `json:"total"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response.Data.Total == 0 {
+			t.Error("Expected at least 1 ACL group")
+		}
+
+		found := false
+		for _, item := range response.Data.Items {
+			if item.ID == state.groupID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected to find group with ID %d in list", state.groupID)
+		}
+	})
+
+	// Test 3: Get ACL group by ID
+	t.Run("GetACLGroup", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d", state.groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				ID          int    `json:"id"`
+				Name        string `json:"name"`
+				Description string `json:"description"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response.Data.ID != state.groupID {
+			t.Errorf("Expected ID %d, got %d", state.groupID, response.Data.ID)
+		}
+	})
+
+	// Test 4: Update ACL group
+	t.Run("UpdateACLGroup", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"name":             "Updated ACL Group",
+			"description":      "Updated description",
+			"combination_mode": "all",
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/acl/groups/%d", state.groupID), updateReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		// Verify the update
+		getResp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d", state.groupID), nil)
+		defer func() { _ = getResp.Body.Close() }()
+
+		var response struct {
+			Data struct {
+				Name            string `json:"name"`
+				CombinationMode string `json:"combination_mode"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, getResp, &response)
+
+		if response.Data.Name != "Updated ACL Group" {
+			t.Errorf("Expected name 'Updated ACL Group', got '%s'", response.Data.Name)
+		}
+		if response.Data.CombinationMode != "all" {
+			t.Errorf("Expected combination_mode 'all', got '%s'", response.Data.CombinationMode)
+		}
+	})
+
+	// Test 5: Add IP rule to group
+	t.Run("AddIPRule", func(t *testing.T) {
+		ipRuleReq := map[string]interface{}{
+			"rule_type":   "allow",
+			"cidr":        "192.168.1.0/24",
+			"description": "Allow local network",
+			"priority":    10,
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/acl/groups/%d/ip-rules", state.groupID), ipRuleReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 201, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data struct {
+				ID       int    `json:"id"`
+				RuleType string `json:"rule_type"`
+				CIDR     string `json:"cidr"`
+				Priority int    `json:"priority"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		state.ipRuleID = response.Data.ID
+		if response.Data.RuleType != "allow" {
+			t.Errorf("Expected rule_type 'allow', got '%s'", response.Data.RuleType)
+		}
+		if response.Data.CIDR != "192.168.1.0/24" {
+			t.Errorf("Expected CIDR '192.168.1.0/24', got '%s'", response.Data.CIDR)
+		}
+
+		t.Logf("Created IP rule with ID: %d", state.ipRuleID)
+	})
+
+	// Test 6: List IP rules
+	t.Run("ListIPRules", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d/ip-rules", state.groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data []struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if len(response.Data) == 0 {
+			t.Error("Expected at least 1 IP rule")
+		}
+	})
+
+	// Test 7: Update IP rule (uses direct path /api/acl/ip-rules/{id})
+	t.Run("UpdateIPRule", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"rule_type":   "deny",
+			"cidr":        "10.0.0.0/8",
+			"description": "Deny internal network",
+			"priority":    5,
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/acl/ip-rules/%d", state.ipRuleID), updateReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data struct {
+				RuleType string `json:"rule_type"`
+				CIDR     string `json:"cidr"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response.Data.RuleType != "deny" {
+			t.Errorf("Expected rule_type 'deny', got '%s'", response.Data.RuleType)
+		}
+	})
+
+	// Test 8: Add basic auth user
+	t.Run("AddBasicAuthUser", func(t *testing.T) {
+		basicAuthReq := map[string]interface{}{
+			"username": "testuser",
+			"password": "testpassword123",
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/acl/groups/%d/basic-auth", state.groupID), basicAuthReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 201, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		// List users to get the ID since the create response doesn't include it
+		listResp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d/basic-auth", state.groupID), nil)
+		defer func() { _ = listResp.Body.Close() }()
+
+		var listResponse struct {
+			Data []struct {
+				ID       int    `json:"id"`
+				Username string `json:"username"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, listResp, &listResponse)
+
+		for _, user := range listResponse.Data {
+			if user.Username == "testuser" {
+				state.basicAuthID = user.ID
+				break
+			}
+		}
+
+		if state.basicAuthID == 0 {
+			t.Error("Failed to find created basic auth user ID")
+		}
+
+		t.Logf("Created basic auth user with ID: %d", state.basicAuthID)
+	})
+
+	// Test 9: List basic auth users
+	t.Run("ListBasicAuthUsers", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d/basic-auth", state.groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data []struct {
+				ID       int    `json:"id"`
+				Username string `json:"username"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if len(response.Data) == 0 {
+			t.Error("Expected at least 1 basic auth user")
+		}
+	})
+
+	// Test 10: Update basic auth user password (uses direct path /api/acl/basic-auth/{id})
+	t.Run("UpdateBasicAuthUser", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"password": "newpassword456",
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/acl/basic-auth/%d", state.basicAuthID), updateReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 11: Configure Waygates Auth (uses PUT)
+	t.Run("ConfigureWaygatesAuth", func(t *testing.T) {
+		waygatesAuthReq := map[string]interface{}{
+			"enabled":       true,
+			"allowed_users": []string{"admin"},
+			"allowed_roles": []string{"admin", "user"},
+			"require_2fa":   false,
+			"session_ttl":   86400,
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/acl/groups/%d/waygates-auth", state.groupID), waygatesAuthReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 12: Get Waygates Auth
+	t.Run("GetWaygatesAuth", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d/waygates-auth", state.groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data struct {
+				Enabled bool `json:"enabled"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if !response.Data.Enabled {
+			t.Error("Expected Waygates auth to be enabled")
+		}
+	})
+
+	// Test 13: Delete basic auth user (uses direct path /api/acl/basic-auth/{id})
+	t.Run("DeleteBasicAuthUser", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/basic-auth/%d", state.basicAuthID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 14: Delete IP rule (uses direct path /api/acl/ip-rules/{id})
+	t.Run("DeleteIPRule", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/ip-rules/%d", state.ipRuleID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 15: Delete ACL group
+	t.Run("DeleteACLGroup", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/groups/%d", state.groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		// Verify group is deleted
+		getResp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/acl/groups/%d", state.groupID), nil)
+		defer func() { _ = getResp.Body.Close() }()
+
+		if getResp.StatusCode != http.StatusNotFound {
+			t.Errorf("Expected 404 after delete, got %d", getResp.StatusCode)
+		}
+	})
+}
+
+// TestIntegration_ACLGroupValidation tests ACL group validation errors
+func TestIntegration_ACLGroupValidation(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	testCases := []struct {
+		name           string
+		group          map[string]interface{}
+		expectedStatus int
+		description    string
+	}{
+		{
+			name: "Missing name",
+			group: map[string]interface{}{
+				"description": "A group without name",
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject group without name",
+		},
+		{
+			name: "Invalid combination mode",
+			group: map[string]interface{}{
+				"name":             "Test Group",
+				"combination_mode": "invalid_mode",
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject invalid combination_mode",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", tc.group)
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != tc.expectedStatus {
+				respBody, _ := io.ReadAll(resp.Body)
+				t.Errorf("%s: Expected %d, got %d: %s", tc.description, tc.expectedStatus, resp.StatusCode, string(respBody))
+			} else {
+				t.Logf("Correctly rejected: %s", tc.description)
+			}
+		})
+	}
+}
+
+// TestIntegration_ACLProxyAssignment tests assigning ACL groups to proxies
+func TestIntegration_ACLProxyAssignment(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Create a proxy first
+	proxy := map[string]interface{}{
+		"type":     "reverse_proxy",
+		"name":     "ACL Test Backend",
+		"hostname": "acl-test.example.com",
+		"upstreams": []map[string]interface{}{
+			{"host": "backend.internal", "port": 8080, "scheme": "http"},
+		},
+	}
+
+	proxyResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", proxy)
+	defer func() { _ = proxyResp.Body.Close() }()
+
+	var proxyResponse struct {
+		Data struct {
+			ID int `json:"id"`
+		} `json:"data"`
+	}
+	env.ReadJSONResponse(t, proxyResp, &proxyResponse)
+	proxyID := proxyResponse.Data.ID
+
+	// Create an ACL group
+	groupReq := map[string]interface{}{
+		"name":        "Test Assignment Group",
+		"description": "Group for assignment test",
+	}
+
+	groupResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", groupReq)
+	defer func() { _ = groupResp.Body.Close() }()
+
+	var groupResponse struct {
+		Data struct {
+			ID int `json:"id"`
+		} `json:"data"`
+	}
+	env.ReadJSONResponse(t, groupResp, &groupResponse)
+	groupID := groupResponse.Data.ID
+
+	var assignmentID int
+
+	// Test 1: Assign ACL group to proxy
+	t.Run("AssignACLToProxy", func(t *testing.T) {
+		assignReq := map[string]interface{}{
+			"acl_group_id": groupID, // Use acl_group_id, not group_id
+			"path_pattern": "/*",
+			"priority":     10,
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/acl", proxyID), assignReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("Expected 201, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		// Response returns array of assignments
+		var response struct {
+			Data []struct {
+				ID         int `json:"id"`
+				ACLGroupID int `json:"acl_group_id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		// Find the assignment with our group ID
+		for _, a := range response.Data {
+			if a.ACLGroupID == groupID {
+				assignmentID = a.ID
+				break
+			}
+		}
+		t.Logf("Created ACL assignment with ID: %d", assignmentID)
+	})
+
+	// Test 2: Get proxy ACL
+	t.Run("GetProxyACL", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/proxies/%d/acl", proxyID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data []struct {
+				ID         int `json:"id"`
+				ACLGroupID int `json:"acl_group_id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if len(response.Data) == 0 {
+			t.Error("Expected at least 1 ACL assignment")
+		}
+	})
+
+	// Test 3: Update proxy ACL assignment
+	t.Run("UpdateProxyACLAssignment", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"path_pattern": "/api/*",
+			"priority":     20,
+			"enabled":      true,
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/api/proxies/%d/acl/%d", proxyID, assignmentID), updateReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 4: Remove ACL from proxy (uses groupId, not assignmentId)
+	t.Run("RemoveACLFromProxy", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d/acl/%d", proxyID, groupID), nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Cleanup
+	_ = env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d", proxyID), nil)
+	_ = env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/groups/%d", groupID), nil)
+}
+
+// TestIntegration_AuditLogAPI tests audit log API endpoints
+func TestIntegration_AuditLogAPI(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Perform some actions to generate audit logs
+	proxy := map[string]interface{}{
+		"type":     "reverse_proxy",
+		"name":     "Audit Test Backend",
+		"hostname": "audit-test.example.com",
+		"upstreams": []map[string]interface{}{
+			{"host": "backend.internal", "port": 8080, "scheme": "http"},
+		},
+	}
+
+	// Create proxy to generate audit log
+	createResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", proxy)
+	var proxyResponse struct {
+		Data struct {
+			ID int `json:"id"`
+		} `json:"data"`
+	}
+	env.ReadJSONResponse(t, createResp, &proxyResponse)
+	_ = createResp.Body.Close()
+	proxyID := proxyResponse.Data.ID
+
+	// Delete proxy to generate another audit log
+	deleteResp := env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/proxies/%d", proxyID), nil)
+	_ = deleteResp.Body.Close()
+
+	// Test 1: List audit logs
+	t.Run("ListAuditLogs", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/audit-logs", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Items []struct {
+					ID        int    `json:"id"`
+					Event     string `json:"event"`
+					Username  string `json:"username"`
+					Timestamp string `json:"timestamp"`
+				} `json:"items"`
+				Total int `json:"total"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		// Should have some audit logs from registration, login, and proxy operations
+		if response.Data.Total == 0 {
+			t.Error("Expected at least 1 audit log entry")
+		}
+
+		t.Logf("Found %d audit log entries", response.Data.Total)
+	})
+
+	// Test 2: List audit logs with filters
+	t.Run("ListAuditLogsWithFilters", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/audit-logs?action=proxy.create&limit=10", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Data struct {
+				Items []struct {
+					Action string `json:"action"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		for _, item := range response.Data.Items {
+			if item.Action != "proxy.create" {
+				t.Errorf("Expected action 'proxy.create', got '%s'", item.Action)
+			}
+		}
+	})
+
+	// Test 3: Get audit stats
+	t.Run("GetAuditStats", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/audit-logs/stats", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				TotalLogs      int64            `json:"total_logs"`
+				ByAction       map[string]int64 `json:"by_action"`
+				ByStatus       map[string]int64 `json:"by_status"`
+				ByResourceType map[string]int64 `json:"by_resource_type"`
+				RecentActivity []struct {
+					ID int `json:"id"`
+				} `json:"recent_activity"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(respBody, &response); err != nil {
+			t.Fatalf("Failed to parse response: %v", err)
+		}
+
+		if response.Data.TotalLogs == 0 {
+			t.Error("Expected at least 1 total audit entry")
+		}
+
+		t.Logf("Audit stats: total=%d", response.Data.TotalLogs)
+	})
+
+	// Test 4: Get audit config
+	t.Run("GetAuditConfig", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/audit-logs/config", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 5: Update audit config
+	t.Run("UpdateAuditConfig", func(t *testing.T) {
+		updateReq := map[string]interface{}{
+			"retention_days": 90,
+			"enabled_events": []string{
+				"proxy.create",
+				"proxy.update",
+				"proxy.delete",
+				"auth.login",
+				"auth.logout",
+			},
+		}
+
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/audit-logs/config", updateReq)
+		defer func() { _ = resp.Body.Close() }()
+
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Test 6: Export audit logs (CSV)
+	t.Run("ExportAuditLogsCSV", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/audit-logs/export?format=csv", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Fatalf("Expected 200, got %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		contentType := resp.Header.Get("Content-Type")
+		if !strings.Contains(contentType, "csv") && !strings.Contains(contentType, "text/plain") {
+			t.Errorf("Expected CSV content type, got '%s'", contentType)
+		}
+	})
+}
+
+// TestIntegration_ACLDuplicateName tests that duplicate ACL group names are rejected
+func TestIntegration_ACLDuplicateName(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	groupName := "Unique Group Name"
+
+	// Create first group
+	groupReq := map[string]interface{}{
+		"name":        groupName,
+		"description": "First group",
+	}
+
+	resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", groupReq)
+	_ = resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("Expected 201 for first group, got %d", resp.StatusCode)
+	}
+
+	// Try to create second group with same name
+	resp = env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", groupReq)
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusConflict {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Errorf("Expected 409 Conflict for duplicate name, got %d: %s", resp.StatusCode, string(respBody))
+	}
+}
+
+// TestIntegration_ACLIPRuleValidation tests IP rule validation
+func TestIntegration_ACLIPRuleValidation(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	env.RegisterAndLogin(t)
+
+	// Create a group first
+	groupReq := map[string]interface{}{
+		"name": "IP Rule Validation Group",
+	}
+	groupResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", groupReq)
+	var groupResponse struct {
+		Data struct {
+			ID int `json:"id"`
+		} `json:"data"`
+	}
+	env.ReadJSONResponse(t, groupResp, &groupResponse)
+	_ = groupResp.Body.Close()
+	groupID := groupResponse.Data.ID
+
+	testCases := []struct {
+		name           string
+		ipRule         map[string]interface{}
+		expectedStatus int
+		description    string
+	}{
+		{
+			name: "Invalid CIDR",
+			ipRule: map[string]interface{}{
+				"rule_type": "allow",
+				"cidr":      "not-a-valid-cidr",
+				"priority":  10,
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject invalid CIDR",
+		},
+		{
+			name: "Invalid rule type",
+			ipRule: map[string]interface{}{
+				"rule_type": "invalid",
+				"cidr":      "192.168.1.0/24",
+				"priority":  10,
+			},
+			expectedStatus: http.StatusBadRequest,
+			description:    "Should reject invalid rule_type",
+		},
+		{
+			name: "Valid allow rule",
+			ipRule: map[string]interface{}{
+				"rule_type": "allow",
+				"cidr":      "192.168.1.0/24",
+				"priority":  10,
+			},
+			expectedStatus: http.StatusCreated,
+			description:    "Should accept valid allow rule",
+		},
+		{
+			name: "Valid deny rule",
+			ipRule: map[string]interface{}{
+				"rule_type": "deny",
+				"cidr":      "10.0.0.0/8",
+				"priority":  5,
+			},
+			expectedStatus: http.StatusCreated,
+			description:    "Should accept valid deny rule",
+		},
+		{
+			name: "Valid bypass rule",
+			ipRule: map[string]interface{}{
+				"rule_type": "bypass",
+				"cidr":      "172.16.0.0/12",
+				"priority":  1,
+			},
+			expectedStatus: http.StatusCreated,
+			description:    "Should accept valid bypass rule",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/acl/groups/%d/ip-rules", groupID), tc.ipRule)
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != tc.expectedStatus {
+				respBody, _ := io.ReadAll(resp.Body)
+				t.Errorf("%s: Expected %d, got %d: %s", tc.description, tc.expectedStatus, resp.StatusCode, string(respBody))
+			} else {
+				t.Logf("Passed: %s", tc.description)
+			}
+		})
+	}
+
+	// Cleanup
+	_ = env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/groups/%d", groupID), nil)
+}

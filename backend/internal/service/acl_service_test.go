@@ -5909,3 +5909,922 @@ func TestVerifyAccess_PathMatchingBoundary(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Additional Tests for Uncovered Methods
+// =============================================================================
+
+// TestACLService_GetGroupByName tests retrieving an ACL group by name
+func TestACLService_GetGroupByName(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupName string
+		setupRepo func(*MockACLRepository)
+		wantGroup *models.ACLGroup
+		wantErr   error
+	}{
+		{
+			name:      "success - existing group",
+			groupName: "test-group",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(name string) (*models.ACLGroup, error) {
+					return &models.ACLGroup{
+						ID:   1,
+						Name: name,
+					}, nil
+				}
+			},
+			wantGroup: &models.ACLGroup{ID: 1, Name: "test-group"},
+			wantErr:   nil,
+		},
+		{
+			name:      "error - group not found",
+			groupName: "nonexistent",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(_ string) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantGroup: nil,
+			wantErr:   ErrACLGroupNotFound,
+		},
+		{
+			name:      "error - database error",
+			groupName: "test-group",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByNameFunc = func(_ string) (*models.ACLGroup, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantGroup: nil,
+			wantErr:   errors.New("getting ACL group by name: database error"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			group, err := svc.GetGroupByName(tt.groupName)
+
+			if tt.wantErr != nil {
+				if err == nil {
+					t.Errorf("expected error containing '%v', got nil", tt.wantErr)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if group == nil || group.Name != tt.wantGroup.Name {
+					t.Errorf("expected group %+v, got %+v", tt.wantGroup, group)
+				}
+			}
+		})
+	}
+}
+
+// TestACLService_UpdateExternalProvider tests updating an external auth provider
+func TestACLService_UpdateExternalProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        int
+		provider  *models.ACLExternalProvider
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name: "success - update provider",
+			id:   1,
+			provider: &models.ACLExternalProvider{
+				ProviderType:    models.ACLProviderTypeAuthelia,
+				Name:            "Updated Auth",
+				VerifyURL:       "http://auth.example.com/verify",
+				AuthRedirectURL: ptr("http://auth.example.com/login"),
+				HeadersToCopy:   []string{"X-User", "X-Token"},
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{
+						ID:           id,
+						ACLGroupID:   1,
+						ProviderType: models.ACLProviderTypeAuthelia,
+						Name:         "Original Auth",
+						VerifyURL:    "http://old.example.com/verify",
+					}, nil
+				}
+				m.UpdateExternalProviderFunc = func(_ *models.ACLExternalProvider) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "error - provider not found",
+			id:   999,
+			provider: &models.ACLExternalProvider{
+				ProviderType: models.ACLProviderTypeAuthelia,
+				Name:         "Test",
+				VerifyURL:    "http://test.example.com",
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(_ int) (*models.ACLExternalProvider, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "error - validation fails",
+			id:   1,
+			provider: &models.ACLExternalProvider{
+				ProviderType: "", // Invalid - empty type
+				Name:         "Test",
+				VerifyURL:    "http://test.example.com",
+			},
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{
+						ID:           id,
+						ACLGroupID:   1,
+						ProviderType: models.ACLProviderTypeAuthelia,
+						Name:         "Original",
+						VerifyURL:    "http://old.example.com",
+					}, nil
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.UpdateExternalProvider(tt.id, tt.provider)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_DeleteExternalProvider tests deleting an external auth provider
+func TestACLService_DeleteExternalProvider(t *testing.T) {
+	tests := []struct {
+		name      string
+		id        int
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name: "success - delete provider",
+			id:   1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{ID: id}, nil
+				}
+				m.DeleteExternalProviderFunc = func(_ int) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "error - provider not found",
+			id:   999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(_ int) (*models.ACLExternalProvider, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "error - delete fails",
+			id:   1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetExternalProviderByIDFunc = func(id int) (*models.ACLExternalProvider, error) {
+					return &models.ACLExternalProvider{ID: id}, nil
+				}
+				m.DeleteExternalProviderFunc = func(_ int) error {
+					return errors.New("database error")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.DeleteExternalProvider(tt.id)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_GetWaygatesAuth tests retrieving Waygates auth config
+func TestACLService_GetWaygatesAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantAuth  *models.ACLWaygatesAuth
+		wantErr   error
+	}{
+		{
+			name:    "success - existing auth config",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetWaygatesAuthFunc = func(groupID int) (*models.ACLWaygatesAuth, error) {
+					return &models.ACLWaygatesAuth{
+						ACLGroupID: groupID,
+						Enabled:    true,
+						SessionTTL: 86400,
+					}, nil
+				}
+			},
+			wantAuth: &models.ACLWaygatesAuth{ACLGroupID: 1, Enabled: true, SessionTTL: 86400},
+			wantErr:  nil,
+		},
+		{
+			name:    "error - group not found",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantAuth: nil,
+			wantErr:  ErrACLGroupNotFound,
+		},
+		{
+			name:    "error - auth not found",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetWaygatesAuthFunc = func(_ int) (*models.ACLWaygatesAuth, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantAuth: nil,
+			wantErr:  ErrWaygatesAuthNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			auth, err := svc.GetWaygatesAuth(tt.groupID)
+
+			if tt.wantErr != nil {
+				if err == nil || !errors.Is(err, tt.wantErr) {
+					t.Errorf("expected error %v, got %v", tt.wantErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if auth == nil || auth.ACLGroupID != tt.wantAuth.ACLGroupID {
+					t.Errorf("expected auth %+v, got %+v", tt.wantAuth, auth)
+				}
+			}
+		})
+	}
+}
+
+// TestACLService_UpdateProxyAssignment tests updating a proxy ACL assignment
+func TestACLService_UpdateProxyAssignment(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          int
+		pathPattern string
+		priority    int
+		enabled     bool
+		setupRepo   func(*MockACLRepository)
+		wantErr     bool
+	}{
+		{
+			name:        "success - update assignment",
+			id:          1,
+			pathPattern: "/api/*",
+			priority:    20,
+			enabled:     true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentByIDFunc = func(id int) (*models.ProxyACLAssignment, error) {
+					return &models.ProxyACLAssignment{
+						ID:          id,
+						ProxyID:     1,
+						ACLGroupID:  1,
+						PathPattern: "/*",
+						Priority:    10,
+						Enabled:     true,
+					}, nil
+				}
+				m.UpdateProxyACLAssignmentFunc = func(_ *models.ProxyACLAssignment) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:        "error - assignment not found",
+			id:          999,
+			pathPattern: "/api/*",
+			priority:    20,
+			enabled:     true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentByIDFunc = func(_ int) (*models.ProxyACLAssignment, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name:        "error - invalid path pattern",
+			id:          1,
+			pathPattern: "[invalid",
+			priority:    20,
+			enabled:     true,
+			setupRepo:   func(_ *MockACLRepository) {},
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.UpdateProxyAssignment(tt.id, tt.pathPattern, tt.priority, tt.enabled)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_GetProxyACL tests retrieving proxy ACL assignments
+func TestACLService_GetProxyACL(t *testing.T) {
+	tests := []struct {
+		name      string
+		proxyID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple assignments",
+			proxyID: 1,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{
+						{ID: 1, ProxyID: proxyID, ACLGroupID: 1},
+						{ID: 2, ProxyID: proxyID, ACLGroupID: 2},
+					}, nil
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no assignments",
+			proxyID: 1,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - database error",
+			proxyID: 999,
+			setupRepo: func(aclRepo *MockACLRepository) {
+				aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			assignments, err := svc.GetProxyACL(tt.proxyID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(assignments) != tt.wantCount {
+				t.Errorf("expected %d assignments, got %d", tt.wantCount, len(assignments))
+			}
+		})
+	}
+}
+
+// TestACLService_GetGroupUsage tests retrieving group usage (which proxies use a group)
+func TestACLService_GetGroupUsage(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple usages",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(groupID int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{
+						{ID: 1, ProxyID: 1, ACLGroupID: groupID},
+						{ID: 2, ProxyID: 2, ACLGroupID: groupID},
+						{ID: 3, ProxyID: 3, ACLGroupID: groupID},
+					}, nil
+				}
+			},
+			wantCount: 3,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no usages",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return []models.ProxyACLAssignment{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - database error",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetProxyACLAssignmentsByGroupFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+					return nil, errors.New("database error")
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			assignments, err := svc.GetGroupUsage(tt.groupID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(assignments) != tt.wantCount {
+				t.Errorf("expected %d assignments, got %d", tt.wantCount, len(assignments))
+			}
+		})
+	}
+}
+
+// TestACLService_GetOAuthProviderRestrictions tests retrieving OAuth restrictions
+func TestACLService_GetOAuthProviderRestrictions(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		setupRepo func(*MockACLRepository)
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:    "success - multiple restrictions",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionsFunc = func(groupID int) ([]models.ACLOAuthProviderRestriction, error) {
+					return []models.ACLOAuthProviderRestriction{
+						{ACLGroupID: groupID, Provider: "google", AllowedEmails: []string{"user@example.com"}},
+						{ACLGroupID: groupID, Provider: "github", AllowedDomains: []string{"example.com"}},
+					}, nil
+				}
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:    "success - no restrictions",
+			groupID: 1,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionsFunc = func(_ int) ([]models.ACLOAuthProviderRestriction, error) {
+					return []models.ACLOAuthProviderRestriction{}, nil
+				}
+			},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:    "error - group not found",
+			groupID: 999,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			restrictions, err := svc.GetOAuthProviderRestrictions(tt.groupID)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && len(restrictions) != tt.wantCount {
+				t.Errorf("expected %d restrictions, got %d", tt.wantCount, len(restrictions))
+			}
+		})
+	}
+}
+
+// TestACLService_SetOAuthProviderRestriction tests setting OAuth restrictions
+func TestACLService_SetOAuthProviderRestriction(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		provider  string
+		emails    []string
+		domains   []string
+		enabled   bool
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:     "success - create new restriction",
+			groupID:  1,
+			provider: "google",
+			emails:   []string{"admin@example.com"},
+			domains:  []string{"example.com"},
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(_ int, _ string) (*models.ACLOAuthProviderRestriction, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				m.CreateOAuthProviderRestrictionFunc = func(_ *models.ACLOAuthProviderRestriction) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "success - update existing restriction",
+			groupID:  1,
+			provider: "google",
+			emails:   []string{"new@example.com"},
+			domains:  nil,
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+					return &models.ACLOAuthProviderRestriction{
+						ID:         1,
+						ACLGroupID: groupID,
+						Provider:   provider,
+					}, nil
+				}
+				m.UpdateOAuthProviderRestrictionFunc = func(_ *models.ACLOAuthProviderRestriction) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "error - group not found",
+			groupID:  999,
+			provider: "google",
+			emails:   []string{"test@example.com"},
+			domains:  nil,
+			enabled:  true,
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.SetOAuthProviderRestriction(tt.groupID, tt.provider, tt.emails, tt.domains, tt.enabled)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_DeleteOAuthProviderRestriction tests deleting OAuth restrictions
+func TestACLService_DeleteOAuthProviderRestriction(t *testing.T) {
+	tests := []struct {
+		name      string
+		groupID   int
+		provider  string
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:     "success - delete restriction",
+			groupID:  1,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(groupID int, provider string) (*models.ACLOAuthProviderRestriction, error) {
+					return &models.ACLOAuthProviderRestriction{
+						ID:         1,
+						ACLGroupID: groupID,
+						Provider:   provider,
+					}, nil
+				}
+				m.DeleteOAuthProviderRestrictionFunc = func(_ int, _ string) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:     "error - group not found",
+			groupID:  999,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(_ int) (*models.ACLGroup, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name:     "error - restriction not found",
+			groupID:  1,
+			provider: "google",
+			setupRepo: func(m *MockACLRepository) {
+				m.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+					return &models.ACLGroup{ID: id}, nil
+				}
+				m.GetOAuthProviderRestrictionFunc = func(_ int, _ string) (*models.ACLOAuthProviderRestriction, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			err := svc.DeleteOAuthProviderRestriction(tt.groupID, tt.provider)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+// TestACLService_CreateOAuthSession tests creating an OAuth session
+func TestACLService_CreateOAuthSession(t *testing.T) {
+	proxyID := 1
+	tests := []struct {
+		name      string
+		proxyID   *int
+		email     string
+		provider  string
+		ip        string
+		userAgent string
+		ttl       int
+		setupRepo func(*MockACLRepository)
+		wantErr   bool
+	}{
+		{
+			name:      "success - create session",
+			proxyID:   &proxyID,
+			email:     "user@example.com",
+			provider:  "google",
+			ip:        "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			ttl:       86400,
+			setupRepo: func(m *MockACLRepository) {
+				m.CreateSessionFunc = func(_ *models.ACLSession) error {
+					return nil
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:      "error - database error",
+			proxyID:   &proxyID,
+			email:     "user@example.com",
+			provider:  "google",
+			ip:        "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			ttl:       86400,
+			setupRepo: func(m *MockACLRepository) {
+				m.CreateSessionFunc = func(_ *models.ACLSession) error {
+					return errors.New("database error")
+				}
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aclRepo := &MockACLRepository{}
+			tt.setupRepo(aclRepo)
+
+			svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+			session, err := svc.CreateOAuthSession(tt.email, tt.provider, tt.proxyID, tt.ip, tt.userAgent, tt.ttl)
+
+			if tt.wantErr && err == nil {
+				t.Errorf("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if !tt.wantErr && session == nil {
+				t.Error("expected session, got nil")
+			}
+		})
+	}
+}
+
+// TestACLService_FormatProviderName tests the provider name formatting
+func TestACLService_FormatProviderName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"google", "Google"},
+		{"github", "GitHub"},
+		{"GITHUB", "GitHub"},
+		{"microsoft", "Microsoft"},
+		{"MICROSOFT", "Microsoft"},
+		{"gitlab", "GitLab"},
+		{"okta", "Okta"},
+		{"auth0", "Auth0"},
+		{"unknown", "Unknown"},
+		{"", ""},
+		{"custom_provider", "Custom_provider"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := formatProviderName(tt.input)
+			if result != tt.expected {
+				t.Errorf("formatProviderName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestACLService_SingleIPToNetwork tests single IP to network conversion (method on service)
+func TestACLService_SingleIPToNetwork(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		wantNet string
+		wantNil bool
+	}{
+		{
+			name:    "valid IPv4",
+			ip:      "192.168.1.1",
+			wantNet: "192.168.1.1/32",
+			wantNil: false,
+		},
+		{
+			name:    "valid IPv6",
+			ip:      "::1",
+			wantNet: "::1/128",
+			wantNil: false,
+		},
+		{
+			name:    "invalid IP",
+			ip:      "not-an-ip",
+			wantNet: "",
+			wantNil: true,
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			network := svc.singleIPToNetwork(tt.ip)
+
+			if tt.wantNil && network != nil {
+				t.Errorf("expected nil, got %v", network)
+			}
+			if !tt.wantNil && network == nil {
+				t.Errorf("expected network, got nil")
+			}
+			if !tt.wantNil && network.String() != tt.wantNet {
+				t.Errorf("expected %s, got %s", tt.wantNet, network.String())
+			}
+		})
+	}
+}
+
+// ptr is a helper function to create a pointer to a string
+func ptr(s string) *string {
+	return &s
+}
