@@ -61,7 +61,9 @@ export function ProxyDataGrid({
       {
         accessorKey: 'name',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
-        cell: ({ row }) => <span className="font-medium">{row.getValue('name')}</span>,
+        cell: ({ row }) => <span className="font-medium break-words">{row.getValue('name')}</span>,
+        minSize: 120,
+        maxSize: 200,
         meta: {
           skeleton: <Skeleton className="h-5 w-32" />,
         },
@@ -89,6 +91,8 @@ export function ProxyDataGrid({
             </a>
           );
         },
+        minSize: 150,
+        maxSize: 260,
         meta: {
           skeleton: <Skeleton className="h-6 w-40 rounded-full" />,
         },
@@ -98,6 +102,8 @@ export function ProxyDataGrid({
         header: 'Target',
         cell: ({ row }) => <ProxyTargetCell proxy={row.original} />,
         enableSorting: false,
+        minSize: 200,
+        maxSize: 320,
         meta: {
           skeleton: <Skeleton className="h-5 w-48" />,
         },
@@ -107,6 +113,8 @@ export function ProxyDataGrid({
         header: 'Type',
         cell: ({ row }) => <ProxyTypeBadge type={row.original.type} />,
         enableSorting: false,
+        minSize: 100,
+        maxSize: 150,
         meta: {
           skeleton: <Skeleton className="h-6 w-28 rounded-full" />,
         },
@@ -116,6 +124,8 @@ export function ProxyDataGrid({
         header: 'SSL',
         cell: ({ row }) => <ProxySslCell enabled={row.original.ssl_enabled} />,
         enableSorting: false,
+        minSize: 60,
+        maxSize: 80,
         meta: {
           skeleton: <Skeleton className="h-5 w-16" />,
         },
@@ -132,6 +142,8 @@ export function ProxyDataGrid({
           />
         ),
         enableSorting: false,
+        minSize: 80,
+        maxSize: 100,
         meta: {
           skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
         },
@@ -151,6 +163,8 @@ export function ProxyDataGrid({
                 />
               ),
               enableSorting: false,
+              minSize: 80,
+              maxSize: 100,
               meta: {
                 skeleton: (
                   <div className="flex justify-end gap-2">

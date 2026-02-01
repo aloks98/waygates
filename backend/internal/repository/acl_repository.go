@@ -190,8 +190,12 @@ func (r *ACLRepository) ListGroups(params ACLGroupListParams) ([]models.ACLGroup
 	offset := (params.Page - 1) * params.Limit
 	query = query.Offset(offset).Limit(params.Limit)
 
-	// Preload creator relation
-	query = query.Preload("Creator")
+	// Preload relations
+	query = query.Preload("Creator").
+		Preload("IPRules").
+		Preload("BasicAuthUsers").
+		Preload("WaygatesAuth").
+		Preload("ExternalProviders")
 
 	// Execute query
 	if err := query.Find(&groups).Error; err != nil {
