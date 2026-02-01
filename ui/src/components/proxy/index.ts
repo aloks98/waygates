@@ -1,5 +1,3 @@
-// Forms
-
 // Cell components
 export {
   getProxyTarget,
@@ -19,5 +17,3 @@ export {
   StaticForm,
 } from './forms';
 export { ProxyDataGrid } from './proxy-data-grid';
-// Composite components
-export { ProxyFormModal } from './proxy-form-modal';

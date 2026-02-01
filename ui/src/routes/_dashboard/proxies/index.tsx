@@ -8,28 +8,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
   type Filter,
   type FilterFieldsConfig,
   Filters,
   Input,
 } from '@e412/titanium';
+import { useNavigate } from '@tanstack/react-router';
 import type { PaginationState } from '@tanstack/react-table';
-import { ArrowRight, ChevronDown, FolderOpen, Globe, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  type ACLAssignment,
-  getProxyTypeLabel,
-  ProxyDataGrid,
-  ProxyFormModal,
-} from '@/components/proxy';
-import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
+import { ProxyDataGrid } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
-import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
+import type { ProxyConfig } from '@/types/proxy';
 
 // Map Titanium filter operators to backend operators
 const operatorMap: Record<string, string> = {
@@ -93,7 +84,8 @@ const filterFields: FilterFieldsConfig<string> = [
   },
 ];
 
-export function ProxiesPage() {
+export function ProxiesListPage() {
+  const navigate = useNavigate();
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
 
   const [pagination, setPagination] = useState<PaginationState>({
@@ -178,11 +170,9 @@ export function ProxiesPage() {
           params.status = buildFilterValue(filter.operator, filter.values);
           break;
         case 'ssl_enabled':
-          // SSL is just a simple value, no operator prefix needed
           params.ssl_enabled = filter.values[0];
           break;
         case 'target':
-          // Target is a text search, pass directly
           params.target = filter.values[0];
           break;
       }
@@ -195,151 +185,17 @@ export function ProxiesPage() {
     setFilters(newFilters);
   }, []);
 
-  const {
-    proxies,
-    total,
-    totalPages,
-    isLoading,
-    create,
-    update,
-    remove,
-    toggle,
-    isCreating,
-    isUpdating,
-    isDeleting,
-    isToggling,
-  } = useProxies(apiParams);
+  const { proxies, total, totalPages, isLoading, remove, toggle, isDeleting, isToggling } =
+    useProxies(apiParams);
 
-  const { assignACL } = useAssignACL();
-  const { removeACL } = useRemoveACL();
-
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createProxyType, setCreateProxyType] = useState<ProxyType>('reverse_proxy');
-  const [editingProxy, setEditingProxy] = useState<ProxyConfig | null>(null);
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
 
-  // Fetch ACL assignments for the proxy being edited
-  const { assignments: editingProxyACL } = useProxyACL(editingProxy?.id ?? 0);
-
-  // Convert API ACL assignments to form ACL assignments
-  const editingProxyACLAssignments: ACLAssignment[] = useMemo(() => {
-    return editingProxyACL.map((a) => ({
-      acl_group_id: a.acl_group_id,
-      acl_group_name: a.acl_group?.name,
-      path_pattern: a.path_pattern,
-      priority: a.priority,
-      enabled: a.enabled,
-    }));
-  }, [editingProxyACL]);
-
-  const handleCreateProxy = (type: ProxyType) => {
-    setCreateProxyType(type);
-    setCreateModalOpen(true);
-  };
-
-  const handleCreate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
-    const response = await create(data);
-    const proxyId = response.data?.id;
-
-    // Assign ACLs if provided
-    if (proxyId && aclAssignments && aclAssignments.length > 0) {
-      for (const assignment of aclAssignments) {
-        await assignACL({
-          proxyId,
-          data: {
-            acl_group_id: assignment.acl_group_id,
-            path_pattern: assignment.path_pattern,
-            priority: assignment.priority,
-            enabled: assignment.enabled,
-          },
-        });
-      }
-    }
-
-    setCreateModalOpen(false);
-  };
-
-  // Check if proxy data has changed (excluding ACL assignments)
-  const hasProxyDataChanged = useCallback(
-    (newData: CreateProxyRequest, originalProxy: ProxyConfig): boolean => {
-      // Compare core fields
-      if (newData.name !== originalProxy.name) return true;
-      if (newData.hostname !== originalProxy.hostname) return true;
-      if (newData.type !== originalProxy.type) return true;
-      if (newData.ssl_enabled !== originalProxy.ssl_enabled) return true;
-      if (newData.enabled !== originalProxy.enabled) return true;
-
-      // Compare type-specific fields based on proxy type
-      if (originalProxy.type === 'reverse_proxy') {
-        const oldUpstreams = originalProxy.upstreams || [];
-        const newUpstreams = newData.upstreams || [];
-        if (JSON.stringify(oldUpstreams) !== JSON.stringify(newUpstreams)) return true;
-
-        const oldHeaders = originalProxy.custom_headers || [];
-        const newHeaders = newData.custom_headers || [];
-        if (JSON.stringify(oldHeaders) !== JSON.stringify(newHeaders)) return true;
-
-        if (newData.health_check_path !== originalProxy.health_check_path) return true;
-        if (newData.load_balancing !== originalProxy.load_balancing) return true;
-      }
-
-      if (originalProxy.type === 'redirect') {
-        if (newData.redirect_url !== originalProxy.redirect_url) return true;
-        if (newData.redirect_code !== originalProxy.redirect_code) return true;
-      }
-
-      if (originalProxy.type === 'static') {
-        if (newData.root_path !== originalProxy.root_path) return true;
-        if (
-          JSON.stringify(newData.try_files || []) !== JSON.stringify(originalProxy.try_files || [])
-        )
-          return true;
-        if (newData.browse !== originalProxy.browse) return true;
-        if (newData.index !== originalProxy.index) return true;
-      }
-
-      return false;
+  const handleRowClick = useCallback(
+    (proxy: ProxyConfig) => {
+      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
     },
-    [],
+    [navigate],
   );
-
-  const handleUpdate = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
-    if (!editingProxy) return;
-
-    // Only update proxy if data actually changed
-    if (hasProxyDataChanged(data, editingProxy)) {
-      await update({ id: editingProxy.id, data });
-    }
-
-    // Sync ACL assignments
-    const newAssignments = aclAssignments ?? [];
-    const oldGroupIds = editingProxyACL.map((a) => a.acl_group_id);
-    const newGroupIds = newAssignments.map((a) => a.acl_group_id);
-
-    // Remove ACL groups that are no longer assigned
-    for (const oldAssignment of editingProxyACL) {
-      if (!newGroupIds.includes(oldAssignment.acl_group_id)) {
-        await removeACL({ proxyId: editingProxy.id, groupId: oldAssignment.acl_group_id });
-      }
-    }
-
-    // Add new ACL groups
-    for (const newAssignment of newAssignments) {
-      if (!oldGroupIds.includes(newAssignment.acl_group_id)) {
-        await assignACL({
-          proxyId: editingProxy.id,
-          data: {
-            acl_group_id: newAssignment.acl_group_id,
-            path_pattern: newAssignment.path_pattern,
-            priority: newAssignment.priority,
-            enabled: newAssignment.enabled,
-          },
-        });
-      }
-    }
-
-    setEditingProxy(null);
-  };
 
   const handleDelete = async () => {
     if (!deletingProxy) return;
@@ -352,29 +208,10 @@ export function ProxiesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Proxies</h1>
         {canCreateProxies && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button>
-                <Plus className="size-4" />
-                Add Proxy
-                <ChevronDown className="ml-1 size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleCreateProxy('reverse_proxy')}>
-                <Globe className="size-4" />
-                Reverse Proxy
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateProxy('redirect')}>
-                <ArrowRight className="size-4" />
-                Redirect
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCreateProxy('static')}>
-                <FolderOpen className="size-4" />
-                Static File Server
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button onClick={() => navigate({ to: '/dashboard/proxies/new' })}>
+            <Plus className="size-4" />
+            Add Proxy
+          </Button>
         )}
       </div>
 
@@ -404,7 +241,7 @@ export function ProxiesPage() {
         isLoading={isLoading}
         canUpdateProxies={canUpdateProxies}
         canDeleteProxies={canDeleteProxies}
-        onEdit={setEditingProxy}
+        onEdit={handleRowClick}
         onDelete={setDeletingProxy}
         onToggleStatus={(id, enable) => toggle({ id, enable })}
         isToggling={isToggling}
@@ -413,29 +250,6 @@ export function ProxiesPage() {
         onPaginationChange={setPagination}
         total={total}
       />
-
-      <ProxyFormModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-        onSubmit={handleCreate}
-        proxyType={createProxyType}
-        title={`Create ${getProxyTypeLabel(createProxyType)}`}
-        loading={isCreating}
-      />
-
-      {editingProxy && (
-        <ProxyFormModal
-          key={editingProxy.id}
-          open={!!editingProxy}
-          onOpenChange={(open) => !open && setEditingProxy(null)}
-          onSubmit={handleUpdate}
-          initialData={editingProxy}
-          initialACLAssignments={editingProxyACLAssignments}
-          proxyType={editingProxy.type}
-          title={`Edit ${getProxyTypeLabel(editingProxy.type)}`}
-          loading={isUpdating}
-        />
-      )}
 
       <AlertDialog open={!!deletingProxy} onOpenChange={(open) => !open && setDeletingProxy(null)}>
         <AlertDialogContent>

@@ -1,5 +1,11 @@
 import {
   Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardHeading,
+  CardTitle,
   Field,
   FieldContent,
   FieldDescription,
@@ -118,168 +124,202 @@ export function RedirectForm({
       }}
       className="space-y-6"
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <form.Field name="name">
-          {(field) => {
-            const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-            return (
-              <Field data-invalid={hasError}>
-                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                <Input
-                  id={field.name}
-                  placeholder="Blog Redirect"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  aria-invalid={hasError}
-                />
-                {hasError && <FieldError errors={field.state.meta.errors} />}
-              </Field>
-            );
-          }}
-        </form.Field>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Basic Information</CardTitle>
+            <CardDescription>General settings for this redirect</CardDescription>
+          </CardHeading>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <form.Field name="name">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                    <Input
+                      id={field.name}
+                      placeholder="Blog Redirect"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      aria-invalid={hasError}
+                    />
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
 
-        <form.Field name="hostname">
-          {(field) => {
-            const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-            return (
-              <Field data-invalid={hasError}>
-                <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
-                <Input
-                  id={field.name}
-                  placeholder="old.example.com"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  aria-invalid={hasError}
-                />
-                {hasError && <FieldError errors={field.state.meta.errors} />}
-              </Field>
-            );
-          }}
-        </form.Field>
+            <form.Field name="hostname">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
+                    <Input
+                      id={field.name}
+                      placeholder="old.example.com"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      aria-invalid={hasError}
+                    />
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
+          </div>
+
+          <form.Field name="description">
+            {(field) => {
+              const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+              return (
+                <Field data-invalid={hasError}>
+                  <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
+                  <Input
+                    id={field.name}
+                    placeholder="Redirect old domain to new"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    aria-invalid={hasError}
+                  />
+                  {hasError && <FieldError errors={field.state.meta.errors} />}
+                </Field>
+              );
+            }}
+          </form.Field>
+        </CardContent>
+      </Card>
+
+      {/* Redirect Configuration + Options side by side */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardHeading>
+              <CardTitle>Redirect Target</CardTitle>
+              <CardDescription>Where to redirect visitors</CardDescription>
+            </CardHeading>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form.Field name="target">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel htmlFor={field.name}>Target URL</FieldLabel>
+                    <Input
+                      id={field.name}
+                      placeholder="https://new.example.com"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      aria-invalid={hasError}
+                    />
+                    <FieldDescription>The URL to redirect visitors to</FieldDescription>
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
+
+            <form.Field name="status_code">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel>Redirect Type</FieldLabel>
+                    <Select
+                      value={String(field.state.value)}
+                      onValueChange={(val) => field.handleChange(parseInt(val, 10))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="301">301 - Permanent</SelectItem>
+                        <SelectItem value="302">302 - Temporary</SelectItem>
+                        <SelectItem value="307">307 - Temporary (preserve method)</SelectItem>
+                        <SelectItem value="308">308 - Permanent (preserve method)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      301/308 are cached by browsers, 302/307 are temporary
+                    </FieldDescription>
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardHeading>
+              <CardTitle>Options</CardTitle>
+              <CardDescription>SSL and redirect behavior</CardDescription>
+            </CardHeading>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form.Field name="ssl_enabled">
+              {(field) => (
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel>Enable HTTPS</FieldLabel>
+                    <FieldDescription>
+                      Automatically obtain and manage SSL/TLS certificates
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
+
+            <form.Field name="preserve_path">
+              {(field) => (
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel>Preserve Path</FieldLabel>
+                    <FieldDescription>Append the original path to the target URL</FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
+
+            <form.Field name="preserve_query">
+              {(field) => (
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel>Preserve Query String</FieldLabel>
+                    <FieldDescription>
+                      Append the original query parameters to the target URL
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
+          </CardContent>
+        </Card>
       </div>
 
-      <form.Field name="description">
-        {(field) => {
-          const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-          return (
-            <Field data-invalid={hasError}>
-              <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-              <Input
-                id={field.name}
-                placeholder="Redirect old domain to new"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                aria-invalid={hasError}
-              />
-              {hasError && <FieldError errors={field.state.meta.errors} />}
-            </Field>
-          );
-        }}
-      </form.Field>
-
-      <form.Field name="target">
-        {(field) => {
-          const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-          return (
-            <Field data-invalid={hasError}>
-              <FieldLabel htmlFor={field.name}>Target URL</FieldLabel>
-              <Input
-                id={field.name}
-                placeholder="https://new.example.com"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                aria-invalid={hasError}
-              />
-              <FieldDescription>The URL to redirect visitors to</FieldDescription>
-              {hasError && <FieldError errors={field.state.meta.errors} />}
-            </Field>
-          );
-        }}
-      </form.Field>
-
-      <form.Field name="status_code">
-        {(field) => {
-          const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-          return (
-            <Field data-invalid={hasError}>
-              <FieldLabel>Redirect Type</FieldLabel>
-              <Select
-                value={String(field.state.value)}
-                onValueChange={(val) => field.handleChange(parseInt(val, 10))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="301">301 - Permanent Redirect</SelectItem>
-                  <SelectItem value="302">302 - Temporary Redirect</SelectItem>
-                  <SelectItem value="307">307 - Temporary Redirect (preserve method)</SelectItem>
-                  <SelectItem value="308">308 - Permanent Redirect (preserve method)</SelectItem>
-                </SelectContent>
-              </Select>
-              <FieldDescription>
-                301/308 are permanent (cached by browsers), 302/307 are temporary
-              </FieldDescription>
-              {hasError && <FieldError errors={field.state.meta.errors} />}
-            </Field>
-          );
-        }}
-      </form.Field>
-
-      <div className="space-y-4">
-        <form.Field name="ssl_enabled">
-          {(field) => (
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldLabel>Enable HTTPS</FieldLabel>
-                <FieldDescription>
-                  Automatically obtain and manage SSL/TLS certificates
-                </FieldDescription>
-              </FieldContent>
-              <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-            </Field>
-          )}
-        </form.Field>
-
-        <form.Field name="preserve_path">
-          {(field) => (
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldLabel>Preserve Path</FieldLabel>
-                <FieldDescription>Append the original path to the target URL</FieldDescription>
-              </FieldContent>
-              <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-            </Field>
-          )}
-        </form.Field>
-
-        <form.Field name="preserve_query">
-          {(field) => (
-            <Field orientation="horizontal">
-              <FieldContent>
-                <FieldLabel>Preserve Query String</FieldLabel>
-                <FieldDescription>
-                  Append the original query parameters to the target URL
-                </FieldDescription>
-              </FieldContent>
-              <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-            </Field>
-          )}
-        </form.Field>
-      </div>
-
+      {/* Access Control */}
       <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
-      <div className="flex justify-end gap-2">
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Save'}
+          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create Proxy'}
         </Button>
       </div>
     </form>

@@ -7,6 +7,24 @@ import type { CreateProxyRequest, ProxyConfig, UpdateProxyRequest } from '../typ
 
 const QUERY_KEY = ['proxies'] as const;
 
+export function useProxy(id: number) {
+  const query = useQuery({
+    queryKey: [...QUERY_KEY, id],
+    queryFn: async () => {
+      const response = await api.get(`proxies/${id}`).json<ApiResponse<ProxyConfig>>();
+      return response.data;
+    },
+    enabled: id > 0,
+  });
+
+  return {
+    proxy: query.data ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+  };
+}
+
 async function handleApiError(error: unknown): Promise<string> {
   if (error instanceof HTTPError) {
     try {
