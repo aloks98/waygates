@@ -689,12 +689,71 @@ func (m *MockAuditService) LogACLOAuthRestrictionDelete(ctx context.Context, use
 	return nil
 }
 
+// MockL4ProxyRepository is a mock implementation of L4ProxyRepositoryInterface
+type MockL4ProxyRepository struct {
+	CreateFunc    func(proxy *models.L4Proxy) error
+	GetByIDFunc   func(id int) (*models.L4Proxy, error)
+	ListFunc      func(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error)
+	UpdateFunc    func(proxy *models.L4Proxy) error
+	DeleteFunc    func(id int) error
+	GetByPortFunc func(port int, protocol string) (*models.L4Proxy, error)
+}
+
+// Create implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) Create(proxy *models.L4Proxy) error {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(proxy)
+	}
+	return nil
+}
+
+// GetByID implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) GetByID(id int) (*models.L4Proxy, error) {
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(id)
+	}
+	return nil, nil
+}
+
+// List implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) List(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc(params)
+	}
+	return []models.L4Proxy{}, 0, nil
+}
+
+// Update implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) Update(proxy *models.L4Proxy) error {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(proxy)
+	}
+	return nil
+}
+
+// Delete implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) Delete(id int) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(id)
+	}
+	return nil
+}
+
+// GetByPort implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) GetByPort(port int, protocol string) (*models.L4Proxy, error) {
+	if m.GetByPortFunc != nil {
+		return m.GetByPortFunc(port, protocol)
+	}
+	return nil, nil
+}
+
 // Ensure mocks implement interfaces
 var (
-	_ service.ProxyServiceInterface      = (*MockProxyService)(nil)
-	_ service.SettingsServiceInterface   = (*MockSettingsService)(nil)
-	_ service.SyncServiceInterface       = (*MockSyncService)(nil)
-	_ service.AuditServiceInterface      = (*MockAuditService)(nil)
-	_ repository.UserRepositoryInterface = (*MockUserRepository)(nil)
-	_ caddy.ReloaderInterface            = (*MockReloader)(nil)
+	_ service.ProxyServiceInterface         = (*MockProxyService)(nil)
+	_ service.SettingsServiceInterface      = (*MockSettingsService)(nil)
+	_ service.SyncServiceInterface          = (*MockSyncService)(nil)
+	_ service.AuditServiceInterface         = (*MockAuditService)(nil)
+	_ repository.UserRepositoryInterface    = (*MockUserRepository)(nil)
+	_ repository.L4ProxyRepositoryInterface = (*MockL4ProxyRepository)(nil)
+	_ caddy.ReloaderInterface               = (*MockReloader)(nil)
 )
