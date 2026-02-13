@@ -75,6 +75,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsRepo := repository.NewSettingsRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
 	aclRepo := repository.NewACLRepository(db)
+	l4ProxyRepo := repository.NewL4ProxyRepository(db)
 
 	// OAuth Provider Manager
 	oauthProviderManager := auth.NewOAuthProviderManager()
@@ -104,6 +105,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	settingsService.SetSyncService(syncService) // Wire up sync service for catchall updates
 
 	auditService := service.NewAuditService(auditLogRepo, settingsService, logger)
+	l4ProxyService := service.NewL4ProxyService(l4ProxyRepo, logger)
 	aclService := service.NewACLService(service.ACLServiceConfig{
 		ACLRepo:      aclRepo,
 		ProxyRepo:    proxyRepo,
@@ -153,6 +155,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		Config:          cfg,
 		Logger:          logger,
 	})
+	l4ProxyHandler := handlers.NewL4ProxyHandler(l4ProxyService, logger)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -292,6 +295,24 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/", proxyACLHandler.AssignACLToProxy)
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{assignmentId}", proxyACLHandler.UpdateProxyACLAssignment)
 			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{groupId}", proxyACLHandler.RemoveACLFromProxy)
+		})
+
+		// L4 Proxy routes with permission checks
+		r.Route("/api/l4-proxies", func(r chi.Router) {
+			// Read operations - require l4proxies:read
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/", l4ProxyHandler.List)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/stats", l4ProxyHandler.GetStats)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/{id}", l4ProxyHandler.Get)
+
+			// Create operations - require l4proxies:create
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:create", mwConfig)).Post("/", l4ProxyHandler.Create)
+
+			// Update operations - require l4proxies:update
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Put("/{id}", l4ProxyHandler.Update)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Patch("/{id}/toggle", l4ProxyHandler.ToggleActive)
+
+			// Delete operations - require l4proxies:delete
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:delete", mwConfig)).Delete("/{id}", l4ProxyHandler.Delete)
 		})
 	})
 
