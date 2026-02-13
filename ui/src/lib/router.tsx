@@ -4,7 +4,9 @@ import { DashboardIndex } from '@/routes/_dashboard';
 import { ACLGroupDetailPage } from '@/routes/_dashboard/acl/$groupId';
 import { ACLGroupsPage } from '@/routes/_dashboard/acl/index';
 import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
-import { ProxiesPage } from '@/routes/_dashboard/proxies';
+import { ProxyDetailPage } from '@/routes/_dashboard/proxies/$proxyId';
+import { ProxiesListPage } from '@/routes/_dashboard/proxies/index';
+import { ProxyCreatePage } from '@/routes/_dashboard/proxies/new';
 import { DashboardLayout } from '@/routes/_dashboard/route';
 import { SettingsPage } from '@/routes/_dashboard/settings';
 import { ACLForbiddenPage } from '@/routes/auth/acl-forbidden';
@@ -89,7 +91,19 @@ const dashboardIndexRoute = createRoute({
 const proxiesRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies',
-  component: ProxiesPage,
+  component: ProxiesListPage,
+});
+
+const proxyCreateRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxies/new',
+  component: ProxyCreatePage,
+});
+
+const proxyDetailRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxies/$proxyId',
+  component: ProxyDetailPage,
 });
 
 const settingsRoute = createRoute({
@@ -125,6 +139,8 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute.addChildren([
     dashboardIndexRoute,
     proxiesRoute,
+    proxyCreateRoute,
+    proxyDetailRoute,
     settingsRoute,
     auditLogsRoute,
     aclRoute,

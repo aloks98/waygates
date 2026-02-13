@@ -516,7 +516,7 @@ export function ACLBrandingSettings() {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between border-t pt-6">
+      <CardFooter className="flex justify-between border-t">
         <Button variant="ghost" onClick={handleResetToDefaults} disabled={isUpdating}>
           <RotateCcw className="size-4" />
           Reset to Defaults

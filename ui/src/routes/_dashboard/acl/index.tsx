@@ -30,7 +30,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Check, Globe, Plus, Search, Shield, Trash2, X } from 'lucide-react';
+import { Check, Plus, Search, Shield, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { useACLGroups, useDeleteACLGroup } from '@/hooks';
@@ -126,6 +126,8 @@ export function ACLGroupsPage() {
             <span className="font-medium">{row.getValue('name')}</span>
           </div>
         ),
+        minSize: 140,
+        maxSize: 240,
         meta: {
           skeleton: <Skeleton className="h-5 w-32" />,
         },
@@ -142,6 +144,8 @@ export function ACLGroupsPage() {
           );
         },
         enableSorting: false,
+        minSize: 100,
+        maxSize: 140,
         meta: {
           skeleton: <Skeleton className="h-6 w-24 rounded-full" />,
         },
@@ -154,6 +158,8 @@ export function ACLGroupsPage() {
           return <span className="text-muted-foreground">{count > 0 ? count : '-'}</span>;
         },
         enableSorting: false,
+        minSize: 60,
+        maxSize: 100,
         meta: {
           skeleton: <Skeleton className="h-5 w-8" />,
         },
@@ -174,33 +180,10 @@ export function ACLGroupsPage() {
           );
         },
         enableSorting: false,
+        minSize: 60,
+        maxSize: 80,
         meta: {
           skeleton: <Skeleton className="size-4" />,
-        },
-      },
-      {
-        id: 'proxies',
-        header: 'Proxies',
-        cell: () => {
-          // This would need a separate query or include in API response
-          // For now, show a placeholder
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <Globe className="size-3" />
-                  <span>-</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View group details for usage info</p>
-              </TooltipContent>
-            </Tooltip>
-          );
-        },
-        enableSorting: false,
-        meta: {
-          skeleton: <Skeleton className="h-5 w-12" />,
         },
       },
       {
@@ -221,6 +204,8 @@ export function ACLGroupsPage() {
             </Tooltip>
           );
         },
+        minSize: 100,
+        maxSize: 160,
         meta: {
           skeleton: <Skeleton className="h-5 w-24" />,
         },
@@ -250,6 +235,8 @@ export function ACLGroupsPage() {
           </div>
         ),
         enableSorting: false,
+        minSize: 60,
+        maxSize: 80,
         meta: {
           skeleton: (
             <div className="flex justify-end gap-1">

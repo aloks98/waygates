@@ -61,6 +61,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
             </div>
           );
         },
+        minSize: 140,
+        maxSize: 240,
         meta: {
           skeleton: (
             <div className="flex items-center gap-2">
@@ -90,6 +92,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
           );
         },
         enableSorting: false,
+        minSize: 140,
+        maxSize: 260,
         meta: {
           skeleton: <Skeleton className="h-6 w-40" />,
         },
@@ -103,6 +107,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
           </code>
         ),
         enableSorting: false,
+        minSize: 80,
+        maxSize: 140,
         meta: {
           skeleton: <Skeleton className="h-6 w-16" />,
         },
@@ -116,6 +122,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
           </Badge>
         ),
         enableSorting: false,
+        minSize: 60,
+        maxSize: 100,
         meta: {
           skeleton: <Skeleton className="h-6 w-12 rounded-full" />,
         },
@@ -130,6 +138,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
             <Badge variant="outline">Disabled</Badge>
           ),
         enableSorting: false,
+        minSize: 70,
+        maxSize: 100,
         meta: {
           skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
         },
@@ -163,6 +173,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
           );
         },
         enableSorting: false,
+        minSize: 60,
+        maxSize: 80,
         meta: {
           skeleton: (
             <div className="flex justify-end">

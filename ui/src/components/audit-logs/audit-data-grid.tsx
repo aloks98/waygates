@@ -71,6 +71,8 @@ export function AuditDataGrid({
             </Tooltip>
           );
         },
+        minSize: 100,
+        maxSize: 160,
         meta: {
           skeleton: <Skeleton className="h-5 w-24" />,
         },
@@ -80,6 +82,8 @@ export function AuditDataGrid({
         header: 'Action',
         cell: ({ row }) => <ActionBadge action={row.getValue('action')} />,
         enableSorting: false,
+        minSize: 100,
+        maxSize: 160,
         meta: {
           skeleton: <Skeleton className="h-6 w-24 rounded-full" />,
         },
@@ -104,6 +108,8 @@ export function AuditDataGrid({
           );
         },
         enableSorting: false,
+        minSize: 140,
+        maxSize: 240,
         meta: {
           skeleton: <Skeleton className="h-5 w-32" />,
         },
@@ -122,6 +128,8 @@ export function AuditDataGrid({
           return <span className="text-muted-foreground italic">System</span>;
         },
         enableSorting: false,
+        minSize: 80,
+        maxSize: 140,
         meta: {
           skeleton: <Skeleton className="h-5 w-20" />,
         },
@@ -131,6 +139,8 @@ export function AuditDataGrid({
         header: 'Status',
         cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
         enableSorting: false,
+        minSize: 70,
+        maxSize: 100,
         meta: {
           skeleton: <Skeleton className="h-6 w-20 rounded-full" />,
         },
@@ -147,6 +157,8 @@ export function AuditDataGrid({
           );
         },
         enableSorting: false,
+        minSize: 80,
+        maxSize: 140,
         meta: {
           skeleton: <Skeleton className="h-5 w-28" />,
         },
@@ -175,6 +187,8 @@ export function AuditDataGrid({
           </div>
         ),
         enableSorting: false,
+        minSize: 60,
+        maxSize: 80,
         meta: {
           skeleton: <Skeleton className="size-8 rounded" />,
         },

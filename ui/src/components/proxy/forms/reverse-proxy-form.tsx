@@ -221,68 +221,80 @@ export function ReverseProxyForm({
       }}
       className="space-y-6"
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <form.Field name="name">
-          {(field) => {
-            const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-            return (
-              <Field data-invalid={hasError}>
-                <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                <Input
-                  id={field.name}
-                  placeholder="My Backend API"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  aria-invalid={hasError}
-                />
-                {hasError && <FieldError errors={field.state.meta.errors} />}
-              </Field>
-            );
-          }}
-        </form.Field>
+      {/* Basic Information */}
+      <Card>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Basic Information</CardTitle>
+            <CardDescription>General settings for this reverse proxy</CardDescription>
+          </CardHeading>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <form.Field name="name">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
+                    <Input
+                      id={field.name}
+                      placeholder="My Backend API"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      aria-invalid={hasError}
+                    />
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
 
-        <form.Field name="hostname">
-          {(field) => {
-            const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-            return (
-              <Field data-invalid={hasError}>
-                <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
-                <Input
-                  id={field.name}
-                  placeholder="api.example.com"
-                  value={field.state.value}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  onBlur={field.handleBlur}
-                  aria-invalid={hasError}
-                />
-                {hasError && <FieldError errors={field.state.meta.errors} />}
-              </Field>
-            );
-          }}
-        </form.Field>
-      </div>
+            <form.Field name="hostname">
+              {(field) => {
+                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+                return (
+                  <Field data-invalid={hasError}>
+                    <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
+                    <Input
+                      id={field.name}
+                      placeholder="api.example.com"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                      aria-invalid={hasError}
+                    />
+                    {hasError && <FieldError errors={field.state.meta.errors} />}
+                  </Field>
+                );
+              }}
+            </form.Field>
+          </div>
 
-      <form.Field name="description">
-        {(field) => {
-          const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-          return (
-            <Field data-invalid={hasError}>
-              <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-              <Input
-                id={field.name}
-                placeholder="A brief description of this proxy"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                aria-invalid={hasError}
-              />
-              {hasError && <FieldError errors={field.state.meta.errors} />}
-            </Field>
-          );
-        }}
-      </form.Field>
+          <form.Field name="description">
+            {(field) => {
+              const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
+              return (
+                <Field data-invalid={hasError}>
+                  <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
+                  <Input
+                    id={field.name}
+                    placeholder="A brief description of this proxy"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    onBlur={field.handleBlur}
+                    aria-invalid={hasError}
+                  />
+                  {hasError && <FieldError errors={field.state.meta.errors} />}
+                </Field>
+              );
+            }}
+          </form.Field>
+        </CardContent>
+      </Card>
 
+      {/* Upstream Servers */}
       <Card>
         <CardHeader>
           <CardHeading>
@@ -351,155 +363,162 @@ export function ReverseProxyForm({
         </CardContent>
       </Card>
 
-      {upstreams.length > 1 && (
-        <Card>
+      {/* Load Balancing + Security side by side on large screens */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {upstreams.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardHeading>
+                <CardTitle>Load Balancing</CardTitle>
+                <CardDescription>Distribute traffic across upstream servers</CardDescription>
+              </CardHeading>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form.Field name="lb_strategy">
+                {(field) => (
+                  <Field>
+                    <FieldLabel>Strategy</FieldLabel>
+                    <Select
+                      value={field.state.value}
+                      onValueChange={(val) => field.handleChange(val as typeof field.state.value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="round_robin">Round Robin</SelectItem>
+                        <SelectItem value="least_conn">Least Connections</SelectItem>
+                        <SelectItem value="ip_hash">IP Hash (Sticky)</SelectItem>
+                        <SelectItem value="random">Random</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              </form.Field>
+
+              <form.Field name="health_check_enabled">
+                {(field) => (
+                  <Field orientation="horizontal">
+                    <FieldContent>
+                      <FieldLabel>Health Checks</FieldLabel>
+                      <FieldDescription>Monitor upstream availability</FieldDescription>
+                    </FieldContent>
+                    <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                  </Field>
+                )}
+              </form.Field>
+
+              <form.Subscribe selector={(state) => state.values.health_check_enabled}>
+                {(healthCheckEnabled) =>
+                  healthCheckEnabled && (
+                    <div className="space-y-4">
+                      <form.Field name="health_check_path">
+                        {(field) => (
+                          <Field>
+                            <FieldLabel>Path</FieldLabel>
+                            <Input
+                              placeholder="/health"
+                              value={field.state.value}
+                              onChange={(e) => field.handleChange(e.target.value)}
+                            />
+                          </Field>
+                        )}
+                      </form.Field>
+                      <div className="grid gap-4 grid-cols-2">
+                        <form.Field name="health_check_interval">
+                          {(field) => (
+                            <Field>
+                              <FieldLabel>Interval</FieldLabel>
+                              <Input
+                                placeholder="30s"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                              />
+                            </Field>
+                          )}
+                        </form.Field>
+                        <form.Field name="health_check_timeout">
+                          {(field) => (
+                            <Field>
+                              <FieldLabel>Timeout</FieldLabel>
+                              <Input
+                                placeholder="5s"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                              />
+                            </Field>
+                          )}
+                        </form.Field>
+                      </div>
+                    </div>
+                  )
+                }
+              </form.Subscribe>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className={upstreams.length <= 1 ? 'lg:col-span-2' : ''}>
           <CardHeader>
             <CardHeading>
-              <CardTitle>Load Balancing</CardTitle>
-              <CardDescription>Distribute traffic across multiple upstream servers</CardDescription>
+              <CardTitle>Security</CardTitle>
+              <CardDescription>SSL and upstream connection settings</CardDescription>
             </CardHeading>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form.Field name="lb_strategy">
-              {(field) => (
-                <Field>
-                  <FieldLabel>Strategy</FieldLabel>
-                  <Select
-                    value={field.state.value}
-                    onValueChange={(val) => field.handleChange(val as typeof field.state.value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="round_robin">Round Robin</SelectItem>
-                      <SelectItem value="least_conn">Least Connections</SelectItem>
-                      <SelectItem value="ip_hash">IP Hash (Sticky)</SelectItem>
-                      <SelectItem value="random">Random</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-            </form.Field>
-
-            <form.Field name="health_check_enabled">
+            <form.Field name="ssl_enabled">
               {(field) => (
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldLabel>Health Checks</FieldLabel>
-                    <FieldDescription>Monitor upstream server availability</FieldDescription>
+                    <FieldLabel>Enable HTTPS</FieldLabel>
+                    <FieldDescription>
+                      Automatically obtain and manage SSL/TLS certificates
+                    </FieldDescription>
                   </FieldContent>
                   <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
                 </Field>
               )}
             </form.Field>
 
-            <form.Subscribe selector={(state) => state.values.health_check_enabled}>
-              {(healthCheckEnabled) =>
-                healthCheckEnabled && (
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <form.Field name="health_check_path">
-                      {(field) => (
-                        <Field>
-                          <FieldLabel>Path</FieldLabel>
-                          <Input
-                            placeholder="/health"
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                          />
-                        </Field>
-                      )}
-                    </form.Field>
-                    <form.Field name="health_check_interval">
-                      {(field) => (
-                        <Field>
-                          <FieldLabel>Interval</FieldLabel>
-                          <Input
-                            placeholder="30s"
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                          />
-                        </Field>
-                      )}
-                    </form.Field>
-                    <form.Field name="health_check_timeout">
-                      {(field) => (
-                        <Field>
-                          <FieldLabel>Timeout</FieldLabel>
-                          <Input
-                            placeholder="5s"
-                            value={field.state.value}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                          />
-                        </Field>
-                      )}
-                    </form.Field>
-                  </div>
-                )
-              }
-            </form.Subscribe>
+            <form.Field name="block_exploits">
+              {(field) => (
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel>Block Common Exploits</FieldLabel>
+                    <FieldDescription>
+                      Block SQL injection, XSS, and other common attacks
+                    </FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
+
+            <form.Field name="tls_insecure_skip_verify">
+              {(field) => (
+                <Field orientation="horizontal">
+                  <FieldContent>
+                    <FieldLabel>Skip TLS Verification</FieldLabel>
+                    <FieldDescription>Allow self-signed certificates on upstream</FieldDescription>
+                  </FieldContent>
+                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
+                </Field>
+              )}
+            </form.Field>
           </CardContent>
         </Card>
-      )}
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardHeading>
-            <CardTitle>Security Options</CardTitle>
-            <CardDescription>Configure security settings for upstream connections</CardDescription>
-          </CardHeading>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form.Field name="ssl_enabled">
-            {(field) => (
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldLabel>Enable HTTPS</FieldLabel>
-                  <FieldDescription>
-                    Automatically obtain and manage SSL/TLS certificates
-                  </FieldDescription>
-                </FieldContent>
-                <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-              </Field>
-            )}
-          </form.Field>
-
-          <form.Field name="block_exploits">
-            {(field) => (
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldLabel>Block Common Exploits</FieldLabel>
-                  <FieldDescription>
-                    Block SQL injection, XSS, and other common attacks
-                  </FieldDescription>
-                </FieldContent>
-                <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-              </Field>
-            )}
-          </form.Field>
-
-          <form.Field name="tls_insecure_skip_verify">
-            {(field) => (
-              <Field orientation="horizontal">
-                <FieldContent>
-                  <FieldLabel>Skip TLS Verification</FieldLabel>
-                  <FieldDescription>Allow self-signed certificates on upstream</FieldDescription>
-                </FieldContent>
-                <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-              </Field>
-            )}
-          </form.Field>
-        </CardContent>
-      </Card>
-
+      {/* Access Control */}
       <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
 
-      <div className="flex justify-end gap-2">
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : 'Save'}
+          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create Proxy'}
         </Button>
       </div>
     </form>
