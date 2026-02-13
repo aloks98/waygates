@@ -55,6 +55,8 @@ export function ProxyDetailPage() {
       if (newData.hostname !== originalProxy.hostname) return true;
       if (newData.type !== originalProxy.type) return true;
       if (newData.ssl_enabled !== originalProxy.ssl_enabled) return true;
+      if (newData.block_exploits !== originalProxy.block_exploits) return true;
+      if (newData.tls_insecure_skip_verify !== originalProxy.tls_insecure_skip_verify) return true;
 
       if (originalProxy.type === 'reverse_proxy') {
         const oldUpstreams = originalProxy.upstreams || [];
