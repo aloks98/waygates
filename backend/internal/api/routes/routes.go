@@ -85,6 +85,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		ProxyRepo:           proxyRepo,
 		SettingsRepo:        settingsRepo,
 		ACLRepo:             aclRepo,
+		L4ProxyRepo:         l4ProxyRepo,
 		FileManager:         caddyFileManager,
 		Reloader:            caddyReloader,
 		Logger:              logger,

@@ -24,6 +24,9 @@ type Builder struct {
 	aclGroups   map[int64]*models.ACLGroup
 	aclAssigns  map[int64][]models.ProxyACLAssignment
 	notFound    *models.NotFoundSettings
+
+	// Layer4 configuration (optional)
+	layer4App *Layer4App
 }
 
 // Settings holds the application settings for building the config.
@@ -119,6 +122,12 @@ func (b *Builder) SetNotFoundSettings(settings *models.NotFoundSettings) *Builde
 	return b
 }
 
+// SetLayer4App sets the Layer4 application configuration for TCP/UDP proxying.
+func (b *Builder) SetLayer4App(layer4App *Layer4App) *Builder {
+	b.layer4App = layer4App
+	return b
+}
+
 // Build generates the complete Caddy configuration.
 func (b *Builder) Build() (*CaddyConfig, error) {
 	config := &CaddyConfig{
@@ -161,6 +170,11 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 			return nil, fmt.Errorf("failed to build TLS config: %w", err)
 		}
 		config.Apps.TLS = tlsApp
+	}
+
+	// Set Layer4 app if configured
+	if b.layer4App != nil && len(b.layer4App.Servers) > 0 {
+		config.Apps.Layer4 = b.layer4App
 	}
 
 	return config, nil
