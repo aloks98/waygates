@@ -4,6 +4,7 @@ import { DashboardIndex } from '@/routes/_dashboard';
 import { ACLGroupDetailPage } from '@/routes/_dashboard/acl/$groupId';
 import { ACLGroupsPage } from '@/routes/_dashboard/acl/index';
 import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
+import { L4ProxyDetailPage } from '@/routes/_dashboard/l4-proxies/$l4ProxyId';
 import { ProxyDetailPage } from '@/routes/_dashboard/proxies/$proxyId';
 import { ProxiesListPage } from '@/routes/_dashboard/proxies/index';
 import { ProxyCreatePage } from '@/routes/_dashboard/proxies/new';
@@ -130,6 +131,12 @@ const aclGroupDetailRoute = createRoute({
   component: ACLGroupDetailPage,
 });
 
+const l4ProxyDetailRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/l4-proxies/$l4ProxyId',
+  component: L4ProxyDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -141,6 +148,7 @@ const routeTree = rootRoute.addChildren([
     proxiesRoute,
     proxyCreateRoute,
     proxyDetailRoute,
+    l4ProxyDetailRoute,
     settingsRoute,
     auditLogsRoute,
     aclRoute,

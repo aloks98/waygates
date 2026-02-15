@@ -1,8 +1,11 @@
 // Cell components
 export {
+  getL4ProtocolIcon,
+  getL4ProtocolLabel,
   getProxyTarget,
   getProxyTypeIcon,
   getProxyTypeLabel,
+  L4ProtocolBadge,
   ProxyActionsCell,
   ProxySslCell,
   ProxyStatusBadge,
@@ -17,3 +20,4 @@ export {
   StaticForm,
 } from './forms';
 export { ProxyDataGrid } from './proxy-data-grid';
+export { UnifiedProxyDataGrid } from './unified-proxy-data-grid';

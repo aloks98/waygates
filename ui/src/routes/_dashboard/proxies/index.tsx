@@ -8,96 +8,44 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
-  type Filter,
-  type FilterFieldsConfig,
-  Filters,
   Input,
+  Tabs,
+  TabsList,
+  TabsTrigger,
 } from '@e412/titanium';
 import { useNavigate } from '@tanstack/react-router';
 import type { PaginationState } from '@tanstack/react-table';
 import { Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ProxyDataGrid } from '@/components/proxy';
+import { UnifiedProxyDataGrid } from '@/components/proxy';
+import { useL4Proxies } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
-import type { ProxyConfig } from '@/types/proxy';
-
-// Map Titanium filter operators to backend operators
-const operatorMap: Record<string, string> = {
-  is: '', // defaults to eq
-  is_any_of: 'in',
-  is_not_any_of: 'not_in',
-  is_not: 'not',
-};
-
-const typeOptions = [
-  { value: 'reverse_proxy', label: 'Reverse Proxy' },
-  { value: 'redirect', label: 'Redirect' },
-  { value: 'static', label: 'Static' },
-];
-
-const statusOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-];
-
-const sslOptions = [
-  { value: 'true', label: 'Enabled' },
-  { value: 'false', label: 'Disabled' },
-];
-
-const filterFields: FilterFieldsConfig<string> = [
-  {
-    key: 'type',
-    label: 'Type',
-    type: 'multiselect',
-    options: typeOptions,
-    operators: [
-      { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
-      { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
-    ],
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select',
-    options: statusOptions,
-    operators: [
-      { value: 'is', label: 'is' },
-      { value: 'is_not', label: 'is not' },
-    ],
-  },
-  {
-    key: 'ssl_enabled',
-    label: 'SSL',
-    type: 'select',
-    options: sslOptions,
-    operators: [{ value: 'is', label: 'is' }],
-  },
-  {
-    key: 'target',
-    label: 'Target',
-    type: 'text',
-    placeholder: 'Enter target URL...',
-    defaultOperator: 'is',
-    operators: [{ value: 'is', label: 'contains' }],
-  },
-];
+import {
+  toUnifiedL4Proxy,
+  toUnifiedProxy,
+  type UnifiedProxy,
+  type UnifiedProxyFilter,
+} from '@/types/unified-proxy';
 
 export function ProxiesListPage() {
   const navigate = useNavigate();
-  const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
+  const { canCreateProxies, canUpdateProxies } = usePermissions();
 
+  // Filter state
+  const [activeFilter, setActiveFilter] = useState<UnifiedProxyFilter>('all');
+  const prevFilterRef = useRef(activeFilter);
+
+  // Pagination state - client-side pagination for combined data
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   });
+
+  // Search state
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFilters] = useState<Filter<string>[]>([]);
-  const [debouncedFilters, setDebouncedFilters] = useState<Filter<string>[]>([]);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const filtersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search input
   useEffect(() => {
@@ -116,92 +64,168 @@ export function ProxiesListPage() {
     };
   }, [search]);
 
-  // Debounce filters
+  // Reset pagination when filter changes
   useEffect(() => {
-    if (filtersDebounceRef.current) {
-      clearTimeout(filtersDebounceRef.current);
-    }
-    filtersDebounceRef.current = setTimeout(() => {
-      setDebouncedFilters(filters);
+    if (prevFilterRef.current !== activeFilter) {
+      prevFilterRef.current = activeFilter;
       setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, 500);
+    }
+  });
 
-    return () => {
-      if (filtersDebounceRef.current) {
-        clearTimeout(filtersDebounceRef.current);
-      }
-    };
-  }, [filters]);
-
-  // Helper to build filter value with operator prefix
-  const buildFilterValue = useCallback((operator: string, values: string[]): string => {
-    const backendOp = operatorMap[operator] || '';
-    const value = values.join(',');
-    return backendOp ? `${backendOp}:${value}` : value;
-  }, []);
-
-  // Convert filters to API params
-  const apiParams = useMemo(() => {
+  // Fetch HTTP proxies (L7)
+  const httpParams = useMemo(() => {
     const params: {
       page: number;
       limit: number;
       search?: string;
-      type?: string;
-      status?: string;
-      ssl_enabled?: string;
-      target?: string;
     } = {
-      page: pagination.pageIndex + 1,
-      limit: pagination.pageSize,
+      // Fetch all for client-side filtering/pagination when combined
+      page: 1,
+      limit: 1000,
     };
-
     if (debouncedSearch) {
       params.search = debouncedSearch;
     }
+    return params;
+  }, [debouncedSearch]);
 
-    for (const filter of debouncedFilters) {
-      if (filter.values.length === 0) continue;
+  const {
+    proxies: httpProxies,
+    isLoading: isLoadingHttp,
+    toggle: toggleHttp,
+    remove: removeHttp,
+    isToggling: isTogglingHttp,
+    isDeleting: isDeletingHttp,
+  } = useProxies(httpParams);
 
-      switch (filter.field) {
-        case 'type':
-          params.type = buildFilterValue(filter.operator, filter.values);
-          break;
-        case 'status':
-          params.status = buildFilterValue(filter.operator, filter.values);
-          break;
-        case 'ssl_enabled':
-          params.ssl_enabled = filter.values[0];
-          break;
-        case 'target':
-          params.target = filter.values[0];
-          break;
+  // Fetch L4 proxies
+  const l4Params = useMemo(() => {
+    const params: {
+      page: number;
+      limit: number;
+      search?: string;
+      protocol?: string;
+    } = {
+      page: 1,
+      limit: 1000,
+    };
+    if (debouncedSearch) {
+      params.search = debouncedSearch;
+    }
+    // Filter by protocol if specific L4 type selected
+    if (activeFilter === 'tcp') {
+      params.protocol = 'tcp';
+    } else if (activeFilter === 'udp') {
+      params.protocol = 'udp';
+    }
+    return params;
+  }, [debouncedSearch, activeFilter]);
+
+  const {
+    proxies: l4Proxies,
+    isLoading: isLoadingL4,
+    toggleActive: toggleL4,
+    remove: removeL4,
+    isToggling: isTogglingL4,
+    isDeleting: isDeletingL4,
+  } = useL4Proxies(l4Params);
+
+  const isLoading = isLoadingHttp || isLoadingL4;
+  const isToggling = isTogglingHttp || isTogglingL4;
+  const isDeleting = isDeletingHttp || isDeletingL4;
+
+  // Combine and filter proxies
+  const unifiedProxies = useMemo<UnifiedProxy[]>(() => {
+    const unified: UnifiedProxy[] = [];
+
+    // Add HTTP proxies based on filter
+    if (activeFilter === 'all' || activeFilter === 'http') {
+      for (const proxy of httpProxies) {
+        unified.push(toUnifiedProxy(proxy));
       }
     }
 
-    return params;
-  }, [pagination, debouncedSearch, debouncedFilters, buildFilterValue]);
+    // Add L4 proxies based on filter
+    if (activeFilter === 'all' || activeFilter === 'tcp' || activeFilter === 'udp') {
+      for (const proxy of l4Proxies) {
+        // When filter is all, add all L4 proxies
+        // When filter is tcp/udp, the API already filters, but double-check
+        if (
+          activeFilter === 'all' ||
+          (activeFilter === 'tcp' && proxy.protocol === 'tcp') ||
+          (activeFilter === 'udp' && proxy.protocol === 'udp')
+        ) {
+          unified.push(toUnifiedL4Proxy(proxy));
+        }
+      }
+    }
 
-  const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
-    setFilters(newFilters);
-  }, []);
+    // Sort by updated_at descending (most recent first)
+    unified.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
-  const { proxies, total, totalPages, isLoading, remove, toggle, isDeleting, isToggling } =
-    useProxies(apiParams);
+    return unified;
+  }, [httpProxies, l4Proxies, activeFilter]);
 
-  const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
+  // Client-side pagination
+  const paginatedProxies = useMemo(() => {
+    const start = pagination.pageIndex * pagination.pageSize;
+    const end = start + pagination.pageSize;
+    return unifiedProxies.slice(start, end);
+  }, [unifiedProxies, pagination]);
+
+  const totalPages = Math.ceil(unifiedProxies.length / pagination.pageSize);
+
+  // Delete state
+  const [deletingProxy, setDeletingProxy] = useState<UnifiedProxy | null>(null);
 
   const handleRowClick = useCallback(
-    (proxy: ProxyConfig) => {
-      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
+    (proxy: UnifiedProxy) => {
+      if (proxy.layer === 'L7') {
+        navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
+      } else {
+        navigate({
+          to: '/dashboard/l4-proxies/$l4ProxyId',
+          params: { l4ProxyId: String(proxy.id) },
+        });
+      }
     },
     [navigate],
   );
 
+  const handleToggleStatus = useCallback(
+    async (proxy: UnifiedProxy, enable: boolean) => {
+      if (proxy.layer === 'L7') {
+        await toggleHttp({ id: proxy.id, enable });
+      } else {
+        // L4 toggle doesn't take enable param, it just toggles
+        await toggleL4(proxy.id);
+      }
+    },
+    [toggleHttp, toggleL4],
+  );
+
   const handleDelete = async () => {
     if (!deletingProxy) return;
-    await remove(deletingProxy.id);
+    if (deletingProxy.layer === 'L7') {
+      await removeHttp(deletingProxy.id);
+    } else {
+      await removeL4(deletingProxy.id);
+    }
     setDeletingProxy(null);
   };
+
+  // Count by type for tab badges
+  const counts = useMemo(() => {
+    const httpCount = httpProxies.length;
+    const tcpCount = l4Proxies.filter((p) => p.protocol === 'tcp').length;
+    const udpCount = l4Proxies.filter((p) => p.protocol === 'udp').length;
+    return {
+      all: httpCount + l4Proxies.length,
+      http: httpCount,
+      tcp: tcpCount,
+      udp: udpCount,
+    };
+  }, [httpProxies, l4Proxies]);
 
   return (
     <div className="space-y-6">
@@ -215,8 +239,42 @@ export function ProxiesListPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-col gap-4">
+        {/* Filter tabs */}
+        <Tabs
+          value={activeFilter}
+          onValueChange={(value) => setActiveFilter(value as UnifiedProxyFilter)}
+        >
+          <TabsList>
+            <TabsTrigger value="all" className="gap-2">
+              All
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {counts.all}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="http" className="gap-2">
+              HTTP
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {counts.http}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="tcp" className="gap-2">
+              TCP
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {counts.tcp}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="udp" className="gap-2">
+              UDP
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {counts.udp}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Search input */}
+        <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
@@ -225,30 +283,19 @@ export function ProxiesListPage() {
             className="pl-9"
           />
         </div>
-
-        <Filters
-          filters={filters}
-          fields={filterFields}
-          onChange={handleFiltersChange}
-          addButtonText="Add Filter"
-          variant="outline"
-          size="md"
-        />
       </div>
 
-      <ProxyDataGrid
-        data={proxies}
+      <UnifiedProxyDataGrid
+        data={paginatedProxies}
         isLoading={isLoading}
         canUpdateProxies={canUpdateProxies}
-        canDeleteProxies={canDeleteProxies}
-        onEdit={handleRowClick}
-        onDelete={setDeletingProxy}
-        onToggleStatus={(id, enable) => toggle({ id, enable })}
+        onRowClick={handleRowClick}
+        onToggleStatus={handleToggleStatus}
         isToggling={isToggling}
         pageCount={totalPages}
         pagination={pagination}
         onPaginationChange={setPagination}
-        total={total}
+        total={unifiedProxies.length}
       />
 
       <AlertDialog open={!!deletingProxy} onOpenChange={(open) => !open && setDeletingProxy(null)}>
@@ -256,9 +303,8 @@ export function ProxiesListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete{' '}
-              <strong>{deletingProxy?.name || deletingProxy?.hostname}</strong>? This action cannot
-              be undone.
+              Are you sure you want to delete <strong>{deletingProxy?.name}</strong>? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
