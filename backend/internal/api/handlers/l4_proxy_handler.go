@@ -23,9 +23,12 @@ type L4ProxyHandler struct {
 
 // NewL4ProxyHandler creates a new L4 proxy handler
 func NewL4ProxyHandler(svc service.L4ProxyServiceInterface, logger *zap.Logger) *L4ProxyHandler {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	return &L4ProxyHandler{
 		service: svc,
-		logger:  logger,
+		logger:  logger.Named("l4-proxy-handler"),
 	}
 }
 
@@ -126,12 +129,25 @@ func (h *L4ProxyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req validation.CreateL4ProxyRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Debug("failed to decode create l4 proxy request",
+			zap.Int("user_id", userID),
+			zap.Error(err))
 		utils.BadRequest(w, "Invalid request body format", nil)
 		return
 	}
 
+	h.logger.Debug("received create l4 proxy request",
+		zap.String("name", req.Name),
+		zap.Int("listen_port", req.ListenPort),
+		zap.String("protocol", req.Protocol),
+		zap.Int("route_count", len(req.Routes)),
+		zap.Int("user_id", userID))
+
 	// Validate the request
 	if err := validation.ValidateStruct(&req); err != nil {
+		h.logger.Debug("l4 proxy request validation failed",
+			zap.String("name", req.Name),
+			zap.Error(err))
 		utils.BadRequest(w, err.Error(), nil)
 		return
 	}
@@ -143,13 +159,27 @@ func (h *L4ProxyHandler) Create(w http.ResponseWriter, r *http.Request) {
 	proxy, err := h.service.Create(serviceReq, userID)
 	if err != nil {
 		if errors.Is(err, service.ErrL4ProxyPortConflict) {
+			h.logger.Info("l4 proxy creation failed: port conflict",
+				zap.String("name", req.Name),
+				zap.Int("listen_port", req.ListenPort),
+				zap.String("protocol", req.Protocol))
 			utils.Conflict(w, "Port and protocol combination already in use")
 			return
 		}
 		// Validation errors from the model
+		h.logger.Debug("l4 proxy creation failed",
+			zap.String("name", req.Name),
+			zap.Error(err))
 		utils.BadRequest(w, err.Error(), nil)
 		return
 	}
+
+	h.logger.Info("l4 proxy created via API",
+		zap.Int("id", proxy.ID),
+		zap.String("name", proxy.Name),
+		zap.Int("listen_port", proxy.ListenPort),
+		zap.String("protocol", proxy.Protocol),
+		zap.Int("user_id", userID))
 
 	// Return created proxy
 	utils.Created(w, proxy, "L4 proxy created successfully")
@@ -198,12 +228,25 @@ func (h *L4ProxyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req validation.UpdateL4ProxyRequestDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.logger.Debug("failed to decode update l4 proxy request",
+			zap.Int("id", id),
+			zap.Error(err))
 		utils.BadRequest(w, "Invalid request body format", nil)
 		return
 	}
 
+	h.logger.Debug("received update l4 proxy request",
+		zap.Int("id", id),
+		zap.String("name", req.Name),
+		zap.Int("listen_port", req.ListenPort),
+		zap.String("protocol", req.Protocol),
+		zap.Int("route_count", len(req.Routes)))
+
 	// Validate the request
 	if err := validation.ValidateStruct(&req); err != nil {
+		h.logger.Debug("l4 proxy update request validation failed",
+			zap.Int("id", id),
+			zap.Error(err))
 		utils.BadRequest(w, err.Error(), nil)
 		return
 	}
@@ -215,17 +258,31 @@ func (h *L4ProxyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	proxy, err := h.service.Update(id, serviceReq)
 	if err != nil {
 		if errors.Is(err, service.ErrL4ProxyNotFound) {
+			h.logger.Debug("l4 proxy update failed: not found", zap.Int("id", id))
 			utils.NotFound(w, "L4 proxy not found")
 			return
 		}
 		if errors.Is(err, service.ErrL4ProxyPortConflict) {
+			h.logger.Info("l4 proxy update failed: port conflict",
+				zap.Int("id", id),
+				zap.Int("listen_port", req.ListenPort),
+				zap.String("protocol", req.Protocol))
 			utils.Conflict(w, "Port and protocol combination already in use")
 			return
 		}
 		// Validation errors from the model
+		h.logger.Debug("l4 proxy update failed",
+			zap.Int("id", id),
+			zap.Error(err))
 		utils.BadRequest(w, err.Error(), nil)
 		return
 	}
+
+	h.logger.Info("l4 proxy updated via API",
+		zap.Int("id", proxy.ID),
+		zap.String("name", proxy.Name),
+		zap.Int("listen_port", proxy.ListenPort),
+		zap.String("protocol", proxy.Protocol))
 
 	// Return updated proxy
 	utils.Success(w, proxy, "L4 proxy updated successfully")

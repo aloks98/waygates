@@ -28,7 +28,12 @@ func NewL4Builder(logger *zap.Logger) *L4Builder {
 // BuildL4Config builds a Layer4App configuration from L4Proxy models.
 // Only active proxies with routes are included in the configuration.
 func (b *L4Builder) BuildL4Config(proxies []models.L4Proxy) (*Layer4App, error) {
+	b.logger.Info("building L4 configuration",
+		zap.Int("total_proxies", len(proxies)),
+	)
+
 	app := NewLayer4App()
+	var activeCount, skippedInactive, skippedNoRoutes int
 
 	for i := range proxies {
 		proxy := &proxies[i]
@@ -39,6 +44,7 @@ func (b *L4Builder) BuildL4Config(proxies []models.L4Proxy) (*Layer4App, error) 
 				zap.Int("proxy_id", proxy.ID),
 				zap.String("name", proxy.Name),
 			)
+			skippedInactive++
 			continue
 		}
 
@@ -48,6 +54,7 @@ func (b *L4Builder) BuildL4Config(proxies []models.L4Proxy) (*Layer4App, error) 
 				zap.Int("proxy_id", proxy.ID),
 				zap.String("name", proxy.Name),
 			)
+			skippedNoRoutes++
 			continue
 		}
 
@@ -64,13 +71,22 @@ func (b *L4Builder) BuildL4Config(proxies []models.L4Proxy) (*Layer4App, error) 
 		// Use proxy name as server key for readability
 		serverName := b.formatServerName(proxy)
 		app.AddServer(serverName, server)
+		activeCount++
 
-		b.logger.Debug("built L4 server",
+		b.logger.Info("built L4 server",
 			zap.String("server_name", serverName),
 			zap.Int("proxy_id", proxy.ID),
+			zap.String("protocol", proxy.Protocol),
+			zap.Int("listen_port", proxy.ListenPort),
 			zap.Int("route_count", len(server.Routes)),
 		)
 	}
+
+	b.logger.Info("L4 configuration build complete",
+		zap.Int("active_servers", activeCount),
+		zap.Int("skipped_inactive", skippedInactive),
+		zap.Int("skipped_no_routes", skippedNoRoutes),
+	)
 
 	return app, nil
 }
@@ -112,12 +128,22 @@ func (b *L4Builder) buildRoute(modelRoute *models.L4Route) (*L4Route, error) {
 	matcher := b.buildMatcher(modelRoute)
 	if matcher != nil {
 		route.AddMatch(matcher)
+		b.logger.Debug("added matcher to L4 route",
+			zap.Int("route_id", modelRoute.ID),
+			zap.String("matcher_type", modelRoute.MatcherType),
+			zap.Strings("sni_hostnames", modelRoute.SNIHostnames),
+			zap.Strings("allowed_ip_ranges", modelRoute.AllowedIPRanges),
+		)
 	}
 
 	// Add TLS termination handler if enabled (must come before proxy handler)
 	if modelRoute.TLSTerminate {
 		tlsHandler := b.buildTLSHandler(modelRoute)
 		route.AddHandler(ToL4Handler(tlsHandler))
+		b.logger.Debug("added TLS termination handler to L4 route",
+			zap.Int("route_id", modelRoute.ID),
+			zap.Strings("sni_hostnames", modelRoute.SNIHostnames),
+		)
 	}
 
 	// Build and add proxy handler
@@ -126,6 +152,21 @@ func (b *L4Builder) buildRoute(modelRoute *models.L4Route) (*L4Route, error) {
 		return nil, fmt.Errorf("building proxy handler: %w", err)
 	}
 	route.AddHandler(ToL4Handler(proxyHandler))
+
+	// Log upstream details
+	upstreamAddrs := make([]string, 0, len(modelRoute.Upstreams))
+	for _, u := range modelRoute.Upstreams {
+		upstreamAddrs = append(upstreamAddrs, fmt.Sprintf("%s:%d", u.Host, u.Port))
+	}
+	b.logger.Debug("built L4 route",
+		zap.Int("route_id", modelRoute.ID),
+		zap.Int("priority", modelRoute.Priority),
+		zap.String("matcher_type", modelRoute.MatcherType),
+		zap.Bool("tls_terminate", modelRoute.TLSTerminate),
+		zap.Bool("tls_passthrough", modelRoute.TLSPassthrough),
+		zap.Strings("upstreams", upstreamAddrs),
+		zap.String("load_balancing", modelRoute.LoadBalancingPolicy),
+	)
 
 	return route, nil
 }

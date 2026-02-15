@@ -92,17 +92,33 @@ var (
 
 // Create creates a new L4 proxy
 func (s *L4ProxyService) Create(req *CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error) {
+	s.logger.Debug("creating l4 proxy",
+		zap.String("name", req.Name),
+		zap.Int("listen_port", req.ListenPort),
+		zap.String("protocol", req.Protocol),
+		zap.Int("route_count", len(req.Routes)),
+		zap.Int("created_by", createdBy),
+	)
+
 	// Convert request to model
 	proxy := s.requestToModel(req)
 	proxy.CreatedBy = createdBy
 
 	// Validate the model
 	if err := proxy.Validate(); err != nil {
+		s.logger.Debug("l4 proxy validation failed",
+			zap.String("name", req.Name),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 
 	// Check for port conflict
 	if err := s.checkPortConflict(proxy.ListenPort, proxy.Protocol, 0); err != nil {
+		s.logger.Debug("l4 proxy port conflict",
+			zap.Int("listen_port", proxy.ListenPort),
+			zap.String("protocol", proxy.Protocol),
+		)
 		return nil, err
 	}
 
@@ -111,11 +127,32 @@ func (s *L4ProxyService) Create(req *CreateL4ProxyRequest, createdBy int) (*mode
 		return nil, fmt.Errorf("failed to create l4 proxy: %w", err)
 	}
 
+	// Count upstreams and TLS settings
+	var totalUpstreams, tlsTerminateCount, tlsPassthroughCount int
+	var sniHostnames []string
+	for i := range proxy.Routes {
+		route := &proxy.Routes[i]
+		totalUpstreams += len(route.Upstreams)
+		if route.TLSTerminate {
+			tlsTerminateCount++
+		}
+		if route.TLSPassthrough {
+			tlsPassthroughCount++
+		}
+		sniHostnames = append(sniHostnames, route.SNIHostnames...)
+	}
+
 	s.logger.Info("l4 proxy created",
 		zap.Int("id", proxy.ID),
 		zap.String("name", proxy.Name),
 		zap.Int("listen_port", proxy.ListenPort),
 		zap.String("protocol", proxy.Protocol),
+		zap.Bool("is_active", proxy.IsActive),
+		zap.Int("route_count", len(proxy.Routes)),
+		zap.Int("total_upstreams", totalUpstreams),
+		zap.Int("tls_terminate_routes", tlsTerminateCount),
+		zap.Int("tls_passthrough_routes", tlsPassthroughCount),
+		zap.Strings("sni_hostnames", sniHostnames),
 		zap.Int("created_by", createdBy),
 	)
 
@@ -144,6 +181,16 @@ func (s *L4ProxyService) List(req *ListL4ProxiesRequest) (*models.L4ProxyListRes
 		req.Limit = 20
 	}
 
+	s.logger.Debug("listing l4 proxies",
+		zap.Int("page", req.Page),
+		zap.Int("limit", req.Limit),
+		zap.String("search", req.Search),
+		zap.String("protocol", req.Protocol),
+		zap.Boolp("is_active", req.IsActive),
+		zap.String("sort", req.Sort),
+		zap.String("order", req.Order),
+	)
+
 	// Get proxies from database
 	proxies, total, err := s.repo.List(repository.L4ProxyListParams{
 		Page:     req.Page,
@@ -161,6 +208,13 @@ func (s *L4ProxyService) List(req *ListL4ProxiesRequest) (*models.L4ProxyListRes
 	// Calculate pagination
 	totalPages := int(math.Ceil(float64(total) / float64(req.Limit)))
 
+	s.logger.Debug("l4 proxies listed",
+		zap.Int64("total", total),
+		zap.Int("returned", len(proxies)),
+		zap.Int("page", req.Page),
+		zap.Int("total_pages", totalPages),
+	)
+
 	return &models.L4ProxyListResponse{
 		Items:      proxies,
 		Total:      total,
@@ -172,6 +226,12 @@ func (s *L4ProxyService) List(req *ListL4ProxiesRequest) (*models.L4ProxyListRes
 
 // Update updates an existing L4 proxy
 func (s *L4ProxyService) Update(id int, req *UpdateL4ProxyRequest) (*models.L4Proxy, error) {
+	s.logger.Debug("updating l4 proxy",
+		zap.Int("id", id),
+		zap.String("name", req.Name),
+		zap.Int("route_count", len(req.Routes)),
+	)
+
 	// Get existing proxy
 	existing, err := s.repo.GetByID(id)
 	if err != nil {
@@ -189,12 +249,23 @@ func (s *L4ProxyService) Update(id int, req *UpdateL4ProxyRequest) (*models.L4Pr
 
 	// Validate the model
 	if err := proxy.Validate(); err != nil {
+		s.logger.Debug("l4 proxy update validation failed",
+			zap.Int("id", id),
+			zap.Error(err),
+		)
 		return nil, err
 	}
 
 	// Check for port conflict (excluding current proxy)
 	portChanged := existing.ListenPort != proxy.ListenPort || existing.Protocol != proxy.Protocol
 	if portChanged {
+		s.logger.Debug("l4 proxy port/protocol change detected",
+			zap.Int("id", id),
+			zap.Int("old_port", existing.ListenPort),
+			zap.Int("new_port", proxy.ListenPort),
+			zap.String("old_protocol", existing.Protocol),
+			zap.String("new_protocol", proxy.Protocol),
+		)
 		if err := s.checkPortConflict(proxy.ListenPort, proxy.Protocol, id); err != nil {
 			return nil, err
 		}
@@ -205,11 +276,41 @@ func (s *L4ProxyService) Update(id int, req *UpdateL4ProxyRequest) (*models.L4Pr
 		return nil, fmt.Errorf("failed to update l4 proxy: %w", err)
 	}
 
+	// Count upstreams and TLS settings for logging
+	var totalUpstreams, tlsTerminateCount, tlsPassthroughCount int
+	var sniHostnames []string
+	for i := range proxy.Routes {
+		route := &proxy.Routes[i]
+		totalUpstreams += len(route.Upstreams)
+		if route.TLSTerminate {
+			tlsTerminateCount++
+		}
+		if route.TLSPassthrough {
+			tlsPassthroughCount++
+		}
+		sniHostnames = append(sniHostnames, route.SNIHostnames...)
+	}
+
+	// Track changes for logging
+	nameChanged := existing.Name != proxy.Name
+	activeChanged := existing.IsActive != proxy.IsActive
+	routeCountChanged := len(existing.Routes) != len(proxy.Routes)
+
 	s.logger.Info("l4 proxy updated",
 		zap.Int("id", proxy.ID),
 		zap.String("name", proxy.Name),
 		zap.Int("listen_port", proxy.ListenPort),
 		zap.String("protocol", proxy.Protocol),
+		zap.Bool("is_active", proxy.IsActive),
+		zap.Int("route_count", len(proxy.Routes)),
+		zap.Int("total_upstreams", totalUpstreams),
+		zap.Int("tls_terminate_routes", tlsTerminateCount),
+		zap.Int("tls_passthrough_routes", tlsPassthroughCount),
+		zap.Strings("sni_hostnames", sniHostnames),
+		zap.Bool("name_changed", nameChanged),
+		zap.Bool("port_changed", portChanged),
+		zap.Bool("active_changed", activeChanged),
+		zap.Bool("route_count_changed", routeCountChanged),
 	)
 
 	// Fetch the updated proxy with relations
@@ -270,6 +371,8 @@ func (s *L4ProxyService) ToggleActive(id int) (*models.L4Proxy, error) {
 
 // GetStats returns statistics about L4 proxies
 func (s *L4ProxyService) GetStats() (*models.L4ProxyStats, error) {
+	s.logger.Debug("computing l4 proxy stats")
+
 	// Get all proxies with routes to calculate stats
 	proxies, _, err := s.repo.List(repository.L4ProxyListParams{
 		Page:  1,
@@ -301,6 +404,15 @@ func (s *L4ProxyService) GetStats() (*models.L4ProxyStats, error) {
 			stats.TotalUpstreams += int64(len(proxies[i].Routes[j].Upstreams))
 		}
 	}
+
+	s.logger.Debug("l4 proxy stats computed",
+		zap.Int64("total_proxies", stats.TotalProxies),
+		zap.Int64("active_proxies", stats.ActiveProxies),
+		zap.Int64("tcp_proxies", stats.TCPProxies),
+		zap.Int64("udp_proxies", stats.UDPProxies),
+		zap.Int64("total_routes", stats.TotalRoutes),
+		zap.Int64("total_upstreams", stats.TotalUpstreams),
+	)
 
 	return stats, nil
 }

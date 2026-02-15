@@ -54,7 +54,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	// Middleware
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
-	r.Use(chiMiddleware.Logger)
+	r.Use(middleware.RequestLogger(logger)) // Structured zap logging for all requests
 	r.Use(chiMiddleware.Recoverer)
 	r.Use(chiMiddleware.Timeout(60 * time.Second))
 	r.Use(middleware.BodyLimit(middleware.DefaultBodyLimit)) // 1MB body limit
