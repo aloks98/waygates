@@ -27,6 +27,9 @@ type Builder struct {
 
 	// Layer4 configuration (optional)
 	layer4App *Layer4App
+
+	// L4 SNI hostnames that need TLS certificates (for TLS termination)
+	l4TLSHostnames []string
 }
 
 // Settings holds the application settings for building the config.
@@ -128,6 +131,13 @@ func (b *Builder) SetLayer4App(layer4App *Layer4App) *Builder {
 	return b
 }
 
+// SetL4TLSHostnames sets the SNI hostnames from L4 proxies that need TLS certificates.
+// These hostnames will have HTTP routes created for ACME certificate provisioning.
+func (b *Builder) SetL4TLSHostnames(hostnames []string) *Builder {
+	b.l4TLSHostnames = hostnames
+	return b
+}
+
 // Build generates the complete Caddy configuration.
 func (b *Builder) Build() (*CaddyConfig, error) {
 	config := &CaddyConfig{
@@ -221,7 +231,54 @@ func (b *Builder) buildHTTPRoutes() ([]*HTTPRoute, error) {
 		routes = append(routes, proxyRoutes...)
 	}
 
+	// Add routes for L4 TLS hostnames (for ACME certificate provisioning)
+	l4Routes := b.buildL4TLSRoutes()
+	routes = append(routes, l4Routes...)
+
 	return routes, nil
+}
+
+// buildL4TLSRoutes builds HTTP routes for L4 SNI hostnames that need TLS certificates.
+// These routes serve a simple response to enable ACME certificate provisioning.
+func (b *Builder) buildL4TLSRoutes() []*HTTPRoute {
+	if len(b.l4TLSHostnames) == 0 {
+		return nil
+	}
+
+	// Collect hostnames that don't already have an HTTP proxy
+	httpHostnames := make(map[string]bool)
+	for i := range b.httpProxies {
+		if b.httpProxies[i].IsActive {
+			httpHostnames[b.httpProxies[i].Hostname] = true
+		}
+	}
+
+	var routes []*HTTPRoute
+	for _, hostname := range b.l4TLSHostnames {
+		// Skip if already handled by an HTTP proxy
+		if httpHostnames[hostname] {
+			continue
+		}
+
+		// Create a simple route that responds with "L4 Proxy" for ACME
+		route := &HTTPRoute{
+			Match: []MatcherSet{
+				NewHostMatcher(hostname),
+			},
+			Handle: []HTTPHandler{
+				{
+					"handler": "static_response",
+					"body":    "L4 Proxy - TLS Certificate Endpoint",
+				},
+			},
+		}
+		routes = append(routes, route)
+
+		b.logger.Debug("Added L4 TLS certificate route",
+			zap.String("hostname", hostname))
+	}
+
+	return routes
 }
 
 // buildProxyRoutes builds routes for a single proxy.
@@ -296,6 +353,11 @@ func (b *Builder) collectTLSDomains() []string {
 		if proxy.SSLEnabled {
 			domainSet[proxy.Hostname] = true
 		}
+	}
+
+	// Add L4 TLS hostnames for certificate provisioning
+	for _, hostname := range b.l4TLSHostnames {
+		domainSet[hostname] = true
 	}
 
 	domains := make([]string, 0, len(domainSet))

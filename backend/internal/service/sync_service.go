@@ -361,6 +361,7 @@ func (s *SyncService) performFullSyncJSON() error {
 	var l4ProxyCount int
 	// Clear any existing L4 config first to handle proxy removals
 	s.jsonBuilder.SetLayer4App(nil)
+	s.jsonBuilder.SetL4TLSHostnames(nil)
 
 	if s.l4ProxyRepo != nil && s.l4Builder != nil {
 		isActive := true
@@ -382,6 +383,14 @@ func (s *SyncService) performFullSyncJSON() error {
 				s.logger.Debug("Built L4 config",
 					zap.Int("l4_proxy_count", l4ProxyCount),
 					zap.Int("l4_server_count", len(layer4App.Servers)))
+			}
+
+			// Extract SNI hostnames that need TLS certificates
+			l4TLSHostnames := extractL4TLSHostnames(l4Proxies)
+			if len(l4TLSHostnames) > 0 {
+				s.jsonBuilder.SetL4TLSHostnames(l4TLSHostnames)
+				s.logger.Debug("Extracted L4 TLS hostnames for certificate provisioning",
+					zap.Strings("hostnames", l4TLSHostnames))
 			}
 		}
 	}
@@ -563,4 +572,42 @@ func sanitizeFilename(hostname string) string {
 // GetProxyFilename returns the config filename for a proxy (using hostname)
 func GetProxyFilename(proxyID int, hostname string) string {
 	return strconv.Itoa(proxyID) + "_" + sanitizeFilename(hostname) + ".conf"
+}
+
+// extractL4TLSHostnames extracts SNI hostnames from L4 proxies that need TLS certificates.
+// This includes routes with TLS termination enabled and TLS/SNI matcher type.
+func extractL4TLSHostnames(l4Proxies []models.L4Proxy) []string {
+	hostnameSet := make(map[string]bool)
+
+	for i := range l4Proxies {
+		proxy := &l4Proxies[i]
+		if !proxy.IsActive {
+			continue
+		}
+
+		for j := range proxy.Routes {
+			route := &proxy.Routes[j]
+			// Check if this route needs TLS termination
+			if !route.TLSTerminate {
+				continue
+			}
+
+			// For TLS matcher, collect SNI hostnames
+			if route.MatcherType == "tls" && len(route.SNIHostnames) > 0 {
+				for _, hostname := range route.SNIHostnames {
+					if hostname != "" {
+						hostnameSet[hostname] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Convert set to slice
+	hostnames := make([]string, 0, len(hostnameSet))
+	for hostname := range hostnameSet {
+		hostnames = append(hostnames, hostname)
+	}
+
+	return hostnames
 }
