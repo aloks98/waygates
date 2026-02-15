@@ -5,13 +5,23 @@ A modern reverse proxy manager with a React UI and Go backend. Manage your Caddy
 [![codecov](https://codecov.io/gh/aloks98/waygates/graph/badge.svg?token=J4V92R1NN1)](https://codecov.io/gh/aloks98/waygates)
 ## Features
 
-- Web UI for managing reverse proxy configurations
+- Web UI for managing proxy configurations
 - REST API for automation
 - JWT-based authentication with RBAC
 - Automatic TLS with 10+ DNS providers supported
-- Support for reverse proxy, redirect, and static file serving
+- **Layer 7 (HTTP)**: Reverse proxy, redirect, and static file serving
+- **Layer 4 (TCP/UDP)**: Raw TCP/UDP proxying with protocol-aware routing
 - PostgreSQL for persistent storage
 - Single Docker image (backend + Caddy + UI)
+
+### L4 Proxy Features
+
+- TCP and UDP protocol support
+- Protocol matchers: TLS/SNI, SSH, PostgreSQL, HTTP, RDP, SOCKS5
+- IP-based access control
+- Load balancing (round-robin, least-conn, random, ip-hash)
+- TLS passthrough or termination
+- Proxy Protocol v1/v2 support
 
 ## Quick Start
 
@@ -45,13 +55,14 @@ Waygates runs as a **single container** combining:
 │  │  Go Backend (Port 8080)                  │  │
 │  │  - REST API                              │  │
 │  │  - UI static files                       │  │
-│  │  - Caddyfile generation                  │  │
+│  │  - JSON config generation                │  │
 │  │  - Sync service (DB → Caddy)             │  │
 │  └────────────────┬─────────────────────────┘  │
 │                   │ reload                      │
 │  ┌────────────────▼─────────────────────────┐  │
-│  │  Caddy (Ports 80, 443)                   │  │
-│  │  - Reverse proxy                         │  │
+│  │  Caddy + L4 Plugin                       │  │
+│  │  - HTTP proxy (Ports 80, 443)            │  │
+│  │  - L4 proxy (Custom TCP/UDP ports)       │  │
 │  │  - Automatic HTTPS                       │  │
 │  │  - DNS challenge support                 │  │
 │  └──────────────────────────────────────────┘  │
@@ -154,7 +165,9 @@ waygates/
 
 - **[Deployment Guide](docs/DEPLOYMENT.md)** - Full deployment instructions
 - **[API Authentication](docs/API_AUTH.md)** - Authentication endpoints
-- **[API Proxy](docs/API_PROXY.md)** - Proxy management endpoints
+- **[API Proxy](docs/API_PROXY.md)** - HTTP proxy management endpoints
+- **[API L4 Proxy](docs/API_L4_PROXY.md)** - TCP/UDP proxy management endpoints
+- **[Access Control Lists](docs/ACL.md)** - ACL configuration
 - **[OpenAPI Spec](docs/openapi.yaml)** - API specification
 - **[TLS Skip Verify](docs/TLS_SKIP_VERIFY.md)** - Upstream TLS configuration
 

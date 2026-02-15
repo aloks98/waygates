@@ -13,7 +13,7 @@ import (
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
 
-// MockL4ProxyRepository is a mock implementation of L4ProxyRepositoryInterface
+// MockL4ProxyRepository is a mock implementation of L4ProxyRepositoryInterface for testing
 type MockL4ProxyRepository struct {
 	CreateFunc    func(proxy *models.L4Proxy) error
 	GetByIDFunc   func(id int) (*models.L4Proxy, error)
@@ -111,15 +111,26 @@ func newTestL4Proxy() *models.L4Proxy {
 	}
 }
 
+// Helper function to create a bool pointer
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 // TestNewL4ProxyService tests service creation
 func TestNewL4ProxyService(t *testing.T) {
 	repo := &MockL4ProxyRepository{}
 
-	t.Run("with logger", func(t *testing.T) {
+	t.Run("creates service with nil logger", func(t *testing.T) {
 		svc := NewL4ProxyService(repo, nil)
 		require.NotNil(t, svc)
 		assert.Equal(t, repo, svc.repo)
-		assert.NotNil(t, svc.logger)
+		assert.NotNil(t, svc.logger, "Should use nop logger when nil provided")
+	})
+
+	t.Run("creates service with mock repo", func(t *testing.T) {
+		svc := NewL4ProxyService(repo, nil)
+		require.NotNil(t, svc)
+		assert.Equal(t, repo, svc.repo)
 	})
 }
 
@@ -137,6 +148,31 @@ func TestL4ProxyService_Create(t *testing.T) {
 		{
 			name:      "success",
 			req:       newTestL4ProxyRequest(),
+			createdBy: 1,
+			mockCreate: func(proxy *models.L4Proxy) error {
+				proxy.ID = 1
+				return nil
+			},
+			mockGetByPort: func(_ int, _ string) (*models.L4Proxy, error) {
+				return nil, gorm.ErrRecordNotFound
+			},
+		},
+		{
+			name: "success - UDP proxy",
+			req: &CreateL4ProxyRequest{
+				Name:       "UDP Proxy",
+				ListenPort: 5353,
+				Protocol:   models.L4ProtocolUDP,
+				IsActive:   true,
+				Routes: []CreateL4RouteRequest{
+					{
+						Priority:            1,
+						MatcherType:         models.L4MatcherAny,
+						LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+						Upstreams:           []L4UpstreamRequest{{Host: "8.8.8.8", Port: 53}},
+					},
+				},
+			},
 			createdBy: 1,
 			mockCreate: func(proxy *models.L4Proxy) error {
 				proxy.ID = 1
@@ -183,10 +219,28 @@ func TestL4ProxyService_Create(t *testing.T) {
 			expectErrType: models.ErrL4ProxyInvalidProtocol,
 		},
 		{
-			name: "validation error - invalid port",
+			name: "validation error - port zero",
 			req: &CreateL4ProxyRequest{
 				Name:       "Test",
 				ListenPort: 0,
+				Protocol:   models.L4ProtocolTCP,
+				Routes: []CreateL4RouteRequest{
+					{
+						Priority:            1,
+						MatcherType:         models.L4MatcherAny,
+						LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+						Upstreams:           []L4UpstreamRequest{{Host: "127.0.0.1", Port: 9090}},
+					},
+				},
+			},
+			createdBy:     1,
+			expectErrType: models.ErrL4ProxyInvalidPort,
+		},
+		{
+			name: "validation error - port too high",
+			req: &CreateL4ProxyRequest{
+				Name:       "Test",
+				ListenPort: 65536,
 				Protocol:   models.L4ProtocolTCP,
 				Routes: []CreateL4RouteRequest{
 					{
@@ -208,6 +262,15 @@ func TestL4ProxyService_Create(t *testing.T) {
 				return &models.L4Proxy{ID: 2, ListenPort: 8080, Protocol: models.L4ProtocolTCP}, nil
 			},
 			expectErr: ErrL4ProxyPortConflict,
+		},
+		{
+			name:      "database error on port check",
+			req:       newTestL4ProxyRequest(),
+			createdBy: 1,
+			mockGetByPort: func(_ int, _ string) (*models.L4Proxy, error) {
+				return nil, errors.New("database connection error")
+			},
+			expectErr: errors.New("failed to check port conflict"),
 		},
 		{
 			name:      "database error on create",
@@ -259,6 +322,177 @@ func TestL4ProxyService_Create(t *testing.T) {
 	}
 }
 
+// TestL4ProxyService_Create_RouteValidation tests route validation during create
+func TestL4ProxyService_Create_RouteValidation(t *testing.T) {
+	regexPattern := "^SSH-.*"
+
+	tests := []struct {
+		name        string
+		routes      []CreateL4RouteRequest
+		expectedErr error
+	}{
+		{
+			name: "valid route with TLS matcher and SNI hostnames",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherTLS,
+					SNIHostnames:        []string{"example.com"},
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					TLSPassthrough:      true,
+					Upstreams:           []L4UpstreamRequest{{Host: "backend", Port: 443}},
+				},
+			},
+		},
+		{
+			name: "invalid route - missing upstreams",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherAny,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{},
+				},
+			},
+			expectedErr: models.ErrL4RouteUpstreamsRequired,
+		},
+		{
+			name: "invalid route - TLS terminate and passthrough both enabled",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherAny,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					TLSTerminate:        true,
+					TLSPassthrough:      true,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4RouteTLSConflict,
+		},
+		{
+			name: "invalid route - regexp matcher without pattern",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherRegexp,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4RouteRegexRequired,
+		},
+		{
+			name: "valid route - regexp matcher with pattern",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherRegexp,
+					RegexPattern:        &regexPattern,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+		},
+		{
+			name: "invalid route - TLS matcher without SNI hostnames",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherTLS,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					TLSPassthrough:      true,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4RouteSNIRequired,
+		},
+		{
+			name: "invalid route - invalid matcher type",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         "invalid_matcher",
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4RouteInvalidMatcher,
+		},
+		{
+			name: "invalid route - invalid load balancing policy",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherAny,
+					LoadBalancingPolicy: "invalid_policy",
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4RouteInvalidLBPolicy,
+		},
+		{
+			name: "invalid route - upstream with empty host",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherAny,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{{Host: "", Port: 8080}},
+				},
+			},
+			expectedErr: models.ErrL4UpstreamHostRequired,
+		},
+		{
+			name: "invalid route - upstream with invalid port",
+			routes: []CreateL4RouteRequest{
+				{
+					Priority:            1,
+					MatcherType:         models.L4MatcherAny,
+					LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+					Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 0}},
+				},
+			},
+			expectedErr: models.ErrL4UpstreamInvalidPort,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &MockL4ProxyRepository{
+				GetByPortFunc: func(_ int, _ string) (*models.L4Proxy, error) {
+					return nil, gorm.ErrRecordNotFound
+				},
+				CreateFunc: func(proxy *models.L4Proxy) error {
+					proxy.ID = 1
+					return nil
+				},
+			}
+			svc := NewL4ProxyService(repo, nil)
+
+			req := &CreateL4ProxyRequest{
+				Name:       "Test Proxy",
+				ListenPort: 8080,
+				Protocol:   models.L4ProtocolTCP,
+				IsActive:   true,
+				Routes:     tc.routes,
+			}
+
+			result, err := svc.Create(req, 1)
+
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tc.expectedErr)
+				assert.Nil(t, result)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+		})
+	}
+}
+
 // TestL4ProxyService_GetByID tests getting an L4 proxy by ID
 func TestL4ProxyService_GetByID(t *testing.T) {
 	tests := []struct {
@@ -268,7 +502,7 @@ func TestL4ProxyService_GetByID(t *testing.T) {
 		expectErr   error
 	}{
 		{
-			name: "success",
+			name: "success - returns proxy with routes",
 			id:   1,
 			mockGetByID: func(_ int) (*models.L4Proxy, error) {
 				return newTestL4Proxy(), nil
@@ -308,17 +542,19 @@ func TestL4ProxyService_GetByID(t *testing.T) {
 				} else {
 					assert.Contains(t, err.Error(), tc.expectErr.Error())
 				}
+				assert.Nil(t, result)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.id, result.ID)
+			assert.Len(t, result.Routes, 1)
 		})
 	}
 }
 
-// TestL4ProxyService_List tests listing L4 proxies
+// TestL4ProxyService_List tests listing L4 proxies with filters
 func TestL4ProxyService_List(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -356,6 +592,18 @@ func TestL4ProxyService_List(t *testing.T) {
 			expectedPages: 3,
 		},
 		{
+			name: "empty result",
+			req:  &ListL4ProxiesRequest{Page: 1, Limit: 10},
+			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+				return []models.L4Proxy{}, 0, nil
+			},
+			expectedPage:  1,
+			expectedLimit: 10,
+			expectedTotal: 0,
+			expectedCount: 0,
+			expectedPages: 0,
+		},
+		{
 			name: "limit capped at 100",
 			req:  &ListL4ProxiesRequest{Page: 1, Limit: 200},
 			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
@@ -363,6 +611,18 @@ func TestL4ProxyService_List(t *testing.T) {
 			},
 			expectedPage:  1,
 			expectedLimit: 20,
+			expectedTotal: 0,
+			expectedCount: 0,
+			expectedPages: 0,
+		},
+		{
+			name: "negative page becomes 1",
+			req:  &ListL4ProxiesRequest{Page: -1, Limit: 10},
+			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+				return []models.L4Proxy{}, 0, nil
+			},
+			expectedPage:  1,
+			expectedLimit: 10,
 			expectedTotal: 0,
 			expectedCount: 0,
 			expectedPages: 0,
@@ -395,11 +655,7 @@ func TestL4ProxyService_List(t *testing.T) {
 		},
 		{
 			name: "with is_active filter true",
-			req: &ListL4ProxiesRequest{
-				Page:     1,
-				Limit:    10,
-				IsActive: boolPtr(true),
-			},
+			req:  &ListL4ProxiesRequest{Page: 1, Limit: 10, IsActive: boolPtr(true)},
 			mockList: func(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
 				require.NotNil(t, params.IsActive)
 				assert.True(t, *params.IsActive)
@@ -413,21 +669,33 @@ func TestL4ProxyService_List(t *testing.T) {
 		},
 		{
 			name: "with is_active filter false",
-			req: &ListL4ProxiesRequest{
-				Page:     1,
-				Limit:    10,
-				IsActive: boolPtr(false),
-			},
+			req:  &ListL4ProxiesRequest{Page: 1, Limit: 10, IsActive: boolPtr(false)},
 			mockList: func(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
 				require.NotNil(t, params.IsActive)
 				assert.False(t, *params.IsActive)
-				return []models.L4Proxy{}, 0, nil
+				proxy := newTestL4Proxy()
+				proxy.IsActive = false
+				return []models.L4Proxy{*proxy}, 1, nil
 			},
 			expectedPage:  1,
 			expectedLimit: 10,
-			expectedTotal: 0,
-			expectedCount: 0,
-			expectedPages: 0,
+			expectedTotal: 1,
+			expectedCount: 1,
+			expectedPages: 1,
+		},
+		{
+			name: "with sort and order",
+			req:  &ListL4ProxiesRequest{Page: 1, Limit: 10, Sort: "name", Order: "asc"},
+			mockList: func(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+				assert.Equal(t, "name", params.Sort)
+				assert.Equal(t, "asc", params.Order)
+				return []models.L4Proxy{*newTestL4Proxy()}, 1, nil
+			},
+			expectedPage:  1,
+			expectedLimit: 10,
+			expectedTotal: 1,
+			expectedCount: 1,
+			expectedPages: 1,
 		},
 		{
 			name: "database error",
@@ -450,6 +718,7 @@ func TestL4ProxyService_List(t *testing.T) {
 
 			if tc.expectErr {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to list l4 proxies")
 				return
 			}
 
@@ -458,7 +727,7 @@ func TestL4ProxyService_List(t *testing.T) {
 			assert.Equal(t, tc.expectedPage, result.Page)
 			assert.Equal(t, tc.expectedLimit, result.Limit)
 			assert.Equal(t, tc.expectedTotal, result.Total)
-			assert.Equal(t, tc.expectedCount, len(result.Items))
+			assert.Len(t, result.Items, tc.expectedCount)
 			assert.Equal(t, tc.expectedPages, result.TotalPages)
 		})
 	}
@@ -530,6 +799,33 @@ func TestL4ProxyService_Update(t *testing.T) {
 			},
 		},
 		{
+			name: "success - change protocol",
+			id:   1,
+			req: &UpdateL4ProxyRequest{
+				Name:       "Updated Name",
+				ListenPort: 8080,
+				Protocol:   models.L4ProtocolUDP,
+				IsActive:   true,
+				Routes: []CreateL4RouteRequest{
+					{
+						Priority:            1,
+						MatcherType:         models.L4MatcherAny,
+						LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+						Upstreams:           []L4UpstreamRequest{{Host: "127.0.0.1", Port: 9090}},
+					},
+				},
+			},
+			mockGetByID: func(_ int) (*models.L4Proxy, error) {
+				return existingProxy, nil
+			},
+			mockUpdate: func(_ *models.L4Proxy) error {
+				return nil
+			},
+			mockGetByPort: func(_ int, _ string) (*models.L4Proxy, error) {
+				return nil, gorm.ErrRecordNotFound
+			},
+		},
+		{
 			name: "not found",
 			id:   999,
 			req: &UpdateL4ProxyRequest{
@@ -572,7 +868,7 @@ func TestL4ProxyService_Update(t *testing.T) {
 			expectErrType: models.ErrL4ProxyNameRequired,
 		},
 		{
-			name: "port conflict",
+			name: "port conflict when changing port",
 			id:   1,
 			req: &UpdateL4ProxyRequest{
 				Name:       "Updated Name",
@@ -595,6 +891,19 @@ func TestL4ProxyService_Update(t *testing.T) {
 				return &models.L4Proxy{ID: 2, ListenPort: 9090, Protocol: models.L4ProtocolTCP}, nil
 			},
 			expectErr: ErrL4ProxyPortConflict,
+		},
+		{
+			name: "database error on get",
+			id:   1,
+			req: &UpdateL4ProxyRequest{
+				Name:       "Updated Name",
+				ListenPort: 8080,
+				Protocol:   models.L4ProtocolTCP,
+			},
+			mockGetByID: func(_ int) (*models.L4Proxy, error) {
+				return nil, errors.New("database error")
+			},
+			expectErr: errors.New("failed to get l4 proxy"),
 		},
 		{
 			name: "database error on update",
@@ -644,12 +953,14 @@ func TestL4ProxyService_Update(t *testing.T) {
 				default:
 					assert.Contains(t, err.Error(), tc.expectErr.Error())
 				}
+				assert.Nil(t, result)
 				return
 			}
 
 			if tc.expectErrType != nil {
 				require.Error(t, err)
 				assert.Equal(t, tc.expectErrType, err)
+				assert.Nil(t, result)
 				return
 			}
 
@@ -709,9 +1020,16 @@ func TestL4ProxyService_Delete(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			deleteCalled := false
 			repo := &MockL4ProxyRepository{
 				GetByIDFunc: tc.mockGetByID,
-				DeleteFunc:  tc.mockDelete,
+				DeleteFunc: func(id int) error {
+					deleteCalled = true
+					if tc.mockDelete != nil {
+						return tc.mockDelete(id)
+					}
+					return nil
+				},
 			}
 			svc := NewL4ProxyService(repo, nil)
 
@@ -728,6 +1046,7 @@ func TestL4ProxyService_Delete(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			assert.True(t, deleteCalled, "Delete should have been called")
 		})
 	}
 }
@@ -737,14 +1056,16 @@ func TestL4ProxyService_ToggleActive(t *testing.T) {
 	tests := []struct {
 		name           string
 		id             int
+		initialActive  bool
 		mockGetByID    func(id int) (*models.L4Proxy, error)
 		mockUpdate     func(proxy *models.L4Proxy) error
 		expectErr      error
 		expectIsActive bool
 	}{
 		{
-			name: "success - active to inactive",
-			id:   1,
+			name:          "success - active to inactive",
+			id:            1,
+			initialActive: true,
 			mockGetByID: func(_ int) (*models.L4Proxy, error) {
 				proxy := newTestL4Proxy()
 				proxy.IsActive = true
@@ -756,8 +1077,9 @@ func TestL4ProxyService_ToggleActive(t *testing.T) {
 			expectIsActive: false,
 		},
 		{
-			name: "success - inactive to active",
-			id:   1,
+			name:          "success - inactive to active",
+			id:            1,
+			initialActive: false,
 			mockGetByID: func(_ int) (*models.L4Proxy, error) {
 				proxy := newTestL4Proxy()
 				proxy.IsActive = false
@@ -799,9 +1121,16 @@ func TestL4ProxyService_ToggleActive(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var updatedProxy *models.L4Proxy
 			repo := &MockL4ProxyRepository{
 				GetByIDFunc: tc.mockGetByID,
-				UpdateFunc:  tc.mockUpdate,
+				UpdateFunc: func(proxy *models.L4Proxy) error {
+					updatedProxy = proxy
+					if tc.mockUpdate != nil {
+						return tc.mockUpdate(proxy)
+					}
+					return nil
+				},
 			}
 			svc := NewL4ProxyService(repo, nil)
 
@@ -814,12 +1143,14 @@ func TestL4ProxyService_ToggleActive(t *testing.T) {
 				} else {
 					assert.Contains(t, err.Error(), tc.expectErr.Error())
 				}
+				assert.Nil(t, result)
 				return
 			}
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			assert.Equal(t, tc.expectIsActive, result.IsActive)
+			assert.Equal(t, tc.expectIsActive, updatedProxy.IsActive)
 		})
 	}
 }
@@ -838,7 +1169,7 @@ func TestL4ProxyService_GetStats(t *testing.T) {
 		expectedTotalUpstreams int64
 	}{
 		{
-			name: "success - with proxies",
+			name: "success - mixed proxies",
 			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
 				proxy1 := newTestL4Proxy()
 				proxy1.ID = 1
@@ -891,6 +1222,27 @@ func TestL4ProxyService_GetStats(t *testing.T) {
 			expectedTotalUpstreams: 0,
 		},
 		{
+			name: "success - all active TCP",
+			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+				proxy1 := newTestL4Proxy()
+				proxy1.IsActive = true
+				proxy1.Protocol = models.L4ProtocolTCP
+
+				proxy2 := newTestL4Proxy()
+				proxy2.ID = 2
+				proxy2.IsActive = true
+				proxy2.Protocol = models.L4ProtocolTCP
+
+				return []models.L4Proxy{*proxy1, *proxy2}, 2, nil
+			},
+			expectedTotalProxies:   2,
+			expectedActiveProxies:  2,
+			expectedTCPProxies:     2,
+			expectedUDPProxies:     0,
+			expectedTotalRoutes:    2,
+			expectedTotalUpstreams: 2,
+		},
+		{
 			name: "database error",
 			mockList: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
 				return nil, 0, errors.New("database error")
@@ -910,6 +1262,8 @@ func TestL4ProxyService_GetStats(t *testing.T) {
 
 			if tc.expectErr {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to get l4 proxy stats")
+				assert.Nil(t, result)
 				return
 			}
 
@@ -945,7 +1299,7 @@ func TestL4ProxyService_CheckPortConflict(t *testing.T) {
 			},
 		},
 		{
-			name:      "no conflict - same proxy (update)",
+			name:      "no conflict - same proxy (update case)",
 			port:      8080,
 			protocol:  models.L4ProtocolTCP,
 			excludeID: 1,
@@ -964,7 +1318,7 @@ func TestL4ProxyService_CheckPortConflict(t *testing.T) {
 			expectErr: ErrL4ProxyPortConflict,
 		},
 		{
-			name:      "conflict - new proxy",
+			name:      "conflict - new proxy creation",
 			port:      8080,
 			protocol:  models.L4ProtocolTCP,
 			excludeID: 0,
@@ -1086,6 +1440,54 @@ func TestL4ProxyService_RequestToModel(t *testing.T) {
 		assert.False(t, route.TLSPassthrough)
 		assert.Equal(t, &proxyProtocol, route.ProxyProtocolVersion)
 	})
+
+	t.Run("conversion without routes", func(t *testing.T) {
+		req := &CreateL4ProxyRequest{
+			Name:       "Test Proxy",
+			ListenPort: 8080,
+			Protocol:   models.L4ProtocolTCP,
+			IsActive:   true,
+			Routes:     []CreateL4RouteRequest{},
+		}
+
+		result := svc.requestToModel(req)
+
+		assert.Equal(t, "Test Proxy", result.Name)
+		assert.Empty(t, result.Routes)
+	})
+}
+
+// TestL4ProxyService_UpdateRequestToModel tests the update request to model conversion
+func TestL4ProxyService_UpdateRequestToModel(t *testing.T) {
+	svc := NewL4ProxyService(&MockL4ProxyRepository{}, nil)
+	description := "Updated description"
+
+	req := &UpdateL4ProxyRequest{
+		Name:        "Updated Proxy",
+		Description: &description,
+		ListenPort:  9090,
+		Protocol:    models.L4ProtocolUDP,
+		IsActive:    false,
+		Routes: []CreateL4RouteRequest{
+			{
+				Priority:            2,
+				MatcherType:         models.L4MatcherSSH,
+				LoadBalancingPolicy: models.L4LoadBalancingFirst,
+				Upstreams:           []L4UpstreamRequest{{Host: "ssh-server", Port: 22}},
+			},
+		},
+	}
+
+	result := svc.updateRequestToModel(req)
+
+	assert.Equal(t, "Updated Proxy", result.Name)
+	assert.Equal(t, &description, result.Description)
+	assert.Equal(t, 9090, result.ListenPort)
+	assert.Equal(t, models.L4ProtocolUDP, result.Protocol)
+	assert.False(t, result.IsActive)
+	require.Len(t, result.Routes, 1)
+	assert.Equal(t, 2, result.Routes[0].Priority)
+	assert.Equal(t, models.L4MatcherSSH, result.Routes[0].MatcherType)
 }
 
 // TestL4ProxyServiceErrors tests that service errors are defined correctly
@@ -1096,7 +1498,96 @@ func TestL4ProxyServiceErrors(t *testing.T) {
 	assert.Equal(t, "l4 proxy is already inactive", ErrL4ProxyAlreadyInactive.Error())
 }
 
-// Helper function to create a bool pointer
-func boolPtr(b bool) *bool {
-	return &b
+// TestL4ProxyService_Pagination tests pagination calculation edge cases
+func TestL4ProxyService_Pagination(t *testing.T) {
+	tests := []struct {
+		name               string
+		total              int64
+		limit              int
+		expectedTotalPages int
+	}{
+		{"exact division", 100, 10, 10},
+		{"with remainder", 101, 10, 11},
+		{"single page", 5, 10, 1},
+		{"zero items", 0, 10, 0},
+		{"large dataset", 1000, 20, 50},
+		{"single item", 1, 10, 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &MockL4ProxyRepository{
+				ListFunc: func(_ repository.L4ProxyListParams) ([]models.L4Proxy, int64, error) {
+					return []models.L4Proxy{}, tc.total, nil
+				},
+			}
+			svc := NewL4ProxyService(repo, nil)
+
+			result, err := svc.List(&ListL4ProxiesRequest{Page: 1, Limit: tc.limit})
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedTotalPages, result.TotalPages)
+		})
+	}
+}
+
+// TestL4ProxyService_Update_PreservesCreatedFields tests that update preserves created_by and created_at
+func TestL4ProxyService_Update_PreservesCreatedFields(t *testing.T) {
+	originalCreatedAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	originalCreatedBy := 42
+
+	existingProxy := &models.L4Proxy{
+		ID:         1,
+		Name:       "Original",
+		ListenPort: 8080,
+		Protocol:   models.L4ProtocolTCP,
+		IsActive:   true,
+		CreatedBy:  originalCreatedBy,
+		CreatedAt:  originalCreatedAt,
+		Routes: []models.L4Route{
+			{
+				ID:                  1,
+				L4ProxyID:           1,
+				MatcherType:         models.L4MatcherAny,
+				LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+				Upstreams:           models.L4UpstreamSlice{{Host: "localhost", Port: 9000}},
+			},
+		},
+	}
+
+	var updatedProxy *models.L4Proxy
+
+	repo := &MockL4ProxyRepository{
+		GetByIDFunc: func(_ int) (*models.L4Proxy, error) {
+			return existingProxy, nil
+		},
+		UpdateFunc: func(proxy *models.L4Proxy) error {
+			updatedProxy = proxy
+			return nil
+		},
+	}
+	svc := NewL4ProxyService(repo, nil)
+
+	req := &UpdateL4ProxyRequest{
+		Name:       "Updated Name",
+		ListenPort: 8080,
+		Protocol:   models.L4ProtocolTCP,
+		IsActive:   false,
+		Routes: []CreateL4RouteRequest{
+			{
+				Priority:            1,
+				MatcherType:         models.L4MatcherAny,
+				LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+				Upstreams:           []L4UpstreamRequest{{Host: "localhost", Port: 9000}},
+			},
+		},
+	}
+
+	_, err := svc.Update(1, req)
+
+	require.NoError(t, err)
+	require.NotNil(t, updatedProxy)
+	assert.Equal(t, originalCreatedBy, updatedProxy.CreatedBy, "CreatedBy should be preserved")
+	assert.Equal(t, originalCreatedAt, updatedProxy.CreatedAt, "CreatedAt should be preserved")
+	assert.Equal(t, 1, updatedProxy.ID, "ID should be preserved")
 }

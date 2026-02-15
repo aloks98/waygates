@@ -747,12 +747,80 @@ func (m *MockL4ProxyRepository) GetByPort(port int, protocol string) (*models.L4
 	return nil, nil
 }
 
+// MockL4ProxyService is a mock implementation of L4ProxyServiceInterface
+type MockL4ProxyService struct {
+	CreateFunc       func(req *service.CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error)
+	GetByIDFunc      func(id int) (*models.L4Proxy, error)
+	ListFunc         func(req *service.ListL4ProxiesRequest) (*models.L4ProxyListResponse, error)
+	UpdateFunc       func(id int, req *service.UpdateL4ProxyRequest) (*models.L4Proxy, error)
+	DeleteFunc       func(id int) error
+	ToggleActiveFunc func(id int) (*models.L4Proxy, error)
+	GetStatsFunc     func() (*models.L4ProxyStats, error)
+}
+
+// Create implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) Create(req *service.CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(req, createdBy)
+	}
+	return &models.L4Proxy{ID: 1, Name: req.Name}, nil
+}
+
+// GetByID implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) GetByID(id int) (*models.L4Proxy, error) {
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(id)
+	}
+	return nil, service.ErrL4ProxyNotFound
+}
+
+// List implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) List(req *service.ListL4ProxiesRequest) (*models.L4ProxyListResponse, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc(req)
+	}
+	return &models.L4ProxyListResponse{Items: []models.L4Proxy{}, Total: 0}, nil
+}
+
+// Update implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) Update(id int, req *service.UpdateL4ProxyRequest) (*models.L4Proxy, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(id, req)
+	}
+	return nil, service.ErrL4ProxyNotFound
+}
+
+// Delete implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) Delete(id int) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(id)
+	}
+	return nil
+}
+
+// ToggleActive implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) ToggleActive(id int) (*models.L4Proxy, error) {
+	if m.ToggleActiveFunc != nil {
+		return m.ToggleActiveFunc(id)
+	}
+	return nil, service.ErrL4ProxyNotFound
+}
+
+// GetStats implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) GetStats() (*models.L4ProxyStats, error) {
+	if m.GetStatsFunc != nil {
+		return m.GetStatsFunc()
+	}
+	return &models.L4ProxyStats{}, nil
+}
+
 // Ensure mocks implement interfaces
 var (
 	_ service.ProxyServiceInterface         = (*MockProxyService)(nil)
 	_ service.SettingsServiceInterface      = (*MockSettingsService)(nil)
 	_ service.SyncServiceInterface          = (*MockSyncService)(nil)
 	_ service.AuditServiceInterface         = (*MockAuditService)(nil)
+	_ service.L4ProxyServiceInterface       = (*MockL4ProxyService)(nil)
 	_ repository.UserRepositoryInterface    = (*MockUserRepository)(nil)
 	_ repository.L4ProxyRepositoryInterface = (*MockL4ProxyRepository)(nil)
 	_ caddy.ReloaderInterface               = (*MockReloader)(nil)

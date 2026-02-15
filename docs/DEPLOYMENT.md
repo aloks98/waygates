@@ -195,6 +195,28 @@ See `.env.example` for full list: Hetzner, Porkbun, Vultr, Namecheap, OVH, Azure
 | 80 | TCP | HTTP (redirect to HTTPS when TLS enabled) |
 | 443 | TCP/UDP | HTTPS + HTTP/3 |
 | 8080 | TCP | Backend API + UI |
+| Custom | TCP/UDP | L4 proxy ports (configured per proxy) |
+
+### L4 Proxy Ports
+
+L4 (TCP/UDP) proxies use custom ports that must be exposed in your Docker configuration. Add them to your `docker-compose.yml`:
+
+```yaml
+waygates:
+  ports:
+    - "80:80"
+    - "443:443"
+    - "8080:8080"
+    # L4 Proxy ports - add as needed
+    - "5432:5432"      # PostgreSQL proxy
+    - "2222:2222"      # SSH gateway
+    - "3306:3306"      # MySQL proxy
+    - "6379:6379"      # Redis proxy
+    - "25565:25565"    # Minecraft server
+    - "53:53/udp"      # DNS (UDP)
+```
+
+**Note:** You only need to expose ports for L4 proxies you've configured in Waygates.
 
 ### Volumes
 
