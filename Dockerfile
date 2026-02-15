@@ -24,6 +24,10 @@
 #
 # 2. Caddy Plugins:
 #    Modify the "xcaddy build" command in Stage 2 below to add/remove plugins.
+#
+#    Included plugins:
+#      --with github.com/mholt/caddy-l4 (TCP/UDP Layer 4 proxy support)
+#
 #    Common DNS plugins for ACME:
 #      --with github.com/caddy-dns/cloudflare
 #      --with github.com/caddy-dns/route53
@@ -57,18 +61,20 @@ COPY ui/ .
 RUN pnpm run build
 
 # =============================================================================
-# Stage 2: Build Caddy with DNS challenge plugins
+# Stage 2: Build Caddy with L4 plugin and DNS challenge plugins
 # =============================================================================
-# Pre-built with common DNS providers for ACME challenges.
-# Configure which provider to use via CADDY_ACME_PROVIDER env var.
+# Pre-built with:
+#   - caddy-l4: TCP/UDP Layer 4 proxy support
+#   - DNS providers: For ACME challenges (configure via CADDY_ACME_PROVIDER)
 # =============================================================================
 FROM --platform=$BUILDPLATFORM caddy:2.10.2-builder AS caddy-builder
 
 ARG TARGETOS
 ARG TARGETARCH
 
-# Build Caddy with all supported DNS challenge providers
+# Build Caddy with L4 plugin and all supported DNS challenge providers
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
+    --with github.com/mholt/caddy-l4 \
     --with github.com/caddy-dns/cloudflare \
     --with github.com/caddy-dns/route53 \
     --with github.com/caddy-dns/duckdns \
@@ -148,6 +154,8 @@ RUN mkdir -p /etc/caddy/backup /data /config
 # 80   - HTTP (redirect to HTTPS)
 # 443  - HTTPS (proxy traffic)
 # 8080 - Backend API
+# Note: L4 (TCP/UDP) proxies use custom ports configured per proxy.
+#       Expose additional ports in docker-compose.yml as needed.
 EXPOSE 80 443 8080
 
 # Environment variables (defaults for Docker)

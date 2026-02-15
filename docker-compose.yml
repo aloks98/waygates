@@ -11,6 +11,12 @@
 #   - 80:   HTTP (redirects to HTTPS)
 #   - 443:  HTTPS (proxy traffic)
 #   - 8080: Backend API + UI
+#
+# L4 Proxy Ports:
+#   L4 (TCP/UDP) proxies use custom ports. Add them to the waygates service
+#   ports section as needed, e.g.:
+#     - "25565:25565"      # Minecraft TCP
+#     - "53:53/udp"        # DNS UDP
 # =============================================================================
 
 services:
