@@ -22,7 +22,7 @@ import {
   Switch,
 } from '@e412/titanium';
 import { useForm } from '@tanstack/react-form';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   type L4ProxyFormValues,
@@ -88,17 +88,44 @@ function normalizeRoutes(data?: L4Proxy | null): L4RouteFormValues[] {
   }));
 }
 
-// Matcher type display labels
-const MATCHER_TYPE_LABELS: Record<L4MatcherType, string> = {
-  any: 'Any (Match All)',
-  tls: 'TLS/SNI',
-  ssh: 'SSH',
-  postgres: 'PostgreSQL',
-  http: 'HTTP',
-  rdp: 'RDP',
-  socks5: 'SOCKS5',
-  remote_ip: 'Remote IP',
-  regexp: 'Regular Expression',
+// Matcher type display labels and descriptions
+const MATCHER_TYPE_CONFIG: Record<L4MatcherType, { label: string; description: string }> = {
+  any: {
+    label: 'Any (Match All)',
+    description: 'Matches all incoming connections without any filtering',
+  },
+  tls: {
+    label: 'TLS/SNI',
+    description: 'Match TLS connections by Server Name Indication (hostname)',
+  },
+  ssh: {
+    label: 'SSH',
+    description: 'Detect and match SSH protocol connections',
+  },
+  postgres: {
+    label: 'PostgreSQL',
+    description: 'Detect and match PostgreSQL database connections',
+  },
+  http: {
+    label: 'HTTP',
+    description: 'Detect and match HTTP protocol at Layer 4',
+  },
+  rdp: {
+    label: 'RDP',
+    description: 'Detect and match Remote Desktop Protocol connections',
+  },
+  socks5: {
+    label: 'SOCKS5',
+    description: 'Detect and match SOCKS5 proxy protocol connections',
+  },
+  remote_ip: {
+    label: 'Remote IP',
+    description: 'Match connections from specific IP addresses or CIDR ranges',
+  },
+  regexp: {
+    label: 'Regular Expression',
+    description: 'Match connections using a regex pattern on initial data',
+  },
 };
 
 // Load balancing policy display labels
@@ -178,21 +205,25 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
   // Reset form when initialData changes (for edit mode)
   useEffect(() => {
     if (initialData) {
-      setRoutes(normalizeRoutes(initialData));
+      const normalizedRoutes = normalizeRoutes(initialData);
+      setRoutes(normalizedRoutes);
       form.reset(defaultValues);
     }
   }, [initialData, form, defaultValues]);
 
-  // Route management functions
+  // Route management functions - sync to form state immediately
   const addRoute = () => {
     const newRoutes = [...routes, createEmptyRoute()];
     setRoutes(newRoutes);
+    form.setFieldValue('routes', newRoutes);
     setExpandedRoutes(new Set([...expandedRoutes, newRoutes.length - 1]));
   };
 
   const removeRoute = (index: number) => {
     const newRoutes = routes.filter((_, i) => i !== index);
-    setRoutes(newRoutes.length > 0 ? newRoutes : [createEmptyRoute()]);
+    const finalRoutes = newRoutes.length > 0 ? newRoutes : [createEmptyRoute()];
+    setRoutes(finalRoutes);
+    form.setFieldValue('routes', finalRoutes);
     const newExpanded = new Set(expandedRoutes);
     newExpanded.delete(index);
     setExpandedRoutes(newExpanded);
@@ -206,6 +237,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
     const newRoutes = [...routes];
     newRoutes[index] = { ...newRoutes[index], [key]: value };
     setRoutes(newRoutes);
+    form.setFieldValue('routes', newRoutes);
   };
 
   const toggleRouteExpansion = (index: number) => {
@@ -394,7 +426,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldDescription>Transport protocol</FieldDescription>
+                  <FieldDescription>TCP or UDP</FieldDescription>
                 </Field>
               )}
             </form.Field>
@@ -420,7 +452,8 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
           <CardHeading>
             <CardTitle>Routes</CardTitle>
             <CardDescription>
-              Configure routing rules and upstream servers for this proxy
+              Define how incoming connections are matched and forwarded to upstream servers. You can
+              add multiple routes with different matching rules.
             </CardDescription>
           </CardHeading>
           <CardToolbar>
@@ -447,7 +480,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                     )}
                     <CardTitle className="text-base">Route {routeIndex + 1}</CardTitle>
                     <Badge variant="outline" className="ml-2">
-                      {MATCHER_TYPE_LABELS[route.matcher_type]}
+                      {MATCHER_TYPE_CONFIG[route.matcher_type].label}
                     </Badge>
                     {route.upstreams.length > 0 && route.upstreams[0].host && (
                       <Badge variant="secondary" className="ml-1">
@@ -472,79 +505,39 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
 
               {expandedRoutes.has(routeIndex) && (
                 <CardContent className="space-y-4 pt-2">
-                  {/* Route Basic Settings */}
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <Field>
-                      <FieldLabel>Priority</FieldLabel>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="0"
-                        value={route.priority || ''}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '');
-                          updateRoute(
-                            routeIndex,
-                            'priority',
-                            value ? Number.parseInt(value, 10) : 0,
-                          );
-                        }}
-                      />
-                      <FieldDescription>Lower values match first</FieldDescription>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>Matcher Type</FieldLabel>
-                      <Select
-                        value={route.matcher_type}
-                        onValueChange={(val) =>
-                          updateRoute(routeIndex, 'matcher_type', val as L4MatcherType)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {L4_MATCHER_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {MATCHER_TYPE_LABELS[type]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldDescription>How to match incoming connections</FieldDescription>
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>Load Balancing</FieldLabel>
-                      <Select
-                        value={route.load_balancing_policy}
-                        onValueChange={(val) =>
-                          updateRoute(
-                            routeIndex,
-                            'load_balancing_policy',
-                            val as L4LoadBalancingPolicy,
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {L4_LOAD_BALANCING_POLICIES.map((policy) => (
-                            <SelectItem key={policy} value={policy}>
-                              {LB_POLICY_LABELS[policy]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
+                  {/* Matcher Type Selection */}
+                  <Field>
+                    <FieldLabel className="flex items-center gap-1">
+                      Connection Matcher
+                      <HelpCircle className="size-3.5 text-muted-foreground" />
+                    </FieldLabel>
+                    <Select
+                      value={route.matcher_type}
+                      onValueChange={(val) =>
+                        updateRoute(routeIndex, 'matcher_type', val as L4MatcherType)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {L4_MATCHER_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            <div className="flex flex-col">
+                              <span>{MATCHER_TYPE_CONFIG[type].label}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldDescription>
+                      {MATCHER_TYPE_CONFIG[route.matcher_type].description}
+                    </FieldDescription>
+                  </Field>
 
                   {/* Matcher-specific fields */}
                   {route.matcher_type === 'tls' && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
                       <div className="flex items-center justify-between">
                         <FieldLabel>SNI Hostnames</FieldLabel>
                         <Button
@@ -554,11 +547,15 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                           onClick={() => addSniHostname(routeIndex)}
                         >
                           <Plus className="mr-1 size-3" />
-                          Add Hostname
+                          Add
                         </Button>
                       </div>
+                      <FieldDescription className="mt-0">
+                        Match TLS connections by the hostname in the TLS handshake (Server Name
+                        Indication)
+                      </FieldDescription>
                       {(route.sni_hostnames?.length ?? 0) === 0 && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-amber-600">
                           Add at least one SNI hostname for TLS matching
                         </p>
                       )}
@@ -586,7 +583,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                   )}
 
                   {route.matcher_type === 'remote_ip' && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
                       <div className="flex items-center justify-between">
                         <FieldLabel>Allowed IP Ranges</FieldLabel>
                         <Button
@@ -596,18 +593,21 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                           onClick={() => addIpRange(routeIndex)}
                         >
                           <Plus className="mr-1 size-3" />
-                          Add IP Range
+                          Add
                         </Button>
                       </div>
+                      <FieldDescription className="mt-0">
+                        Only allow connections from these IP addresses or CIDR ranges
+                      </FieldDescription>
                       {(route.allowed_ip_ranges?.length ?? 0) === 0 && (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-amber-600">
                           Add at least one IP range for remote_ip matching
                         </p>
                       )}
                       {route.allowed_ip_ranges?.map((ipRange, ipIndex) => (
                         <div key={ipIndex} className="flex items-center gap-2">
                           <Input
-                            placeholder="192.168.1.0/24"
+                            placeholder="192.168.1.0/24 or 10.0.0.1"
                             value={ipRange}
                             onChange={(e) => updateIpRange(routeIndex, ipIndex, e.target.value)}
                             className="flex-1"
@@ -626,77 +626,20 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                   )}
 
                   {route.matcher_type === 'regexp' && (
-                    <Field>
-                      <FieldLabel>Regex Pattern</FieldLabel>
-                      <Input
-                        placeholder="^GET /api/.*"
-                        value={route.regex_pattern || ''}
-                        onChange={(e) => updateRoute(routeIndex, 'regex_pattern', e.target.value)}
-                      />
-                      <FieldDescription>Regular expression to match against data</FieldDescription>
-                    </Field>
+                    <div className="rounded-lg border p-4 bg-muted/30">
+                      <Field>
+                        <FieldLabel>Regex Pattern</FieldLabel>
+                        <Input
+                          placeholder="^GET /api/.*"
+                          value={route.regex_pattern || ''}
+                          onChange={(e) => updateRoute(routeIndex, 'regex_pattern', e.target.value)}
+                        />
+                        <FieldDescription>
+                          Regular expression to match against the first bytes of data
+                        </FieldDescription>
+                      </Field>
+                    </div>
                   )}
-
-                  {/* TLS Settings */}
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <Field orientation="horizontal">
-                      <FieldContent>
-                        <FieldLabel>TLS Terminate</FieldLabel>
-                        <FieldDescription>Terminate TLS at the proxy</FieldDescription>
-                      </FieldContent>
-                      <Switch
-                        checked={route.tls_terminate}
-                        onCheckedChange={(checked) => {
-                          updateRoute(routeIndex, 'tls_terminate', checked);
-                          if (checked) {
-                            updateRoute(routeIndex, 'tls_passthrough', false);
-                          }
-                        }}
-                      />
-                    </Field>
-
-                    <Field orientation="horizontal">
-                      <FieldContent>
-                        <FieldLabel>TLS Passthrough</FieldLabel>
-                        <FieldDescription>Pass TLS to upstream</FieldDescription>
-                      </FieldContent>
-                      <Switch
-                        checked={route.tls_passthrough}
-                        onCheckedChange={(checked) => {
-                          updateRoute(routeIndex, 'tls_passthrough', checked);
-                          if (checked) {
-                            updateRoute(routeIndex, 'tls_terminate', false);
-                          }
-                        }}
-                      />
-                    </Field>
-
-                    <Field>
-                      <FieldLabel>Proxy Protocol</FieldLabel>
-                      <Select
-                        value={route.proxy_protocol_version || 'none'}
-                        onValueChange={(val) =>
-                          updateRoute(
-                            routeIndex,
-                            'proxy_protocol_version',
-                            val === 'none' ? undefined : (val as L4ProxyProtocolVersion),
-                          )
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="None" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {L4_PROXY_PROTOCOL_VERSIONS.map((version) => (
-                            <SelectItem key={version} value={version}>
-                              {version.toUpperCase()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  </div>
 
                   {/* Upstreams */}
                   <div className="space-y-3">
@@ -712,11 +655,14 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                         Add Upstream
                       </Button>
                     </div>
+                    <FieldDescription className="mt-0">
+                      Servers to forward matched connections to
+                    </FieldDescription>
                     {route.upstreams.map((upstream, upstreamIndex) => (
                       <div key={upstreamIndex} className="flex items-start gap-2">
                         <div className="flex-1">
                           <Input
-                            placeholder="192.168.1.100"
+                            placeholder="Host (e.g., 192.168.1.100)"
                             value={upstream.host}
                             onChange={(e) =>
                               updateUpstream(routeIndex, upstreamIndex, 'host', e.target.value)
@@ -728,7 +674,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                             type="text"
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            placeholder="3306"
+                            placeholder="Port"
                             value={upstream.port || ''}
                             onChange={(e) => {
                               const value = e.target.value.replace(/\D/g, '');
@@ -737,39 +683,176 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                             }}
                           />
                         </div>
-                        <div className="w-20">
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            placeholder="Weight"
-                            value={upstream.weight || ''}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, '');
-                              updateUpstream(
-                                routeIndex,
-                                upstreamIndex,
-                                'weight',
-                                value ? Number.parseInt(value, 10) : undefined,
-                              );
-                            }}
-                          />
-                        </div>
                         {route.upstreams.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeUpstream(routeIndex, upstreamIndex)}
-                          >
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
+                          <>
+                            <div className="w-20">
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                placeholder="Weight"
+                                value={upstream.weight || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value.replace(/\D/g, '');
+                                  updateUpstream(
+                                    routeIndex,
+                                    upstreamIndex,
+                                    'weight',
+                                    value ? Number.parseInt(value, 10) : undefined,
+                                  );
+                                }}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeUpstream(routeIndex, upstreamIndex)}
+                            >
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     ))}
-                    <p className="text-xs text-muted-foreground">
-                      Format: Host | Port | Weight (optional)
-                    </p>
+                  </div>
+
+                  {/* Load Balancing - only show when multiple upstreams */}
+                  {route.upstreams.length > 1 && (
+                    <Field>
+                      <FieldLabel>Load Balancing Strategy</FieldLabel>
+                      <Select
+                        value={route.load_balancing_policy}
+                        onValueChange={(val) =>
+                          updateRoute(
+                            routeIndex,
+                            'load_balancing_policy',
+                            val as L4LoadBalancingPolicy,
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {L4_LOAD_BALANCING_POLICIES.map((policy) => (
+                            <SelectItem key={policy} value={policy}>
+                              {LB_POLICY_LABELS[policy]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        How to distribute connections across multiple upstreams
+                      </FieldDescription>
+                    </Field>
+                  )}
+
+                  {/* Priority - only show when multiple routes */}
+                  {routes.length > 1 && (
+                    <Field>
+                      <FieldLabel>Priority</FieldLabel>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="0"
+                        value={route.priority || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '');
+                          updateRoute(
+                            routeIndex,
+                            'priority',
+                            value ? Number.parseInt(value, 10) : 0,
+                          );
+                        }}
+                        className="w-24"
+                      />
+                      <FieldDescription>
+                        Lower values are matched first (default: 0)
+                      </FieldDescription>
+                    </Field>
+                  )}
+
+                  {/* TLS Settings */}
+                  <div className="space-y-4 rounded-lg border p-4">
+                    <FieldLabel className="text-sm font-medium">TLS Settings</FieldLabel>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field orientation="horizontal">
+                        <FieldContent>
+                          <FieldLabel>TLS Termination</FieldLabel>
+                          <FieldDescription>
+                            Decrypt TLS at this proxy and forward plain traffic
+                          </FieldDescription>
+                        </FieldContent>
+                        <Switch
+                          checked={route.tls_terminate === true}
+                          onCheckedChange={(checked: boolean) => {
+                            const newRoutes = [...routes];
+                            newRoutes[routeIndex] = {
+                              ...newRoutes[routeIndex],
+                              tls_terminate: checked,
+                              tls_passthrough: checked
+                                ? false
+                                : newRoutes[routeIndex].tls_passthrough,
+                            };
+                            setRoutes(newRoutes);
+                            form.setFieldValue('routes', newRoutes);
+                          }}
+                        />
+                      </Field>
+
+                      <Field orientation="horizontal">
+                        <FieldContent>
+                          <FieldLabel>TLS Passthrough</FieldLabel>
+                          <FieldDescription>
+                            Forward encrypted TLS traffic directly to upstream
+                          </FieldDescription>
+                        </FieldContent>
+                        <Switch
+                          checked={route.tls_passthrough === true}
+                          onCheckedChange={(checked: boolean) => {
+                            const newRoutes = [...routes];
+                            newRoutes[routeIndex] = {
+                              ...newRoutes[routeIndex],
+                              tls_passthrough: checked,
+                              tls_terminate: checked ? false : newRoutes[routeIndex].tls_terminate,
+                            };
+                            setRoutes(newRoutes);
+                            form.setFieldValue('routes', newRoutes);
+                          }}
+                        />
+                      </Field>
+                    </div>
+
+                    <Field>
+                      <FieldLabel>Proxy Protocol</FieldLabel>
+                      <Select
+                        value={route.proxy_protocol_version || 'none'}
+                        onValueChange={(val) =>
+                          updateRoute(
+                            routeIndex,
+                            'proxy_protocol_version',
+                            val === 'none' ? undefined : (val as L4ProxyProtocolVersion),
+                          )
+                        }
+                      >
+                        <SelectTrigger className="w-48">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {L4_PROXY_PROTOCOL_VERSIONS.map((version) => (
+                            <SelectItem key={version} value={version}>
+                              Version {version.replace('v', '')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldDescription>
+                        Send client IP info to upstream using PROXY protocol (HAProxy standard)
+                      </FieldDescription>
+                    </Field>
                   </div>
                 </CardContent>
               )}

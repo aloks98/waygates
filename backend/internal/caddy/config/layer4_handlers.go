@@ -37,7 +37,7 @@ type L4ProxyHandler struct {
 
 // L4Upstream represents an upstream server for L4 proxy.
 type L4Upstream struct {
-	Dial string `json:"dial"`
+	Dial []string `json:"dial"`
 }
 
 // L4LoadBalancing configures load balancing for L4 proxy.
@@ -121,14 +121,14 @@ func NewL4ProxyHandler(upstreams ...*L4Upstream) *L4ProxyHandler {
 // NewL4Upstream creates a new L4 upstream configuration.
 func NewL4Upstream(dial string) *L4Upstream {
 	return &L4Upstream{
-		Dial: dial,
+		Dial: []string{dial},
 	}
 }
 
 // NewL4UpstreamFromHostPort creates an L4 upstream from host and port.
 func NewL4UpstreamFromHostPort(host string, port int) *L4Upstream {
 	return &L4Upstream{
-		Dial: formatDialAddress(host, port),
+		Dial: []string{formatDialAddress(host, port)},
 	}
 }
 

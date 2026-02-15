@@ -46,6 +46,7 @@ import {
   Home,
   KeyRound,
   LogOut,
+  Network,
   Settings,
   Shield,
   User,
@@ -72,6 +73,11 @@ const navItems: NavItem[] = [
     label: 'Proxies',
     path: '/dashboard/proxies',
     icon: <Globe className="size-4" />,
+  },
+  {
+    label: 'L4 Proxies',
+    path: '/dashboard/l4-proxies',
+    icon: <Network className="size-4" />,
   },
   {
     label: 'Audit Logs',

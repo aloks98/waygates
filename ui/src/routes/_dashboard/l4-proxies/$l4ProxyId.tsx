@@ -44,11 +44,11 @@ export function L4ProxyDetailPage() {
   const handleDelete = async () => {
     await remove(l4ProxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/dashboard/l4-proxies' });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/dashboard/l4-proxies' });
   };
 
   if (isLoading) {
@@ -82,9 +82,9 @@ export function L4ProxyDetailPage() {
         <p className="text-muted-foreground">
           The L4 proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/proxies' })}>
+        <Button onClick={() => navigate({ to: '/dashboard/l4-proxies' })}>
           <ArrowLeft className="size-4" />
-          Back to Proxies
+          Back to L4 Proxies
         </Button>
       </div>
     );
@@ -98,7 +98,7 @@ export function L4ProxyDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate({ to: '/dashboard/proxies' })}
+            onClick={() => navigate({ to: '/dashboard/l4-proxies' })}
           >
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>

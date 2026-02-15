@@ -20,4 +20,3 @@ export {
   StaticForm,
 } from './forms';
 export { ProxyDataGrid } from './proxy-data-grid';
-export { UnifiedProxyDataGrid } from './unified-proxy-data-grid';

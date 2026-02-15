@@ -653,7 +653,7 @@ func TestNewL4ProxyHandler(t *testing.T) {
 		require.NotNil(t, handler)
 		assert.Equal(t, L4HandlerProxy, handler.Handler)
 		assert.Len(t, handler.Upstreams, 1)
-		assert.Equal(t, "localhost:8080", handler.Upstreams[0].Dial)
+		assert.Equal(t, []string{"localhost:8080"}, handler.Upstreams[0].Dial)
 	})
 
 	t.Run("with multiple upstreams", func(t *testing.T) {
@@ -679,7 +679,7 @@ func TestNewL4Upstream(t *testing.T) {
 	upstream := NewL4Upstream(dial)
 
 	require.NotNil(t, upstream)
-	assert.Equal(t, dial, upstream.Dial)
+	assert.Equal(t, []string{dial}, upstream.Dial)
 }
 
 func TestNewL4UpstreamFromHostPort(t *testing.T) {
@@ -714,7 +714,7 @@ func TestNewL4UpstreamFromHostPort(t *testing.T) {
 			upstream := NewL4UpstreamFromHostPort(tt.host, tt.port)
 
 			require.NotNil(t, upstream)
-			assert.Equal(t, tt.expected, upstream.Dial)
+			assert.Equal(t, []string{tt.expected}, upstream.Dial)
 		})
 	}
 }
@@ -1558,9 +1558,9 @@ func TestL4Builder_BuildL4Config_MultipleUpstreams(t *testing.T) {
 	// Check upstreams
 	upstreams := handler["upstreams"].([]*L4Upstream)
 	assert.Len(t, upstreams, 3)
-	assert.Equal(t, "backend1:8080", upstreams[0].Dial)
-	assert.Equal(t, "backend2:8080", upstreams[1].Dial)
-	assert.Equal(t, "backend3:8080", upstreams[2].Dial)
+	assert.Equal(t, []string{"backend1:8080"}, upstreams[0].Dial)
+	assert.Equal(t, []string{"backend2:8080"}, upstreams[1].Dial)
+	assert.Equal(t, []string{"backend3:8080"}, upstreams[2].Dial)
 
 	// Check load balancing
 	lb := handler["load_balancing"].(*L4LoadBalancing)
@@ -1650,15 +1650,15 @@ func TestL4Builder_BuildL4Config_RoutePriority(t *testing.T) {
 	// Priority 5, then 10, then 20
 	// First route (priority 5) should route to "main"
 	upstreams1 := server.Routes[0].Handle[0]["upstreams"].([]*L4Upstream)
-	assert.Equal(t, "main:443", upstreams1[0].Dial)
+	assert.Equal(t, []string{"main:443"}, upstreams1[0].Dial)
 
 	// Second route (priority 10) should route to "api"
 	upstreams2 := server.Routes[1].Handle[0]["upstreams"].([]*L4Upstream)
-	assert.Equal(t, "api:443", upstreams2[0].Dial)
+	assert.Equal(t, []string{"api:443"}, upstreams2[0].Dial)
 
 	// Third route (priority 20) should route to "default"
 	upstreams3 := server.Routes[2].Handle[0]["upstreams"].([]*L4Upstream)
-	assert.Equal(t, "default:443", upstreams3[0].Dial)
+	assert.Equal(t, []string{"default:443"}, upstreams3[0].Dial)
 }
 
 func TestL4Builder_BuildL4Config_AllMatcherTypes(t *testing.T) {
@@ -1899,7 +1899,7 @@ func TestL4Builder_BuildL4Routes(t *testing.T) {
 
 		// Routes should be sorted by priority
 		upstreams1 := routes[0].Handle[0]["upstreams"].([]*L4Upstream)
-		assert.Equal(t, "backend2:8080", upstreams1[0].Dial)
+		assert.Equal(t, []string{"backend2:8080"}, upstreams1[0].Dial)
 	})
 }
 
