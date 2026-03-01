@@ -113,8 +113,23 @@ func (r *L4ProxyRepository) List(params L4ProxyListParams) ([]models.L4Proxy, in
 }
 
 // Update updates an existing L4 proxy
+// Uses a transaction to replace routes atomically: deletes old routes, then saves the proxy with new routes
 func (r *L4ProxyRepository) Update(proxy *models.L4Proxy) error {
-	return r.db.Save(proxy).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Delete existing routes for this proxy
+		if err := tx.Where("l4_proxy_id = ?", proxy.ID).Delete(&models.L4Route{}).Error; err != nil {
+			return err
+		}
+
+		// Set the L4ProxyID on all new routes
+		for i := range proxy.Routes {
+			proxy.Routes[i].ID = 0 // Ensure new routes get auto-generated IDs
+			proxy.Routes[i].L4ProxyID = proxy.ID
+		}
+
+		// Save the proxy (updates parent fields and creates new routes)
+		return tx.Save(proxy).Error
+	})
 }
 
 // Delete deletes an L4 proxy by ID
