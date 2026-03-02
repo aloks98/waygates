@@ -11,8 +11,10 @@ import {
 import { format } from 'date-fns';
 import { AlertCircle, ArrowRight, Clock, Globe, Monitor, Server, User } from 'lucide-react';
 import type { ReactNode } from 'react';
+
 import { useAuditLogById } from '@/hooks';
 import type { AuditLog } from '@/types/audit';
+
 import { ActionBadge, StatusBadge } from './cells';
 
 interface AuditLogDetailSheetProps {

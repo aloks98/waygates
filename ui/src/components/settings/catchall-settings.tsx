@@ -18,6 +18,7 @@ import {
 import { useForm } from '@tanstack/react-form';
 import { useEffect } from 'react';
 import { z } from 'zod';
+
 import { useNotFoundSettings } from '@/hooks/use-settings';
 
 const settingsSchema = z

@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router';
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { Activity, ArrowRight, ExternalLink, FolderOpen, Globe, Pause, Plus } from 'lucide-react';
 import { useMemo } from 'react';
+
 import { ProxyStatusBadge, ProxyTargetCell, ProxyTypeBadge } from '@/components/proxy';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';

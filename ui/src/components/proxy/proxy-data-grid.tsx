@@ -17,7 +17,9 @@ import {
 } from '@tanstack/react-table';
 import { ExternalLink } from 'lucide-react';
 import { useMemo } from 'react';
+
 import type { ProxyConfig } from '@/types/proxy';
+
 import {
   ProxyActionsCell,
   ProxySslCell,

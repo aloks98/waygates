@@ -1,4 +1,5 @@
 import { Badge } from '@e412/titanium';
+
 import type { AuditAction } from '@/types/audit';
 
 interface ActionBadgeProps {

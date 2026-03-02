@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HTTPError } from 'ky';
 import { toast } from 'sonner';
+
 import { api } from '../lib/api';
 import type { ApiResponse, PaginatedResponse } from '../types/api';
 import type { CreateProxyRequest, ProxyConfig, UpdateProxyRequest } from '../types/proxy';

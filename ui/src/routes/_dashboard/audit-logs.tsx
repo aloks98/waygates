@@ -2,6 +2,7 @@ import { Button, type Filter, type FilterFieldsConfig, Filters, Input } from '@e
 import type { PaginationState } from '@tanstack/react-table';
 import { Download, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import { AuditDataGrid } from '@/components/audit-logs';
 import { useAuditEventGroups, useAuditLogs, useExportAuditLogs } from '@/hooks';
 import type { AuditLogListParams } from '@/types/audit';
@@ -182,7 +183,7 @@ export function AuditLogsPage() {
   const { exportLogs, isExporting } = useExportAuditLogs();
 
   const handleExport = () => {
-    const { page, limit, ...exportParams } = apiParams;
+    const { page: _page, limit: _limit, ...exportParams } = apiParams;
     exportLogs(exportParams);
   };
 

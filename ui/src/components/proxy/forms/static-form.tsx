@@ -19,7 +19,9 @@ import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
+
 import type { CreateStaticRequest, ProxyConfig } from '@/types/proxy';
+
 import { type ACLAssignment, ACLSelector } from './acl-selector';
 
 const staticSchema = z.object({

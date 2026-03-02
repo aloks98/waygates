@@ -1,5 +1,6 @@
 import { Button } from '@e412/titanium';
 import { Pencil, Trash2 } from 'lucide-react';
+
 import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyActionsCellProps {

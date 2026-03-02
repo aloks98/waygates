@@ -1,4 +1,5 @@
 import ky, { type KyInstance } from 'ky';
+
 import { useAuthStore } from '../stores/auth';
 import type { ApiResponse, TokenPair } from '../types/api';
 
