@@ -1,16 +1,12 @@
-import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router';
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router';
 
 import { RootLayout } from '@/routes/__root';
-import { DashboardIndex } from '@/routes/_dashboard';
-import { ACLGroupDetailPage } from '@/routes/_dashboard/acl/$groupId';
-import { ACLGroupsPage } from '@/routes/_dashboard/acl/index';
-import { AuditLogsPage } from '@/routes/_dashboard/audit-logs';
-import { ProxyDetailPage } from '@/routes/_dashboard/proxies/$proxyId';
-import { ProxiesListPage } from '@/routes/_dashboard/proxies/index';
-import { ProxyCreatePage } from '@/routes/_dashboard/proxies/new';
-import { DashboardLayout } from '@/routes/_dashboard/route';
-import { SettingsPage } from '@/routes/_dashboard/settings';
-import { ACLForbiddenPage } from '@/routes/auth/acl-forbidden';
 import { ACLLoginPage } from '@/routes/auth/acl-login';
 import { LoginPage } from '@/routes/login';
 import { SignupPage } from '@/routes/signup';
@@ -68,7 +64,7 @@ const aclLoginRoute = createRoute({
 const aclForbiddenRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/auth/forbidden',
-  component: ACLForbiddenPage,
+  component: lazyRouteComponent(() => import('@/routes/auth/acl-forbidden'), 'ACLForbiddenPage'),
 });
 
 const dashboardRoute = createRoute({
@@ -80,55 +76,64 @@ const dashboardRoute = createRoute({
       throw redirect({ to: '/login' });
     }
   },
-  component: DashboardLayout,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/route'), 'DashboardLayout'),
 });
 
 const dashboardIndexRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/',
-  component: DashboardIndex,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard'), 'DashboardIndex'),
 });
 
 const proxiesRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies',
-  component: ProxiesListPage,
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxies/index'),
+    'ProxiesListPage',
+  ),
 });
 
 const proxyCreateRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies/new',
-  component: ProxyCreatePage,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/proxies/new'), 'ProxyCreatePage'),
 });
 
 const proxyDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies/$proxyId',
-  component: ProxyDetailPage,
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxies/$proxyId'),
+    'ProxyDetailPage',
+  ),
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/settings',
-  component: SettingsPage,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/settings'), 'SettingsPage'),
 });
 
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/audit-logs',
-  component: AuditLogsPage,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/audit-logs'), 'AuditLogsPage'),
 });
 
 const aclRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/acl',
-  component: ACLGroupsPage,
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/acl/index'), 'ACLGroupsPage'),
 });
 
 const aclGroupDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/acl/$groupId',
-  component: ACLGroupDetailPage,
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/acl/$groupId'),
+    'ACLGroupDetailPage',
+  ),
 });
 
 const routeTree = rootRoute.addChildren([

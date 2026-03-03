@@ -16,4 +16,26 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'vendor-react',
+              test: /node_modules\/(react|react-dom|scheduler)/,
+            },
+            {
+              name: 'vendor-tanstack',
+              test: /node_modules\/@tanstack/,
+            },
+            {
+              name: 'vendor-ui',
+              test: /node_modules\/(@e412\/titanium|lucide-react|sonner)/,
+            },
+          ],
+        },
+      },
+    },
+  },
 });
