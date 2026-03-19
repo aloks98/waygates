@@ -100,7 +100,7 @@ func SecurityRoutes() []*HTTPRoute {
 					"header_regexp": map[string]interface{}{
 						"User-Agent": map[string]string{
 							"name":    "bad_user_agent",
-							"pattern": `(?i)(libwww-perl|wget|curl/|python-requests|scrapy|nikto|sqlmap|nmap|masscan)`,
+							"pattern": `(?i)(libwww-perl|scrapy|nikto|sqlmap|nmap|masscan)`,
 						},
 					},
 				},
