@@ -240,6 +240,7 @@ export function ReverseProxyForm({
                     <Input
                       id={field.name}
                       placeholder="My Backend API"
+                      autoFocus={!initialData}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}

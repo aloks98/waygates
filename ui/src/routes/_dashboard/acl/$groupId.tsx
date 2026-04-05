@@ -185,8 +185,8 @@ function OverviewTab({ groupId }: { groupId: number }) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-center size-10 rounded-full bg-blue-500/10">
+            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+              <div className="flex items-center justify-center size-10 rounded bg-blue-500/10">
                 <Network className="size-5 text-blue-500" />
               </div>
               <div>
@@ -194,8 +194,8 @@ function OverviewTab({ groupId }: { groupId: number }) {
                 <p className="text-xs text-muted-foreground">IP Rules</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-center size-10 rounded-full bg-green-500/10">
+            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+              <div className="flex items-center justify-center size-10 rounded bg-green-500/10">
                 <Key className="size-5 text-green-500" />
               </div>
               <div>
@@ -203,8 +203,8 @@ function OverviewTab({ groupId }: { groupId: number }) {
                 <p className="text-xs text-muted-foreground">Basic Auth Users</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-center size-10 rounded-full bg-purple-500/10">
+            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+              <div className="flex items-center justify-center size-10 rounded bg-purple-500/10">
                 <Users className="size-5 text-purple-500" />
               </div>
               <div>
@@ -212,8 +212,8 @@ function OverviewTab({ groupId }: { groupId: number }) {
                 <p className="text-xs text-muted-foreground">Waygates Auth</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-center size-10 rounded-full bg-orange-500/10">
+            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+              <div className="flex items-center justify-center size-10 rounded bg-orange-500/10">
                 <Globe className="size-5 text-orange-500" />
               </div>
               <div>
@@ -285,7 +285,7 @@ export function ACLGroupDetailPage() {
             <span className="sr-only">Back</span>
           </Button>
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10">
+            <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               <Shield className="size-5 text-primary" />
             </div>
             <div>

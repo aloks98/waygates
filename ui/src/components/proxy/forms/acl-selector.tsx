@@ -157,12 +157,12 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
                   return (
                     <div
                       key={`${assignment.acl_group_id}-${assignment.path_pattern}-${index}`}
-                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                      className={`flex items-center justify-between p-3 rounded border ${
                         assignment.enabled ? 'bg-muted/30' : 'bg-muted/10 opacity-60'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center justify-center size-8 rounded-md bg-primary/10 flex-shrink-0">
+                        <div className="flex items-center justify-center size-8 rounded bg-primary/10 flex-shrink-0">
                           <Shield className="size-4 text-primary" />
                         </div>
                         <div className="min-w-0">
@@ -221,7 +221,7 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
 
             {/* Add Form */}
             {showAddForm && (
-              <div className="p-4 rounded-lg border border-dashed bg-muted/20 space-y-4">
+              <div className="p-4 rounded border border-dashed bg-muted/20 space-y-4">
                 <Field>
                   <FieldLabel>ACL Group</FieldLabel>
                   <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>

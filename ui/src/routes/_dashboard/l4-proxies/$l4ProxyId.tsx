@@ -104,7 +104,7 @@ export function L4ProxyDetailPage() {
             <span className="sr-only">Back</span>
           </Button>
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10">
+            <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               {getProtocolIcon(proxy.protocol)}
             </div>
             <div>

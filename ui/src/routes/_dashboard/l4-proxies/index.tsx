@@ -167,7 +167,7 @@ export function L4ProxiesListPage() {
         minSize: 80,
         maxSize: 120,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
       {
@@ -181,7 +181,7 @@ export function L4ProxiesListPage() {
         minSize: 100,
         maxSize: 140,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
       {
@@ -199,7 +199,7 @@ export function L4ProxiesListPage() {
         minSize: 80,
         maxSize: 120,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
       {
@@ -217,7 +217,7 @@ export function L4ProxiesListPage() {
         minSize: 80,
         maxSize: 120,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
     ],

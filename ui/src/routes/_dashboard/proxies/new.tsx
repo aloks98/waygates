@@ -79,7 +79,7 @@ export function ProxyCreatePage() {
       key={option.type}
       type="button"
       onClick={() => setSelectedType(option.type)}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors border ${
         selectedType === option.type
           ? 'bg-primary text-primary-foreground border-primary'
           : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'

@@ -85,7 +85,7 @@ export function AuditDataGrid({
         minSize: 100,
         maxSize: 160,
         meta: {
-          skeleton: <Skeleton className="h-6 w-24 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-24 rounded" />,
         },
       },
       {
@@ -142,7 +142,7 @@ export function AuditDataGrid({
         minSize: 70,
         maxSize: 100,
         meta: {
-          skeleton: <Skeleton className="h-6 w-20 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-20 rounded" />,
         },
       },
       {
