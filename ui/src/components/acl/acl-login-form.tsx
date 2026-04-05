@@ -40,7 +40,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
       password: '',
     },
     validators: {
-      onChange: loginSchema,
+      onBlur: loginSchema,
     },
     onSubmit: async ({ value }) => {
       setError(null);
@@ -71,9 +71,8 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
         } else {
           setError(response.message || 'Login failed');
         }
-      } catch (err) {
-        console.error('ACL login error:', err);
-        setError('Invalid credentials');
+      } catch {
+        setError('Wrong username or password. Check your details and try again.');
       }
     },
   });
@@ -112,6 +111,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
                   id={field.name}
                   type="text"
                   placeholder="Enter your username or email"
+                  autoFocus
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}

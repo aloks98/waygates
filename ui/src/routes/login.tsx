@@ -2,8 +2,6 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
   Field,
   FieldError,
   FieldGroup,
@@ -60,21 +58,57 @@ export function LoginPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-br from-background via-background to-accent/30">
-      <Card className="w-full max-w-md animate-fade-up">
-        <div className="flex flex-col items-center gap-2 px-5 pt-6 pb-2">
-          <div className="flex size-10 items-center justify-center rounded bg-primary text-primary-foreground">
-            <WaygateLogo className="size-6" />
+    <div className="flex min-h-screen">
+      {/* Brand panel — left side on desktop, hidden on mobile */}
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] bg-primary/[0.06] items-end justify-start p-12 relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute -top-24 -right-24 size-96 rounded-full border border-primary/10" />
+        <div className="absolute -top-12 -right-12 size-72 rounded-full border border-primary/[0.06]" />
+        <div className="absolute bottom-32 right-24 size-40 rounded-full bg-primary/[0.04]" />
+
+        <div className="relative z-10 max-w-lg animate-fade-up">
+          <div className="flex size-14 items-center justify-center rounded bg-primary text-primary-foreground">
+            <WaygateLogo className="size-8" />
           </div>
-          <h2
-            className="text-2xl font-semibold tracking-tight"
+          <h1
+            className="mt-6 text-5xl font-bold tracking-tight leading-[1.1]"
             style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
           >
             Waygates
-          </h2>
-          <p className="text-sm text-muted-foreground">Sign in to your account</p>
+          </h1>
+          <p className="mt-4 text-lg text-muted-foreground max-w-sm">
+            Fast travel for your network.
+          </p>
         </div>
-        <CardContent>
+      </div>
+
+      {/* Form panel — right side on desktop, full screen on mobile */}
+      <div className="flex flex-1 items-center justify-center px-6 py-12 bg-background">
+        <div className="w-full max-w-sm animate-fade-up" style={{ animationDelay: '100ms' }}>
+          {/* Mobile-only brand header */}
+          <div className="flex flex-col items-center gap-2 mb-8 lg:hidden">
+            <div className="flex size-12 items-center justify-center rounded bg-primary text-primary-foreground">
+              <WaygateLogo className="size-7" />
+            </div>
+            <h2
+              className="text-2xl font-bold tracking-tight"
+              style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+            >
+              Waygates
+            </h2>
+          </div>
+
+          {/* Desktop heading */}
+          <div className="hidden lg:block mb-8">
+            <h2 className="text-2xl font-bold tracking-tight">Sign in</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Enter your credentials to continue</p>
+          </div>
+
+          {/* Mobile subtitle */}
+          <p className="text-center text-sm text-muted-foreground mb-6 lg:hidden">
+            Sign in to your account
+          </p>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -157,8 +191,8 @@ export function LoginPage() {
               </p>
             </FieldGroup>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
