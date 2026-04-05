@@ -78,13 +78,13 @@ export function L4ProxyDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <Network className="size-12 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">L4 Proxy Not Found</h2>
+        <h2 className="text-xl font-semibold">Proxy Not Found</h2>
         <p className="text-muted-foreground">
-          The L4 proxy you're looking for doesn't exist or has been deleted.
+          The TCP/UDP proxy you're looking for doesn't exist or has been deleted.
         </p>
         <Button onClick={() => navigate({ to: '/dashboard/l4-proxies' })}>
           <ArrowLeft className="size-4" />
-          Back to L4 Proxies
+          Back to TCP/UDP Proxies
         </Button>
       </div>
     );
@@ -144,7 +144,7 @@ export function L4ProxyDetailPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete L4 Proxy</AlertDialogTitle>
+            <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{proxy.name}</strong>? This action cannot be
               undone.

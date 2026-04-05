@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { z } from 'zod';
+import { WaygateLogo } from '@/components/layout/waygate-logo';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 
@@ -350,10 +351,15 @@ export function AppSidebar({ children }: { children: ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2 px-2 py-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Globe className="size-5" />
+            <div className="flex size-8 items-center justify-center rounded bg-primary text-primary-foreground">
+              <WaygateLogo className="size-5" />
             </div>
-            <span className="font-semibold">Waygates</span>
+            <span
+              className="text-lg font-semibold tracking-tight"
+              style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+            >
+              Waygates
+            </span>
           </div>
         </SidebarHeader>
 

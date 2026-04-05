@@ -4,9 +4,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Field,
   FieldError,
   FieldGroup,
@@ -18,6 +15,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
+import { WaygateLogo } from '@/components/layout/waygate-logo';
 import { publicApi } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type { User } from '../types/auth';
@@ -65,23 +63,31 @@ export function SignupPage() {
           .json<ApiResponse<User>>();
 
         if (response.success) {
-          navigate({ to: '/login' });
+          navigate({ to: '/login', search: { registered: 'true' } });
         } else {
           setError(response.message || 'Registration failed');
         }
       } catch {
-        setError('Registration failed. Please try again.');
+        setError('Could not create your account. Please check your details and try again.');
       }
     },
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Waygates</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
-        </CardHeader>
+    <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-br from-background via-background to-accent/30">
+      <Card className="w-full max-w-md animate-fade-up">
+        <div className="flex flex-col items-center gap-2 px-5 pt-6 pb-2">
+          <div className="flex size-10 items-center justify-center rounded bg-primary text-primary-foreground">
+            <WaygateLogo className="size-6" />
+          </div>
+          <h2
+            className="text-2xl font-semibold tracking-tight"
+            style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+          >
+            Waygates
+          </h2>
+          <p className="text-sm text-muted-foreground">Create a new account</p>
+        </div>
         <CardContent>
           <form
             onSubmit={(e) => {
@@ -107,6 +113,8 @@ export function SignupPage() {
                       <Input
                         id={field.name}
                         placeholder="Enter your full name"
+                        autoComplete="name"
+                        autoFocus
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -127,6 +135,7 @@ export function SignupPage() {
                       <Input
                         id={field.name}
                         placeholder="Choose a username"
+                        autoComplete="username"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -148,6 +157,7 @@ export function SignupPage() {
                         id={field.name}
                         type="email"
                         placeholder="Enter your email"
+                        autoComplete="email"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -169,6 +179,7 @@ export function SignupPage() {
                         id={field.name}
                         type="password"
                         placeholder="Create a password"
+                        autoComplete="new-password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -190,6 +201,7 @@ export function SignupPage() {
                         id={field.name}
                         type="password"
                         placeholder="Confirm your password"
+                        autoComplete="new-password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}

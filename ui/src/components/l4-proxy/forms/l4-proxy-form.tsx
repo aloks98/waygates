@@ -129,11 +129,11 @@ const MATCHER_TYPE_CONFIG: Record<L4MatcherType, { label: string; description: s
 
 // Load balancing policy display labels
 const LB_POLICY_LABELS: Record<L4LoadBalancingPolicy, string> = {
-  round_robin: 'Round Robin',
-  least_conn: 'Least Connections',
+  round_robin: 'Round Robin — each server takes turns',
+  least_conn: 'Least Connections — prefer less busy servers',
   random: 'Random',
-  first: 'First Available',
-  ip_hash: 'IP Hash (Sticky)',
+  first: 'First Available — use the first server that responds',
+  ip_hash: 'Sticky — same client always reaches same server',
 };
 
 export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4ProxyFormProps) {
@@ -232,7 +232,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
         <CardHeader>
           <CardHeading>
             <CardTitle>Basic Information</CardTitle>
-            <CardDescription>General settings for this L4 proxy</CardDescription>
+            <CardDescription>General settings for this TCP/UDP proxy</CardDescription>
           </CardHeading>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -357,8 +357,8 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                   <CardHeading>
                     <CardTitle>Routes</CardTitle>
                     <CardDescription>
-                      Define how incoming connections are matched and forwarded to upstream servers.
-                      You can add multiple routes with different matching rules.
+                      Define how incoming connections are matched and forwarded to your backend
+                      servers. You can add multiple routes with different matching rules.
                     </CardDescription>
                   </CardHeading>
                   <CardToolbar>
@@ -612,7 +612,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                               return (
                                 <div className="space-y-3">
                                   <div className="flex items-center justify-between">
-                                    <FieldLabel>Upstream Servers</FieldLabel>
+                                    <FieldLabel>Backend Servers</FieldLabel>
                                     <Button
                                       type="button"
                                       variant="outline"
@@ -622,11 +622,11 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                                       }
                                     >
                                       <Plus className="mr-1 size-3" />
-                                      Add Upstream
+                                      Add Server
                                     </Button>
                                   </div>
                                   <FieldDescription className="mt-0">
-                                    Servers to forward matched connections to
+                                    Where to forward matched connections
                                   </FieldDescription>
                                   {upstreams.map((_, upstreamIndex) => (
                                     <div key={upstreamIndex} className="flex items-start gap-2">
@@ -751,7 +751,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                                     </SelectContent>
                                   </Select>
                                   <FieldDescription>
-                                    How to distribute connections across multiple upstreams
+                                    How to distribute connections across your servers
                                   </FieldDescription>
                                 </Field>
                               )}
@@ -802,7 +802,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                                         <FieldContent>
                                           <FieldLabel>TLS Termination</FieldLabel>
                                           <FieldDescription>
-                                            Decrypt TLS at this proxy and forward plain traffic
+                                            Decrypt traffic here, forward unencrypted to your server
                                           </FieldDescription>
                                         </FieldContent>
                                         <Switch
@@ -825,7 +825,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                                             <FieldContent>
                                               <FieldLabel>TLS Passthrough</FieldLabel>
                                               <FieldDescription>
-                                                Forward encrypted TLS traffic directly to upstream
+                                                Pass encrypted traffic through to your server as-is
                                               </FieldDescription>
                                             </FieldContent>
                                             <Switch
@@ -876,8 +876,8 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                                     </SelectContent>
                                   </Select>
                                   <FieldDescription>
-                                    Send client IP info to upstream using PROXY protocol (HAProxy
-                                    standard)
+                                    Forward the original client IP to your server (needed by some
+                                    services)
                                   </FieldDescription>
                                 </Field>
                               )}
@@ -900,7 +900,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
           Cancel
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create L4 Proxy'}
+          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create Proxy'}
         </Button>
       </div>
     </form>

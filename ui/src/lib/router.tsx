@@ -16,6 +16,7 @@ import { ACLForbiddenPage } from '@/routes/auth/acl-forbidden';
 import { ACLLoginPage } from '@/routes/auth/acl-login';
 import { LoginPage } from '@/routes/login';
 import { SignupPage } from '@/routes/signup';
+import { ThemePreviewPage } from '@/routes/theme-preview';
 import { useAuthStore } from '@/stores/auth';
 
 const rootRoute = createRootRoute({
@@ -152,10 +153,17 @@ const aclGroupDetailRoute = createRoute({
   component: ACLGroupDetailPage,
 });
 
+const themePreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/theme-preview',
+  component: ThemePreviewPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
+  themePreviewRoute,
   aclLoginRoute,
   aclForbiddenRoute,
   dashboardRoute.addChildren([
