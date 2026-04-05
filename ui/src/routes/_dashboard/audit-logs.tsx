@@ -27,7 +27,7 @@ const resourceTypeOptions = [
   { value: 'user', label: 'User' },
   { value: 'settings', label: 'Settings' },
   { value: 'system', label: 'System' },
-  { value: 'acl', label: 'ACL' },
+  { value: 'acl', label: 'Access Control' },
 ];
 
 export function AuditLogsPage() {
@@ -206,7 +206,8 @@ export function AuditLogsPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
+            placeholder="Search by action, user, or resource..."
+            aria-label="Search audit logs"
             className="pl-9"
           />
         </div>

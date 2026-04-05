@@ -266,7 +266,7 @@ export function ACLGroupDetailPage() {
         <Shield className="size-12 text-muted-foreground" />
         <h2 className="text-xl font-semibold">Group Not Found</h2>
         <p className="text-muted-foreground">
-          The ACL group you're looking for doesn't exist or has been deleted.
+          The access control group you're looking for doesn't exist or has been deleted.
         </p>
         <Button onClick={() => navigate({ to: '/dashboard/acl' })}>
           <ArrowLeft className="size-4" />
@@ -318,8 +318,6 @@ export function ACLGroupDetailPage() {
           <TabsTrigger value="ip-rules">IP Rules</TabsTrigger>
           <TabsTrigger value="basic-auth">Basic Auth</TabsTrigger>
           <TabsTrigger value="waygates-auth">Waygates Auth</TabsTrigger>
-          {/*Will enable later when properly implemented and tested*/}
-          {/*<TabsTrigger value="external">External Providers</TabsTrigger>*/}
           <TabsTrigger value="usage">Usage</TabsTrigger>
         </TabsList>
 
@@ -338,11 +336,6 @@ export function ACLGroupDetailPage() {
         <TabsContent value="waygates-auth" className="mt-6">
           <WaygatesAuthTab groupId={groupId} />
         </TabsContent>
-
-        {/*Will enable later when properly implemented and tested*/}
-        {/*<TabsContent value="external" className="mt-6">*/}
-        {/*  <ExternalProvidersTab groupId={groupId} />*/}
-        {/*</TabsContent>*/}
 
         <TabsContent value="usage" className="mt-6">
           <GroupUsageTab groupId={groupId} />
