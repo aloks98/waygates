@@ -76,7 +76,7 @@ const navItems: NavItem[] = [
     icon: <Globe className="size-4" />,
   },
   {
-    label: 'L4 Proxies',
+    label: 'TCP/UDP Proxies',
     path: '/dashboard/l4-proxies',
     icon: <Network className="size-4" />,
   },
@@ -124,7 +124,7 @@ function ChangePasswordDialog({
       confirm_password: '',
     },
     validators: {
-      onChange: passwordSchema,
+      onBlur: passwordSchema,
     },
     onSubmit: async ({ value }) => {
       setStatus(null);
@@ -196,6 +196,7 @@ function ChangePasswordDialog({
                       <Input
                         id={field.name}
                         type="password"
+                        autoComplete="current-password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -216,6 +217,7 @@ function ChangePasswordDialog({
                       <Input
                         id={field.name}
                         type="password"
+                        autoComplete="new-password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -236,6 +238,7 @@ function ChangePasswordDialog({
                       <Input
                         id={field.name}
                         type="password"
+                        autoComplete="new-password"
                         value={field.state.value}
                         onChange={(e) => field.handleChange(e.target.value)}
                         onBlur={field.handleBlur}
@@ -295,7 +298,7 @@ function ProfileDialog({
             </div>
           </div>
 
-          <div className="space-y-3 rounded-lg border p-4">
+          <div className="space-y-3 rounded border p-4">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p>
               <p className="text-sm">{user?.email}</p>
@@ -407,11 +410,11 @@ export function AppSidebar({ children }: { children: ReactNode }) {
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setProfileOpen(true)}>
-                <User className=" size-4" />
+                <User className="size-4" />
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
-                <KeyRound className=" size-4" />
+                <KeyRound className="size-4" />
                 Change Password
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -419,7 +422,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
                 onClick={handleLogout}
                 className="text-destructive focus:text-destructive"
               >
-                <LogOut className=" size-4" />
+                <LogOut className="size-4" />
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
