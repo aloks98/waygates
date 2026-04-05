@@ -1,4 +1,4 @@
-import { Button } from '@e412/titanium';
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@e412/titanium';
 import { Pencil, Trash2 } from 'lucide-react';
 import type { ProxyConfig } from '@/types/proxy';
 
@@ -24,14 +24,26 @@ export function ProxyActionsCell({
   return (
     <div className="flex justify-end gap-1">
       {canEdit && onEdit && (
-        <Button variant="ghost" size="sm" onClick={() => onEdit(proxy)}>
-          <Pencil className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" onClick={() => onEdit(proxy)}>
+              <Pencil className="size-4" />
+              <span className="sr-only">Edit proxy</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Edit proxy</TooltipContent>
+        </Tooltip>
       )}
       {canDelete && onDelete && (
-        <Button variant="ghost" size="sm" onClick={() => onDelete(proxy)}>
-          <Trash2 className="size-4 text-destructive" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" onClick={() => onDelete(proxy)}>
+              <Trash2 className="size-4 text-destructive" />
+              <span className="sr-only">Delete proxy</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete proxy</TooltipContent>
+        </Tooltip>
       )}
     </div>
   );

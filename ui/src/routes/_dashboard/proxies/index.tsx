@@ -8,6 +8,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   Button,
+  type Filter,
+  type FilterFieldsConfig,
+  Filters,
   Input,
 } from '@e412/titanium';
 import { useNavigate } from '@tanstack/react-router';
@@ -18,6 +21,49 @@ import { ProxyDataGrid } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
 import type { ProxyConfig } from '@/types/proxy';
+
+const typeOptions = [
+  { value: 'reverse_proxy', label: 'Reverse Proxy' },
+  { value: 'redirect', label: 'Redirect' },
+  { value: 'static', label: 'Static File Server' },
+];
+
+const statusOptions = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+];
+
+const sslOptions = [
+  { value: 'true', label: 'Enabled' },
+  { value: 'false', label: 'Disabled' },
+];
+
+const filterFields: FilterFieldsConfig<string> = [
+  {
+    key: 'type',
+    label: 'Type',
+    type: 'select',
+    options: typeOptions,
+    operators: [
+      { value: 'is', label: 'is' },
+      { value: 'is_not', label: 'is not' },
+    ],
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: statusOptions,
+    operators: [{ value: 'is', label: 'is' }],
+  },
+  {
+    key: 'ssl_enabled',
+    label: 'SSL',
+    type: 'select',
+    options: sslOptions,
+    operators: [{ value: 'is', label: 'is' }],
+  },
+];
 
 export function ProxiesListPage() {
   const navigate = useNavigate();
@@ -33,6 +79,14 @@ export function ProxiesListPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Filter state
+  const [filters, setFilters] = useState<Filter<string>[]>([]);
+
+  const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
+    setFilters(newFilters);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, []);
 
   // Debounce search input
   useEffect(() => {
@@ -51,12 +105,15 @@ export function ProxiesListPage() {
     };
   }, [search]);
 
-  // Fetch HTTP proxies (L7)
+  // Build API params from search + filters
   const params = useMemo(() => {
     const p: {
       page: number;
       limit: number;
       search?: string;
+      type?: string;
+      status?: string;
+      ssl_enabled?: string;
     } = {
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
@@ -64,8 +121,23 @@ export function ProxiesListPage() {
     if (debouncedSearch) {
       p.search = debouncedSearch;
     }
+    for (const filter of filters) {
+      if (filter.values.length === 0) continue;
+      const value = filter.values[0];
+      switch (filter.field) {
+        case 'type':
+          p.type = value;
+          break;
+        case 'status':
+          p.status = value;
+          break;
+        case 'ssl_enabled':
+          p.ssl_enabled = value;
+          break;
+      }
+    }
     return p;
-  }, [pagination.pageIndex, pagination.pageSize, debouncedSearch]);
+  }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, filters]);
 
   const { proxies, total, totalPages, isLoading, toggle, remove, isToggling, isDeleting } =
     useProxies(params);
@@ -105,17 +177,26 @@ export function ProxiesListPage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-4">
-        {/* Search input */}
-        <div className="relative max-w-sm">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search proxies..."
+            placeholder="Search by name or hostname..."
+            aria-label="Search proxies"
             className="pl-9"
           />
         </div>
+
+        <Filters
+          filters={filters}
+          fields={filterFields}
+          onChange={handleFiltersChange}
+          addButtonText="Add Filter"
+          variant="outline"
+          size="md"
+        />
       </div>
 
       <ProxyDataGrid

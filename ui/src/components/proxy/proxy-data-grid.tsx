@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   DataGrid,
   DataGridColumnHeader,
   DataGridContainer,
@@ -7,6 +8,7 @@ import {
   DataGridTable,
   Skeleton,
 } from '@e412/titanium';
+import { Link } from '@tanstack/react-router';
 import {
   type ColumnDef,
   getCoreRowModel,
@@ -15,7 +17,7 @@ import {
   type PaginationState,
   useReactTable,
 } from '@tanstack/react-table';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Globe, Network, Plus } from 'lucide-react';
 import { useMemo } from 'react';
 import type { ProxyConfig } from '@/types/proxy';
 import {
@@ -94,7 +96,7 @@ export function ProxyDataGrid({
         minSize: 150,
         maxSize: 260,
         meta: {
-          skeleton: <Skeleton className="h-6 w-40 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-40 rounded" />,
         },
       },
       {
@@ -116,7 +118,7 @@ export function ProxyDataGrid({
         minSize: 100,
         maxSize: 150,
         meta: {
-          skeleton: <Skeleton className="h-6 w-28 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-28 rounded" />,
         },
       },
       {
@@ -145,7 +147,7 @@ export function ProxyDataGrid({
         minSize: 80,
         maxSize: 100,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
       ...(canUpdateProxies || canDeleteProxies
@@ -203,7 +205,31 @@ export function ProxyDataGrid({
       recordCount={total}
       isLoading={isLoading}
       loadingMode="skeleton"
-      emptyMessage="No proxies found. Create your first proxy to get started."
+      emptyMessage={
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="rounded bg-muted p-4">
+            <Globe className="size-8 text-muted-foreground" />
+          </div>
+          <h3 className="mt-4 text-base font-medium">No proxies yet</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground max-w-[260px]">
+            Create your first proxy to start routing traffic through Waygates.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" asChild>
+              <Link to="/dashboard/proxies/new">
+                <Plus className="size-4" />
+                HTTP Proxy
+              </Link>
+            </Button>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/dashboard/l4-proxies/new">
+                <Network className="size-4" />
+                TCP/UDP Proxy
+              </Link>
+            </Button>
+          </div>
+        </div>
+      }
     >
       <DataGridContainer>
         <DataGridTable />
