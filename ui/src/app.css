@@ -209,7 +209,7 @@ html {
     scroll-behavior: smooth;
 }
 
-/** Dashboard entrance animations **/
+/** Entrance animations **/
 @keyframes fade-up {
     from {
         opacity: 0;
@@ -221,12 +221,32 @@ html {
     }
 }
 
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 .animate-fade-up {
     animation: fade-up 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
+.animate-fade-in {
+    animation: fade-in 0.3s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+/** Page content entrance — applies to all dashboard pages **/
+.page-enter {
+    animation: fade-up 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .animate-fade-up {
+    .animate-fade-up,
+    .animate-fade-in,
+    .page-enter {
         animation: none;
         opacity: 1;
         transform: none;

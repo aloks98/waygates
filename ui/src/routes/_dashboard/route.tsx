@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Outlet } from '@tanstack/react-router';
+import { Outlet, useLocation } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { AppSidebar } from '@/components/layout';
 import { api } from '@/lib/api';
@@ -9,6 +9,7 @@ import type { User } from '@/types/auth';
 
 export function DashboardLayout() {
   const { setUser, user } = useAuthStore();
+  const location = useLocation();
 
   const { data, isLoading } = useQuery({
     queryKey: ['auth', 'me'],
@@ -36,7 +37,9 @@ export function DashboardLayout() {
   return (
     <div className="flex h-screen">
       <AppSidebar>
-        <Outlet />
+        <div key={location.pathname} className="page-enter">
+          <Outlet />
+        </div>
       </AppSidebar>
     </div>
   );

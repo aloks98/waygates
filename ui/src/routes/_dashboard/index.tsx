@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from '@e412/titanium';
 import { Link } from '@tanstack/react-router';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, formatDuration, intervalToDuration } from 'date-fns';
 import {
   Activity,
   ArrowRight,
@@ -26,6 +26,21 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAppStatus, useDashboardData, useHealthStatus, useSyncStatus } from '@/hooks';
+
+function formatUptime(raw: string): string {
+  // Parse Go duration string (e.g., "173h33m10.048s") into total seconds
+  const hours = raw.match(/(\d+)h/);
+  const minutes = raw.match(/(\d+)m/);
+  const seconds = raw.match(/([\d.]+)s/);
+  const totalSeconds =
+    (hours ? Number.parseInt(hours[1], 10) * 3600 : 0) +
+    (minutes ? Number.parseInt(minutes[1], 10) * 60 : 0) +
+    (seconds ? Math.floor(Number.parseFloat(seconds[1])) : 0);
+
+  const duration = intervalToDuration({ start: 0, end: totalSeconds * 1000 });
+  return formatDuration(duration, { format: ['days', 'hours', 'minutes'], delimiter: ' ' });
+}
+
 import { useAuthStore } from '@/stores/auth';
 import type { AuditLog } from '@/types/audit';
 
@@ -160,7 +175,7 @@ function SystemStatusStrip() {
           <TooltipTrigger asChild>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Server className="size-3.5" />
-              <span>Up {health.uptime}</span>
+              <span>Up {formatUptime(health.uptime)}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>Service uptime</TooltipContent>
@@ -474,7 +489,7 @@ export function DashboardIndex() {
   return (
     <div className="space-y-8">
       {/* Header: greeting + quick actions */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-up">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Welcome back, {user?.name || 'User'}</h1>
           <div className="mt-2">

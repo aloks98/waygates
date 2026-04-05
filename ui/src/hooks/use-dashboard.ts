@@ -54,8 +54,8 @@ export function useHealthStatus() {
   const query = useQuery({
     queryKey: HEALTH_KEY,
     queryFn: async () => {
-      const response = await publicApi.get('health').json<HealthStatus>();
-      return response;
+      const response = await publicApi.get('health').json<ApiResponse<HealthStatus>>();
+      return response.data;
     },
     refetchInterval: 30_000,
   });
@@ -70,8 +70,8 @@ export function useAppStatus() {
   const query = useQuery({
     queryKey: APP_STATUS_KEY,
     queryFn: async () => {
-      const response = await publicApi.get('status').json<AppStatus>();
-      return response;
+      const response = await publicApi.get('status').json<ApiResponse<AppStatus>>();
+      return response.data;
     },
     refetchInterval: 30_000,
   });
