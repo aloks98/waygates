@@ -156,7 +156,7 @@ import catchall.conf
 
 - Go 1.24+
 - PostgreSQL 14+
-- Caddy 2.10+
+- Caddy 2.11+ (required by the caddy-l4 plugin)
 
 ### Running Locally
 

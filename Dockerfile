@@ -67,14 +67,18 @@ RUN pnpm run build
 #   - caddy-l4: TCP/UDP Layer 4 proxy support
 #   - DNS providers: For ACME challenges (configure via CADDY_ACME_PROVIDER)
 # =============================================================================
-FROM --platform=$BUILDPLATFORM caddy:2.10.2-builder AS caddy-builder
+# NOTE: caddy-l4 v0.1.1 requires caddy/v2 >= v2.11.3, so the builder image must
+# match. Keep this base image and the pinned caddy-l4 version below in sync.
+FROM --platform=$BUILDPLATFORM caddy:2.11.3-builder AS caddy-builder
 
 ARG TARGETOS
 ARG TARGETARCH
 
-# Build Caddy with L4 plugin and all supported DNS challenge providers
+# Build Caddy with L4 plugin and all supported DNS challenge providers.
+# caddy-l4 is pinned so an upstream release cannot silently break the build by
+# requiring a newer Caddy than the builder image above.
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
-    --with github.com/mholt/caddy-l4 \
+    --with github.com/mholt/caddy-l4@v0.1.1 \
     --with github.com/caddy-dns/cloudflare \
     --with github.com/caddy-dns/route53 \
     --with github.com/caddy-dns/duckdns \
