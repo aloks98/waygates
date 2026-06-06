@@ -22,8 +22,14 @@ type UpdateL4ProxyRequestDTO struct {
 
 // CreateL4RouteRequestDTO represents a route configuration in L4 proxy requests
 type CreateL4RouteRequestDTO struct {
-	Priority             int                    `json:"priority" validate:"gte=0"`
-	MatcherType          string                 `json:"matcher_type" validate:"required,oneof=any tls ssh postgres http rdp socks5 remote_ip regexp"`
+	Priority    int    `json:"priority" validate:"gte=0"`
+	MatcherType string `json:"matcher_type" validate:"required,oneof=any tls ssh postgres http rdp socks5 remote_ip regexp"`
+	// SNIHostnames are only meaningful for the "tls" matcher (SNI is a TLS
+	// concept). They are required when MatcherType == "tls" but are NOT
+	// restricted for other matcher types here: setting them on, e.g., the
+	// "http" matcher is accepted and then silently ignored at config-build
+	// time (the L4 http matcher matches any connection; HTTP host routing is
+	// L7). See MapMatcherTypeToL4Matcher in caddy/config/layer4_matchers.go.
 	SNIHostnames         []string               `json:"sni_hostnames,omitempty" validate:"omitempty,dive,min=1"`
 	AllowedIPRanges      []string               `json:"allowed_ip_ranges,omitempty" validate:"omitempty,dive,cidr"`
 	RegexPattern         *string                `json:"regex_pattern,omitempty" validate:"omitempty,min=1,max=500"`

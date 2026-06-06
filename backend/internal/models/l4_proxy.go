@@ -239,6 +239,12 @@ func (r *L4Route) Validate() error {
 		return ErrL4RouteRegexRequired
 	}
 
+	// SNI hostnames are required for the TLS matcher. Note that they are NOT
+	// rejected for other matcher types: SNI is a TLS concept and only the "tls"
+	// matcher consumes SNIHostnames. For other matchers (e.g. "http") any
+	// configured sni_hostnames are silently ignored at config-build time rather
+	// than rejected here, to avoid breaking existing data/clients. The L4 "http"
+	// matcher matches any HTTP connection; HTTP host-based routing belongs in L7.
 	if r.MatcherType == L4MatcherTLS && len(r.SNIHostnames) == 0 {
 		return ErrL4RouteSNIRequired
 	}

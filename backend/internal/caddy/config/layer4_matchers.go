@@ -195,6 +195,12 @@ func MapMatcherTypeToL4Matcher(matcherType string, sniHostnames, ipRanges []stri
 		}
 		return matcher
 	case "http":
+		// The L4 http matcher performs protocol detection only: it matches ANY
+		// HTTP connection and intentionally ignores sniHostnames. SNI is a
+		// TLS-layer concept (see the "tls" case) and HTTP host-based routing
+		// belongs in the L7 stack, not at layer 4. We therefore call
+		// NewL4HTTPMatcher() with no host args (match-any); any sni_hostnames
+		// configured on an http-matcher route are silently ignored by design.
 		matcher := NewL4HTTPMatcher()
 		if len(ipRanges) > 0 {
 			AddRemoteIPToL4Matcher(matcher, ipRanges)
