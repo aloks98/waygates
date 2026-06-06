@@ -86,6 +86,43 @@ func TestTraffic_L7(t *testing.T) {
 		}
 	})
 
+	t.Run("block_exploits", func(t *testing.T) {
+		host := "sec.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "reverse_proxy", "name": "sec", "hostname": host,
+			"upstreams":      []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
+			"block_exploits": true,
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK) // benign path is reachable
+
+		// Benign request reaches the backend.
+		ok, body := env.l7Get(t, host, "/", nil)
+		if ok.StatusCode != http.StatusOK || echoHostnameFromBody(body) != "echo1" {
+			t.Fatalf("benign request should reach echo1, got %d / %q", ok.StatusCode, echoHostnameFromBody(body))
+		}
+
+		// Malicious request is blocked with 403.
+		//
+		// NOTE: We deliberately do NOT use the plan's example trigger
+		// "/index.php?cmd=../../etc/passwd". Every block_exploits rule matches on
+		// "path_regexp" (Caddy's URL.Path only), so the "../" in the query string
+		// is never inspected, and "/index.php" matches no rule (the vuln_scanners
+		// pattern flags "xmlrpc.php", not generic ".php") -> that request reaches
+		// the backend. We instead hit the vuln_scanners rule with "/.env", a clean
+		// path that survives Go URL parsing and Caddy path cleaning unchanged.
+		// See backend/internal/caddy/config/security.go:118-137 (pattern includes
+		// "\.env"; static_response status_code 403, security.go:131).
+		bad, _ := env.l7Get(t, host, "/.env", nil)
+		if bad.StatusCode != http.StatusForbidden {
+			t.Fatalf("expected 403 for exploit request, got %d", bad.StatusCode)
+		}
+	})
+
 	t.Run("custom_headers", func(t *testing.T) {
 		// SKIPPED pending the "typed request/response custom headers" feature.
 		// This E2E surfaced that custom_headers are currently applied only as
