@@ -332,7 +332,12 @@ func tlsEchoHostname(_ *testing.T, addr, sni string) (string, error) {
 	return echoHostnameFromHTTP(string(raw)), nil
 }
 
-// echoHostnameFromBody extracts the backend hostname from mendhak echo JSON.
+// echoHostnameFromBody extracts the backend container hostname from mendhak echo
+// JSON. mendhak's top-level "hostname" field reflects the *request* Host header
+// (e.g. "rp.test.local"), not the backend; the container hostname (set via the
+// fixture's Hostname, e.g. "echo1"/"echo2") is under "os.hostname". We therefore
+// prefer os.hostname so the assertion identifies which backend actually answered,
+// and only fall back to the top-level field if os.hostname is absent.
 func echoHostnameFromBody(body []byte) string {
 	var v struct {
 		Hostname string `json:"hostname"`
@@ -341,10 +346,10 @@ func echoHostnameFromBody(body []byte) string {
 		} `json:"os"`
 	}
 	_ = json.Unmarshal(body, &v)
-	if v.Hostname != "" {
-		return v.Hostname
+	if v.OS.Hostname != "" {
+		return v.OS.Hostname
 	}
-	return v.OS.Hostname
+	return v.Hostname
 }
 
 // echoHostnameFromHTTP splits a raw HTTP/1.1 response and parses the JSON body.
