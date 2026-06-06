@@ -218,14 +218,14 @@ function LoginPreview({
                 {/* Mock form — matches ACLLoginForm structure */}
                 <div className="space-y-4" aria-hidden="true">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Username or Email</label>
+                    <span className="block text-sm font-medium">Username or Email</span>
                     <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
                       user@example.com
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Password</label>
+                    <span className="block text-sm font-medium">Password</span>
                     <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
                       ************
                     </div>
