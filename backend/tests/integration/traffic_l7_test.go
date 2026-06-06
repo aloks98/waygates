@@ -31,4 +31,31 @@ func TestTraffic_L7(t *testing.T) {
 			t.Fatalf("expected backend echo1, got %q", hn)
 		}
 	})
+
+	t.Run("round_robin_lb", func(t *testing.T) {
+		host := "lb.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "reverse_proxy", "name": "lb", "hostname": host,
+			"upstreams": []map[string]any{
+				{"host": "echo1", "port": 8080, "scheme": "http"},
+				{"host": "echo2", "port": 8080, "scheme": "http"},
+			},
+			"load_balancing": map[string]any{"strategy": "round_robin"},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK)
+
+		seen := map[string]bool{}
+		for i := 0; i < 10; i++ {
+			_, body := env.l7Get(t, host, "/", nil)
+			seen[echoHostnameFromBody(body)] = true
+		}
+		if !seen["echo1"] || !seen["echo2"] {
+			t.Fatalf("expected both backends, saw %v", seen)
+		}
+	})
 }
