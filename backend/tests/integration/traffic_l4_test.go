@@ -167,4 +167,56 @@ func TestTraffic_L4(t *testing.T) {
 			t.Fatalf("SELECT 1 through L4 postgres proxy: %v", err)
 		}
 	})
+
+	t.Run("tls_sni_passthrough", func(t *testing.T) {
+		port := l4PortPool[6] // 9007
+		// One L4 proxy, two tls routes. Each route matches a distinct SNI and
+		// passes the TLS bytes straight through to a different echo's HTTPS port
+		// (8443, mendhak's built-in self-signed cert). Routing is asserted via the
+		// backend hostname in the echoed JSON. The tls matcher serializes as
+		// {"tls":{"sni":[...]}} (an object), which is the shape caddy-l4 expects.
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/l4-proxies", map[string]any{
+			"name": "l4-tls", "listen_port": port, "protocol": "tcp",
+			"routes": []map[string]any{
+				{
+					"matcher_type":          "tls",
+					"sni_hostnames":         []string{"a.sni.test"},
+					"tls_passthrough":       true,
+					"tls_terminate":         false,
+					"load_balancing_policy": "round_robin",
+					"upstreams":             []map[string]any{{"host": "echo1", "port": 8443}},
+				},
+				{
+					"matcher_type":          "tls",
+					"sni_hostnames":         []string{"b.sni.test"},
+					"tls_passthrough":       true,
+					"tls_terminate":         false,
+					"load_balancing_policy": "round_robin",
+					"upstreams":             []map[string]any{{"host": "echo2", "port": 8443}},
+				},
+			},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create l4 proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		addr := env.l4Addr(t, port)
+		env.waitL4(t, addr)
+
+		hnA, err := tlsEchoHostname(t, addr, "a.sni.test")
+		if err != nil {
+			t.Fatalf("tls dial a: %v", err)
+		}
+		if hnA != "echo1" {
+			t.Fatalf("SNI a.sni.test should reach echo1, got %q", hnA)
+		}
+		hnB, err := tlsEchoHostname(t, addr, "b.sni.test")
+		if err != nil {
+			t.Fatalf("tls dial b: %v", err)
+		}
+		if hnB != "echo2" {
+			t.Fatalf("SNI b.sni.test should reach echo2, got %q", hnB)
+		}
+	})
 }
