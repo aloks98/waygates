@@ -86,6 +86,30 @@ func TestTraffic_L7(t *testing.T) {
 		}
 	})
 
+	t.Run("custom_headers", func(t *testing.T) {
+		host := "hdr.test.local"
+		// Confirmed shape: models.Proxy.CustomHeaders is a flat JSONField
+		// (map[string]interface{}) of {"Header-Name":"value"}, NOT a nested
+		// {"response":{...}} object. See backend/internal/models/proxy.go:29 and
+		// the builder at backend/internal/caddy/config/http_builder.go:206-212.
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "reverse_proxy", "name": "hdr", "hostname": host,
+			"upstreams":      []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
+			"custom_headers": map[string]string{"X-Test": "waygates"},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK)
+
+		got, _ := env.l7Get(t, host, "/", nil)
+		if got.Header.Get("X-Test") != "waygates" {
+			t.Fatalf("expected X-Test response header, headers: %v", got.Header)
+		}
+	})
+
 	t.Run("static", func(t *testing.T) {
 		host := "st.test.local"
 		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
