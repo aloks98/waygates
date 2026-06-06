@@ -4,6 +4,7 @@ package integration
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -56,6 +57,32 @@ func TestTraffic_L7(t *testing.T) {
 		}
 		if !seen["echo1"] || !seen["echo2"] {
 			t.Fatalf("expected both backends, saw %v", seen)
+		}
+	})
+
+	t.Run("redirect", func(t *testing.T) {
+		host := "rd.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "redirect", "name": "rd", "hostname": host,
+			"redirect": map[string]any{
+				"target": "https://target.test.local", "status_code": 301,
+				"preserve_path": true, "preserve_query": true,
+			},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusMovedPermanently)
+
+		got, _ := env.l7Get(t, host, "/somepath", nil)
+		if got.StatusCode != http.StatusMovedPermanently {
+			t.Fatalf("expected 301, got %d", got.StatusCode)
+		}
+		loc := got.Header.Get("Location")
+		if !strings.HasPrefix(loc, "https://target.test.local") {
+			t.Fatalf("unexpected Location: %q", loc)
 		}
 	})
 }
