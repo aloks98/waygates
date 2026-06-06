@@ -1,5 +1,5 @@
 .PHONY: help build up down restart logs logs-follow status clean rebuild validate env-check
-.PHONY: backend-run backend-build backend-test backend-test-coverage migrate-create
+.PHONY: backend-run backend-build backend-test backend-test-coverage test-traffic migrate-create
 .PHONY: lint lint-backend lint-ui format format-backend check setup-tools
 
 # Default target
@@ -138,6 +138,13 @@ backend-build:
 backend-test:
 	@echo "Running backend tests..."
 	@go test -v ./backend/...
+
+# Build the image and run the proxy traffic E2E suite (Docker required)
+test-traffic:
+	@echo "Building waygates-test:latest..."
+	@docker build -t waygates-test:latest .
+	@echo "Running proxy traffic E2E suite..."
+	@cd backend && go test -tags traffic -run 'TestTraffic' ./tests/integration/ -count=1 -v
 
 # Run backend tests with coverage (includes cross-package coverage from integration tests)
 backend-test-coverage:
