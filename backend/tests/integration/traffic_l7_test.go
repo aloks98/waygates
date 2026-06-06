@@ -85,4 +85,23 @@ func TestTraffic_L7(t *testing.T) {
 			t.Fatalf("unexpected Location: %q", loc)
 		}
 	})
+
+	t.Run("static", func(t *testing.T) {
+		host := "st.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "static", "name": "st", "hostname": host,
+			"static": map[string]any{"root_path": "/var/www/test", "index_file": "index.html"},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK)
+
+		_, body := env.l7Get(t, host, "/", nil)
+		if !strings.Contains(string(body), "WAYGATES STATIC OK") {
+			t.Fatalf("static content not served, got: %q", string(body))
+		}
+	})
 }

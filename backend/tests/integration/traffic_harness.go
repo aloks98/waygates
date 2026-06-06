@@ -119,11 +119,19 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 		Image:        "waygates-test:latest",
 		ExposedPorts: exposed,
 		Networks:     []string{netName},
-		Files: []testcontainers.ContainerFile{{
-			HostFilePath:      findTestJSONConfig(t),
-			ContainerFilePath: "/etc/caddy/caddy.json",
-			FileMode:          0o644,
-		}},
+		Files: []testcontainers.ContainerFile{
+			{
+				HostFilePath:      findTestJSONConfig(t),
+				ContainerFilePath: "/etc/caddy/caddy.json",
+				FileMode:          0o644,
+			},
+			{
+				// A known static file for the L7 static-serving subtest to fetch.
+				Reader:            strings.NewReader("WAYGATES STATIC OK"),
+				ContainerFilePath: "/var/www/test/index.html",
+				FileMode:          0o644,
+			},
+		},
 		Env: map[string]string{
 			"DB_HOST": "postgres", "DB_PORT": "5432", "DB_USER": "waygates",
 			"DB_PASSWORD": "waygates", "DB_NAME": "waygates",
