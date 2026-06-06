@@ -11,6 +11,7 @@ This guide covers deploying Waygates in various environments.
 - [Production Considerations](#production-considerations)
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
+- [Testing](#testing)
 
 ---
 
@@ -360,6 +361,32 @@ docker compose down -v
 
 # Start fresh
 docker compose up -d
+```
+
+---
+
+## Testing
+
+### Proxy traffic E2E tests
+
+`make test-traffic` builds the `waygates-test:latest` image and runs the
+end-to-end traffic suite (`backend/tests/integration/traffic_*_test.go`, build
+tag `traffic`). It boots the app plus backend fixtures (HTTP/HTTPS echo, TCP
+echo, Postgres) on a Docker network and drives real traffic through Caddy for
+both L7 and L4 proxies:
+
+- **L7** (`TestTraffic_L7`): reverse_proxy, redirect, static, load balancing
+  (round-robin), ACL basic-auth, and block_exploits. A `custom_headers` subtest
+  is included but currently **skipped** pending response-header support in the
+  Caddy builder.
+- **L4** (`TestTraffic_L4`): `any`/TCP echo, `http` matcher, `postgres` matcher,
+  TLS SNI passthrough, `remote_ip` allow/deny, and load balancing (round-robin).
+
+Requires Docker. These tests are build-tagged with `traffic`, so they are
+**excluded** from `make backend-test` and the default `go test ./...` run.
+
+```bash
+make test-traffic
 ```
 
 ---
