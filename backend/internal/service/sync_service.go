@@ -122,19 +122,19 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 
 // initJSONBuilder initializes the JSON configuration builder
 func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger) {
-	// Create ACL builder if Waygates auth URLs are configured
-	var aclBuilder *config.ACLBuilder
-	if cfg.WaygatesVerifyURL != "" && cfg.WaygatesLoginURL != "" {
-		aclBuilder = config.NewACLBuilder(logger)
-		aclBuilder.SetWaygatesURLs(cfg.WaygatesVerifyURL, cfg.WaygatesLoginURL)
-	}
+	// Always create the ACL builder. Self-contained ACL methods (HTTP basic auth,
+	// IP allow/deny/bypass) do not require the Waygates forward-auth URLs; gating
+	// the builder's existence on those URLs silently disabled basic-auth/IP ACLs
+	// whenever the login URL was unset. The Waygates URLs are only consulted by the
+	// forward-auth handler, which is only emitted when a group actually configures
+	// Waygates/OAuth/external-provider auth.
+	aclBuilder := config.NewACLBuilder(logger)
+	aclBuilder.SetWaygatesURLs(cfg.WaygatesVerifyURL, cfg.WaygatesLoginURL)
 
 	// Create builder options
 	opts := []config.BuilderOption{
 		config.WithLogger(logger),
-	}
-	if aclBuilder != nil {
-		opts = append(opts, config.WithACLBuilder(aclBuilder))
+		config.WithACLBuilder(aclBuilder),
 	}
 
 	// Create the JSON builder

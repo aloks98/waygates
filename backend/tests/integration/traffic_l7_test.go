@@ -3,6 +3,8 @@
 package integration
 
 import (
+	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -171,6 +173,100 @@ func TestTraffic_L7(t *testing.T) {
 		_, body := env.l7Get(t, host, "/", nil)
 		if !strings.Contains(string(body), "WAYGATES STATIC OK") {
 			t.Fatalf("static content not served, got: %q", string(body))
+		}
+	})
+
+	t.Run("acl_basic_auth", func(t *testing.T) {
+		// Confirmed enforcement mechanism: NATIVE Caddy HTTP Basic Auth (not
+		// forward-auth). A group whose only configured method is basic-auth users
+		// (hasBasicAuth && !hasSecureAuth) is built with Caddy's "authentication"
+		// handler + "http_basic" provider, so unauthenticated -> 401 and correct
+		// credentials -> upstream.
+		// See backend/internal/caddy/config/acl_builder.go:307-310 (buildBasicAuthHandler)
+		// and backend/internal/caddy/config/http_handlers.go:228-251 (AuthenticationHandler/http_basic).
+		// Field names confirmed: CreateGroupRequest{name,description},
+		// AddBasicAuthUserRequest{username,password}, AssignACLRequest{acl_group_id,path_pattern,priority}.
+		host := "acl.test.local"
+
+		// 1. Create the reverse proxy to protect.
+		pr := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "reverse_proxy", "name": "acl", "hostname": host,
+			"upstreams": []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
+		})
+		if pr.StatusCode != http.StatusCreated {
+			_ = pr.Body.Close()
+			t.Fatalf("create proxy: %d", pr.StatusCode)
+		}
+		var pid struct {
+			Data struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, pr, &pid)
+		_ = pr.Body.Close()
+		if pid.Data.ID == 0 {
+			t.Fatalf("proxy id not returned")
+		}
+
+		// 2. Create the ACL group.
+		gr := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/acl/groups", map[string]any{
+			"name": "Traffic ACL", "description": "basic-auth e2e",
+		})
+		if gr.StatusCode != http.StatusCreated {
+			_ = gr.Body.Close()
+			t.Fatalf("create acl group: %d", gr.StatusCode)
+		}
+		var gid struct {
+			Data struct {
+				ID int `json:"id"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, gr, &gid)
+		_ = gr.Body.Close()
+		if gid.Data.ID == 0 {
+			t.Fatalf("acl group id not returned")
+		}
+
+		// 3. Add a basic-auth user to the group.
+		ba := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/acl/groups/%d/basic-auth", gid.Data.ID), map[string]any{
+			"username": "acluser", "password": "aclpass123",
+		})
+		baStatus := ba.StatusCode
+		_ = ba.Body.Close()
+		if baStatus != http.StatusOK && baStatus != http.StatusCreated {
+			t.Fatalf("add basic-auth user: %d", baStatus)
+		}
+
+		// 4. Assign the group to the proxy for all paths.
+		as := env.MakeAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/api/proxies/%d/acl", pid.Data.ID), map[string]any{
+			"acl_group_id": gid.Data.ID, "path_pattern": "/*", "priority": 10,
+		})
+		asStatus := as.StatusCode
+		_ = as.Body.Close()
+		if asStatus != http.StatusOK && asStatus != http.StatusCreated {
+			t.Fatalf("assign acl to proxy: %d", asStatus)
+		}
+
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusUnauthorized) // protected: unauthenticated -> 401
+
+		// Unauthenticated -> 401 (blocked by Caddy basic auth).
+		un, _ := env.l7Get(t, host, "/", nil)
+		if un == nil {
+			t.Fatalf("unauthenticated request: no response")
+		}
+		if un.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("expected 401 unauthenticated, got %d", un.StatusCode)
+		}
+
+		// Authenticated with correct Basic credentials -> 200 reaching echo1.
+		cred := base64.StdEncoding.EncodeToString([]byte("acluser:aclpass123"))
+		au, body := env.l7Get(t, host, "/", map[string]string{"Authorization": "Basic " + cred})
+		if au == nil {
+			t.Fatalf("authenticated request: no response")
+		}
+		if au.StatusCode != http.StatusOK || echoHostnameFromBody(body) != "echo1" {
+			t.Fatalf("expected authed 200 from echo1, got %d / %q", au.StatusCode, echoHostnameFromBody(body))
 		}
 	})
 }
