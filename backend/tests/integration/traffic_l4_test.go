@@ -144,4 +144,27 @@ func TestTraffic_L4(t *testing.T) {
 			t.Fatalf("deny case should NOT echo, but it did")
 		}
 	})
+
+	t.Run("postgres_matcher", func(t *testing.T) {
+		port := l4PortPool[5] // 9006
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/l4-proxies", map[string]any{
+			"name": "l4-pg", "listen_port": port, "protocol": "tcp",
+			"routes": []map[string]any{{
+				"matcher_type":          "postgres",
+				"load_balancing_policy": "round_robin",
+				"upstreams":             []map[string]any{{"host": "pgtarget", "port": 5432}},
+			}},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create l4 proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		addr := env.l4Addr(t, port)
+		env.waitL4(t, addr)
+
+		if err := pgSelect1(t, addr); err != nil {
+			t.Fatalf("SELECT 1 through L4 postgres proxy: %v", err)
+		}
+	})
 }
