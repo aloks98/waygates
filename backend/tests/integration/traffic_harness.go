@@ -21,6 +21,25 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+// Timeouts used throughout the traffic harness. Centralised here so they can be
+// tuned in one place rather than scattered as inline literals.
+const (
+	startupTimeout     = 120 * time.Second // waygates app HTTP/log readiness
+	dbStartupTimeout   = 60 * time.Second  // Postgres "ready to accept connections"
+	caddyReadyTimeout  = 60 * time.Second  // waygates "Caddy is ready!" log line
+	echoStartupTimeout = 30 * time.Second  // echo/socat fixture listening port
+	l7ReadyTimeout     = 60 * time.Second  // poll for L7 host to return wanted status
+	l4ReadyTimeout     = 30 * time.Second  // poll for L4 TCP dial to succeed
+	l7PollInterval     = 500 * time.Millisecond
+	l4PollInterval     = 500 * time.Millisecond
+	httpClientTimeout  = 5 * time.Second  // l7Get / readiness probe HTTP client
+	probeDialTimeout   = 2 * time.Second  // single L4 dial attempt during waitL4
+	tcpEchoTimeout     = 3 * time.Second  // tcpEcho dial + read/write deadline
+	pgSelectTimeout    = 10 * time.Second // pgSelect1 connect + query
+	tlsProbeTimeout    = 5 * time.Second  // tlsEchoHostname dial + deadline
+	cleanupTermTimeout = 60 * time.Second // bound for terminating fixtures on cleanup
+)
+
 // l4PortPool is the fixed set of L4 listen ports pre-exposed on the waygates
 // container. testcontainers requires ports to be declared at startup, before any
 // proxy exists, so each L4 subtest claims a distinct port from this pool.
@@ -56,12 +75,21 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 		Networks:       []string{netName},
 		NetworkAliases: map[string][]string{netName: {"postgres"}},
 		Env:            map[string]string{"POSTGRES_USER": "waygates", "POSTGRES_PASSWORD": "waygates", "POSTGRES_DB": "waygates"},
-		WaitingFor:     wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60 * time.Second),
+		WaitingFor:     wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(dbStartupTimeout),
 	})
 
+	// Register cleanup as early as possible so any container started below is
+	// still terminated if a later mustStart fails (t.Fatalf would otherwise leak
+	// already-started fixtures). cleanup tolerates a partially-populated env.
+	t.Cleanup(func() { env.cleanup(t) })
+
 	// --- Fixtures ---
+	// Each fixture is appended to env.fixtures immediately after it starts so a
+	// failure in a later mustStart still tears down the earlier ones.
 	echo1 := mustStart(t, ctx, echoRequest(netName, "echo1"))
+	env.fixtures = append(env.fixtures, echo1)
 	echo2 := mustStart(t, ctx, echoRequest(netName, "echo2"))
+	env.fixtures = append(env.fixtures, echo2)
 	tcpecho := mustStart(t, ctx, testcontainers.ContainerRequest{
 		Image: "alpine/socat",
 		// alpine/socat declares no EXPOSE in its image, so the port must be listed
@@ -70,16 +98,17 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 		Networks:       []string{netName},
 		NetworkAliases: map[string][]string{netName: {"tcpecho"}},
 		Cmd:            []string{"TCP-LISTEN:7000,fork,reuseaddr", "EXEC:cat"},
-		WaitingFor:     wait.ForListeningPort("7000/tcp").WithStartupTimeout(30 * time.Second),
+		WaitingFor:     wait.ForListeningPort("7000/tcp").WithStartupTimeout(echoStartupTimeout),
 	})
+	env.fixtures = append(env.fixtures, tcpecho)
 	pgtarget := mustStart(t, ctx, testcontainers.ContainerRequest{
 		Image:          "postgres:16-alpine",
 		Networks:       []string{netName},
 		NetworkAliases: map[string][]string{netName: {"pgtarget"}},
 		Env:            map[string]string{"POSTGRES_USER": "waygates", "POSTGRES_PASSWORD": "waygates", "POSTGRES_DB": "waygates"},
-		WaitingFor:     wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(60 * time.Second),
+		WaitingFor:     wait.ForLog("database system is ready to accept connections").WithOccurrence(2).WithStartupTimeout(dbStartupTimeout),
 	})
-	env.fixtures = []testcontainers.Container{echo1, echo2, tcpecho, pgtarget}
+	env.fixtures = append(env.fixtures, pgtarget)
 
 	// --- App under test ---
 	exposed := []string{"8080/tcp", "80/tcp", "443/tcp"}
@@ -107,8 +136,8 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 			"LOG_LEVEL": "debug", "LOG_FORMAT": "console", "UI_ENABLED": "false",
 		},
 		WaitingFor: wait.ForAll(
-			wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(120*time.Second),
-			wait.ForLog("Caddy is ready!").WithStartupTimeout(60*time.Second),
+			wait.ForHTTP("/api/health").WithPort("8080/tcp").WithStartupTimeout(startupTimeout),
+			wait.ForLog("Caddy is ready!").WithStartupTimeout(caddyReadyTimeout),
 		),
 	})
 
@@ -128,7 +157,6 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 	}
 	env.http80 = p80.Port()
 
-	t.Cleanup(func() { env.cleanup(t) })
 	base.RegisterAndLogin(t)
 	return env
 }
@@ -139,7 +167,7 @@ func echoRequest(netName, alias string) testcontainers.ContainerRequest {
 		Hostname:       alias, // surfaces in the echoed JSON so backends are distinguishable
 		Networks:       []string{netName},
 		NetworkAliases: map[string][]string{netName: {alias}},
-		WaitingFor:     wait.ForListeningPort("8080/tcp").WithStartupTimeout(30 * time.Second),
+		WaitingFor:     wait.ForListeningPort("8080/tcp").WithStartupTimeout(echoStartupTimeout),
 	}
 }
 
@@ -153,7 +181,10 @@ func mustStart(t *testing.T, ctx context.Context, req testcontainers.ContainerRe
 }
 
 func (e *TrafficEnv) cleanup(t *testing.T) {
-	ctx := context.Background()
+	// Bound the terminate calls so a hung docker daemon cannot block cleanup
+	// (and therefore the whole test process) indefinitely.
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupTermTimeout)
+	defer cancel()
 	for _, c := range e.fixtures {
 		_ = c.Terminate(ctx)
 	}
@@ -177,13 +208,15 @@ func (e *TrafficEnv) l7URL() string { return "http://" + net.JoinHostPort(e.host
 // noRedirectClient returns the last response instead of following redirects.
 func noRedirectClient() *http.Client {
 	return &http.Client{
-		Timeout:       5 * time.Second,
+		Timeout:       httpClientTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
 
-// l7Get performs one GET against Caddy :80 with the given Host header.
-func (e *TrafficEnv) l7Get(t *testing.T, hostHeader, path string, headers map[string]string) (*http.Response, []byte) {
+// l7Probe performs one GET against Caddy :80 with the given Host header,
+// tolerating transport errors by returning (nil, nil). It is intended for
+// readiness polling (waitL7) where the backend may not be reachable yet.
+func (e *TrafficEnv) l7Probe(t *testing.T, hostHeader, path string, headers map[string]string) (*http.Response, []byte) {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodGet, e.l7URL()+path, nil)
 	if err != nil {
@@ -202,16 +235,28 @@ func (e *TrafficEnv) l7Get(t *testing.T, hostHeader, path string, headers map[st
 	return resp, body
 }
 
-// waitL7 polls until a GET with the Host header returns wantStatus (<=30s).
+// l7Get performs one GET against Caddy :80 with the given Host header and fails
+// the test on a transport error, so assertion callers never receive a nil
+// response silently. Use l7Probe for tolerant readiness polling.
+func (e *TrafficEnv) l7Get(t *testing.T, hostHeader, path string, headers map[string]string) (*http.Response, []byte) {
+	t.Helper()
+	resp, body := e.l7Probe(t, hostHeader, path, headers)
+	if resp == nil {
+		t.Fatalf("l7Get transport error: host=%q path=%q via %s", hostHeader, path, e.l7URL())
+	}
+	return resp, body
+}
+
+// waitL7 polls until a GET with the Host header returns wantStatus.
 func (e *TrafficEnv) waitL7(t *testing.T, hostHeader string, wantStatus int) {
 	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(l7ReadyTimeout)
 	for time.Now().Before(deadline) {
-		resp, _ := e.l7Get(t, hostHeader, "/", nil)
+		resp, _ := e.l7Probe(t, hostHeader, "/", nil)
 		if resp != nil && resp.StatusCode == wantStatus {
 			return
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(l7PollInterval)
 	}
 	t.Fatalf("timed out waiting for L7 host %q to return %d", hostHeader, wantStatus)
 }
@@ -226,17 +271,17 @@ func (e *TrafficEnv) l4Addr(t *testing.T, poolPort int) string {
 	return net.JoinHostPort(e.host, mp.Port())
 }
 
-// waitL4 polls until a TCP dial to addr succeeds (<=30s).
+// waitL4 polls until a TCP dial to addr succeeds.
 func (e *TrafficEnv) waitL4(t *testing.T, addr string) {
 	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(l4ReadyTimeout)
 	for time.Now().Before(deadline) {
-		c, err := net.DialTimeout("tcp", addr, 2*time.Second)
+		c, err := net.DialTimeout("tcp", addr, probeDialTimeout)
 		if err == nil {
 			_ = c.Close()
 			return
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(l4PollInterval)
 	}
 	t.Fatalf("timed out waiting for L4 addr %q", addr)
 }
@@ -245,12 +290,12 @@ func (e *TrafficEnv) waitL4(t *testing.T, addr string) {
 
 // tcpEcho writes payload to addr and returns what comes back (read once).
 func tcpEcho(_ *testing.T, addr, payload string) (string, error) {
-	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	conn, err := net.DialTimeout("tcp", addr, tcpEchoTimeout)
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = conn.Close() }()
-	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(tcpEchoTimeout))
 	if _, err := conn.Write([]byte(payload)); err != nil {
 		return "", err
 	}
@@ -262,7 +307,7 @@ func tcpEcho(_ *testing.T, addr, payload string) (string, error) {
 // pgSelect1 connects through addr to a Postgres backend and runs SELECT 1.
 func pgSelect1(_ *testing.T, addr string) error {
 	dsn := fmt.Sprintf("postgres://waygates:waygates@%s/waygates?sslmode=disable", addr)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pgSelectTimeout)
 	defer cancel()
 	conn, err := pgx.Connect(ctx, dsn)
 	if err != nil {
@@ -276,12 +321,12 @@ func pgSelect1(_ *testing.T, addr string) error {
 // tlsEchoHostname dials addr with TLS+SNI, makes an HTTP GET over it, and returns
 // the backend hostname from the echoed JSON.
 func tlsEchoHostname(_ *testing.T, addr, sni string) (string, error) {
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 5 * time.Second}, "tcp", addr, &tls.Config{ServerName: sni, InsecureSkipVerify: true})
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: tlsProbeTimeout}, "tcp", addr, &tls.Config{ServerName: sni, InsecureSkipVerify: true})
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = conn.Close() }()
-	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(tlsProbeTimeout))
 	fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", sni)
 	raw, _ := io.ReadAll(conn)
 	return echoHostnameFromHTTP(string(raw)), nil

@@ -24,6 +24,7 @@ help:
 	@echo "  make backend-build - Build the Go backend binary"
 	@echo "  make backend-test  - Run backend tests"
 	@echo "  make backend-test-coverage - Run tests with coverage report"
+	@echo "  make test-traffic  - Build image and run proxy traffic E2E suite (Docker required)"
 	@echo ""
 	@echo "Linting & Formatting:"
 	@echo "  make lint          - Run linters on both backend and UI"
