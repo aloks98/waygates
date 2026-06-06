@@ -361,9 +361,14 @@ func echoHostnameFromBody(body []byte) string {
 }
 
 // httpEchoHostname does a plain HTTP GET to a raw addr (no TLS) and returns the
-// backend hostname from the echoed JSON.
+// backend hostname from the echoed JSON. Keep-alives are disabled so each call
+// opens a fresh TCP connection; this matters for L4 load-balancing probes, where
+// Caddy's layer4 round_robin policy distributes per *connection*, not per request.
 func httpEchoHostname(_ *testing.T, addr string) (string, error) {
-	client := &http.Client{Timeout: httpClientTimeout}
+	client := &http.Client{
+		Timeout:   httpClientTimeout,
+		Transport: &http.Transport{DisableKeepAlives: true},
+	}
 	resp, err := client.Get("http://" + addr + "/")
 	if err != nil {
 		return "", err

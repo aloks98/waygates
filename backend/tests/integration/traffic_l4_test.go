@@ -63,4 +63,38 @@ func TestTraffic_L4(t *testing.T) {
 			t.Fatalf("expected echo1 via L4 http matcher, got %q", hn)
 		}
 	})
+
+	t.Run("round_robin_lb", func(t *testing.T) {
+		port := l4PortPool[2] // 9003
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/l4-proxies", map[string]any{
+			"name": "l4-lb", "listen_port": port, "protocol": "tcp",
+			"routes": []map[string]any{{
+				"matcher_type":          "http",
+				"load_balancing_policy": "round_robin",
+				"upstreams": []map[string]any{
+					{"host": "echo1", "port": 8080},
+					{"host": "echo2", "port": 8080},
+				},
+			}},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create l4 proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		addr := env.l4Addr(t, port)
+		env.waitL4(t, addr)
+
+		seen := map[string]bool{}
+		for i := 0; i < 10; i++ {
+			hn, err := httpEchoHostname(t, addr)
+			if err != nil {
+				t.Fatalf("request %d: %v", i, err)
+			}
+			seen[hn] = true
+		}
+		if !seen["echo1"] || !seen["echo2"] {
+			t.Fatalf("expected both backends, saw %v", seen)
+		}
+	})
 }
