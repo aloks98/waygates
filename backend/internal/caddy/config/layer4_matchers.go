@@ -35,11 +35,12 @@ type L4MatchSSH struct{}
 // See: https://github.com/mholt/caddy-l4#postgres
 type L4MatchPostgres struct{}
 
-// L4MatchHTTP matches HTTP protocol connections (at L4 level).
-// See: https://github.com/mholt/caddy-l4#http
-type L4MatchHTTP struct {
-	Host []string `json:"host,omitempty"`
-}
+// L4MatchHTTP is caddy-l4's http matcher value. Despite its auto-generated
+// docs describing an object, the layer4.matchers.http module deserializes into
+// caddyhttp.RawMatcherSets: a JSON ARRAY of caddyhttp matcher-set objects
+// (e.g. [{"host":["h1","h2"]}]). An empty array means "match any HTTP
+// connection". See https://github.com/mholt/caddy-l4 modules/l4http.
+type L4MatchHTTP []map[string]interface{}
 
 // L4MatchRDP matches RDP (Remote Desktop Protocol) connections.
 // See: https://github.com/mholt/caddy-l4#rdp
@@ -94,13 +95,16 @@ func NewL4PostgresMatcher() L4MatcherSet {
 }
 
 // NewL4HTTPMatcher creates a matcher set that matches HTTP connections at L4.
+// With no hosts it produces {"http": []} (match any HTTP connection); with
+// hosts it produces {"http": [{"host": ["h1", ...]}]} using the caddyhttp host
+// matcher, mirroring caddyhttp.RawMatcherSets.
 func NewL4HTTPMatcher(hosts ...string) L4MatcherSet {
-	matcher := &L4MatchHTTP{}
+	sets := L4MatchHTTP{}
 	if len(hosts) > 0 {
-		matcher.Host = hosts
+		sets = append(sets, map[string]interface{}{"host": hosts})
 	}
 	return L4MatcherSet{
-		L4MatcherHTTP: matcher,
+		L4MatcherHTTP: sets,
 	}
 }
 

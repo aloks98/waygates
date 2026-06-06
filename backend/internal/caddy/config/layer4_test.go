@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -367,8 +368,16 @@ func TestNewL4HTTPMatcher(t *testing.T) {
 		require.NotNil(t, matcher)
 		assert.Contains(t, matcher, L4MatcherHTTP)
 
-		httpMatcher := matcher[L4MatcherHTTP].(*L4MatchHTTP)
-		assert.Equal(t, hosts, httpMatcher.Host)
+		// The http matcher value must be caddy-l4's RawMatcherSets array shape:
+		// [{"host": [...]}], not an object.
+		httpMatcher := matcher[L4MatcherHTTP].(L4MatchHTTP)
+		require.Len(t, httpMatcher, 1)
+		assert.Equal(t, hosts, httpMatcher[0]["host"])
+
+		raw, err := json.Marshal(matcher)
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), `"http":[`)
+		assert.Contains(t, string(raw), `"host":["example.com","api.example.com"]`)
 	})
 
 	t.Run("without hosts", func(t *testing.T) {
@@ -377,8 +386,13 @@ func TestNewL4HTTPMatcher(t *testing.T) {
 		require.NotNil(t, matcher)
 		assert.Contains(t, matcher, L4MatcherHTTP)
 
-		httpMatcher := matcher[L4MatcherHTTP].(*L4MatchHTTP)
-		assert.Nil(t, httpMatcher.Host)
+		// No hosts must serialize to an empty array (match any HTTP), not {}.
+		httpMatcher := matcher[L4MatcherHTTP].(L4MatchHTTP)
+		assert.Empty(t, httpMatcher)
+
+		raw, err := json.Marshal(matcher)
+		require.NoError(t, err)
+		assert.Contains(t, string(raw), `"http":[]`)
 	})
 }
 
@@ -635,6 +649,18 @@ func TestMapMatcherTypeToL4Matcher(t *testing.T) {
 				require.NotNil(t, result)
 				for _, key := range tt.expectKeys {
 					assert.Contains(t, result, key, "Expected key %s to be present", key)
+				}
+				// The http matcher value must serialize as caddy-l4's
+				// RawMatcherSets array (empty here since no hosts are mapped),
+				// never as a JSON object.
+				if _, ok := result[L4MatcherHTTP]; ok {
+					httpMatcher, isArray := result[L4MatcherHTTP].(L4MatchHTTP)
+					require.True(t, isArray, "http matcher value must be L4MatchHTTP (array)")
+					assert.Empty(t, httpMatcher)
+
+					raw, err := json.Marshal(result)
+					require.NoError(t, err)
+					assert.Contains(t, string(raw), `"http":[`)
 				}
 			}
 		})
@@ -1710,6 +1736,14 @@ func TestL4Builder_BuildL4Config_AllMatcherTypes(t *testing.T) {
 			} else {
 				require.Len(t, route.Match, 1)
 				assert.Contains(t, route.Match[0], tt.expectKey)
+
+				// The http matcher must serialize as caddy-l4's RawMatcherSets
+				// array, not an object, or Caddy fails to provision layer4.
+				if tt.expectKey == L4MatcherHTTP {
+					raw, err := json.Marshal(route.Match[0])
+					require.NoError(t, err)
+					assert.Contains(t, string(raw), `"http":[`)
+				}
 			}
 		})
 	}
