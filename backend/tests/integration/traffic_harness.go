@@ -360,6 +360,19 @@ func echoHostnameFromBody(body []byte) string {
 	return v.Hostname
 }
 
+// httpEchoHostname does a plain HTTP GET to a raw addr (no TLS) and returns the
+// backend hostname from the echoed JSON.
+func httpEchoHostname(_ *testing.T, addr string) (string, error) {
+	client := &http.Client{Timeout: httpClientTimeout}
+	resp, err := client.Get("http://" + addr + "/")
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return echoHostnameFromBody(body), nil
+}
+
 // echoHostnameFromHTTP splits a raw HTTP/1.1 response and parses the JSON body.
 func echoHostnameFromHTTP(raw string) string {
 	idx := strings.Index(raw, "\r\n\r\n")
