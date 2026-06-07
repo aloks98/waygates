@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -126,23 +127,14 @@ func TestTraffic_L7(t *testing.T) {
 	})
 
 	t.Run("custom_headers", func(t *testing.T) {
-		// SKIPPED pending the "typed request/response custom headers" feature.
-		// This E2E surfaced that custom_headers are currently applied only as
-		// REQUEST headers to the upstream (http_builder.go:206-212), so the
-		// response-header assertion below cannot pass yet. Once response-header
-		// support lands, un-skip and extend this to assert BOTH a request header
-		// reaching the backend and a response header reaching the client.
-		t.Skip("custom_headers response-header support not implemented yet; builder sets request headers only (http_builder.go:206)")
-
 		host := "hdr.test.local"
-		// Confirmed shape: models.Proxy.CustomHeaders is a flat JSONField
-		// (map[string]interface{}) of {"Header-Name":"value"}, NOT a nested
-		// {"response":{...}} object. See backend/internal/models/proxy.go:29 and
-		// the builder at backend/internal/caddy/config/http_builder.go:206-212.
 		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
 			"type": "reverse_proxy", "name": "hdr", "hostname": host,
-			"upstreams":      []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
-			"custom_headers": map[string]string{"X-Test": "waygates"},
+			"upstreams": []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
+			"custom_headers": map[string]any{
+				"request":  map[string]string{"X-Req-Test": "req-value"},
+				"response": map[string]string{"X-Res-Test": "res-value"},
+			},
 		})
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
@@ -151,9 +143,21 @@ func TestTraffic_L7(t *testing.T) {
 		env.triggerSync(t)
 		env.waitL7(t, host, http.StatusOK)
 
-		got, _ := env.l7Get(t, host, "/", nil)
-		if got.Header.Get("X-Test") != "waygates" {
-			t.Fatalf("expected X-Test response header, headers: %v", got.Header)
+		got, body := env.l7Get(t, host, "/", nil)
+		// Response header reaches the client.
+		if got.Header.Get("X-Res-Test") != "res-value" {
+			t.Fatalf("expected X-Res-Test response header, headers: %v", got.Header)
+		}
+		// Request header reaches the backend (mendhak echo reflects request
+		// headers under a lowercased "headers" object in its JSON body).
+		var echoed struct {
+			Headers map[string]string `json:"headers"`
+		}
+		if err := json.Unmarshal(body, &echoed); err != nil {
+			t.Fatalf("parse echo body: %v (body=%s)", err, string(body))
+		}
+		if echoed.Headers["x-req-test"] != "req-value" {
+			t.Fatalf("expected backend to receive X-Req-Test request header, got headers: %v", echoed.Headers)
 		}
 	})
 
