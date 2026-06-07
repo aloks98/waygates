@@ -87,7 +87,7 @@ CREATE TABLE proxies (
     upstreams TEXT,  -- JSON: [{"host": "...", "port": 8080, "scheme": "http"}]
     load_balancing TEXT,  -- JSON: {"strategy": "round_robin", "health_checks": {...}}
     block_exploits BOOLEAN DEFAULT true,
-    custom_headers TEXT,  -- JSON: {"X-Header": "value"}
+    custom_headers TEXT,  -- JSON: {"request": {"X-Header": "value"}, "response": {"X-Header": "value"}} (flat {"X-Header": "value"} also accepted as request headers)
 
     -- For redirect type
     redirect_config TEXT,  -- JSON: {"target": "...", "status_code": 301, ...}
@@ -165,12 +165,35 @@ CREATE INDEX idx_proxies_created_at ON proxies(created_at);
 ```
 
 **custom_headers** (TEXT - JSON Object):
+
+Custom headers can be set in both directions: `request` headers are sent to the
+upstream, and `response` headers are returned to the client. Each direction is a
+map of header name to value.
+
+```json
+{
+  "request": {
+    "X-Custom-Header": "value",
+    "X-API-Version": "v1"
+  },
+  "response": {
+    "X-Frame-Options": "DENY"
+  }
+}
+```
+
+For backward compatibility, a flat map is still accepted and is interpreted as
+request headers (sent to the upstream):
+
 ```json
 {
   "X-Custom-Header": "value",
   "X-API-Version": "v1"
 }
 ```
+
+Stored values are always normalized to the nested
+`{"request": {...}, "response": {...}}` shape.
 
 **redirect_config** (TEXT - JSON Object):
 ```json
