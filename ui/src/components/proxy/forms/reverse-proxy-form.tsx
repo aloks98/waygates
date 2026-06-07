@@ -88,6 +88,20 @@ function getValidLbStrategy(
   return 'round_robin';
 }
 
+type HeaderPair = { name: string; value: string };
+
+const toPairs = (rec?: Record<string, string>): HeaderPair[] =>
+  Object.entries(rec ?? {}).map(([name, value]) => ({ name, value }));
+
+const toRecord = (pairs: HeaderPair[]): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const p of pairs) {
+    const name = p.name.trim();
+    if (name) out[name] = p.value;
+  }
+  return out;
+};
+
 export function ReverseProxyForm({
   initialData,
   initialACLAssignments,
@@ -99,6 +113,24 @@ export function ReverseProxyForm({
   const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
     initialACLAssignments ?? [],
   );
+
+  const [requestHeaders, setRequestHeaders] = useState<HeaderPair[]>(() =>
+    toPairs(initialData?.custom_headers?.request),
+  );
+  const [responseHeaders, setResponseHeaders] = useState<HeaderPair[]>(() =>
+    toPairs(initialData?.custom_headers?.response),
+  );
+
+  const addHeader = (setter: typeof setRequestHeaders) =>
+    setter((prev) => [...prev, { name: '', value: '' }]);
+  const removeHeader = (setter: typeof setRequestHeaders, index: number) =>
+    setter((prev) => prev.filter((_, i) => i !== index));
+  const updateHeader = (
+    setter: typeof setRequestHeaders,
+    index: number,
+    key: keyof HeaderPair,
+    val: string,
+  ) => setter((prev) => prev.map((h, i) => (i === index ? { ...h, [key]: val } : h)));
 
   // Compute default values based on initialData
   // This ensures the form is always initialized with the correct values
@@ -169,6 +201,15 @@ export function ReverseProxyForm({
         };
       }
 
+      const reqHeaders = toRecord(requestHeaders);
+      const resHeaders = toRecord(responseHeaders);
+      if (Object.keys(reqHeaders).length > 0 || Object.keys(resHeaders).length > 0) {
+        data.custom_headers = {
+          ...(Object.keys(reqHeaders).length > 0 ? { request: reqHeaders } : {}),
+          ...(Object.keys(resHeaders).length > 0 ? { response: resHeaders } : {}),
+        };
+      }
+
       onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
@@ -178,6 +219,8 @@ export function ReverseProxyForm({
   useEffect(() => {
     if (initialData) {
       setUpstreams(normalizeUpstreams(initialData));
+      setRequestHeaders(toPairs(initialData.custom_headers?.request));
+      setResponseHeaders(toPairs(initialData.custom_headers?.response));
       form.reset(defaultValues);
     }
   }, [initialData, form, defaultValues]);
@@ -536,6 +579,74 @@ export function ReverseProxyForm({
           </CardContent>
         </Card>
       </div>
+
+      {/* Custom Headers */}
+      <Card>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Custom Headers</CardTitle>
+            <CardDescription>
+              Add headers sent to the upstream (request) or returned to the client (response).
+            </CardDescription>
+          </CardHeading>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {(
+            [
+              {
+                label: 'Request headers (to upstream)',
+                pairs: requestHeaders,
+                setter: setRequestHeaders,
+              },
+              {
+                label: 'Response headers (to client)',
+                pairs: responseHeaders,
+                setter: setResponseHeaders,
+              },
+            ] as const
+          ).map((group) => (
+            <div key={group.label} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <FieldLabel>{group.label}</FieldLabel>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addHeader(group.setter)}
+                >
+                  <Plus className="mr-1 size-4" />
+                  Add header
+                </Button>
+              </div>
+              {group.pairs.map((pair, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: header rows are positional, edited in place
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Header-Name"
+                    value={pair.name}
+                    onChange={(e) => updateHeader(group.setter, index, 'name', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="value"
+                    value={pair.value}
+                    onChange={(e) => updateHeader(group.setter, index, 'value', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeHeader(group.setter, index)}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Access Control */}
       <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
