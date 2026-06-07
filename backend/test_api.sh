@@ -68,7 +68,12 @@ RESPONSE=$(curl -s -X POST "$BASE_URL/proxies" \
     ],
     "block_exploits": true,
     "custom_headers": {
-      "X-Test-Header": "test-value"
+      "request": {
+        "X-Test-Header": "test-value"
+      },
+      "response": {
+        "X-Frame-Options": "SAMEORIGIN"
+      }
     }
   }')
 
@@ -114,8 +119,13 @@ curl -s -X PUT "$BASE_URL/proxies/$PROXY_ID" \
     ],
     "block_exploits": true,
     "custom_headers": {
-      "X-Test-Header": "updated-value",
-      "X-Version": "2.0"
+      "request": {
+        "X-Test-Header": "updated-value",
+        "X-Version": "2.0"
+      },
+      "response": {
+        "X-Frame-Options": "SAMEORIGIN"
+      }
     }
   }' | jq
 print_success "Proxy updated successfully"

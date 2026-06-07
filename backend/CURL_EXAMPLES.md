@@ -222,10 +222,17 @@ curl -X POST "http://localhost:8080/api/proxies" \
     },
     "block_exploits": true,
     "custom_headers": {
-      "X-App-Version": "1.0.0"
+      "request": {
+        "X-App-Version": "1.0.0"
+      },
+      "response": {
+        "X-Frame-Options": "SAMEORIGIN"
+      }
     }
   }'
 ```
+
+**Note**: `custom_headers` uses the nested `{"request":{...},"response":{...}}` shape. A flat map (e.g. `{"X-App-Version":"1.0.0"}`) is still accepted for backward compatibility and is treated as request headers.
 
 ### f. Create Redirect (301 Permanent)
 
@@ -355,10 +362,17 @@ curl -X PUT "http://localhost:8080/api/proxies/1" \
     ],
     "block_exploits": true,
     "custom_headers": {
-      "X-API-Version": "2.0"
+      "request": {
+        "X-API-Version": "2.0"
+      },
+      "response": {
+        "X-Frame-Options": "SAMEORIGIN"
+      }
     }
   }'
 ```
+
+**Note**: `custom_headers` uses the nested `{"request":{...},"response":{...}}` shape. A flat map (e.g. `{"X-API-Version":"2.0"}`) is still accepted for backward compatibility and is treated as request headers.
 
 ### l. Delete Proxy
 
