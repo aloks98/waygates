@@ -181,7 +181,7 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	if proxy.Type != models.ProxyTypeReverseProxy {
 		proxy.Upstreams = nil
 		proxy.LoadBalancing = nil
-		proxy.CustomHeaders = nil
+		proxy.CustomHeaders = models.CustomHeaders{}
 	}
 	if proxy.Type != models.ProxyTypeRedirect {
 		proxy.RedirectConfig = nil

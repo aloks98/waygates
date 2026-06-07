@@ -108,8 +108,8 @@ func TestProxyRepository_Create(t *testing.T) {
 			LoadBalancing: models.JSONField{
 				"strategy": "round_robin",
 			},
-			CustomHeaders: models.JSONField{
-				"X-Custom-Header": "value",
+			CustomHeaders: models.CustomHeaders{
+				Request: map[string]string{"X-Custom-Header": "value"},
 			},
 		}
 

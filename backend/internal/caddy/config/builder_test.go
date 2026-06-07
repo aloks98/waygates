@@ -534,20 +534,41 @@ func TestHTTPBuilder_BuildReverseProxyRoutes(t *testing.T) {
 func TestHTTPBuilder_BuildReverseProxyRoutes_WithCustomHeaders(t *testing.T) {
 	proxy := createReverseProxy(1, "test", "example.com",
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
-	proxy.CustomHeaders = models.JSONField{
-		"X-Custom-Header": "custom-value",
-		"X-Another":       "another-value",
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request: map[string]string{"X-Custom-Header": "custom-value", "X-Another": "another-value"},
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
 	routes, err := b.BuildReverseProxyRoutes(&proxy)
-
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
-	// Check that handler has custom headers
 	handler := routes[0].Handle[0]
-	assert.NotNil(t, handler["headers"])
+	require.NotNil(t, handler["headers"])
+	hc := handler["headers"].(*HeadersConfig)
+	require.NotNil(t, hc.Request)
+	assert.Equal(t, []string{"custom-value"}, hc.Request.Set["X-Custom-Header"])
+	assert.Equal(t, []string{"another-value"}, hc.Request.Set["X-Another"])
+}
+
+func TestHTTPBuilder_BuildReverseProxyRoutes_WithResponseHeaders(t *testing.T) {
+	proxy := createReverseProxy(1, "test", "example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request:  map[string]string{"X-Req": "r"},
+		Response: map[string]string{"X-Res": "s"},
+	}
+
+	b := NewHTTPBuilder(newTestLogger())
+	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	require.NoError(t, err)
+	require.NotEmpty(t, routes)
+
+	hc := routes[0].Handle[0]["headers"].(*HeadersConfig)
+	require.NotNil(t, hc.Request)
+	assert.Equal(t, []string{"r"}, hc.Request.Set["X-Req"])
+	require.NotNil(t, hc.Response)
+	assert.Equal(t, []string{"s"}, hc.Response.Set["X-Res"])
 }
 
 func TestHTTPBuilder_BuildReverseProxyRoutes_WithLoadBalancing(t *testing.T) {
@@ -1647,8 +1668,8 @@ func TestBuilder_FullIntegration_ReverseProxyWithACL(t *testing.T) {
 	proxy.LoadBalancing = models.JSONField{
 		"strategy": "round_robin",
 	}
-	proxy.CustomHeaders = models.JSONField{
-		"X-API-Version": "v1",
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request: map[string]string{"X-API-Version": "v1"},
 	}
 
 	aclGroup := createTestACLGroup(1, "api-acl", models.ACLCombinationModeAny)
