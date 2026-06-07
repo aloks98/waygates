@@ -409,6 +409,13 @@ func TestCustomHeaders_UnmarshalJSON_Nested(t *testing.T) {
 	assert.Equal(t, map[string]string{"X-Res": "s"}, c.Response)
 }
 
+func TestCustomHeaders_UnmarshalJSON_NestedResponseOnly(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`{"response":{"X-Frame-Options":"SAMEORIGIN"}}`), &c))
+	assert.Nil(t, c.Request)
+	assert.Equal(t, map[string]string{"X-Frame-Options": "SAMEORIGIN"}, c.Response)
+}
+
 func TestCustomHeaders_UnmarshalJSON_HeaderNamedRequest_IsFlat(t *testing.T) {
 	// A flat header literally named "request" has a STRING value -> flat shape.
 	var c CustomHeaders
