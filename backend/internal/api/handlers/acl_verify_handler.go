@@ -288,7 +288,7 @@ func (h *ACLVerifyHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set session cookie with domain for cross-subdomain support
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (cookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     ACLSessionCookieName,
 		Value:    session.SessionToken,
 		Path:     "/",
@@ -333,7 +333,7 @@ func (h *ACLVerifyHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookieDomain := extractCookieDomainFromHost(host)
 
 	// Clear the session cookie (must use same domain as when it was set)
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (cookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     ACLSessionCookieName,
 		Value:    "",
 		Path:     "/",
@@ -376,7 +376,7 @@ func (h *ACLVerifyHandler) GetSession(w http.ResponseWriter, r *http.Request) {
 		cookieDomain := extractCookieDomainFromHost(host)
 
 		// Clear the invalid cookie
-		http.SetCookie(w, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (cookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 			Name:     ACLSessionCookieName,
 			Value:    "",
 			Path:     "/",

@@ -145,7 +145,7 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store state in cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthStateCookieName,
 		Value:    state,
 		Path:     "/",
@@ -165,7 +165,7 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	codeChallenge := generateCodeChallenge(codeVerifier)
 
 	// Store PKCE verifier in cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthPKCECookieName,
 		Value:    codeVerifier,
 		Path:     "/",
@@ -186,7 +186,7 @@ func (h *OAuthHandler) StartOAuth(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// Redirect to provider
-	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect) //nolint:gosec // G710: authURL is the trusted provider authorization endpoint built by oauth2.AuthCodeURL
 }
 
 // =============================================================================
@@ -254,7 +254,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	codeVerifier := pkceCookie.Value
 
 	// Clear state cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthStateCookieName,
 		Value:    "",
 		Path:     "/",
@@ -265,7 +265,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Clear PKCE cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthPKCECookieName,
 		Value:    "",
 		Path:     "/",
@@ -348,7 +348,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	cookieDomain := extractCookieDomain(redirectURL)
 
 	// Set session cookie
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     ACLSessionCookieName,
 		Value:    session.SessionToken,
 		Path:     "/",
@@ -371,7 +371,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		zap.String("session_token_prefix", session.SessionToken[:8]+"..."))
 
 	// Redirect to original URL (already validated above)
-	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect) //nolint:gosec // G710: redirectURL is sanitized by validateRedirectURL (relative-only or host-allowlisted)
 }
 
 // =============================================================================
@@ -792,7 +792,7 @@ func (h *OAuthHandler) handleOAuthError(w http.ResponseWriter, r *http.Request, 
 	h.logger.Warn("OAuth error", zap.String("message", message))
 
 	// Clear state cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthStateCookieName,
 		Value:    "",
 		Path:     "/",
@@ -803,7 +803,7 @@ func (h *OAuthHandler) handleOAuthError(w http.ResponseWriter, r *http.Request, 
 	})
 
 	// Clear PKCE cookie
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is config-driven (ACL.CookieSecure) to allow HTTP in dev; HttpOnly+SameSite=Lax always set
 		Name:     oauthPKCECookieName,
 		Value:    "",
 		Path:     "/",
@@ -826,5 +826,5 @@ func (h *OAuthHandler) handleOAuthError(w http.ResponseWriter, r *http.Request, 
 	q.Set("oauth_error", message)
 	errorURL.RawQuery = q.Encode()
 
-	http.Redirect(w, r, errorURL.String(), http.StatusTemporaryRedirect)
+	http.Redirect(w, r, errorURL.String(), http.StatusTemporaryRedirect) //nolint:gosec // G710: errorURL derives from validateRedirectURL (relative-only or host-allowlisted)
 }

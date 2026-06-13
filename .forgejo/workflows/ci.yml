@@ -73,8 +73,9 @@ jobs:
 
       # golangci-lint-action is not mirrored on this instance; install the v2
       # binary with the Go toolchain (.golangci.yml is `version: "2"`).
+      # Pinned (not @latest) so a new release can't change lint results in CI.
       - name: install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
 
       - name: golangci-lint
         run: |

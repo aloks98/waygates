@@ -339,24 +339,30 @@ func setupStaticFileServer(r *chi.Mux, uiPath string, logger *zap.Logger) {
 			return
 		}
 
-		// Try to serve the file
-		path := filepath.Join(absPath, req.URL.Path)
+		indexFile := filepath.Join(absPath, "index.html")
 
-		// Check if file exists
-		_, err := os.Stat(path)
-		if os.IsNotExist(err) {
-			// File doesn't exist, serve index.html for SPA routing
-			http.ServeFile(w, req, filepath.Join(absPath, "index.html"))
+		// Resolve the request to a path inside the UI root, guarding against
+		// path traversal: Clean with a leading "/" collapses any "../" that
+		// would escape the root, then we re-verify containment as defense in
+		// depth before touching the filesystem.
+		cleaned := filepath.Clean("/" + req.URL.Path)
+		path := filepath.Join(absPath, cleaned)
+		if path != absPath && !strings.HasPrefix(path, absPath+string(os.PathSeparator)) {
+			http.ServeFile(w, req, indexFile)
 			return
 		}
 
-		// Check if it's a directory
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			// Check for index.html in directory
-			indexPath := filepath.Join(path, "index.html")
-			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-				// No index.html, serve root index.html
-				http.ServeFile(w, req, filepath.Join(absPath, "index.html"))
+		// File doesn't exist -> serve index.html for SPA routing.
+		info, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			http.ServeFile(w, req, indexFile)
+			return
+		}
+
+		// Directory without its own index.html -> SPA fallback.
+		if err == nil && info.IsDir() {
+			if _, statErr := os.Stat(filepath.Join(path, "index.html")); os.IsNotExist(statErr) {
+				http.ServeFile(w, req, indexFile)
 				return
 			}
 		}

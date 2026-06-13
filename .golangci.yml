@@ -100,6 +100,14 @@ linters:
     misspell:
       locale: US
 
+    gosec:
+      # G101 false-positives on the OAuth provider config structs: gosec flags
+      # the ClientSecret/TokenURL field names as "hardcoded credentials", but the
+      # real values come from os.Getenv. Other gosec rules stay enabled; the
+      # G124/G703/G710 sites are addressed in code (with justified //nolint).
+      excludes:
+        - G101
+
   exclusions:
     presets:
       - std-error-handling
