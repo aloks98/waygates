@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Shell replacement for dorny/paths-filter (not mirrored on this instance):
+  # diff the push/PR range and decide which downstream jobs need to run.
+  changes:
+    runs-on: docker
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      ui: ${{ steps.filter.outputs.ui }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          else
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
+
+          # New branch / force-push / shallow clone -> base is missing or unknown.
+          # Fail safe by running everything rather than skipping checks.
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "diff base unavailable -> running all jobs"
+            backend=true; ui=true; docker=true
+          else
+            changed="$(git diff --name-only "$base" "$head")"
+            echo "changed files:"
+            echo "$changed"
+            echo "$changed" | grep -Eq '^(backend/|go\.mod|go\.sum)' && backend=true || backend=false
+            echo "$changed" | grep -Eq '^ui/' && ui=true || ui=false
+            echo "$changed" | grep -Eq '^(Dockerfile|docker-compose\.yml|docker/|conf/)' && docker=true || docker=false
+          fi
+
+          {
+            echo "backend=$backend"
+            echo "ui=$ui"
+            echo "docker=$docker"
+          } >> "$GITHUB_OUTPUT"
+          echo "results: backend=$backend ui=$ui docker=$docker"
+
+  lint-backend:
+    runs-on: docker
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      # golangci-lint-action is not mirrored on this instance; install the v2
+      # binary with the Go toolchain (.golangci.yml is `version: "2"`).
+      - name: install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+
+      - name: golangci-lint
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          golangci-lint run ./backend/...
+
+  lint-ui:
+    runs-on: docker
+    needs: changes
+    if: ${{ needs.changes.outputs.ui == 'true' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: enable pnpm
+        run: corepack enable
+
+      - name: resolve pnpm store
+        id: pnpm-store
+        working-directory: ui
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: install dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+
+      - name: lint + format check
+        working-directory: ui
+        run: pnpm check
+
+  test-backend:
+    runs-on: docker
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    timeout-minutes: 30
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      COVERDASH_SERVER: ${{ vars.COVERDASH_SERVER }}
+      COVERDASH_TOKEN: ${{ secrets.COVERDASH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      # The traffic E2E harness (backend/tests/integration/traffic_harness.go)
+      # starts this image via testcontainers, so build it before testing.
+      - name: build test image for integration tests
+        run: docker build -t waygates-test:latest .
+
+      - name: run tests with coverage
+        working-directory: backend
+        run: go test -v -count=1 -coverprofile=coverage.txt -coverpkg=./internal/... ./...
+
+      # Report coverage to coverdash. Skipped when COVERDASH_TOKEN is unset
+      # (fork PRs / before the secret is configured) so it never fails CI.
+      - name: upload coverage to coverdash
+        if: ${{ env.COVERDASH_TOKEN != '' }}
+        continue-on-error: true
+        run: |
+          # Strip the Go module path so coverdash stores repo-relative paths
+          # (e.g. backend/internal/...) that its git source view can resolve.
+          sed -i 's#github.com/aloks98/waygates/##g' backend/coverage.txt
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            curl -fsS -X POST "$COVERDASH_SERVER/api/v1/projects/waygates/reports" \
+              -H "Authorization: Bearer $COVERDASH_TOKEN" \
+              -F "format=go" \
+              -F "commit=${{ github.event.pull_request.head.sha }}" \
+              -F "branch=${{ github.head_ref }}" \
+              -F "pr=${{ github.event.pull_request.number }}" \
+              -F "base=${{ github.event.pull_request.base.sha }}" \
+              -F "report=@backend/coverage.txt"
+          else
+            curl -fsS -X POST "$COVERDASH_SERVER/api/v1/projects/waygates/reports" \
+              -H "Authorization: Bearer $COVERDASH_TOKEN" \
+              -F "format=go" \
+              -F "commit=${{ github.sha }}" \
+              -F "branch=${{ github.ref_name }}" \
+              -F "report=@backend/coverage.txt"
+          fi
+
+  build:
+    runs-on: docker
+    needs: [changes, lint-backend, lint-ui, test-backend]
+    if: |
+      always() &&
+      (needs.changes.outputs.backend == 'true' || needs.changes.outputs.ui == 'true' || needs.changes.outputs.docker == 'true') &&
+      (needs.lint-backend.result == 'success' || needs.lint-backend.result == 'skipped') &&
+      (needs.lint-ui.result == 'success' || needs.lint-ui.result == 'skipped') &&
+      (needs.test-backend.result == 'success' || needs.test-backend.result == 'skipped')
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build combined image
+        run: docker build -f Dockerfile .
