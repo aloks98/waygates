@@ -14,6 +14,7 @@ import {
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Globe, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+
 import {
   type ACLAssignment,
   getProxyTypeLabel,

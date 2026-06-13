@@ -15,6 +15,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { ExternalLink, Globe, Shield } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
+
 import { api } from '@/lib/api';
 import type { ProxyACLAssignment } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';

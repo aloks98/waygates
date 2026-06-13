@@ -28,7 +28,7 @@ help:
 	@echo "Linting & Formatting:"
 	@echo "  make lint          - Run linters on both backend and UI"
 	@echo "  make lint-backend  - Run golangci-lint on backend"
-	@echo "  make lint-ui       - Lint and format UI with Biome"
+	@echo "  make lint-ui       - Lint and format UI with oxlint + oxfmt"
 	@echo "  make format        - Format both backend and UI code"
 	@echo "  make format-backend - Format Go code with gofmt/goimports"
 	@echo "  make check         - Run all checks (lint + tests)"
@@ -182,7 +182,7 @@ lint-backend:
 	@golangci-lint run ./backend/...
 	@echo "✓ Backend lint complete"
 
-# Lint and format UI with Biome
+# Lint and format UI with oxlint + oxfmt
 lint-ui:
 	@echo "Linting and formatting UI..."
 	@cd ui && pnpm check:fix

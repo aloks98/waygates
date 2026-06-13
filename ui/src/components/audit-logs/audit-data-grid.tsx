@@ -22,7 +22,9 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { Eye } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
+
 import type { AuditLog } from '@/types/audit';
+
 import { AuditLogDetailSheet } from './audit-log-detail-sheet';
 import { ActionBadge, StatusBadge } from './cells';
 

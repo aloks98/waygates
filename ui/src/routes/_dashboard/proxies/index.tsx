@@ -17,6 +17,7 @@ import { useNavigate } from '@tanstack/react-router';
 import type { PaginationState } from '@tanstack/react-table';
 import { Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import { ProxyDataGrid } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';

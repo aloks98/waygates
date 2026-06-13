@@ -1,5 +1,6 @@
 import { Badge, Tooltip, TooltipContent, TooltipTrigger } from '@e412/titanium';
 import { Server } from 'lucide-react';
+
 import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyTargetCellProps {

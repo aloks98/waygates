@@ -1,5 +1,6 @@
 import { Button } from '@e412/titanium';
 import type { ReactNode } from 'react';
+
 import type { OAuthProvider } from '@/types/acl';
 
 // Provider icons as inline SVGs for better control

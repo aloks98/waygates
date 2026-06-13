@@ -10,6 +10,7 @@ import {
   Spinner,
 } from '@e412/titanium';
 import { useEffect, useMemo, useState } from 'react';
+
 import { useAuditConfig, useAuditEventGroups } from '@/hooks';
 import type { AuditConfig, AuditEventDefinition } from '@/types/audit';
 

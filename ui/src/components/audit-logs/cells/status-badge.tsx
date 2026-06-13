@@ -1,4 +1,5 @@
 import { Badge } from '@e412/titanium';
+
 import type { AuditStatus } from '@/types/audit';
 
 interface StatusBadgeProps {

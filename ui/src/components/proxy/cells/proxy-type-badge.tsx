@@ -1,6 +1,7 @@
 import { Badge } from '@e412/titanium';
 import { ArrowRight, FolderOpen, Globe } from 'lucide-react';
 import type { ReactNode } from 'react';
+
 import type { ProxyType } from '@/types/proxy';
 
 const proxyTypeConfig: Record<ProxyType, { label: string; icon: ReactNode }> = {

@@ -1,6 +1,7 @@
 import { Button, Card, CardContent } from '@e412/titanium';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, ArrowLeft, Ban, LogOut, Mail, ShieldX } from 'lucide-react';
+
 import { publicApi } from '@/lib/api';
 
 // Search params type
