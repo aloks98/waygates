@@ -25,7 +25,7 @@ import {
 import { getProxyTypeIcon } from '@/components/proxy/cells';
 import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
-import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
+import type { CreateProxyRequest, CustomHeaders, ProxyConfig } from '@/types/proxy';
 
 export function ProxyDetailPage() {
   const params = useParams({ from: '/dashboard/proxies/$proxyId' });
@@ -63,9 +63,15 @@ export function ProxyDetailPage() {
         const oldUpstreams = originalProxy.upstreams || [];
         const newUpstreams = newData.upstreams || [];
         if (JSON.stringify(oldUpstreams) !== JSON.stringify(newUpstreams)) return true;
-        const oldHeaders = originalProxy.custom_headers || [];
-        const newHeaders = newData.custom_headers || [];
-        if (JSON.stringify(oldHeaders) !== JSON.stringify(newHeaders)) return true;
+        const sortedHeaders = (h?: CustomHeaders) =>
+          JSON.stringify({
+            request: Object.fromEntries(Object.entries(h?.request ?? {}).sort()),
+            response: Object.fromEntries(Object.entries(h?.response ?? {}).sort()),
+          });
+        const newHeaders = newData.type === 'reverse_proxy' ? newData.custom_headers : undefined;
+        if (sortedHeaders(originalProxy.custom_headers) !== sortedHeaders(newHeaders)) {
+          return true;
+        }
         if (newData.health_check_path !== originalProxy.health_check_path) return true;
         if (newData.load_balancing !== originalProxy.load_balancing) return true;
       }
@@ -185,7 +191,7 @@ export function ProxyDetailPage() {
             <span className="sr-only">Back</span>
           </Button>
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10">
+            <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               {getProxyTypeIcon(proxy.type)}
             </div>
             <div>

@@ -148,7 +148,7 @@ export function ACLGroupsPage() {
         minSize: 100,
         maxSize: 140,
         meta: {
-          skeleton: <Skeleton className="h-6 w-24 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-24 rounded" />,
         },
       },
       {
@@ -277,16 +277,15 @@ export function ACLGroupsPage() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search groups..."
-            className="pl-9"
-          />
-        </div>
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name..."
+          aria-label="Search access control groups"
+          className="pl-9"
+        />
       </div>
 
       <DataGrid
@@ -294,7 +293,21 @@ export function ACLGroupsPage() {
         recordCount={total}
         isLoading={isLoading}
         loadingMode="skeleton"
-        emptyMessage="No ACL groups found. Create your first group to get started."
+        emptyMessage={
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="rounded bg-muted p-4">
+              <Shield className="size-8 text-muted-foreground" />
+            </div>
+            <h3 className="mt-4 text-base font-medium">No access control groups yet</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground max-w-[280px]">
+              Create a group to protect your proxies with IP rules, passwords, or OAuth.
+            </p>
+            <Button size="sm" className="mt-4" onClick={() => setCreateModalOpen(true)}>
+              <Plus className="size-4" />
+              New Group
+            </Button>
+          </div>
+        }
         onRowClick={handleRowClick}
       >
         <DataGridContainer>

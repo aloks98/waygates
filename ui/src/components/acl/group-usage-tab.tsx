@@ -126,7 +126,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
         minSize: 60,
         maxSize: 100,
         meta: {
-          skeleton: <Skeleton className="h-6 w-12 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-12 rounded" />,
         },
       },
       {
@@ -142,7 +142,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
         minSize: 70,
         maxSize: 100,
         meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded-full" />,
+          skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
       {

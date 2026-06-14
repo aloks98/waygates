@@ -10,9 +10,9 @@ export function SettingsPage() {
 
       <Tabs defaultValue="catchall">
         <TabsList variant="line">
-          <TabsTrigger value="catchall">Catchall</TabsTrigger>
+          <TabsTrigger value="catchall">Default Page</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-          <TabsTrigger value="acl-branding">ACL Branding</TabsTrigger>
+          <TabsTrigger value="acl-branding">Login Branding</TabsTrigger>
         </TabsList>
 
         <TabsContent value="catchall" className="mt-6">

@@ -11,6 +11,12 @@ package config
 // - PHP globals injection
 // - Malicious user agents
 // - Common vulnerability scanner paths
+//
+// KNOWN LIMITATION: the path-based rules below match on the URL PATH only via
+// `path_regexp`, which does not include the query string. Payloads carried in
+// the query string (e.g. ?id=1 UNION SELECT ...) are therefore NOT inspected
+// or blocked by these rules. Query-string inspection is a separate enhancement
+// (it would require matching against {http.request.uri} or a query matcher).
 func SecurityRoutes() []*HTTPRoute {
 	return []*HTTPRoute{
 		// Block SQL injection attempts in URI

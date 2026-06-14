@@ -534,20 +534,41 @@ func TestHTTPBuilder_BuildReverseProxyRoutes(t *testing.T) {
 func TestHTTPBuilder_BuildReverseProxyRoutes_WithCustomHeaders(t *testing.T) {
 	proxy := createReverseProxy(1, "test", "example.com",
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
-	proxy.CustomHeaders = models.JSONField{
-		"X-Custom-Header": "custom-value",
-		"X-Another":       "another-value",
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request: map[string]string{"X-Custom-Header": "custom-value", "X-Another": "another-value"},
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
 	routes, err := b.BuildReverseProxyRoutes(&proxy)
-
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
-	// Check that handler has custom headers
 	handler := routes[0].Handle[0]
-	assert.NotNil(t, handler["headers"])
+	require.NotNil(t, handler["headers"])
+	hc := handler["headers"].(*HeadersConfig)
+	require.NotNil(t, hc.Request)
+	assert.Equal(t, []string{"custom-value"}, hc.Request.Set["X-Custom-Header"])
+	assert.Equal(t, []string{"another-value"}, hc.Request.Set["X-Another"])
+}
+
+func TestHTTPBuilder_BuildReverseProxyRoutes_WithResponseHeaders(t *testing.T) {
+	proxy := createReverseProxy(1, "test", "example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request:  map[string]string{"X-Req": "r"},
+		Response: map[string]string{"X-Res": "s"},
+	}
+
+	b := NewHTTPBuilder(newTestLogger())
+	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	require.NoError(t, err)
+	require.NotEmpty(t, routes)
+
+	hc := routes[0].Handle[0]["headers"].(*HeadersConfig)
+	require.NotNil(t, hc.Request)
+	assert.Equal(t, []string{"r"}, hc.Request.Set["X-Req"])
+	require.NotNil(t, hc.Response)
+	assert.Equal(t, []string{"s"}, hc.Response.Set["X-Res"])
 }
 
 func TestHTTPBuilder_BuildReverseProxyRoutes_WithLoadBalancing(t *testing.T) {
@@ -1401,6 +1422,57 @@ func TestACLBuilder_BuildACLRoutes_AnyMode_WithWaygatesAuth(t *testing.T) {
 	require.NotEmpty(t, routes)
 }
 
+func TestACLBuilder_BuildACLRoutes_WaygatesAuth_EmptyVerifyURL_FailsClosed(t *testing.T) {
+	b := NewACLBuilder(newTestLogger())
+	// Intentionally leave the Waygates URLs unset (empty verify + login URLs).
+	upstreamHandler := NewReverseProxyHandler(&Upstream{Dial: "localhost:8080"})
+
+	group := createTestACLGroup(1, "waygates-empty-url-acl", models.ACLCombinationModeAny)
+	group.WaygatesAuth = createTestWaygatesAuth(true, nil)
+
+	routes, err := b.BuildACLRoutes("example.com", "/*", &group, upstreamHandler)
+	require.NoError(t, err)
+	require.NotEmpty(t, routes)
+
+	// Serialize the generated routes to JSON so we can inspect the actual config
+	// that Caddy would receive.
+	data, err := json.Marshal(routes)
+	require.NoError(t, err)
+	rendered := string(data)
+
+	// The forward-auth handler must fail closed: a static 503 deny response is
+	// emitted with a clear message about the missing verify URL.
+	assert.Contains(t, rendered, "static_response")
+	assert.Contains(t, rendered, "ACL_WAYGATES_VERIFY_URL is empty")
+
+	// Verify structurally that no reverse_proxy upstream dials a blank address.
+	// Such an upstream is invalid and Caddy would reject it, breaking the entire
+	// config reload. (The JSON omits empty dials via `omitempty`, so the typed
+	// route tree must be inspected directly.)
+	assertNoEmptyDialUpstream(t, routes)
+}
+
+// assertNoEmptyDialUpstream walks the generated routes and fails if any
+// reverse_proxy upstream has an empty Dial field.
+func assertNoEmptyDialUpstream(t *testing.T, routes []*HTTPRoute) {
+	t.Helper()
+	for _, route := range routes {
+		for _, handler := range route.Handle {
+			upstreams, ok := handler["upstreams"]
+			if !ok {
+				continue
+			}
+			ups, ok := upstreams.([]*Upstream)
+			if !ok {
+				continue
+			}
+			for _, u := range ups {
+				assert.NotEmpty(t, u.Dial, "found reverse_proxy upstream with empty Dial address")
+			}
+		}
+	}
+}
+
 func TestACLBuilder_BuildACLRoutes_AnyMode_WithExternalProvider(t *testing.T) {
 	b := NewACLBuilder(newTestLogger())
 	upstreamHandler := NewReverseProxyHandler(&Upstream{Dial: "localhost:8080"})
@@ -1596,8 +1668,8 @@ func TestBuilder_FullIntegration_ReverseProxyWithACL(t *testing.T) {
 	proxy.LoadBalancing = models.JSONField{
 		"strategy": "round_robin",
 	}
-	proxy.CustomHeaders = models.JSONField{
-		"X-API-Version": "v1",
+	proxy.CustomHeaders = models.CustomHeaders{
+		Request: map[string]string{"X-API-Version": "v1"},
 	}
 
 	aclGroup := createTestACLGroup(1, "api-acl", models.ACLCombinationModeAny)

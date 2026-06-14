@@ -1,8 +1,11 @@
 // Cell components
 export {
+  getL4ProtocolIcon,
+  getL4ProtocolLabel,
   getProxyTarget,
   getProxyTypeIcon,
   getProxyTypeLabel,
+  L4ProtocolBadge,
   ProxyActionsCell,
   ProxySslCell,
   ProxyStatusBadge,

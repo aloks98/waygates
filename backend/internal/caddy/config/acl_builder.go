@@ -389,8 +389,37 @@ func (b *ACLBuilder) buildForwardAuthHandler(group *models.ACLGroup) HTTPHandler
 
 // buildWaygatesForwardAuthHandler creates a Waygates forward auth handler.
 func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
+	// Fail closed: if the verify URL is unset there is no upstream to authenticate
+	// against. Emitting a reverse_proxy with dial:"" produces an invalid upstream
+	// that Caddy rejects, breaking the entire config reload. Instead emit a static
+	// 503 so the route fails closed (deny) and never proxies to a blank upstream.
+	if b.waygatesVerifyURL == "" {
+		b.logger.Error("Waygates forward-auth verify URL is empty; failing closed (deny)")
+		return ToHTTPHandler(NewStaticResponseHandler(
+			503,
+			"Waygates forward-auth is not configured (ACL_WAYGATES_VERIFY_URL is empty)",
+		))
+	}
+
 	// Extract host:port from URL for Caddy's Dial field
 	dialAddr := extractDialAddress(b.waygatesVerifyURL)
+
+	// Build the 401 (unauthorized) handler. Normally this redirects to the login
+	// page, but if the login URL is unset a "%s?redirect=..." template would yield
+	// a host-less self-redirect loop. Fail closed with a 503 deny instead.
+	var unauthorizedHandler HTTPHandler
+	if b.waygatesLoginURL == "" {
+		b.logger.Error("Waygates forward-auth login URL is empty; failing closed (deny) on 401")
+		unauthorizedHandler = ToHTTPHandler(NewStaticResponseHandler(
+			503,
+			"Waygates forward-auth is not configured (ACL_WAYGATES_LOGIN_URL is empty)",
+		))
+	} else {
+		unauthorizedHandler = ToHTTPHandler(NewRedirectHandler(
+			fmt.Sprintf("%s?redirect={http.request.scheme}://{http.request.host}{http.request.uri}", b.waygatesLoginURL),
+			302,
+		))
+	}
 
 	// Waygates forward auth is implemented as a reverse_proxy with specific configuration
 	return HTTPHandler{
@@ -425,7 +454,7 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 					},
 				},
 			},
-			// On 401 (unauthorized): redirect to login
+			// On 401 (unauthorized): redirect to login (or fail closed if login URL unset)
 			{
 				Match: &ResponseMatch{
 					StatusCode: []int{401},
@@ -433,10 +462,7 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 				Routes: []*HTTPRoute{
 					{
 						Handle: []HTTPHandler{
-							ToHTTPHandler(NewRedirectHandler(
-								fmt.Sprintf("%s?redirect={http.request.scheme}://{http.request.host}{http.request.uri}", b.waygatesLoginURL),
-								302,
-							)),
+							unauthorizedHandler,
 						},
 					},
 				},

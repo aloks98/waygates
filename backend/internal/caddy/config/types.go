@@ -147,22 +147,22 @@ type TLSMatch struct {
 	SNI []string `json:"sni,omitempty"`
 }
 
-// Layer4App is a placeholder for future L4 proxy support.
-// Will be fully implemented after HTTP migration is complete.
+// Layer4App configures the Layer 4 (TCP/UDP) proxy application.
+// See: https://github.com/mholt/caddy-l4
 type Layer4App struct {
 	Servers map[string]*L4Server `json:"servers,omitempty"`
 }
 
-// L4Server is a placeholder for L4 server configuration.
+// L4Server configures an L4 server instance.
 type L4Server struct {
 	Listen []string   `json:"listen,omitempty"`
 	Routes []*L4Route `json:"routes,omitempty"`
 }
 
-// L4Route is a placeholder for L4 route configuration.
+// L4Route defines a route for L4 connection matching and handling.
 type L4Route struct {
-	Match  []json.RawMessage `json:"match,omitempty"`
-	Handle []json.RawMessage `json:"handle,omitempty"`
+	Match  []L4MatcherSet `json:"match,omitempty"`
+	Handle []L4Handler    `json:"handle,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshaling for CaddyConfig.

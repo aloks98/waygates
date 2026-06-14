@@ -307,7 +307,7 @@ export function StaticForm({
                   <FieldContent>
                     <FieldLabel>Template Rendering</FieldLabel>
                     <FieldDescription>
-                      Enable Caddy template rendering for HTML files
+                      Process dynamic templates in HTML files before serving
                     </FieldDescription>
                   </FieldContent>
                   <Switch checked={field.state.value} onCheckedChange={field.handleChange} />

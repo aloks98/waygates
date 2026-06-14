@@ -176,6 +176,17 @@ type ACLServiceInterface interface {
 	CleanupExpiredSessions() (int64, error)
 }
 
+// L4ProxyServiceInterface defines the interface for L4 proxy operations
+type L4ProxyServiceInterface interface {
+	Create(req *CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error)
+	GetByID(id int) (*models.L4Proxy, error)
+	List(req *ListL4ProxiesRequest) (*models.L4ProxyListResponse, error)
+	Update(id int, req *UpdateL4ProxyRequest) (*models.L4Proxy, error)
+	Delete(id int) error
+	ToggleActive(id int) (*models.L4Proxy, error)
+	GetStats() (*models.L4ProxyStats, error)
+}
+
 // Ensure concrete types implement interfaces
 var (
 	_ ProxyServiceInterface    = (*ProxyService)(nil)
@@ -184,4 +195,5 @@ var (
 	_ ProxySyncer              = (*SyncService)(nil)
 	_ AuditServiceInterface    = (*AuditService)(nil)
 	_ ACLServiceInterface      = (*ACLService)(nil)
+	_ L4ProxyServiceInterface  = (*L4ProxyService)(nil)
 )

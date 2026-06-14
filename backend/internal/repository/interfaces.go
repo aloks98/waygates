@@ -52,6 +52,27 @@ type AuditLogRepositoryInterface interface {
 	CountByUserID(userID int) (int64, error)
 }
 
+// L4ProxyRepositoryInterface defines the interface for L4 proxy database operations
+type L4ProxyRepositoryInterface interface {
+	Create(proxy *models.L4Proxy) error
+	GetByID(id int) (*models.L4Proxy, error)
+	List(params L4ProxyListParams) ([]models.L4Proxy, int64, error)
+	Update(proxy *models.L4Proxy) error
+	Delete(id int) error
+	GetByPort(port int, protocol string) (*models.L4Proxy, error)
+}
+
+// L4ProxyListParams holds parameters for listing L4 proxies
+type L4ProxyListParams struct {
+	Page     int
+	Limit    int
+	Search   string // Search in name and description
+	Protocol string // Filter by protocol: "tcp" or "udp"
+	IsActive *bool  // Filter by active status (nil = no filter)
+	Sort     string // Sort field: id, name, listen_port, protocol, is_active, created_at, updated_at
+	Order    string // Sort order: asc, desc
+}
+
 // Ensure repositories implement interfaces
 var (
 	_ ProxyRepositoryInterface    = (*ProxyRepository)(nil)
@@ -59,4 +80,5 @@ var (
 	_ SettingsRepositoryInterface = (*SettingsRepository)(nil)
 	_ AuditLogRepositoryInterface = (*AuditLogRepository)(nil)
 	_ ACLRepositoryInterface      = (*ACLRepository)(nil)
+	_ L4ProxyRepositoryInterface  = (*L4ProxyRepository)(nil)
 )

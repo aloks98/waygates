@@ -1,5 +1,6 @@
 /* Font imports must come first */
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-grotesk@200,300,400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
 
 @import 'tailwindcss';
@@ -7,10 +8,102 @@
 @import '@e412/titanium/themes/default.css';
 @source "../node_modules/@e412/titanium";
 
+/** Waygates Copper Theme — overrides titanium defaults **/
+
+/*
+ * Copper palette: warm amber-orange primary, cream neutrals.
+ * Tight radius (0.25rem), crisp minimal shadows.
+ * Inviting, workshop-like warmth for a homelab tool.
+ */
+.default.default {
+  --text-sans: 'Clash Grotesk', system-ui, sans-serif;
+
+  --primary: oklch(0.65 0.15 55);
+  --primary-foreground: oklch(0.99 0.005 55);
+  --ring: oklch(0.65 0.15 55);
+
+  --background: oklch(0.97 0.005 70);
+  --foreground: oklch(0.16 0.012 50);
+
+  --card: oklch(0.993 0.003 70);
+  --card-foreground: oklch(0.16 0.012 50);
+
+  --popover: oklch(0.993 0.003 70);
+  --popover-foreground: oklch(0.16 0.012 50);
+
+  --muted: oklch(0.955 0.008 70);
+  --muted-foreground: oklch(0.5 0.015 50);
+
+  --secondary: oklch(0.955 0.008 70);
+  --secondary-foreground: oklch(0.24 0.012 50);
+
+  --accent: oklch(0.94 0.02 55);
+  --accent-foreground: oklch(0.24 0.012 50);
+
+  --border: oklch(0.905 0.008 70);
+  --input: oklch(0.905 0.008 70);
+
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --radius: 0.25rem;
+
+  --chart-1: oklch(0.65 0.15 55);
+  --chart-2: oklch(0.6 0.13 35);
+  --chart-3: oklch(0.7 0.1 90);
+  --chart-4: oklch(0.55 0.12 155);
+  --chart-5: oklch(0.58 0.1 245);
+
+  --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.04);
+  --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 2px 0 oklch(0 0 0 / 0.04);
+  --shadow: 0 1px 3px 0 oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 1px 3px 0 oklch(0 0 0 / 0.06), 0 1px 2px -1px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 2px 6px -1px oklch(0 0 0 / 0.06), 0 1px 4px -2px oklch(0 0 0 / 0.04);
+  --shadow-xl: 0 4px 10px -2px oklch(0 0 0 / 0.08), 0 2px 4px -2px oklch(0 0 0 / 0.04);
+  --shadow-2xl: 0 8px 20px -4px oklch(0 0 0 / 0.1);
+}
+
+.default.default.dark {
+  --primary: oklch(0.72 0.14 55);
+  --primary-foreground: oklch(0.15 0.01 55);
+  --ring: oklch(0.52 0.1 55);
+
+  --background: oklch(0.13 0.006 50);
+  --foreground: oklch(0.92 0.006 70);
+
+  --card: oklch(0.17 0.006 50);
+  --card-foreground: oklch(0.92 0.006 70);
+
+  --popover: oklch(0.17 0.006 50);
+  --popover-foreground: oklch(0.92 0.006 70);
+
+  --muted: oklch(0.21 0.006 50);
+  --muted-foreground: oklch(0.58 0.012 70);
+
+  --secondary: oklch(0.21 0.006 50);
+  --secondary-foreground: oklch(0.92 0.006 70);
+
+  --accent: oklch(0.21 0.012 55);
+  --accent-foreground: oklch(0.92 0.006 70);
+
+  --border: oklch(0.24 0.006 50);
+  --input: oklch(0.24 0.006 50);
+
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --chart-1: oklch(0.72 0.14 55);
+  --chart-2: oklch(0.67 0.13 35);
+  --chart-3: oklch(0.75 0.1 90);
+  --chart-4: oklch(0.62 0.12 155);
+  --chart-5: oklch(0.65 0.1 245);
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--text-sans);
+  --font-sans: 'Clash Grotesk', system-ui, sans-serif;
   --font-serif: var(--text-serif);
   --font-mono: var(--text-mono);
 
@@ -114,4 +207,48 @@
 /** Smooth scroll **/
 html {
   scroll-behavior: smooth;
+}
+
+/** Entrance animations **/
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+/** Page content entrance — applies to all dashboard pages **/
+.page-enter {
+  animation: fade-up 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .page-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

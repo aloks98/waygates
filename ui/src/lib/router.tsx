@@ -109,6 +109,34 @@ const proxyDetailRoute = createRoute({
   ),
 });
 
+// L4 Proxies routes
+const l4ProxiesRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/l4-proxies',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/l4-proxies/index'),
+    'L4ProxiesListPage',
+  ),
+});
+
+const l4ProxyCreateRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/l4-proxies/new',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/l4-proxies/new'),
+    'L4ProxyCreatePage',
+  ),
+});
+
+const l4ProxyDetailRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/l4-proxies/$l4ProxyId',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/l4-proxies/$l4ProxyId'),
+    'L4ProxyDetailPage',
+  ),
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/settings',
@@ -136,10 +164,17 @@ const aclGroupDetailRoute = createRoute({
   ),
 });
 
+const themePreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/theme-preview',
+  component: lazyRouteComponent(() => import('@/routes/theme-preview'), 'ThemePreviewPage'),
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
+  themePreviewRoute,
   aclLoginRoute,
   aclForbiddenRoute,
   dashboardRoute.addChildren([
@@ -147,6 +182,9 @@ const routeTree = rootRoute.addChildren([
     proxiesRoute,
     proxyCreateRoute,
     proxyDetailRoute,
+    l4ProxiesRoute,
+    l4ProxyCreateRoute,
+    l4ProxyDetailRoute,
     settingsRoute,
     auditLogsRoute,
     aclRoute,

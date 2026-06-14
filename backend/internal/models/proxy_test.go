@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestProxy_Validate tests the Proxy validation function
@@ -390,6 +393,64 @@ func TestJSONField_Scan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCustomHeaders_UnmarshalJSON_FlatLegacy(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`{"X-A":"1","X-B":"2"}`), &c))
+	assert.Equal(t, map[string]string{"X-A": "1", "X-B": "2"}, c.Request)
+	assert.Empty(t, c.Response)
+}
+
+func TestCustomHeaders_UnmarshalJSON_Nested(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`{"request":{"X-Req":"r"},"response":{"X-Res":"s"}}`), &c))
+	assert.Equal(t, map[string]string{"X-Req": "r"}, c.Request)
+	assert.Equal(t, map[string]string{"X-Res": "s"}, c.Response)
+}
+
+func TestCustomHeaders_UnmarshalJSON_NestedResponseOnly(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`{"response":{"X-Frame-Options":"SAMEORIGIN"}}`), &c))
+	assert.Nil(t, c.Request)
+	assert.Equal(t, map[string]string{"X-Frame-Options": "SAMEORIGIN"}, c.Response)
+}
+
+func TestCustomHeaders_UnmarshalJSON_HeaderNamedRequest_IsFlat(t *testing.T) {
+	// A flat header literally named "request" has a STRING value -> flat shape.
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`{"request":"some-value"}`), &c))
+	assert.Equal(t, map[string]string{"request": "some-value"}, c.Request)
+	assert.Empty(t, c.Response)
+}
+
+func TestCustomHeaders_UnmarshalJSON_Null(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, json.Unmarshal([]byte(`null`), &c))
+	assert.True(t, c.IsEmpty())
+}
+
+func TestCustomHeaders_MarshalJSON_AlwaysNested(t *testing.T) {
+	c := CustomHeaders{Request: map[string]string{"X-A": "1"}}
+	out, err := json.Marshal(c)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"request":{"X-A":"1"}}`, string(out))
+}
+
+func TestCustomHeaders_ScanValue_RoundTripLegacyFlat(t *testing.T) {
+	var c CustomHeaders
+	require.NoError(t, c.Scan(`{"X-Legacy":"v"}`)) // legacy flat row from DB
+	assert.Equal(t, map[string]string{"X-Legacy": "v"}, c.Request)
+
+	v, err := c.Value()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"request":{"X-Legacy":"v"}}`, string(v.([]byte)))
+}
+
+func TestCustomHeaders_Value_EmptyIsNil(t *testing.T) {
+	v, err := CustomHeaders{}.Value()
+	require.NoError(t, err)
+	assert.Nil(t, v)
 }
 
 // TestProxy_TableName tests the table name

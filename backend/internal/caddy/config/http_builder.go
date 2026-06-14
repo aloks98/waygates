@@ -202,12 +202,17 @@ func (b *HTTPBuilder) buildReverseProxyHandler(proxy *models.Proxy, upstreams []
 		Request: StandardProxyHeaders(),
 	}
 
-	// Add custom headers
-	if len(proxy.CustomHeaders) > 0 {
-		for key, value := range proxy.CustomHeaders {
-			if strVal, ok := value.(string); ok {
-				handler.Headers.Request.SetHeader(key, strVal)
-			}
+	// Add custom request headers (forwarded to the upstream).
+	for key, value := range proxy.CustomHeaders.Request {
+		handler.Headers.Request.SetHeader(key, value)
+	}
+	// Add custom response headers (returned to the client).
+	if len(proxy.CustomHeaders.Response) > 0 {
+		if handler.Headers.Response == nil {
+			handler.Headers.Response = &HeaderOps{}
+		}
+		for key, value := range proxy.CustomHeaders.Response {
+			handler.Headers.Response.SetHeader(key, value)
 		}
 	}
 

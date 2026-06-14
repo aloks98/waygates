@@ -37,6 +37,11 @@ export interface StaticConfig {
   try_files?: string[];
 }
 
+export interface CustomHeaders {
+  request?: Record<string, string>;
+  response?: Record<string, string>;
+}
+
 export interface ProxyConfig {
   id: number;
   type: ProxyType;
@@ -54,7 +59,7 @@ export interface ProxyConfig {
   load_balancing?: LoadBalancing;
   block_exploits?: boolean;
   tls_insecure_skip_verify?: boolean;
-  custom_headers?: Record<string, string>;
+  custom_headers?: CustomHeaders;
   // Redirect fields
   redirect?: RedirectConfig;
   // Static fields
@@ -71,7 +76,7 @@ export interface CreateReverseProxyRequest {
   block_exploits?: boolean;
   tls_insecure_skip_verify?: boolean;
   load_balancing?: LoadBalancing;
-  custom_headers?: Record<string, string>;
+  custom_headers?: CustomHeaders;
 }
 
 export interface CreateRedirectRequest {
@@ -109,7 +114,7 @@ export interface UpdateProxyRequest {
   load_balancing?: LoadBalancing;
   block_exploits?: boolean;
   tls_insecure_skip_verify?: boolean;
-  custom_headers?: Record<string, string>;
+  custom_headers?: CustomHeaders;
   // Redirect fields
   redirect?: RedirectConfig;
   // Static fields

@@ -23,18 +23,10 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
 import type { ProxyConfig } from '@/types/proxy';
 
-// Map Titanium filter operators to backend operators
-const operatorMap: Record<string, string> = {
-  is: '', // defaults to eq
-  is_any_of: 'in',
-  is_not_any_of: 'not_in',
-  is_not: 'not',
-};
-
 const typeOptions = [
   { value: 'reverse_proxy', label: 'Reverse Proxy' },
   { value: 'redirect', label: 'Redirect' },
-  { value: 'static', label: 'Static' },
+  { value: 'static', label: 'Static File Server' },
 ];
 
 const statusOptions = [
@@ -51,11 +43,11 @@ const filterFields: FilterFieldsConfig<string> = [
   {
     key: 'type',
     label: 'Type',
-    type: 'multiselect',
+    type: 'select',
     options: typeOptions,
     operators: [
-      { value: 'is_any_of', label: 'is any of', supportsMultiple: true },
-      { value: 'is_not_any_of', label: 'is not any of', supportsMultiple: true },
+      { value: 'is', label: 'is' },
+      { value: 'is_not', label: 'is not' },
     ],
   },
   {
@@ -63,10 +55,7 @@ const filterFields: FilterFieldsConfig<string> = [
     label: 'Status',
     type: 'select',
     options: statusOptions,
-    operators: [
-      { value: 'is', label: 'is' },
-      { value: 'is_not', label: 'is not' },
-    ],
+    operators: [{ value: 'is', label: 'is' }],
   },
   {
     key: 'ssl_enabled',
@@ -75,30 +64,30 @@ const filterFields: FilterFieldsConfig<string> = [
     options: sslOptions,
     operators: [{ value: 'is', label: 'is' }],
   },
-  {
-    key: 'target',
-    label: 'Target',
-    type: 'text',
-    placeholder: 'Enter target URL...',
-    defaultOperator: 'is',
-    operators: [{ value: 'is', label: 'contains' }],
-  },
 ];
 
 export function ProxiesListPage() {
   const navigate = useNavigate();
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
 
+  // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   });
+
+  // Search state
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filters, setFilters] = useState<Filter<string>[]>([]);
-  const [debouncedFilters, setDebouncedFilters] = useState<Filter<string>[]>([]);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const filtersDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Filter state
+  const [filters, setFilters] = useState<Filter<string>[]>([]);
+
+  const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
+    setFilters(newFilters);
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, []);
 
   // Debounce search input
   useEffect(() => {
@@ -117,85 +106,58 @@ export function ProxiesListPage() {
     };
   }, [search]);
 
-  // Debounce filters
-  useEffect(() => {
-    if (filtersDebounceRef.current) {
-      clearTimeout(filtersDebounceRef.current);
-    }
-    filtersDebounceRef.current = setTimeout(() => {
-      setDebouncedFilters(filters);
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-    }, 500);
-
-    return () => {
-      if (filtersDebounceRef.current) {
-        clearTimeout(filtersDebounceRef.current);
-      }
-    };
-  }, [filters]);
-
-  // Helper to build filter value with operator prefix
-  const buildFilterValue = useCallback((operator: string, values: string[]): string => {
-    const backendOp = operatorMap[operator] || '';
-    const value = values.join(',');
-    return backendOp ? `${backendOp}:${value}` : value;
-  }, []);
-
-  // Convert filters to API params
-  const apiParams = useMemo(() => {
-    const params: {
+  // Build API params from search + filters
+  const params = useMemo(() => {
+    const p: {
       page: number;
       limit: number;
       search?: string;
       type?: string;
       status?: string;
       ssl_enabled?: string;
-      target?: string;
     } = {
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
     };
-
     if (debouncedSearch) {
-      params.search = debouncedSearch;
+      p.search = debouncedSearch;
     }
-
-    for (const filter of debouncedFilters) {
+    for (const filter of filters) {
       if (filter.values.length === 0) continue;
-
+      const value = filter.values[0];
       switch (filter.field) {
         case 'type':
-          params.type = buildFilterValue(filter.operator, filter.values);
+          p.type = value;
           break;
         case 'status':
-          params.status = buildFilterValue(filter.operator, filter.values);
+          p.status = value;
           break;
         case 'ssl_enabled':
-          params.ssl_enabled = filter.values[0];
-          break;
-        case 'target':
-          params.target = filter.values[0];
+          p.ssl_enabled = value;
           break;
       }
     }
+    return p;
+  }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, filters]);
 
-    return params;
-  }, [pagination, debouncedSearch, debouncedFilters, buildFilterValue]);
+  const { proxies, total, totalPages, isLoading, toggle, remove, isToggling, isDeleting } =
+    useProxies(params);
 
-  const handleFiltersChange = useCallback((newFilters: Filter<string>[]) => {
-    setFilters(newFilters);
-  }, []);
-
-  const { proxies, total, totalPages, isLoading, remove, toggle, isDeleting, isToggling } =
-    useProxies(apiParams);
-
+  // Delete state
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
 
-  const handleRowClick = useCallback(
+  const handleEdit = useCallback(
     (proxy: ProxyConfig) => {
       navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
     },
     [navigate],
+  );
+
+  const handleToggleStatus = useCallback(
+    async (id: number, enable: boolean) => {
+      await toggle({ id, enable });
+    },
+    [toggle],
   );
 
   const handleDelete = async () => {
@@ -222,7 +184,8 @@ export function ProxiesListPage() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search proxies..."
+            placeholder="Search by name or hostname..."
+            aria-label="Search proxies"
             className="pl-9"
           />
         </div>
@@ -242,9 +205,9 @@ export function ProxiesListPage() {
         isLoading={isLoading}
         canUpdateProxies={canUpdateProxies}
         canDeleteProxies={canDeleteProxies}
-        onEdit={handleRowClick}
+        onEdit={handleEdit}
         onDelete={setDeletingProxy}
-        onToggleStatus={(id, enable) => toggle({ id, enable })}
+        onToggleStatus={handleToggleStatus}
         isToggling={isToggling}
         pageCount={totalPages}
         pagination={pagination}
@@ -257,9 +220,8 @@ export function ProxiesListPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Proxy</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete{' '}
-              <strong>{deletingProxy?.name || deletingProxy?.hostname}</strong>? This action cannot
-              be undone.
+              Are you sure you want to delete <strong>{deletingProxy?.name}</strong>? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

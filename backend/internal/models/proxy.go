@@ -22,13 +22,13 @@ type Proxy struct {
 	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Type-specific fields (stored as JSON in database)
-	Upstreams             interface{} `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
-	LoadBalancing         JSONField   `json:"load_balancing,omitempty" gorm:"type:text"`
-	BlockExploits         bool        `json:"block_exploits" gorm:"default:true;not null"`
-	TLSInsecureSkipVerify bool        `json:"tls_insecure_skip_verify" gorm:"default:false;not null"`
-	CustomHeaders         JSONField   `json:"custom_headers,omitempty" gorm:"type:text"`
-	RedirectConfig        JSONField   `json:"redirect,omitempty" gorm:"type:text;column:redirect_config"`
-	StaticConfig          JSONField   `json:"static,omitempty" gorm:"type:text;column:static_config"`
+	Upstreams             interface{}   `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
+	LoadBalancing         JSONField     `json:"load_balancing,omitempty" gorm:"type:text"`
+	BlockExploits         bool          `json:"block_exploits" gorm:"default:true;not null"`
+	TLSInsecureSkipVerify bool          `json:"tls_insecure_skip_verify" gorm:"default:false;not null"`
+	CustomHeaders         CustomHeaders `json:"custom_headers,omitempty" gorm:"type:text"`
+	RedirectConfig        JSONField     `json:"redirect,omitempty" gorm:"type:text;column:redirect_config"`
+	StaticConfig          JSONField     `json:"static,omitempty" gorm:"type:text;column:static_config"`
 
 	// Relations (will be populated when needed)
 	Creator *User `json:"created_by,omitempty" gorm:"foreignKey:CreatedBy"`
@@ -103,6 +103,99 @@ func (j *JSONField) UnmarshalJSON(data []byte) error {
 
 	*j = result
 	return nil
+}
+
+// CustomHeaders holds custom HTTP headers to set on the request forwarded to the
+// upstream (Request) and/or on the response returned to the client (Response).
+// It is stored as JSON text. To stay backward compatible it accepts BOTH the
+// nested {"request":{...},"response":{...}} shape and the legacy flat
+// {"X-Header":"value"} map (interpreted as request headers), and always
+// serializes back as the nested shape.
+type CustomHeaders struct {
+	Request  map[string]string `json:"request,omitempty"`
+	Response map[string]string `json:"response,omitempty"`
+}
+
+// IsEmpty reports whether no headers are configured in either direction.
+func (c CustomHeaders) IsEmpty() bool {
+	return len(c.Request) == 0 && len(c.Response) == 0
+}
+
+// UnmarshalJSON accepts the nested shape or a legacy flat map. HTTP header values
+// are always strings, so a top-level value that is a JSON object marks the nested
+// shape; otherwise the whole object is a flat request-header map.
+func (c *CustomHeaders) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*c = CustomHeaders{}
+		return nil
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	nested := len(raw) > 0
+	for key, val := range raw {
+		if key != "request" && key != "response" {
+			nested = false
+			break
+		}
+		v := strings.TrimSpace(string(val))
+		if len(v) == 0 || v[0] != '{' {
+			nested = false
+			break
+		}
+	}
+
+	if nested {
+		type alias CustomHeaders // break the UnmarshalJSON recursion
+		var a alias
+		if err := json.Unmarshal(data, &a); err != nil {
+			return err
+		}
+		*c = CustomHeaders(a)
+		return nil
+	}
+
+	flat := make(map[string]string)
+	if err := json.Unmarshal(data, &flat); err != nil {
+		return err
+	}
+	*c = CustomHeaders{Request: flat}
+	return nil
+}
+
+// Value implements driver.Valuer: store the nested JSON shape (SQL NULL if empty).
+func (c CustomHeaders) Value() (driver.Value, error) {
+	if c.IsEmpty() {
+		return nil, nil
+	}
+	type alias CustomHeaders
+	return json.Marshal(alias(c))
+}
+
+// Scan implements sql.Scanner: load JSON text, tolerating legacy flat rows.
+func (c *CustomHeaders) Scan(value interface{}) error {
+	if value == nil {
+		*c = CustomHeaders{}
+		return nil
+	}
+	var bytes []byte
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return nil
+	}
+	if len(bytes) == 0 {
+		*c = CustomHeaders{}
+		return nil
+	}
+	return c.UnmarshalJSON(bytes)
 }
 
 // ProxyListResponse is the response for listing proxies

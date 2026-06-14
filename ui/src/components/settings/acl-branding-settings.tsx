@@ -18,7 +18,7 @@ import {
   Spinner,
   Textarea,
 } from '@e412/titanium';
-import { Eye, Lock, Mail, RotateCcw } from 'lucide-react';
+import { Eye, Lock, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useACLBranding, useUpdateACLBranding } from '@/hooks';
@@ -37,9 +37,9 @@ interface BrandingFormValues {
 
 const DEFAULT_BRANDING: BrandingFormValues = {
   logo_url: '',
-  primary_color: '#3b82f6',
-  background_color: '#ffffff',
-  title: 'Login Required',
+  primary_color: '#b5841a',
+  background_color: '',
+  title: 'Waygates',
   subtitle: 'Sign in to continue',
   footer_text: '',
   custom_css: '',
@@ -118,13 +118,24 @@ function ColorInput({
         </div>
       </FieldContent>
       {!isValidHex && inputValue.length > 0 && (
-        <FieldError errors={[{ message: 'Please enter a valid hex color (e.g., #3b82f6)' }]} />
+        <FieldError errors={[{ message: 'Please enter a valid hex color (e.g., #b5841a)' }]} />
       )}
     </Field>
   );
 }
 
-// Login page preview component
+// Contrasting text color for custom backgrounds
+function getContrastColor(hex: string): string {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return '#000000';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000000' : '#ffffff';
+}
+
+// Login page preview — mirrors the actual ACL login page structure
+// Uses the same Card/CardContent layout and Tailwind classes as the real page
 function LoginPreview({
   logoUrl,
   primaryColor,
@@ -144,24 +155,13 @@ function LoginPreview({
 }) {
   const [imageError, setImageError] = useState(false);
 
-  // Reset image error when URL changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally reset on logoUrl change only
   useEffect(() => {
     setImageError(false);
   }, [logoUrl]);
 
-  // Generate contrasting text color based on background
-  const getContrastColor = (hex: string): string => {
-    if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) return '#000000';
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.5 ? '#000000' : '#ffffff';
-  };
-
-  const textColor = getContrastColor(backgroundColor);
-  const mutedTextColor = textColor === '#000000' ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)';
+  const hasCustomBg = backgroundColor && /^#[0-9A-Fa-f]{6}$/.test(backgroundColor);
+  const validPrimary = /^#[0-9A-Fa-f]{6}$/.test(primaryColor);
 
   return (
     <div className="relative">
@@ -169,133 +169,90 @@ function LoginPreview({
         <Eye className="size-4 text-muted-foreground" />
         <span className="text-sm font-medium text-muted-foreground">Live Preview</span>
       </div>
+
+      {/* Outer page container — mirrors acl-login.tsx layout */}
       <div
-        className="relative rounded-lg border shadow-lg overflow-hidden"
-        style={{ backgroundColor, minHeight: '480px' }}
+        className="relative rounded border shadow-lg overflow-hidden bg-background"
+        style={{ ...(hasCustomBg ? { backgroundColor } : {}), minHeight: '480px' }}
       >
-        {/* Custom CSS injection - sanitized to prevent XSS and data exfiltration */}
         {customCss && (
           <style
             // biome-ignore lint/security/noDangerouslySetInnerHtml: CSS is sanitized via sanitizeCSS()
-            dangerouslySetInnerHTML={{
-              __html: sanitizeCSS(customCss),
-            }}
+            dangerouslySetInnerHTML={{ __html: sanitizeCSS(customCss) }}
           />
         )}
 
-        <div className="flex flex-col items-center justify-center min-h-[480px] p-6">
-          {/* Logo */}
-          {logoUrl && !imageError ? (
-            <img
-              src={logoUrl}
-              alt="Logo preview"
-              className="max-h-16 max-w-[200px] object-contain mb-6"
-              onError={() => setImageError(true)}
-            />
-          ) : logoUrl && imageError ? (
-            <div
-              className="mb-6 px-3 py-2 rounded text-xs"
-              style={{ backgroundColor: mutedTextColor, color: textColor }}
-            >
-              Failed to load image
-            </div>
-          ) : null}
+        {/* Centered card — same as the real page */}
+        <div className="flex items-center justify-center min-h-[480px] px-4 py-8">
+          <Card className="w-full max-w-xs shadow-lg">
+            <CardContent className="pt-6">
+              <div className="space-y-6">
+                {/* Header — matches ACLLoginContent */}
+                <div className="text-center space-y-2">
+                  {logoUrl && !imageError ? (
+                    <img
+                      src={logoUrl}
+                      alt="Logo preview"
+                      className="h-12 w-auto mx-auto object-contain"
+                      onError={() => setImageError(true)}
+                    />
+                  ) : logoUrl && imageError ? (
+                    <p className="text-xs text-muted-foreground">Failed to load image</p>
+                  ) : (
+                    <div className="h-12 w-12 mx-auto rounded bg-primary/10 flex items-center justify-center">
+                      <Lock className="size-6 text-primary" />
+                    </div>
+                  )}
+                  {title && <h1 className="text-xl font-semibold tracking-tight">{title}</h1>}
+                  {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
+                </div>
 
-          {/* Title */}
-          {title && (
-            <h1 className="text-2xl font-bold mb-2 text-center" style={{ color: textColor }}>
-              {title}
-            </h1>
-          )}
+                {/* Host badge — matches HostBadge component */}
+                <div className="flex items-center justify-center gap-2 rounded border bg-muted/50 px-4 py-3">
+                  <Lock className="size-4 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Accessing</p>
+                    <p className="text-sm font-medium">internal.company.com</p>
+                  </div>
+                </div>
 
-          {/* Subtitle */}
-          {subtitle && (
-            <p className="text-sm mb-4 text-center" style={{ color: mutedTextColor }}>
-              {subtitle}
-            </p>
-          )}
+                {/* Mock form — matches ACLLoginForm structure */}
+                <div className="space-y-4" aria-hidden="true">
+                  <div className="space-y-2">
+                    <span className="block text-sm font-medium">Username or Email</span>
+                    <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
+                      user@example.com
+                    </div>
+                  </div>
 
-          {/* App Context Message - Shows what resource the user is accessing */}
-          <div
-            className="flex items-center justify-center gap-2 rounded-lg px-4 py-3 mb-6 w-full max-w-[280px]"
-            style={{
-              backgroundColor:
-                textColor === '#000000' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',
-              border: `1px solid ${textColor === '#000000' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'}`,
-            }}
-          >
-            <Lock className="size-4 flex-shrink-0" style={{ color: mutedTextColor }} />
-            <div className="text-center min-w-0">
-              <p className="text-xs" style={{ color: mutedTextColor }}>
-                You are accessing
-              </p>
-              <p className="text-sm font-medium truncate" style={{ color: textColor }}>
-                internal.company.com
-              </p>
-            </div>
-          </div>
+                  <div className="space-y-2">
+                    <span className="block text-sm font-medium">Password</span>
+                    <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
+                      ************
+                    </div>
+                  </div>
 
-          {/* Mock form - decorative preview only */}
-          <div className="w-full max-w-[280px] space-y-4" aria-hidden="true">
-            <div className="space-y-2">
-              <span className="text-xs font-medium block" style={{ color: mutedTextColor }}>
-                Email
-              </span>
-              <div
-                className="flex items-center gap-2 px-3 py-2 rounded-md border"
-                style={{
-                  borderColor:
-                    textColor === '#000000' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
-                  backgroundColor:
-                    textColor === '#000000' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.1)',
-                }}
-              >
-                <Mail className="size-4" style={{ color: mutedTextColor }} />
-                <span className="text-sm" style={{ color: mutedTextColor }}>
-                  user@example.com
-                </span>
+                  <button
+                    type="button"
+                    className="w-full h-9 rounded text-sm font-medium transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: validPrimary ? primaryColor : 'var(--primary)',
+                      color: validPrimary
+                        ? getContrastColor(primaryColor)
+                        : 'var(--primary-foreground)',
+                    }}
+                  >
+                    Sign in
+                  </button>
+                </div>
+
+                {/* Footer */}
+                {footerText && (
+                  <p className="text-center text-xs text-muted-foreground">{footerText}</p>
+                )}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-xs font-medium block" style={{ color: mutedTextColor }}>
-                Password
-              </span>
-              <div
-                className="flex items-center gap-2 px-3 py-2 rounded-md border"
-                style={{
-                  borderColor:
-                    textColor === '#000000' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)',
-                  backgroundColor:
-                    textColor === '#000000' ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.1)',
-                }}
-              >
-                <Lock className="size-4" style={{ color: mutedTextColor }} />
-                <span className="text-sm" style={{ color: mutedTextColor }}>
-                  ************
-                </span>
-              </div>
-            </div>
-
-            {/* Sign in button */}
-            <button
-              type="button"
-              className="w-full py-2 px-4 rounded-md text-sm font-medium transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: primaryColor,
-                color: getContrastColor(primaryColor),
-              }}
-            >
-              Sign in
-            </button>
-          </div>
-
-          {/* Footer */}
-          {footerText && (
-            <p className="text-xs mt-8 text-center" style={{ color: mutedTextColor }}>
-              {footerText}
-            </p>
-          )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
@@ -333,7 +290,7 @@ export function ACLBrandingSettings() {
     if (!isValidHexColor(localValues.primary_color)) {
       errs.primary_color = 'Please enter a valid hex color';
     }
-    if (!isValidHexColor(localValues.background_color)) {
+    if (localValues.background_color && !isValidHexColor(localValues.background_color)) {
       errs.background_color = 'Please enter a valid hex color';
     }
     return errs;
@@ -374,8 +331,8 @@ export function ACLBrandingSettings() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>ACL Login Branding</CardTitle>
-          <CardDescription>Customize the appearance of the ACL login page.</CardDescription>
+          <CardTitle>Login Branding</CardTitle>
+          <CardDescription>Customize the login page appearance.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
@@ -398,10 +355,9 @@ export function ACLBrandingSettings() {
     <Card>
       <CardHeader>
         <CardHeading>
-          <CardTitle>ACL Login Branding</CardTitle>
+          <CardTitle>Login Branding</CardTitle>
           <CardDescription>
-            Customize the appearance of the ACL login page that users see when accessing protected
-            resources.
+            Customize the login page that users see when accessing protected resources.
           </CardDescription>
         </CardHeading>
       </CardHeader>

@@ -184,8 +184,8 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-6 p-1">
       <div className="flex items-center gap-3">
-        <Skeleton className="h-6 w-20 rounded-full" />
-        <Skeleton className="h-6 w-16 rounded-full" />
+        <Skeleton className="h-6 w-20 rounded" />
+        <Skeleton className="h-6 w-16 rounded" />
       </div>
       <div className="space-y-4">
         {[1, 2, 3, 4, 5].map((i) => (

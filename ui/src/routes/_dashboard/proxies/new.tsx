@@ -8,28 +8,46 @@ import { useAssignACL } from '@/hooks';
 import { useProxies } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyType } from '@/types/proxy';
 
-const proxyTypes: { type: ProxyType; label: string; icon: JSX.Element }[] = [
-  { type: 'reverse_proxy', label: 'Reverse Proxy', icon: <Globe className="size-3.5" /> },
-  { type: 'redirect', label: 'Redirect', icon: <ArrowRight className="size-3.5" /> },
-  { type: 'static', label: 'Static File Server', icon: <FolderOpen className="size-3.5" /> },
+interface ProxyTypeOption {
+  type: ProxyType;
+  label: string;
+  icon: JSX.Element;
+}
+
+const proxyTypes: ProxyTypeOption[] = [
+  {
+    type: 'reverse_proxy',
+    label: 'Reverse Proxy',
+    icon: <Globe className="size-3.5" />,
+  },
+  {
+    type: 'redirect',
+    label: 'Redirect',
+    icon: <ArrowRight className="size-3.5" />,
+  },
+  {
+    type: 'static',
+    label: 'Static File Server',
+    icon: <FolderOpen className="size-3.5" />,
+  },
 ];
 
 export function ProxyCreatePage() {
   const navigate = useNavigate();
   const searchParams = useSearch({ strict: false }) as { type?: string };
-  const initialType = (['reverse_proxy', 'redirect', 'static'] as ProxyType[]).includes(
-    searchParams.type as ProxyType,
-  )
+
+  const validTypes: ProxyType[] = ['reverse_proxy', 'redirect', 'static'];
+  const initialType = validTypes.includes(searchParams.type as ProxyType)
     ? (searchParams.type as ProxyType)
     : 'reverse_proxy';
 
   const [selectedType, setSelectedType] = useState<ProxyType>(initialType);
 
-  const { create, isCreating } = useProxies();
+  const { create: createProxy, isCreating } = useProxies();
   const { assignACL } = useAssignACL();
 
   const handleSubmit = async (data: CreateProxyRequest, aclAssignments?: ACLAssignment[]) => {
-    const response = await create(data);
+    const response = await createProxy(data);
     const proxyId = response.data?.id;
 
     if (proxyId && aclAssignments && aclAssignments.length > 0) {
@@ -57,6 +75,22 @@ export function ProxyCreatePage() {
     navigate({ to: '/dashboard/proxies' });
   };
 
+  const renderTypePill = (option: ProxyTypeOption) => (
+    <button
+      key={option.type}
+      type="button"
+      onClick={() => setSelectedType(option.type)}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors border ${
+        selectedType === option.type
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
+      }`}
+    >
+      {selectedType === option.type ? <Check className="size-3.5" /> : option.icon}
+      {option.label}
+    </button>
+  );
+
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
@@ -69,24 +103,9 @@ export function ProxyCreatePage() {
       </div>
 
       {/* Type switcher pills */}
-      <div className="flex items-center gap-2">
-        {proxyTypes.map(({ type, label, icon }) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setSelectedType(type)}
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-              selectedType === type
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
-            }`}
-          >
-            {selectedType === type ? <Check className="size-3.5" /> : icon}
-            {label}
-          </button>
-        ))}
-      </div>
+      <div className="flex flex-wrap items-center gap-2">{proxyTypes.map(renderTypePill)}</div>
 
+      {/* Forms */}
       {selectedType === 'reverse_proxy' && (
         <ReverseProxyForm onSubmit={handleSubmit} loading={isCreating} onCancel={handleCancel} />
       )}

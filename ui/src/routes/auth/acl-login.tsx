@@ -15,7 +15,7 @@ const defaultBranding: ACLBranding = {
   id: 0,
   title: 'Waygates',
   subtitle: 'Sign in to continue',
-  primary_color: '#3b82f6',
+  primary_color: '#b5841a',
   background_color: '', // Empty to use default theme background
   updated_at: '',
 };
@@ -59,11 +59,11 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <Skeleton className="h-12 w-12 rounded-full mx-auto" />
+        <Skeleton className="h-12 w-12 rounded mx-auto" />
         <Skeleton className="h-8 w-48 mx-auto" />
         <Skeleton className="h-5 w-64 mx-auto" />
       </div>
-      <Skeleton className="h-16 w-full rounded-lg" />
+      <Skeleton className="h-16 w-full rounded" />
       <div className="space-y-4">
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
@@ -97,7 +97,7 @@ function ErrorState({ message, onRetry }: { message: string; onRetry?: () => voi
 // Host display component
 function HostBadge({ host }: { host: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded-lg border bg-muted/50 px-4 py-3">
+    <div className="flex items-center justify-center gap-2 rounded border bg-muted/50 px-4 py-3">
       <Lock className="size-4 text-muted-foreground" />
       <div className="text-center">
         <p className="text-xs text-muted-foreground">Accessing</p>
@@ -115,7 +115,7 @@ function Divider({ text }: { text: string }) {
         <Separator className="w-full" />
       </div>
       <div className="relative flex justify-center text-xs uppercase">
-        <span className="bg-background px-2 text-muted-foreground">{text}</span>
+        <span className="bg-card px-2 text-muted-foreground">{text}</span>
       </div>
     </div>
   );
@@ -161,7 +161,7 @@ function ACLLoginContent({
               className="h-12 w-auto mx-auto object-contain"
             />
           ) : (
-            <div className="h-12 w-12 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="h-12 w-12 mx-auto rounded bg-primary/10 flex items-center justify-center">
               <Lock className="size-6 text-primary" />
             </div>
           )}
@@ -173,7 +173,7 @@ function ACLLoginContent({
       ) : (
         /* Show success state when no auth required */
         <div className="flex flex-col items-center py-4 text-center">
-          <div className="rounded-full bg-green-500/10 p-4 mb-4">
+          <div className="rounded bg-green-500/10 p-4 mb-4">
             <CheckCircle className="size-8 text-green-500" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">No Authentication Required</h1>
@@ -288,7 +288,7 @@ export function ACLLoginPage() {
     ? { __html: sanitizeCSS(effectiveBranding.custom_css) }
     : null;
 
-  // Background style from branding (only apply if explicitly set)
+  // Background style from branding — applied directly when set by admin
   const backgroundStyle = effectiveBranding.background_color
     ? { backgroundColor: effectiveBranding.background_color }
     : undefined;
@@ -303,7 +303,7 @@ export function ACLLoginPage() {
         className="flex min-h-screen items-center justify-center bg-background px-4 py-8"
         style={backgroundStyle}
       >
-        <Card className="w-full max-w-md shadow-lg">
+        <Card className="w-full max-w-md shadow-lg animate-fade-up">
           <CardContent className="pt-6">
             {/* Show error from URL param (e.g., OAuth failure) */}
             {errorParam && (

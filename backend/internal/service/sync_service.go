@@ -33,6 +33,7 @@ type SyncService struct {
 	proxyRepo    repository.ProxyRepositoryInterface
 	settingsRepo repository.SettingsRepositoryInterface
 	aclRepo      repository.ACLRepositoryInterface
+	l4ProxyRepo  repository.L4ProxyRepositoryInterface
 	fileManager  caddy.FileManagerInterface
 	reloader     caddy.ReloaderInterface
 	logger       *zap.Logger
@@ -41,6 +42,9 @@ type SyncService struct {
 
 	// JSON configuration builder
 	jsonBuilder *config.Builder
+
+	// L4 configuration builder
+	l4Builder *config.L4Builder
 
 	// Waygates auth URLs for ACL
 	waygatesVerifyURL string
@@ -61,7 +65,8 @@ type SyncService struct {
 type SyncServiceConfig struct {
 	ProxyRepo    repository.ProxyRepositoryInterface
 	SettingsRepo repository.SettingsRepositoryInterface
-	ACLRepo      repository.ACLRepositoryInterface // Optional: for ACL-enabled proxies
+	ACLRepo      repository.ACLRepositoryInterface     // Optional: for ACL-enabled proxies
+	L4ProxyRepo  repository.L4ProxyRepositoryInterface // Optional: for L4 proxy support
 	FileManager  caddy.FileManagerInterface
 	Reloader     caddy.ReloaderInterface
 	Logger       *zap.Logger
@@ -89,6 +94,7 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 		proxyRepo:           cfg.ProxyRepo,
 		settingsRepo:        cfg.SettingsRepo,
 		aclRepo:             cfg.ACLRepo,
+		l4ProxyRepo:         cfg.L4ProxyRepo,
 		fileManager:         cfg.FileManager,
 		reloader:            cfg.Reloader,
 		logger:              logger,
@@ -106,24 +112,29 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 	// Initialize JSON builder
 	svc.initJSONBuilder(cfg, logger)
 
+	// Initialize L4 builder if L4 proxy repository is provided
+	if cfg.L4ProxyRepo != nil {
+		svc.l4Builder = config.NewL4Builder(logger)
+	}
+
 	return svc
 }
 
 // initJSONBuilder initializes the JSON configuration builder
 func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger) {
-	// Create ACL builder if Waygates auth URLs are configured
-	var aclBuilder *config.ACLBuilder
-	if cfg.WaygatesVerifyURL != "" && cfg.WaygatesLoginURL != "" {
-		aclBuilder = config.NewACLBuilder(logger)
-		aclBuilder.SetWaygatesURLs(cfg.WaygatesVerifyURL, cfg.WaygatesLoginURL)
-	}
+	// Always create the ACL builder. Self-contained ACL methods (HTTP basic auth,
+	// IP allow/deny/bypass) do not require the Waygates forward-auth URLs; gating
+	// the builder's existence on those URLs silently disabled basic-auth/IP ACLs
+	// whenever the login URL was unset. The Waygates URLs are only consulted by the
+	// forward-auth handler, which is only emitted when a group actually configures
+	// Waygates/OAuth/external-provider auth.
+	aclBuilder := config.NewACLBuilder(logger)
+	aclBuilder.SetWaygatesURLs(cfg.WaygatesVerifyURL, cfg.WaygatesLoginURL)
 
 	// Create builder options
 	opts := []config.BuilderOption{
 		config.WithLogger(logger),
-	}
-	if aclBuilder != nil {
-		opts = append(opts, config.WithACLBuilder(aclBuilder))
+		config.WithACLBuilder(aclBuilder),
 	}
 
 	// Create the JSON builder
@@ -205,6 +216,7 @@ func (s *SyncService) ensureInitialJSONConfig() error {
 		s.jsonBuilder.SetHTTPProxies(nil)
 		s.jsonBuilder.SetACLGroups(nil)
 		s.jsonBuilder.SetACLAssignments(nil)
+		s.jsonBuilder.SetLayer4App(nil)
 		s.jsonBuilder.SetNotFoundSettings(&models.NotFoundSettings{
 			Mode:        "default",
 			RedirectURL: "",
@@ -345,22 +357,61 @@ func (s *SyncService) performFullSyncJSON() error {
 		}
 	}
 
-	// 4. Configure the JSON builder with all data
+	// 4. Load L4 proxies if L4 repository is available
+	var l4ProxyCount int
+	// Clear any existing L4 config first to handle proxy removals
+	s.jsonBuilder.SetLayer4App(nil)
+	s.jsonBuilder.SetL4TLSHostnames(nil)
+
+	if s.l4ProxyRepo != nil && s.l4Builder != nil {
+		isActive := true
+		l4Proxies, _, err := s.l4ProxyRepo.List(repository.L4ProxyListParams{
+			Limit:    10000, // Get all L4 proxies
+			Page:     1,
+			IsActive: &isActive, // Only active proxies
+		})
+		if err != nil {
+			s.logger.Warn("Failed to list L4 proxies", zap.Error(err))
+		} else if len(l4Proxies) > 0 {
+			// Build Layer4 configuration
+			layer4App, err := s.l4Builder.BuildL4Config(l4Proxies)
+			if err != nil {
+				s.logger.Warn("Failed to build L4 config", zap.Error(err))
+			} else if layer4App != nil && len(layer4App.Servers) > 0 {
+				s.jsonBuilder.SetLayer4App(layer4App)
+				l4ProxyCount = len(l4Proxies)
+				s.logger.Debug("Built L4 config",
+					zap.Int("l4_proxy_count", l4ProxyCount),
+					zap.Int("l4_server_count", len(layer4App.Servers)))
+			}
+
+			// Extract SNI hostnames that need TLS certificates
+			l4TLSHostnames := extractL4TLSHostnames(l4Proxies)
+			if len(l4TLSHostnames) > 0 {
+				s.jsonBuilder.SetL4TLSHostnames(l4TLSHostnames)
+				s.logger.Debug("Extracted L4 TLS hostnames for certificate provisioning",
+					zap.Strings("hostnames", l4TLSHostnames))
+			}
+		}
+	}
+
+	// 5. Configure the JSON builder with all data
+	// Note: Layer4App is set in step 4 if L4 proxies exist, otherwise it remains nil
 	s.jsonBuilder.SetHTTPProxies(proxies)
 	s.jsonBuilder.SetACLGroups(aclGroups)
 	s.jsonBuilder.SetACLAssignments(aclAssignments)
 	s.jsonBuilder.SetNotFoundSettings(notFoundSettings)
 
-	// 5. Build the JSON configuration
+	// 6. Build the JSON configuration
 	configBytes, err := s.jsonBuilder.BuildJSON()
 	if err != nil {
 		return fmt.Errorf("failed to build JSON config: %w", err)
 	}
 
-	// 6. Get JSON config path from file manager
+	// 7. Get JSON config path from file manager
 	jsonConfigPath := s.fileManager.GetJSONConfigPath()
 
-	// 7. Check if config actually changed
+	// 8. Check if config actually changed
 	configChanged, err := s.fileManager.ConfigChanged(jsonConfigPath, configBytes)
 	if err != nil {
 		s.logger.Warn("Failed to check config changes", zap.Error(err))
@@ -368,7 +419,7 @@ func (s *SyncService) performFullSyncJSON() error {
 		configChanged = true
 	}
 
-	// 8. If config hasn't changed, skip backup and reload
+	// 9. If config hasn't changed, skip backup and reload
 	if !configChanged {
 		s.logger.Debug("JSON config unchanged, skipping sync")
 		s.mu.Lock()
@@ -377,30 +428,30 @@ func (s *SyncService) performFullSyncJSON() error {
 		return nil
 	}
 
-	// 9. Backup existing config before overwriting
+	// 10. Backup existing config before overwriting
 	if err := s.fileManager.BackupJSONConfig(jsonConfigPath); err != nil {
 		s.logger.Warn("Failed to backup JSON config", zap.Error(err))
 		// Continue anyway - backup is optional
 	}
 
-	// 10. Cleanup old backups by age
+	// 11. Cleanup old backups by age
 	if err := s.fileManager.CleanupOldBackupsByAge(s.configRetentionDays); err != nil {
 		s.logger.Warn("Failed to cleanup old backups", zap.Error(err))
 	}
 
-	// 11. Write the new JSON config
+	// 12. Write the new JSON config
 	if err := s.fileManager.WriteJSONConfig(jsonConfigPath, configBytes); err != nil {
 		return fmt.Errorf("failed to write JSON config: %w", err)
 	}
 
 	s.logger.Debug("JSON config written", zap.String("path", jsonConfigPath))
 
-	// 12. Validate the JSON configuration
+	// 13. Validate the JSON configuration
 	if err := s.reloader.ValidateJSON(jsonConfigPath); err != nil {
 		return fmt.Errorf("JSON config validation failed: %w", err)
 	}
 
-	// 13. Reload Caddy with the JSON configuration
+	// 14. Reload Caddy with the JSON configuration
 	result, err := s.reloader.ReloadJSON(ctx, jsonConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to reload Caddy with JSON config: %w", err)
@@ -414,7 +465,8 @@ func (s *SyncService) performFullSyncJSON() error {
 	s.mu.Unlock()
 
 	s.logger.Info("Caddy JSON configuration reloaded",
-		zap.Int("proxy_count", len(proxies)),
+		zap.Int("http_proxy_count", len(proxies)),
+		zap.Int("l4_proxy_count", l4ProxyCount),
 		zap.Int("acl_group_count", len(aclGroups)),
 		zap.Duration("reload_duration", result.Duration))
 
@@ -520,4 +572,42 @@ func sanitizeFilename(hostname string) string {
 // GetProxyFilename returns the config filename for a proxy (using hostname)
 func GetProxyFilename(proxyID int, hostname string) string {
 	return strconv.Itoa(proxyID) + "_" + sanitizeFilename(hostname) + ".conf"
+}
+
+// extractL4TLSHostnames extracts SNI hostnames from L4 proxies that need TLS certificates.
+// This includes routes with TLS termination enabled and TLS/SNI matcher type.
+func extractL4TLSHostnames(l4Proxies []models.L4Proxy) []string {
+	hostnameSet := make(map[string]bool)
+
+	for i := range l4Proxies {
+		proxy := &l4Proxies[i]
+		if !proxy.IsActive {
+			continue
+		}
+
+		for j := range proxy.Routes {
+			route := &proxy.Routes[j]
+			// Check if this route needs TLS termination
+			if !route.TLSTerminate {
+				continue
+			}
+
+			// For TLS matcher, collect SNI hostnames
+			if route.MatcherType == "tls" && len(route.SNIHostnames) > 0 {
+				for _, hostname := range route.SNIHostnames {
+					if hostname != "" {
+						hostnameSet[hostname] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Convert set to slice
+	hostnames := make([]string, 0, len(hostnameSet))
+	for hostname := range hostnameSet {
+		hostnames = append(hostnames, hostname)
+	}
+
+	return hostnames
 }

@@ -11,6 +11,7 @@ This guide covers deploying Waygates in various environments.
 - [Production Considerations](#production-considerations)
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
+- [Testing](#testing)
 
 ---
 
@@ -195,6 +196,28 @@ See `.env.example` for full list: Hetzner, Porkbun, Vultr, Namecheap, OVH, Azure
 | 80 | TCP | HTTP (redirect to HTTPS when TLS enabled) |
 | 443 | TCP/UDP | HTTPS + HTTP/3 |
 | 8080 | TCP | Backend API + UI |
+| Custom | TCP/UDP | L4 proxy ports (configured per proxy) |
+
+### L4 Proxy Ports
+
+L4 (TCP/UDP) proxies use custom ports that must be exposed in your Docker configuration. Add them to your `docker-compose.yml`:
+
+```yaml
+waygates:
+  ports:
+    - "80:80"
+    - "443:443"
+    - "8080:8080"
+    # L4 Proxy ports - add as needed
+    - "5432:5432"      # PostgreSQL proxy
+    - "2222:2222"      # SSH gateway
+    - "3306:3306"      # MySQL proxy
+    - "6379:6379"      # Redis proxy
+    - "25565:25565"    # Minecraft server
+    - "53:53/udp"      # DNS (UDP)
+```
+
+**Note:** You only need to expose ports for L4 proxies you've configured in Waygates.
 
 ### Volumes
 
@@ -338,6 +361,32 @@ docker compose down -v
 
 # Start fresh
 docker compose up -d
+```
+
+---
+
+## Testing
+
+### Proxy traffic E2E tests
+
+`make test-traffic` builds the `waygates-test:latest` image and runs the
+end-to-end traffic suite (`backend/tests/integration/traffic_*_test.go`, build
+tag `traffic`). It boots the app plus backend fixtures (HTTP/HTTPS echo, TCP
+echo, Postgres) on a Docker network and drives real traffic through Caddy for
+both L7 and L4 proxies:
+
+- **L7** (`TestTraffic_L7`): reverse_proxy, redirect, static, load balancing
+  (round-robin), ACL basic-auth, and block_exploits. A `custom_headers` subtest
+  is included but currently **skipped** pending response-header support in the
+  Caddy builder.
+- **L4** (`TestTraffic_L4`): `any`/TCP echo, `http` matcher, `postgres` matcher,
+  TLS SNI passthrough, `remote_ip` allow/deny, and load balancing (round-robin).
+
+Requires Docker. These tests are build-tagged with `traffic`, so they are
+**excluded** from `make backend-test` and the default `go test ./...` run.
+
+```bash
+make test-traffic
 ```
 
 ---

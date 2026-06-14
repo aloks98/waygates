@@ -70,6 +70,21 @@ permission_groups:
         name: "Delete ACL"
         description: "Remove ACL groups, rules, and assignments"
 
+  - name: "L4 Proxies"
+    permissions:
+      - key: "l4proxies:read"
+        name: "View L4 Proxies"
+        description: "View L4 (TCP/UDP) proxy configurations"
+      - key: "l4proxies:create"
+        name: "Create L4 Proxies"
+        description: "Create new L4 proxy configurations"
+      - key: "l4proxies:update"
+        name: "Update L4 Proxies"
+        description: "Modify existing L4 proxy configurations"
+      - key: "l4proxies:delete"
+        name: "Delete L4 Proxies"
+        description: "Remove L4 proxy configurations"
+
 role_templates:
   - key: "admin"
     name: "Administrator"
@@ -82,6 +97,7 @@ role_templates:
     description: "Manage proxy configurations and settings"
     permissions:
       - "proxies:*"
+      - "l4proxies:*"
       - "acl:*"
       - "settings:read"
       - "settings:write"
@@ -95,6 +111,7 @@ role_templates:
     description: "Read-only access"
     permissions:
       - "proxies:read"
+      - "l4proxies:read"
       - "acl:read"
       - "settings:read"
       - "sync:read"

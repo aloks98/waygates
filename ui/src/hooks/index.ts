@@ -50,6 +50,9 @@ export {
   useExportAuditLogs,
 } from './use-audit-logs';
 
+// Dashboard Hooks
+export { useAppStatus, useDashboardData, useHealthStatus, useSyncStatus } from './use-dashboard';
+
 export { usePermissions } from './use-permissions';
 export { useProxies, useProxy } from './use-proxies';
 export { useNotFoundSettings } from './use-settings';

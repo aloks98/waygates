@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS proxies (
     upstreams TEXT,  -- JSON: [{"host": "...", "port": 8080, "scheme": "http"}]
     load_balancing TEXT,  -- JSON: {"strategy": "round_robin", "health_checks": {...}}
     block_exploits BOOLEAN NOT NULL DEFAULT true,
-    custom_headers TEXT,  -- JSON: {"X-Header": "value"}
+    custom_headers TEXT,  -- JSON: {"request":{"X-Header":"value"},"response":{"X-Header":"value"}} (flat map also accepted as request headers)
 
     -- For redirect type
     redirect_config TEXT,  -- JSON: {"target": "...", "status_code": 301, ...}

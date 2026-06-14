@@ -42,7 +42,7 @@ const reverseProxySchema = z.object({
     .min(1, 'Hostname is required')
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
-  upstreams: z.array(upstreamSchema).min(1, 'At least one upstream is required'),
+  upstreams: z.array(upstreamSchema).min(1, 'Add at least one backend server'),
   ssl_enabled: z.boolean(),
   block_exploits: z.boolean(),
   tls_insecure_skip_verify: z.boolean(),
@@ -90,6 +90,20 @@ function getValidLbStrategy(
   return 'round_robin';
 }
 
+type HeaderPair = { name: string; value: string };
+
+const toPairs = (rec?: Record<string, string>): HeaderPair[] =>
+  Object.entries(rec ?? {}).map(([name, value]) => ({ name, value }));
+
+const toRecord = (pairs: HeaderPair[]): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const p of pairs) {
+    const name = p.name.trim();
+    if (name) out[name] = p.value;
+  }
+  return out;
+};
+
 export function ReverseProxyForm({
   initialData,
   initialACLAssignments,
@@ -101,6 +115,24 @@ export function ReverseProxyForm({
   const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
     initialACLAssignments ?? [],
   );
+
+  const [requestHeaders, setRequestHeaders] = useState<HeaderPair[]>(() =>
+    toPairs(initialData?.custom_headers?.request),
+  );
+  const [responseHeaders, setResponseHeaders] = useState<HeaderPair[]>(() =>
+    toPairs(initialData?.custom_headers?.response),
+  );
+
+  const addHeader = (setter: typeof setRequestHeaders) =>
+    setter((prev) => [...prev, { name: '', value: '' }]);
+  const removeHeader = (setter: typeof setRequestHeaders, index: number) =>
+    setter((prev) => prev.filter((_, i) => i !== index));
+  const updateHeader = (
+    setter: typeof setRequestHeaders,
+    index: number,
+    key: keyof HeaderPair,
+    val: string,
+  ) => setter((prev) => prev.map((h, i) => (i === index ? { ...h, [key]: val } : h)));
 
   // Compute default values based on initialData
   // This ensures the form is always initialized with the correct values
@@ -171,6 +203,15 @@ export function ReverseProxyForm({
         };
       }
 
+      const reqHeaders = toRecord(requestHeaders);
+      const resHeaders = toRecord(responseHeaders);
+      if (Object.keys(reqHeaders).length > 0 || Object.keys(resHeaders).length > 0) {
+        data.custom_headers = {
+          ...(Object.keys(reqHeaders).length > 0 ? { request: reqHeaders } : {}),
+          ...(Object.keys(resHeaders).length > 0 ? { response: resHeaders } : {}),
+        };
+      }
+
       onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
     },
   });
@@ -180,6 +221,8 @@ export function ReverseProxyForm({
   useEffect(() => {
     if (initialData) {
       setUpstreams(normalizeUpstreams(initialData));
+      setRequestHeaders(toPairs(initialData.custom_headers?.request));
+      setResponseHeaders(toPairs(initialData.custom_headers?.response));
       form.reset(defaultValues);
     }
   }, [initialData, form, defaultValues]);
@@ -242,6 +285,7 @@ export function ReverseProxyForm({
                     <Input
                       id={field.name}
                       placeholder="My Backend API"
+                      autoFocus={!initialData}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       onBlur={field.handleBlur}
@@ -267,6 +311,9 @@ export function ReverseProxyForm({
                       onBlur={field.handleBlur}
                       aria-invalid={hasError}
                     />
+                    <FieldDescription>
+                      The domain visitors will use to reach this service
+                    </FieldDescription>
                     {hasError && <FieldError errors={field.state.meta.errors} />}
                   </Field>
                 );
@@ -300,17 +347,27 @@ export function ReverseProxyForm({
       <Card>
         <CardHeader>
           <CardHeading>
-            <CardTitle>Upstream Servers</CardTitle>
-            <CardDescription>Backend servers that will handle incoming requests</CardDescription>
+            <CardTitle>Backend Servers</CardTitle>
+            <CardDescription>
+              Where to forward incoming traffic. Add the IP and port of your service.
+            </CardDescription>
           </CardHeading>
           <CardToolbar>
             <Button type="button" variant="outline" size="sm" onClick={addUpstream}>
               <Plus className="mr-1 size-4" />
-              Add Upstream
+              Add Server
             </Button>
           </CardToolbar>
         </CardHeader>
         <CardContent className="space-y-3">
+          {upstreams.length > 0 && (
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <div className="w-24">Scheme</div>
+              <div className="flex-1">Host</div>
+              <div className="w-24">Port</div>
+              {upstreams.length > 1 && <div className="w-9" />}
+            </div>
+          )}
           {upstreams.map((upstream, index) => (
             <div key={index} className="flex items-start gap-2">
               <div className="w-24">
@@ -372,7 +429,9 @@ export function ReverseProxyForm({
             <CardHeader>
               <CardHeading>
                 <CardTitle>Load Balancing</CardTitle>
-                <CardDescription>Distribute traffic across upstream servers</CardDescription>
+                <CardDescription>
+                  How to distribute traffic across your backend servers
+                </CardDescription>
               </CardHeading>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -388,9 +447,15 @@ export function ReverseProxyForm({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="round_robin">Round Robin</SelectItem>
-                        <SelectItem value="least_conn">Least Connections</SelectItem>
-                        <SelectItem value="ip_hash">IP Hash (Sticky)</SelectItem>
+                        <SelectItem value="round_robin">
+                          Round Robin — each server takes turns
+                        </SelectItem>
+                        <SelectItem value="least_conn">
+                          Least Connections — prefer less busy servers
+                        </SelectItem>
+                        <SelectItem value="ip_hash">
+                          Sticky — same visitor always reaches same server
+                        </SelectItem>
                         <SelectItem value="random">Random</SelectItem>
                       </SelectContent>
                     </Select>
@@ -403,7 +468,9 @@ export function ReverseProxyForm({
                   <Field orientation="horizontal">
                     <FieldContent>
                       <FieldLabel>Health Checks</FieldLabel>
-                      <FieldDescription>Monitor upstream availability</FieldDescription>
+                      <FieldDescription>
+                        Periodically check if your backend servers are reachable
+                      </FieldDescription>
                     </FieldContent>
                     <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
                   </Field>
@@ -430,12 +497,13 @@ export function ReverseProxyForm({
                         <form.Field name="health_check_interval">
                           {(field) => (
                             <Field>
-                              <FieldLabel>Interval</FieldLabel>
+                              <FieldLabel>Check Every</FieldLabel>
                               <Input
                                 placeholder="30s"
                                 value={field.state.value}
                                 onChange={(e) => field.handleChange(e.target.value)}
                               />
+                              <FieldDescription>e.g., 30s, 1m, 5m</FieldDescription>
                             </Field>
                           )}
                         </form.Field>
@@ -448,6 +516,7 @@ export function ReverseProxyForm({
                                 value={field.state.value}
                                 onChange={(e) => field.handleChange(e.target.value)}
                               />
+                              <FieldDescription>How long to wait for a response</FieldDescription>
                             </Field>
                           )}
                         </form.Field>
@@ -464,7 +533,7 @@ export function ReverseProxyForm({
           <CardHeader>
             <CardHeading>
               <CardTitle>Security</CardTitle>
-              <CardDescription>SSL and upstream connection settings</CardDescription>
+              <CardDescription>HTTPS and connection security options</CardDescription>
             </CardHeading>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -500,8 +569,10 @@ export function ReverseProxyForm({
               {(field) => (
                 <Field orientation="horizontal">
                   <FieldContent>
-                    <FieldLabel>Skip TLS Verification</FieldLabel>
-                    <FieldDescription>Allow self-signed certificates on upstream</FieldDescription>
+                    <FieldLabel>Allow Self-Signed Certificates</FieldLabel>
+                    <FieldDescription>
+                      Trust the backend server even if its certificate isn't from a public authority
+                    </FieldDescription>
                   </FieldContent>
                   <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
                 </Field>
@@ -510,6 +581,74 @@ export function ReverseProxyForm({
           </CardContent>
         </Card>
       </div>
+
+      {/* Custom Headers */}
+      <Card>
+        <CardHeader>
+          <CardHeading>
+            <CardTitle>Custom Headers</CardTitle>
+            <CardDescription>
+              Add headers sent to the upstream (request) or returned to the client (response).
+            </CardDescription>
+          </CardHeading>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {(
+            [
+              {
+                label: 'Request headers (to upstream)',
+                pairs: requestHeaders,
+                setter: setRequestHeaders,
+              },
+              {
+                label: 'Response headers (to client)',
+                pairs: responseHeaders,
+                setter: setResponseHeaders,
+              },
+            ] as const
+          ).map((group) => (
+            <div key={group.label} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <FieldLabel>{group.label}</FieldLabel>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addHeader(group.setter)}
+                >
+                  <Plus className="mr-1 size-4" />
+                  Add header
+                </Button>
+              </div>
+              {group.pairs.map((pair, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: header rows are positional, edited in place
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Header-Name"
+                    value={pair.name}
+                    onChange={(e) => updateHeader(group.setter, index, 'name', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="value"
+                    value={pair.value}
+                    onChange={(e) => updateHeader(group.setter, index, 'value', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeHeader(group.setter, index)}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Access Control */}
       <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
