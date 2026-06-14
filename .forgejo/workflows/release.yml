@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    runs-on: docker
+    runs-on: large
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +28,17 @@ jobs:
 
       - name: set up buildx
         run: |
-          docker buildx create --name waygates-builder --driver docker-container --use
+          # The DinD runner exposes its daemon over TLS via env vars; buildx
+          # can't serialize "TLS from env" into a builder node, so bind the
+          # builder to an explicit docker context (see ci.yml for details).
+          ctx=default
+          if [ -n "$DOCKER_CERT_PATH" ]; then
+            docker context inspect waygates-ctx >/dev/null 2>&1 \
+              || docker context create waygates-ctx \
+                   --docker "host=${DOCKER_HOST},ca=${DOCKER_CERT_PATH}/ca.pem,cert=${DOCKER_CERT_PATH}/cert.pem,key=${DOCKER_CERT_PATH}/key.pem"
+            ctx=waygates-ctx
+          fi
+          docker buildx create --name waygates-builder --driver docker-container --use "$ctx"
           docker buildx inspect --bootstrap
 
       - name: login to ghcr

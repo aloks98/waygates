@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # =============================================================================
 # Waygates - Combined Backend + Caddy Container
 # =============================================================================
@@ -51,8 +52,11 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy UI package files
 COPY ui/package.json ui/pnpm-lock.yaml* ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile || pnpm install
+# Install dependencies. The cache mount persists pnpm's content-addressable
+# store across builds so packages aren't re-downloaded on a cache miss.
+RUN --mount=type=cache,target=/pnpm-store \
+    pnpm install --frozen-lockfile --store-dir /pnpm-store \
+    || pnpm install --store-dir /pnpm-store
 
 # Copy UI source code
 COPY ui/ .
@@ -77,7 +81,9 @@ ARG TARGETARCH
 # Build Caddy with L4 plugin and all supported DNS challenge providers.
 # caddy-l4 is pinned so an upstream release cannot silently break the build by
 # requiring a newer Caddy than the builder image above.
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
     --with github.com/mholt/caddy-l4@v0.1.1 \
     --with github.com/caddy-dns/cloudflare \
     --with github.com/caddy-dns/route53 \
@@ -93,7 +99,7 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} xcaddy build \
 # =============================================================================
 # Stage 3: Build Backend
 # =============================================================================
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS backend-builder
 
 WORKDIR /app
 
@@ -105,14 +111,17 @@ COPY go.mod go.sum ./
 
 # Download dependencies (allow toolchain auto-download for newer Go versions)
 ENV GOTOOLCHAIN=auto
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 # Copy backend source code
 COPY backend/ ./backend/
 
-# Build the application (cross-compile for target platform)
+# Build the application (cross-compile for target platform). Cache mounts reuse
+# the Go build and module caches across builds for faster recompiles.
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOTOOLCHAIN=auto go build -o /app/server ./backend/cmd/server
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOTOOLCHAIN=auto go build -o /app/server ./backend/cmd/server
 
 # =============================================================================
 # Stage 4: Runtime (Combined Backend + Caddy)

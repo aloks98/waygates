@@ -1,0 +1,37 @@
+# Build context excludes. Keeps ~460MB of host-only files out of the daemon
+# tar and out of layer-cache keys, so editing them never busts a cached layer.
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Node deps & UI build output (UI is built inside the image from source)
+**/node_modules
+ui/dist
+
+# Go build artifacts (server is built inside the image)
+/server
+**/*.test
+backend/coverage.*
+coverage.*
+
+# Tests are run on the host, never copied into the image. Excluding them
+# means editing a test won't invalidate the `COPY backend/` layer.
+**/*_test.go
+backend/tests
+
+# CI, tooling, docs, editor (never copied by the Dockerfile)
+.forgejo
+.github
+.claude
+docs
+*.md
+LICENSE
+Makefile
+
+# Local env / compose
+.env
+.env.*
+!.env.example
+docker-compose*.yml
