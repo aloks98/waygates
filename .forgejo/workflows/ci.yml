@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+# Runners are self-hosted, ephemeral, scale-to-zero pods with ZERO state
+# between jobs. Pick a size with runs-on: tiny-no-docker | small | medium |
+# large (the legacy `docker` alias maps to large). Because nothing persists
+# across jobs, all cross-run caching goes through actions/cache — including the
+# buildx layer cache below, which can't rely on a reused builder.
 jobs:
   # Shell replacement for dorny/paths-filter (not mirrored on this instance):
   # diff the push/PR range and decide which downstream jobs need to run.
@@ -239,9 +244,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Restore the layer cache test-backend saved for this SHA (or the most
-      # recent prefix match), so this build reuses those layers rather than
-      # rebuilding the identical image from scratch.
+      # Restore the layer cache (most recent prefix match) and re-export it
+      # below, so this job both reuses warm layers AND seeds/refreshes the
+      # cache — important because it's the only docker job that runs on
+      # Dockerfile/UI-only changes (test-backend is skipped then).
       - name: cache docker layers
         uses: actions/cache@v4
         with:
@@ -263,7 +269,13 @@ jobs:
           fi
           if docker buildx create --name waygates-ci --driver docker-container --use "$ctx" \
              && docker buildx inspect --bootstrap; then
-            docker buildx build --cache-from type=local,src=/tmp/.buildx-cache -f Dockerfile .
+            docker buildx build \
+              --cache-from type=local,src=/tmp/.buildx-cache \
+              --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+              -f Dockerfile .
+            # Rotate the cache dir so it doesn't grow unboundedly across runs.
+            rm -rf /tmp/.buildx-cache
+            mv /tmp/.buildx-cache-new /tmp/.buildx-cache 2>/dev/null || true
           else
             echo "::warning::buildx docker-container setup failed; building without layer cache"
             docker buildx use default >/dev/null 2>&1 || true

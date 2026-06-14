@@ -10,6 +10,9 @@ permissions:
 env:
   IMAGE: ghcr.io/aloks98/waygates
 
+# Runners are self-hosted, ephemeral, scale-to-zero pods with zero state
+# between jobs; `large` is the heaviest tier (4cpu/6Gi dind) for the
+# multi-arch build below.
 jobs:
   build:
     runs-on: large
