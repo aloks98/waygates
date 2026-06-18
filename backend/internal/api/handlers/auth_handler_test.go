@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/aloks98/goauth/middleware"
@@ -387,6 +389,63 @@ func TestRegister(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin ensures concurrent
+// registrations produce exactly one admin. The first-user-becomes-admin
+// decision reads the user count right after creating the user, so without
+// serialization a race gives zero admins (or more than one).
+func TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin(t *testing.T) {
+	const n = 50
+
+	var mu sync.Mutex
+	created := 0
+	var roles []string
+
+	userRepo := &MockUserRepository{
+		CreateFunc: func(u *models.User) error {
+			mu.Lock()
+			created++
+			u.ID = created
+			mu.Unlock()
+			runtime.Gosched() // widen the create->count window to expose the race
+			return nil
+		},
+		CountFunc: func() (int64, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			return int64(created), nil
+		},
+	}
+	authProvider := &MockAuthProvider{
+		AssignRoleFunc: func(_ context.Context, _, role string) error {
+			mu.Lock()
+			roles = append(roles, role)
+			mu.Unlock()
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
+
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = handler.createUserAndAssignRole(context.Background(), &models.User{Username: "u"})
+		}()
+	}
+	wg.Wait()
+
+	adminCount := 0
+	for _, r := range roles {
+		if r == "admin" {
+			adminCount++
+		}
+	}
+	assert.Len(t, roles, n, "every registration should assign a role")
+	assert.Equal(t, 1, adminCount, "exactly one registrant should become admin")
 }
 
 // TestLogin tests user login

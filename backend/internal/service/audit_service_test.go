@@ -160,8 +160,9 @@ func (m *mockAuditLogRepo) CountByUserID(userID int) (int64, error) {
 
 // mockSettingsService implements a mock settings service for testing
 type mockSettingsService struct {
-	settings map[string]string
-	setErr   error
+	settings            map[string]string
+	setErr              error
+	getWithDefaultCalls int
 }
 
 func newMockSettingsService() *mockSettingsService {
@@ -178,6 +179,7 @@ func (m *mockSettingsService) Get(key string) (string, error) {
 }
 
 func (m *mockSettingsService) GetWithDefault(key, defaultValue string) string {
+	m.getWithDefaultCalls++
 	if v, ok := m.settings[key]; ok {
 		return v
 	}
@@ -207,6 +209,24 @@ func (m *mockSettingsService) GetNotFoundSettings() (*models.NotFoundSettings, e
 
 func (m *mockSettingsService) SetNotFoundSettings(_ *models.NotFoundSettings) error {
 	return nil
+}
+
+// TestAuditService_GetConfigCachesAfterFirstLoad ensures the audit config is
+// loaded from settings only once and then served from the cache. The read path
+// previously never populated the cache, so every audit event re-fetched and
+// re-parsed the config.
+func TestAuditService_GetConfigCachesAfterFirstLoad(t *testing.T) {
+	settings := newMockSettingsService()
+	svc := NewAuditService(nil, settings, nil)
+
+	_ = svc.getConfig()
+	_ = svc.getConfig()
+	_ = svc.getConfig()
+
+	if settings.getWithDefaultCalls != 1 {
+		t.Errorf("expected audit config to be loaded from settings once, got %d loads",
+			settings.getWithDefaultCalls)
+	}
 }
 
 func TestNewAuditService(t *testing.T) {

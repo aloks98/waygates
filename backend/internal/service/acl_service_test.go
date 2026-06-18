@@ -2063,6 +2063,11 @@ func TestMatchPath(t *testing.T) {
 		{"/api/*/users", "/api/v1/users", true},
 		{"/api/*/users", "/api/v2/users", true},
 
+		// Middle wildcard - the trailing literal must reach the end of the path,
+		// otherwise an ACL rule scoped to /api/*/users also covers sub-paths.
+		{"/api/*/users", "/api/v1/users/extra", false},
+		{"/api/*/users", "/api/v1/usersextra", false},
+
 		// Non-matches
 		{"/api", "/other", false},
 		{"/specific/path", "/different/path", false},
@@ -6296,6 +6301,24 @@ func TestACLService_UpdateProxyAssignment(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+// TestACLService_UpdateProxyAssignment_NotFoundReturnsSentinel ensures a
+// missing assignment surfaces ErrProxyACLNotFound so the handler returns 404,
+// rather than a wrapped gorm.ErrRecordNotFound that the handler maps to 500.
+func TestACLService_UpdateProxyAssignment_NotFoundReturnsSentinel(t *testing.T) {
+	aclRepo := &MockACLRepository{
+		GetProxyACLAssignmentByIDFunc: func(_ int) (*models.ProxyACLAssignment, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
+	}
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+	err := svc.UpdateProxyAssignment(999, "/api/*", 20, true)
+
+	if !errors.Is(err, ErrProxyACLNotFound) {
+		t.Errorf("expected ErrProxyACLNotFound, got %v", err)
 	}
 }
 

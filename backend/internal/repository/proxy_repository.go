@@ -152,9 +152,12 @@ func (r *ProxyRepository) Create(proxy *models.Proxy) error {
 	return r.db.Create(proxy).Error
 }
 
-// Update updates an existing proxy
+// Update updates an existing proxy. It uses Save rather than Updates so that
+// zero-value fields (e.g. disabling SSL, or clearing type-specific config when
+// a proxy's type changes) are written instead of silently skipped. Callers are
+// expected to pass a fully populated proxy (see ProxyService.UpdateProxy).
 func (r *ProxyRepository) Update(proxy *models.Proxy) error {
-	return r.db.Updates(proxy).Error
+	return r.db.Save(proxy).Error
 }
 
 // Delete deletes a proxy by ID

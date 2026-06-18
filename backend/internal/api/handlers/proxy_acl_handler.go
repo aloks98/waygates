@@ -213,10 +213,17 @@ func (h *ProxyACLHandler) UpdateProxyACLAssignment(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Get old assignment for change tracking
+	// Get old assignment for change tracking, and verify it belongs to the
+	// proxy named in the route. Without this check, a caller could modify an
+	// assignment owned by a different proxy via this proxy's path, and the
+	// post-update sync would target the wrong proxy.
 	var oldAssignment *models.ProxyACLAssignment
 	if h.aclRepo != nil {
 		oldAssignment, _ = h.aclRepo.GetProxyACLAssignmentByID(assignmentID)
+		if oldAssignment != nil && oldAssignment.ProxyID != proxyID {
+			utils.NotFound(w, "ACL assignment not found")
+			return
+		}
 	}
 
 	// Parse request body

@@ -131,6 +131,13 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 				ContainerFilePath: "/var/www/test/index.html",
 				FileMode:          0o644,
 			},
+			{
+				// A second, distinct asset so the try_files (SPA) subtest can prove
+				// an existing file is served as-is rather than rewritten to index.html.
+				Reader:            strings.NewReader("WAYGATES ASSET OK"),
+				ContainerFilePath: "/var/www/test/asset.txt",
+				FileMode:          0o644,
+			},
 		},
 		Env: map[string]string{
 			"DB_HOST": "postgres", "DB_PORT": "5432", "DB_USER": "waygates",
@@ -140,7 +147,12 @@ func SetupTrafficEnvironment(t *testing.T) *TrafficEnv {
 			"BCRYPT_COST": "4", "CORS_ORIGINS": "*",
 			"RBAC_PATH": "/app/backend/rbac.yaml", "CADDY_EMAIL": "test@example.com",
 			"CADDY_DISABLE_AUTO_HTTPS": "true",
-			"CLOUDFLARE_EMAIL":         "test@example.com", "CLOUDFLARE_API_TOKEN": "dummy-token-for-testing",
+			// Trust the docker network the test connects from and read the client
+			// IP from X-Forwarded-For, so the trusted-proxy client-IP path is
+			// exercised end-to-end (config validity + real-client-IP resolution).
+			"CADDY_TRUSTED_PROXIES":   "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+			"CADDY_CLIENT_IP_HEADERS": "X-Forwarded-For",
+			"CLOUDFLARE_EMAIL":        "test@example.com", "CLOUDFLARE_API_TOKEN": "dummy-token-for-testing",
 			"LOG_LEVEL": "debug", "LOG_FORMAT": "console", "UI_ENABLED": "false",
 		},
 		WaitingFor: wait.ForAll(

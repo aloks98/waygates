@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +12,26 @@ import (
 // =============================================================================
 // Unit Tests for Helper Functions
 // =============================================================================
+
+// TestClientIPForACL_PrefersTrustedHeader ensures IP-based ACL decisions use the
+// trusted X-Waygates-Client-IP set by Caddy, ignoring a client-spoofed
+// X-Forwarded-For.
+func TestClientIPForACL_PrefersTrustedHeader(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "9.9.9.9") // attacker-controlled
+	req.Header.Set(trustedClientIPHeader, "203.0.113.7")
+
+	assert.Equal(t, "203.0.113.7", clientIPForACL(req))
+}
+
+// TestClientIPForACL_FallsBackToXFF ensures direct callers (no trusted header)
+// still resolve to the first X-Forwarded-For entry.
+func TestClientIPForACL_FallsBackToXFF(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-For", "198.51.100.4, 10.0.0.1")
+
+	assert.Equal(t, "198.51.100.4", clientIPForACL(req))
+}
 
 // TestExtractBaseDomainFallback tests the extractBaseDomainFallback function
 func TestExtractBaseDomainFallback(t *testing.T) {

@@ -392,12 +392,13 @@ func (m *MockACLService) CleanupExpiredSessions() (int64, error) {
 
 // MockACLRepository is a mock implementation of ACLRepositoryInterface for testing
 type MockACLRepository struct {
-	ListIPRulesFunc             func(groupID int) ([]models.ACLIPRule, error)
-	GetIPRuleByIDFunc           func(id int) (*models.ACLIPRule, error)
-	ListBasicAuthUsersFunc      func(groupID int) ([]models.ACLBasicAuthUser, error)
-	GetBasicAuthUserByIDFunc    func(id int) (*models.ACLBasicAuthUser, error)
-	ListExternalProvidersFunc   func(groupID int) ([]models.ACLExternalProvider, error)
-	GetExternalProviderByIDFunc func(id int) (*models.ACLExternalProvider, error)
+	ListIPRulesFunc               func(groupID int) ([]models.ACLIPRule, error)
+	GetIPRuleByIDFunc             func(id int) (*models.ACLIPRule, error)
+	ListBasicAuthUsersFunc        func(groupID int) ([]models.ACLBasicAuthUser, error)
+	GetBasicAuthUserByIDFunc      func(id int) (*models.ACLBasicAuthUser, error)
+	ListExternalProvidersFunc     func(groupID int) ([]models.ACLExternalProvider, error)
+	GetExternalProviderByIDFunc   func(id int) (*models.ACLExternalProvider, error)
+	GetProxyACLAssignmentByIDFunc func(id int) (*models.ProxyACLAssignment, error)
 }
 
 func (m *MockACLRepository) CreateGroup(_ *models.ACLGroup) error              { return nil }
@@ -497,7 +498,10 @@ func (m *MockACLRepository) UpdateProxyACLAssignment(_ *models.ProxyACLAssignmen
 	return nil
 }
 func (m *MockACLRepository) DeleteProxyACLAssignment(_ int) error { return nil }
-func (m *MockACLRepository) GetProxyACLAssignmentByID(_ int) (*models.ProxyACLAssignment, error) {
+func (m *MockACLRepository) GetProxyACLAssignmentByID(id int) (*models.ProxyACLAssignment, error) {
+	if m.GetProxyACLAssignmentByIDFunc != nil {
+		return m.GetProxyACLAssignmentByIDFunc(id)
+	}
 	return nil, nil
 }
 func (m *MockACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(_, _ int) error {

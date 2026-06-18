@@ -78,6 +78,11 @@ type SyncServiceConfig struct {
 	WaygatesLoginURL  string // Waygates auth login URL for ACL
 	StoragePath       string // Caddy storage path (default: /data)
 
+	// Trusted proxy configuration for real-client-IP resolution behind a
+	// tunnel/upstream proxy (empty = Caddy is the edge).
+	TrustedProxies  []string
+	ClientIPHeaders []string
+
 	// Backup configuration
 	ConfigRetentionDays int // Days to retain backups (default: 7)
 }
@@ -152,6 +157,8 @@ func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger)
 		StoragePath:       storagePath,
 		WaygatesVerifyURL: cfg.WaygatesVerifyURL,
 		WaygatesLoginURL:  cfg.WaygatesLoginURL,
+		TrustedProxies:    cfg.TrustedProxies,
+		ClientIPHeaders:   cfg.ClientIPHeaders,
 	})
 }
 
@@ -173,8 +180,13 @@ func (s *SyncService) Start(interval time.Duration) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		// Wait a bit for Caddy to be ready
-		time.Sleep(5 * time.Second)
+		// Wait a bit for Caddy to be ready, but abort promptly if Stop is
+		// called during the delay so graceful shutdown isn't held up.
+		select {
+		case <-time.After(5 * time.Second):
+		case <-s.stopChan:
+			return
+		}
 		if err := s.FullSync(); err != nil {
 			s.logger.Error("Initial sync failed", zap.Error(err))
 		}
@@ -331,17 +343,9 @@ func (s *SyncService) performFullSyncJSON() error {
 		if err != nil {
 			s.logger.Warn("Failed to list ACL groups", zap.Error(err))
 		} else {
-			// Load full group data for each group
-			for i := range groups {
-				fullGroup, err := s.aclRepo.GetGroupByID(groups[i].ID)
-				if err != nil {
-					s.logger.Warn("Failed to load full ACL group data",
-						zap.Int("group_id", groups[i].ID),
-						zap.Error(err))
-					continue
-				}
-				aclGroups = append(aclGroups, *fullGroup)
-			}
+			// ListGroups preloads all relations, so the groups are ready to use
+			// directly — no per-group GetGroupByID query needed.
+			aclGroups = groups
 		}
 
 		// Get ACL assignments for each proxy

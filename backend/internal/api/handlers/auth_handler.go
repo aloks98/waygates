@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -108,56 +110,57 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save user to database
-	if err := h.userRepo.Create(user); err != nil {
+	// Create the user and assign its role. This is serialized so the
+	// "first user becomes admin" decision is race-free (see the method).
+	if err := h.createUserAndAssignRole(r.Context(), user); err != nil {
 		if h.logger != nil {
-			h.logger.Error("Failed to create user in database",
+			h.logger.Error("Failed to register user",
 				zap.String("username", req.Username),
 				zap.String("email", req.Email),
 				zap.Error(err))
 		}
-		utils.InternalError(w, "Failed to create user")
-		return
-	}
-
-	// Assign default role (admin for first user, operator for others)
-	ctx := r.Context()
-	userIDStr := fmt.Sprintf("%d", user.ID)
-
-	count, _ := h.userRepo.Count()
-	role := "operator"
-	if count == 1 {
-		role = "admin" // First user gets admin role
-	}
-
-	if err := h.auth.AssignRole(ctx, userIDStr, role); err != nil {
-		if h.logger != nil {
-			h.logger.Error("Failed to assign role to user",
-				zap.Int("user_id", user.ID),
-				zap.String("role", role),
-				zap.Error(err))
-		}
-		// Rollback user creation if role assignment fails
-		// This is critical - especially for the first user who needs admin role
-		if delErr := h.userRepo.Delete(user.ID); delErr != nil {
-			if h.logger != nil {
-				h.logger.Error("Failed to rollback user creation after role assignment failure",
-					zap.Int("user_id", user.ID),
-					zap.Error(delErr))
-			}
-			utils.InternalError(w, "Failed to assign role and rollback failed")
-			return
-		}
-		utils.InternalError(w, "Failed to assign user role")
+		utils.InternalError(w, "Failed to register user")
 		return
 	}
 
 	// Log audit event
 	if h.auditService != nil {
-		_ = h.auditService.LogRegister(ctx, user.ID, user.Username, getClientIP(r), r.UserAgent())
+		_ = h.auditService.LogRegister(r.Context(), user.ID, user.Username, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Created(w, user, "User registered successfully")
+}
+
+// firstUserRegistrationMu serializes user creation + role assignment during
+// registration so the "first user becomes admin" decision (which depends on the
+// user count) is not subject to a race between concurrent registrations.
+// Waygates runs as a single backend instance, so a process-level mutex suffices.
+var firstUserRegistrationMu sync.Mutex
+
+// createUserAndAssignRole persists the user and assigns its role atomically. The
+// first registered user (count == 1) becomes admin; subsequent users become
+// operator. On role-assignment failure the user creation is rolled back.
+func (h *AuthHandler) createUserAndAssignRole(ctx context.Context, user *models.User) error {
+	firstUserRegistrationMu.Lock()
+	defer firstUserRegistrationMu.Unlock()
+
+	if err := h.userRepo.Create(user); err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+
+	count, _ := h.userRepo.Count()
+	role := "operator"
+	if count == 1 {
+		role = "admin"
+	}
+
+	if err := h.auth.AssignRole(ctx, fmt.Sprintf("%d", user.ID), role); err != nil {
+		if delErr := h.userRepo.Delete(user.ID); delErr != nil {
+			return fmt.Errorf("assign role failed and rollback failed: %w", errors.Join(err, delErr))
+		}
+		return fmt.Errorf("assign role: %w", err)
+	}
+	return nil
 }
 
 // LoginRequest is the request body for user login

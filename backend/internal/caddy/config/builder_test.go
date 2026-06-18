@@ -748,6 +748,26 @@ func TestHTTPBuilder_BuildRedirectRoutes(t *testing.T) {
 	}
 }
 
+// TestHTTPBuilder_BuildRedirectRoutes_PreserveQueryIncludesSeparator ensures the
+// preserved query string is appended with its own '?' separator. The bare
+// {query} placeholder expands without a leading '?', producing a malformed
+// Location like "https://new.example.comfoo=bar".
+func TestHTTPBuilder_BuildRedirectRoutes_PreserveQueryIncludesSeparator(t *testing.T) {
+	p := createRedirectProxy(1, "redirect", "old.example.com", "https://new.example.com", 302, true, true)
+	p.RedirectConfig["preserve_query"] = true
+
+	b := NewHTTPBuilder(newTestLogger())
+	routes, err := b.BuildRedirectRoutes(&p)
+	require.NoError(t, err)
+	require.NotEmpty(t, routes)
+
+	headers, ok := routes[0].Handle[0]["headers"].(map[string][]string)
+	require.True(t, ok, "redirect handler must set headers")
+	require.NotEmpty(t, headers["Location"])
+
+	assert.Equal(t, "https://new.example.com?{http.request.uri.query}", headers["Location"][0])
+}
+
 func TestHTTPBuilder_BuildRedirectRoutes_DefaultStatusCode(t *testing.T) {
 	proxy := createTestProxy(1, "redirect", "old.example.com", models.ProxyTypeRedirect, true, true)
 	proxy.RedirectConfig = models.JSONField{
@@ -846,6 +866,37 @@ func TestHTTPBuilder_BuildStaticRoutes(t *testing.T) {
 			require.NotEmpty(t, routes)
 		})
 	}
+}
+
+// TestHTTPBuilder_BuildStaticRoutes_TryFilesGatedByFileMatcher ensures the SPA
+// try_files rewrite only fires when the requested file does not exist on disk.
+// Without a file matcher the rewrite matches every request and the file server
+// returns the fallback page (e.g. /index.html) even for real assets like
+// /app.js, breaking the site.
+func TestHTTPBuilder_BuildStaticRoutes_TryFilesGatedByFileMatcher(t *testing.T) {
+	b := NewHTTPBuilder(newTestLogger())
+	p := createStaticProxy(1, "static", "static.example.com", "/var/www/html", true, true)
+	p.StaticConfig["try_files"] = []interface{}{"{path}", "/index.html"}
+
+	routes, err := b.BuildStaticRoutes(&p)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(routes), 2, "expected a rewrite route plus the file-server route")
+
+	rewriteRoute := routes[0]
+
+	hasFileMatcher := false
+	for _, m := range rewriteRoute.Match {
+		if _, ok := m["file"]; ok {
+			hasFileMatcher = true
+		}
+	}
+	require.True(t, hasFileMatcher, "try_files rewrite route must be gated by a file matcher")
+
+	// The rewrite must serve whichever candidate the file matcher resolved, not
+	// blindly rewrite every request to the fallback page.
+	require.NotEmpty(t, rewriteRoute.Handle)
+	assert.Equal(t, HandlerRewrite, rewriteRoute.Handle[0]["handler"])
+	assert.Equal(t, "{http.matchers.file.relative}", rewriteRoute.Handle[0]["uri"])
 }
 
 func TestHTTPBuilder_MapLBStrategy(t *testing.T) {
@@ -1420,6 +1471,78 @@ func TestACLBuilder_BuildACLRoutes_AnyMode_WithWaygatesAuth(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
+}
+
+// TestStandardProxyHeaders_UsesClientIP ensures headers forwarded to the
+// upstream service carry the trusted-proxy-aware client IP, so services behind
+// a tunnel see the real client rather than the tunnel connector.
+func TestStandardProxyHeaders_UsesClientIP(t *testing.T) {
+	ops := StandardProxyHeaders()
+	assert.Equal(t, []string{"{http.vars.client_ip}"}, ops.Set["X-Real-IP"])
+	assert.Equal(t, []string{"{http.vars.client_ip}"}, ops.Set["X-Forwarded-For"])
+}
+
+// TestBuilder_TrustedProxies_AppliedToServer ensures configured trusted proxy
+// ranges and client-IP headers are emitted on the generated HTTP server, so
+// Caddy can resolve the real client IP behind a tunnel (Cloudflare/Pangolin).
+func TestBuilder_TrustedProxies_AppliedToServer(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()), WithACLBuilder(NewACLBuilder(newTestLogger())))
+	b.SetSettings(&Settings{
+		TrustedProxies:  []string{"172.18.0.0/16"},
+		ClientIPHeaders: []string{"Cf-Connecting-Ip"},
+	})
+	b.SetHTTPProxies([]models.Proxy{
+		createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	})
+
+	data, err := b.BuildJSON()
+	require.NoError(t, err)
+	rendered := string(data)
+
+	assert.Contains(t, rendered, "trusted_proxies")
+	assert.Contains(t, rendered, `"static"`)
+	assert.Contains(t, rendered, "172.18.0.0/16")
+	assert.Contains(t, rendered, "client_ip_headers")
+	assert.Contains(t, rendered, "Cf-Connecting-Ip")
+}
+
+// TestBuilder_TrustedProxies_OmittedWhenUnset ensures no trusted_proxies block
+// is emitted when none are configured (Caddy stays the edge).
+func TestBuilder_TrustedProxies_OmittedWhenUnset(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()), WithACLBuilder(NewACLBuilder(newTestLogger())))
+	b.SetHTTPProxies([]models.Proxy{
+		createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	})
+
+	data, err := b.BuildJSON()
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(data), "trusted_proxies")
+}
+
+// TestACLBuilder_ForwardAuth_SetsTrustedClientIP ensures the forward-auth
+// request carries a trusted client IP derived from Caddy's connection peer.
+// The verify endpoint uses it for IP-based ACL decisions instead of the
+// client-spoofable X-Forwarded-For.
+func TestACLBuilder_ForwardAuth_SetsTrustedClientIP(t *testing.T) {
+	b := NewACLBuilder(newTestLogger())
+	b.SetWaygatesURLs("http://localhost:8080/verify", "http://localhost:8080/login")
+	upstreamHandler := NewReverseProxyHandler(&Upstream{Dial: "localhost:8080"})
+
+	group := createTestACLGroup(1, "waygates-acl", models.ACLCombinationModeAny)
+	group.WaygatesAuth = createTestWaygatesAuth(true, []string{"google"})
+
+	routes, err := b.BuildACLRoutes("example.com", "/*", &group, upstreamHandler)
+	require.NoError(t, err)
+
+	data, err := json.Marshal(routes)
+	require.NoError(t, err)
+	rendered := string(data)
+
+	assert.Contains(t, rendered, "X-Waygates-Client-IP")
+	// client_ip resolves to the trusted-proxy-aware client address (it equals
+	// the connection peer when no trusted proxies are configured).
+	assert.Contains(t, rendered, "{http.vars.client_ip}")
 }
 
 func TestACLBuilder_BuildACLRoutes_WaygatesAuth_EmptyVerifyURL_FailsClosed(t *testing.T) {

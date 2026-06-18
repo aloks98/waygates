@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -46,6 +47,15 @@ type CaddyConfig struct {
 	Email        string // Email for ACME certificates
 	ACMEProvider string // DNS provider for ACME challenge: cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh, http, off
 	StoragePath  string // Caddy storage path for certificates (default: /data)
+
+	// TrustedProxies are CIDR ranges of upstream proxies/tunnels (e.g.
+	// cloudflared, Pangolin) whose forwarded client-IP headers Caddy should
+	// trust for real-client-IP resolution. Empty = Caddy is the edge.
+	TrustedProxies []string
+	// ClientIPHeaders lists headers to read the real client IP from when behind
+	// a trusted proxy (e.g. Cf-Connecting-Ip for Cloudflare). Empty = Caddy
+	// default (X-Forwarded-For).
+	ClientIPHeaders []string
 
 	// Backup settings
 	ConfigRetentionDays int // Days to retain backups (default: 7)
@@ -137,6 +147,8 @@ func Load() (*Config, error) {
 			Email:               viper.GetString("CADDY_EMAIL"),
 			ACMEProvider:        viper.GetString("CADDY_ACME_PROVIDER"),
 			StoragePath:         viper.GetString("CADDY_STORAGE_PATH"),
+			TrustedProxies:      splitAndTrimCSV(viper.GetString("CADDY_TRUSTED_PROXIES")),
+			ClientIPHeaders:     splitAndTrimCSV(viper.GetString("CADDY_CLIENT_IP_HEADERS")),
 			ConfigRetentionDays: viper.GetInt("WAYGATES_CADDY_CONFIG_RETENTION_DAYS"),
 		},
 		JWT: JWTConfig{
@@ -250,6 +262,22 @@ func validate(cfg *Config) error {
 
 	// Validate ACME provider
 	return validateACMEProvider(cfg.Caddy.ACMEProvider)
+}
+
+// splitAndTrimCSV splits a comma-separated string into a slice, trimming
+// whitespace and dropping empty entries. Returns nil for an empty input.
+func splitAndTrimCSV(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 // validateACMEProvider checks if the ACME provider is valid and required env vars are set

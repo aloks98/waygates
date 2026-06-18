@@ -186,6 +186,12 @@ func (s *AuditService) getConfig() *models.AuditConfig {
 		return models.DefaultAuditConfig()
 	}
 
+	// Populate the cache so subsequent events don't re-fetch and re-parse the
+	// config from settings on every audit write.
+	s.configMutex.Lock()
+	s.configCache = config
+	s.configMutex.Unlock()
+
 	return config
 }
 

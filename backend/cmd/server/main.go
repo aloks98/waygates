@@ -89,8 +89,8 @@ func main() {
 	userRepo := repository.NewUserRepository(gormDB)
 	createDefaultUserIfNeeded(cfg, userRepo, goauthInstance, logger)
 
-	// Setup routes
-	router := routes.SetupRoutes(cfg, gormDB, logger, goauthInstance.Auth)
+	// Setup routes (also starts the background sync service)
+	router, syncService := routes.SetupRoutes(cfg, gormDB, logger, goauthInstance.Auth)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -123,6 +123,9 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal("Server forced to shutdown", zap.Error(err))
 	}
+
+	// Stop the background sync loop and wait for any in-flight sync to finish.
+	syncService.Stop()
 
 	logger.Info("Server stopped")
 }

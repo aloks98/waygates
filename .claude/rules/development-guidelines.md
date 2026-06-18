@@ -25,14 +25,14 @@ The application manages Caddy reverse proxy configurations through a web interfa
 
 ### Frontend (React/TypeScript)
 - **React 19** with TypeScript
-- **Rsbuild** - Build tool
+- **Vite** - Build tool
 - **TanStack React Router** - Routing
 - **TanStack React Query** - Server state
 - **TanStack React Form** + **Zod** - Form handling/validation
 - **Zustand** - Client state (auth)
 - **ky** - HTTP client
 - **Tailwind CSS 4** - Styling
-- **Biome** - Linter/formatter
+- **oxlint** + **oxfmt** - Linter/formatter
 
 ## Directory Structure
 
@@ -69,8 +69,9 @@ waygates/
 │   │   ├── stores/                  # Zustand stores
 │   │   ├── types/                   # TypeScript definitions
 │   │   └── lib/                     # Utilities (api, router, validation)
-│   ├── biome.json                   # Biome config
-│   └── rsbuild.config.ts            # Build config
+│   ├── .oxlintrc.json               # oxlint (lint) config
+│   ├── .oxfmtrc.json                # oxfmt (format) config
+│   └── vite.config.ts               # Build config (Vite)
 │
 ├── docs/                            # API documentation
 ├── docker/entrypoint.sh             # Container startup
@@ -100,10 +101,9 @@ go test ./... -short          # Unit tests only (skip integration)
 ```bash
 make lint                     # Lint backend + frontend
 make lint-backend             # Lint Go backend only (golangci-lint)
-make lint-ui                  # Lint UI only (Biome)
-make format                   # Format backend + frontend
+make lint-ui                  # Lint + format UI (oxlint + oxfmt, via pnpm check:fix)
+make format                   # Format backend + frontend (runs lint-ui for UI)
 make format-backend           # Format Go code (gofmt + goimports)
-make format-ui                # Format UI code (Biome)
 make check                    # Run all checks (lint + tests)
 ```
 
@@ -405,8 +405,7 @@ make backend-test             # Run backend tests
 
 ### Frontend Changes
 ```bash
-make format-ui                # Format UI code (Biome)
-make lint-ui                  # Run Biome linter on UI code
+make lint-ui                  # Lint + format UI (oxlint + oxfmt, via pnpm check:fix)
 ```
 
 ### Both Backend and Frontend Changes

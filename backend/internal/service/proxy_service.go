@@ -222,14 +222,19 @@ func (s *ProxyService) DeleteProxy(id int) error {
 		return fmt.Errorf("failed to get proxy: %w", err)
 	}
 
-	// Remove configuration file (filename is based on hostname)
-	if err := s.syncService.RemoveProxy(proxy.ID, proxy.Hostname); err != nil {
-		s.logger.Warn("Failed to remove proxy config during delete", zap.Int("proxy_id", id), zap.Error(err))
-	}
-
-	// Delete from database
+	// Delete from the database first. RemoveProxy rebuilds the Caddy config
+	// from the database, so the row must be gone before we sync; otherwise the
+	// deleted proxy is re-emitted into the config and keeps serving traffic
+	// until the next periodic sync.
 	if err := s.repo.Delete(id); err != nil {
 		return fmt.Errorf("failed to delete proxy: %w", err)
+	}
+
+	// Re-sync Caddy now that the proxy is gone. A sync failure here is
+	// non-fatal: the proxy is already deleted and the periodic sync will
+	// reconcile the live config.
+	if err := s.syncService.RemoveProxy(proxy.ID, proxy.Hostname); err != nil {
+		s.logger.Warn("Failed to remove proxy config during delete", zap.Int("proxy_id", id), zap.Error(err))
 	}
 
 	return nil

@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -124,10 +125,16 @@ func (b *HTTPBuilder) BuildRedirectRoutes(proxy *models.Proxy) ([]*HTTPRoute, er
 	}
 
 	targetURL := redirectConfig.Target
+	// Use Caddy's full JSON placeholders, not the Caddyfile shorthands {uri}/
+	// {query}: the shorthands are only expanded by the Caddyfile adapter and
+	// resolve to empty strings in a raw JSON config.
 	if redirectConfig.PreservePath {
-		targetURL += "{uri}"
+		// {http.request.uri} is the full request URI (path and any query string).
+		targetURL += "{http.request.uri}"
 	} else if redirectConfig.PreserveQuery {
-		targetURL += "{query}"
+		// Prefix with '?' so the query is appended as a proper separator
+		// (e.g. "target?foo=bar"); the query placeholder carries no leading '?'.
+		targetURL += "?{http.request.uri.query}"
 	}
 
 	statusCode := redirectConfig.StatusCode
@@ -165,20 +172,25 @@ func (b *HTTPBuilder) BuildStaticRoutes(proxy *models.Proxy) ([]*HTTPRoute, erro
 	hostname := proxy.Hostname
 	var routes []*HTTPRoute
 
-	// If try_files is configured (for SPAs), add a rewrite route
+	// If try_files is configured (for SPAs), add a rewrite route gated by a
+	// file matcher. Caddy's file matcher tests each candidate against disk and
+	// exposes the first existing one via {http.matchers.file.relative}; we
+	// rewrite the request to that file. The matcher is required: without it the
+	// rewrite fires for every request, so the file server returns the SPA
+	// fallback (e.g. /index.html) even for real assets like /app.js.
 	if len(staticConfig.TryFiles) > 0 {
-		// For SPA support, we need to try files in order
-		// This is typically: try_files {path} /index.html
-		rewriteHandler := &RewriteHandler{
-			Handler: HandlerRewrite,
-			URI:     staticConfig.TryFiles[len(staticConfig.TryFiles)-1], // Usually /index.html
+		// Host and file must share one matcher set so both must match (AND).
+		match := NewHostMatcher(hostname)
+		match["file"] = &MatchFile{
+			Root:     staticConfig.RootPath,
+			TryFiles: normalizeTryFiles(staticConfig.TryFiles),
 		}
 
 		rewriteRoute := NewHTTPRoute()
-		rewriteRoute.AddMatch(NewHostMatcher(hostname))
+		rewriteRoute.AddMatch(match)
 		rewriteRoute.AddHandler(HTTPHandler{
-			"handler": rewriteHandler.Handler,
-			"uri":     rewriteHandler.URI,
+			"handler": HandlerRewrite,
+			"uri":     "{http.matchers.file.relative}",
 		})
 		routes = append(routes, rewriteRoute)
 	}
@@ -372,6 +384,24 @@ type StaticConfig struct {
 	TryFiles          []string `json:"try_files"`
 	TemplateRendering bool     `json:"template_rendering"`
 	Browse            bool     `json:"browse"`
+}
+
+// tryFilesPlaceholderReplacer converts Caddyfile placeholder shorthands that
+// may be stored in proxy config into the full placeholders Caddy's JSON config
+// requires, so the file matcher resolves them correctly.
+var tryFilesPlaceholderReplacer = strings.NewReplacer(
+	"{path}", "{http.request.uri.path}",
+	"{uri}", "{http.request.uri}",
+)
+
+// normalizeTryFiles rewrites Caddyfile placeholder shorthands in try_files
+// entries to their JSON-config equivalents. Literal paths are left unchanged.
+func normalizeTryFiles(tryFiles []string) []string {
+	normalized := make([]string, len(tryFiles))
+	for i, tf := range tryFiles {
+		normalized[i] = tryFilesPlaceholderReplacer.Replace(tf)
+	}
+	return normalized
 }
 
 // parseStaticConfig parses static file server configuration from JSONField.

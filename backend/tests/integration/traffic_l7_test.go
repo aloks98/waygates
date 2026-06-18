@@ -36,6 +36,36 @@ func TestTraffic_L7(t *testing.T) {
 		}
 	})
 
+	t.Run("trusted_proxy_client_ip", func(t *testing.T) {
+		// The harness trusts the test's source network and reads the client IP
+		// from X-Forwarded-For, so Caddy resolves the real client from the
+		// forwarded header and Waygates passes it upstream as X-Real-IP. This
+		// validates the trusted_proxies config is accepted by live Caddy and that
+		// client-IP resolution works (the tunnel / Cloudflare / Pangolin case).
+		host := "tp.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "reverse_proxy", "name": "tp", "hostname": host,
+			"upstreams": []map[string]any{{"host": "echo1", "port": 8080, "scheme": "http"}},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK)
+
+		_, body := env.l7Get(t, host, "/", map[string]string{"X-Forwarded-For": "203.0.113.77"})
+		var echoed struct {
+			Headers map[string]string `json:"headers"`
+		}
+		if err := json.Unmarshal(body, &echoed); err != nil {
+			t.Fatalf("parse echo body: %v (body=%s)", err, string(body))
+		}
+		if echoed.Headers["x-real-ip"] != "203.0.113.77" {
+			t.Fatalf("expected upstream to receive real client IP 203.0.113.77, got headers: %v", echoed.Headers)
+		}
+	})
+
 	t.Run("round_robin_lb", func(t *testing.T) {
 		host := "lb.test.local"
 		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
@@ -83,9 +113,72 @@ func TestTraffic_L7(t *testing.T) {
 		if got.StatusCode != http.StatusMovedPermanently {
 			t.Fatalf("expected 301, got %d", got.StatusCode)
 		}
+		// preserve_path must keep the path in the Location (verifies the
+		// {http.request.uri} placeholder actually expands).
 		loc := got.Header.Get("Location")
-		if !strings.HasPrefix(loc, "https://target.test.local") {
-			t.Fatalf("unexpected Location: %q", loc)
+		if loc != "https://target.test.local/somepath" {
+			t.Fatalf("expected path preserved in redirect, got Location %q", loc)
+		}
+	})
+
+	t.Run("redirect_preserve_query", func(t *testing.T) {
+		// Exercises the preserve_query branch (preserve_path = false), which
+		// appends "?{query}". A request with a query string must be redirected
+		// to target?<query> with the '?' separator present.
+		host := "rdq.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "redirect", "name": "rdq", "hostname": host,
+			"redirect": map[string]any{
+				"target": "https://target.test.local", "status_code": 302,
+				"preserve_path": false, "preserve_query": true,
+			},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusFound)
+
+		got, _ := env.l7Get(t, host, "/ignored?foo=bar&baz=1", nil)
+		if got.StatusCode != http.StatusFound {
+			t.Fatalf("expected 302, got %d", got.StatusCode)
+		}
+		loc := got.Header.Get("Location")
+		if loc != "https://target.test.local?foo=bar&baz=1" {
+			t.Fatalf("expected preserved query with '?' separator, got Location %q", loc)
+		}
+	})
+
+	t.Run("static_try_files_spa", func(t *testing.T) {
+		// Exercises try_files: an existing asset must be served as-is, and an
+		// unknown path must fall back to index.html. Without the file matcher,
+		// every request (including the asset) is rewritten to index.html.
+		host := "spa.test.local"
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxies", map[string]any{
+			"type": "static", "name": "spa", "hostname": host,
+			"static": map[string]any{
+				"root_path": "/var/www/test", "index_file": "index.html",
+				"try_files": []any{"{path}", "/index.html"},
+			},
+		})
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("create proxy: %d", resp.StatusCode)
+		}
+		env.triggerSync(t)
+		env.waitL7(t, host, http.StatusOK)
+
+		// An existing asset is served as-is, NOT rewritten to index.html.
+		_, asset := env.l7Get(t, host, "/asset.txt", nil)
+		if !strings.Contains(string(asset), "WAYGATES ASSET OK") {
+			t.Fatalf("expected asset.txt content, got: %q", string(asset))
+		}
+
+		// An unknown path falls back to index.html (SPA behavior).
+		fb, body := env.l7Get(t, host, "/deep/client/route", nil)
+		if fb.StatusCode != http.StatusOK || !strings.Contains(string(body), "WAYGATES STATIC OK") {
+			t.Fatalf("expected SPA fallback to index.html, got %d / %q", fb.StatusCode, string(body))
 		}
 	})
 

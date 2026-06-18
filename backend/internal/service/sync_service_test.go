@@ -379,6 +379,44 @@ func TestFullSync_ReloadError(t *testing.T) {
 	}
 }
 
+// TestFullSync_DoesNotQueryEachGroupIndividually ensures the sync path relies on
+// the relations ListGroups already preloads instead of issuing a GetGroupByID
+// query per group (an N+1 query on every sync cycle).
+func TestFullSync_DoesNotQueryEachGroupIndividually(t *testing.T) {
+	svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader := newTestSyncServiceWithJSON()
+
+	proxyRepo.ListFunc = func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+		return []models.Proxy{}, 0, nil
+	}
+	settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+		return &models.NotFoundSettings{Mode: "default"}, nil
+	}
+	aclRepo.ListGroupsFunc = func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		return []models.ACLGroup{{ID: 1, Name: "g1"}, {ID: 2, Name: "g2"}}, 2, nil
+	}
+	getGroupByIDCalled := false
+	aclRepo.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+		getGroupByIDCalled = true
+		return &models.ACLGroup{ID: id}, nil
+	}
+	fileManager.GetJSONConfigPathFunc = func() string { return "/etc/caddy/config.json" }
+	fileManager.FileExistsFunc = func(_ string) bool { return true }
+	fileManager.BackupJSONConfigFunc = func(_ string) error { return nil }
+	fileManager.WriteJSONConfigFunc = func(_ string, _ []byte) error { return nil }
+	reloader.ValidateJSONFunc = func(_ string) error { return nil }
+	reloader.ReloadJSONFunc = func(_ context.Context, _ string) (*caddy.ReloadResult, error) {
+		return &caddy.ReloadResult{Success: true}, nil
+	}
+
+	if err := svc.FullSync(); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if getGroupByIDCalled {
+		t.Error("FullSync should use the groups ListGroups preloads, not call GetGroupByID per group")
+	}
+}
+
 // TestFullSync_EmptyProxies tests sync with no proxies
 func TestFullSync_EmptyProxies(t *testing.T) {
 	svc, proxyRepo, settingsRepo, aclRepo, _, reloader := newTestSyncServiceWithJSON()
@@ -1091,6 +1129,32 @@ func TestSyncService_Start(t *testing.T) {
 		// Verify FileExists was called to check for initial configs
 		if fileExistsCalls < 1 {
 			t.Errorf("Expected FileExists to be called at least once (for JSON config), got %d", fileExistsCalls)
+		}
+	})
+
+	t.Run("Stop interrupts the startup delay promptly", func(t *testing.T) {
+		fileManager := &MockFileManager{
+			EnsureDirectoriesFunc: func() error { return nil },
+			FileExistsFunc:        func(_ string) bool { return true },
+		}
+		svc := NewSyncService(SyncServiceConfig{
+			ProxyRepo:    &MockProxyRepository{},
+			SettingsRepo: &MockSettingsRepository{},
+			FileManager:  fileManager,
+			Reloader:     &MockReloader{},
+		})
+
+		// Long interval so only the initial-sync startup delay is in play.
+		svc.Start(time.Hour)
+
+		start := time.Now()
+		svc.Stop()
+		elapsed := time.Since(start)
+
+		// The initial sync waits ~5s for Caddy to be ready; Stop must abort that
+		// wait rather than block until it elapses.
+		if elapsed > 2*time.Second {
+			t.Errorf("Stop() blocked for %v during the startup delay; it should be interruptible", elapsed)
 		}
 	})
 

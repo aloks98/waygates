@@ -38,6 +38,15 @@ type MatchMethod []string
 // See: https://caddyserver.com/docs/json/apps/http/servers/routes/match/not/
 type MatchNot []MatcherSet
 
+// MatchFile matches requests against files on disk. The first of try_files
+// that exists (relative to root) is exposed via the
+// {http.matchers.file.relative} placeholder. Used for SPA try_files support.
+// See: https://caddyserver.com/docs/json/apps/http/servers/routes/match/file/
+type MatchFile struct {
+	Root     string   `json:"root,omitempty"`
+	TryFiles []string `json:"try_files,omitempty"`
+}
+
 // NewHostMatcher creates a matcher set that matches the given hosts.
 func NewHostMatcher(hosts ...string) MatcherSet {
 	return MatcherSet{

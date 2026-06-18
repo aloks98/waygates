@@ -263,31 +263,6 @@ type HeadersHandler struct {
 	Response *HeaderOps `json:"response,omitempty"`
 }
 
-// RewriteHandler configures the rewrite handler.
-// See: https://caddyserver.com/docs/json/apps/http/servers/routes/handle/rewrite/
-type RewriteHandler struct {
-	Handler         string                 `json:"handler"` // Must be "rewrite"
-	Method          string                 `json:"method,omitempty"`
-	URI             string                 `json:"uri,omitempty"`
-	StripPathPrefix string                 `json:"strip_path_prefix,omitempty"`
-	StripPathSuffix string                 `json:"strip_path_suffix,omitempty"`
-	URISubstring    []SubstringReplacement `json:"uri_substring,omitempty"`
-	PathRegexp      []RegexpReplacement    `json:"path_regexp,omitempty"`
-}
-
-// SubstringReplacement configures substring replacement in rewrite.
-type SubstringReplacement struct {
-	Find    string `json:"find"`
-	Replace string `json:"replace"`
-	Limit   int    `json:"limit,omitempty"`
-}
-
-// RegexpReplacement configures regexp replacement in rewrite.
-type RegexpReplacement struct {
-	Find    string `json:"find"`
-	Replace string `json:"replace"`
-}
-
 // ErrorHandler configures the error handler.
 // See: https://caddyserver.com/docs/json/apps/http/servers/routes/handle/error/
 type ErrorHandler struct {
@@ -509,8 +484,11 @@ func (h *HeaderOps) DeleteHeader(names ...string) *HeaderOps {
 func StandardProxyHeaders() *HeaderOps {
 	return &HeaderOps{
 		Set: map[string][]string{
-			"X-Real-IP":         {"{http.request.remote.host}"},
-			"X-Forwarded-For":   {"{http.request.remote.host}"},
+			// Use the trusted-proxy-aware client IP so upstream services see the
+			// real client behind a tunnel (Cloudflare/Pangolin); equals the
+			// connection peer when no trusted proxies are configured.
+			"X-Real-IP":         {"{http.vars.client_ip}"},
+			"X-Forwarded-For":   {"{http.vars.client_ip}"},
 			"X-Forwarded-Proto": {"{http.request.scheme}"},
 			"X-Forwarded-Host":  {"{http.request.host}"},
 		},

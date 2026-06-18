@@ -368,6 +368,36 @@ func TestProxyACLHandler_UpdateProxyACLAssignment_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestProxyACLHandler_UpdateProxyACLAssignment_WrongProxyReturnsNotFound(t *testing.T) {
+	updateCalled := false
+	mockService := &MockACLService{
+		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, _ bool) error {
+			updateCalled = true
+			return nil
+		},
+	}
+	// Assignment 5 belongs to proxy 42, but the route targets proxy 1.
+	mockRepo := &MockACLRepository{
+		GetProxyACLAssignmentByIDFunc: func(id int) (*models.ProxyACLAssignment, error) {
+			return &models.ProxyACLAssignment{ID: id, ProxyID: 42, ACLGroupID: 1}, nil
+		},
+	}
+
+	handler := NewProxyACLHandler(mockService, mockRepo, nil, nil, nil, nil)
+	r := chi.NewRouter()
+	r.Put("/api/proxies/{id}/acl/{assignmentId}", handler.UpdateProxyACLAssignment)
+
+	body := `{"path_pattern": "/api/*", "priority": 10, "enabled": true}`
+	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1/acl/5", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, updateCalled, "service must not be called for an assignment owned by a different proxy")
+}
+
 func TestProxyACLHandler_UpdateProxyACLAssignment_InvalidPathPattern(t *testing.T) {
 	mockService := &MockACLService{
 		UpdateProxyAssignmentFunc: func(_ int, _ string, _ int, _ bool) error {

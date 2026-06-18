@@ -641,6 +641,68 @@ func TestDeleteProxy(t *testing.T) {
 	}
 }
 
+// TestDeleteProxy_DeletesFromDBBeforeSync ensures the row is removed from the
+// database before Caddy is re-synced. RemoveProxy triggers a full sync that
+// reads all proxies from the DB; if the sync runs first, the still-present
+// proxy is re-emitted into the Caddy config and keeps serving traffic until
+// the next periodic sync.
+func TestDeleteProxy_DeletesFromDBBeforeSync(t *testing.T) {
+	var callOrder []string
+	repo := &MockProxyRepository{
+		GetByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: id, Hostname: "test.example.com"}, nil
+		},
+		DeleteFunc: func(_ int) error {
+			callOrder = append(callOrder, "delete")
+			return nil
+		},
+	}
+	syncer := &MockProxySyncer{
+		RemoveProxyFunc: func(_ int, _ string) error {
+			callOrder = append(callOrder, "sync")
+			return nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{Repo: repo, SyncService: syncer})
+
+	if err := svc.DeleteProxy(1); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if len(callOrder) != 2 || callOrder[0] != "delete" || callOrder[1] != "sync" {
+		t.Errorf("Expected DB delete before Caddy sync, got order: %v", callOrder)
+	}
+}
+
+// TestDeleteProxy_DoesNotSyncWhenDeleteFails ensures a failed DB delete does
+// not remove the proxy from the live Caddy config.
+func TestDeleteProxy_DoesNotSyncWhenDeleteFails(t *testing.T) {
+	syncCalled := false
+	repo := &MockProxyRepository{
+		GetByIDFunc: func(id int) (*models.Proxy, error) {
+			return &models.Proxy{ID: id, Hostname: "test.example.com"}, nil
+		},
+		DeleteFunc: func(_ int) error {
+			return errors.New("database error")
+		},
+	}
+	syncer := &MockProxySyncer{
+		RemoveProxyFunc: func(_ int, _ string) error {
+			syncCalled = true
+			return nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{Repo: repo, SyncService: syncer})
+
+	if err := svc.DeleteProxy(1); err == nil {
+		t.Fatal("Expected error when DB delete fails")
+	}
+
+	if syncCalled {
+		t.Error("Caddy sync must not run when the DB delete fails")
+	}
+}
+
 // TestEnableProxy tests enabling a proxy
 func TestEnableProxy(t *testing.T) {
 	tests := []struct {

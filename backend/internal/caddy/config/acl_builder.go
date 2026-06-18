@@ -434,6 +434,17 @@ func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
 					"X-Forwarded-Proto":  {"{http.request.scheme}"},
 					"X-Forwarded-Host":   {"{http.request.host}"},
 					"X-Forwarded-Uri":    {"{http.request.uri}"},
+					// Trusted client IP for IP-based ACL decisions. Using `set`
+					// overwrites any client-supplied value, so the verify endpoint
+					// can rely on it instead of the spoofable X-Forwarded-For.
+					// {http.vars.client_ip} is the trusted-proxy-aware client
+					// address: it equals the connection peer when no trusted
+					// proxies are configured, and the real client behind the
+					// server's trusted_proxies/client_ip_headers when they are
+					// (e.g. behind a Cloudflare/Pangolin tunnel). Must match the
+					// header read by the ACL verify handler
+					// (handlers.trustedClientIPHeader).
+					"X-Waygates-Client-IP": {"{http.vars.client_ip}"},
 				},
 			},
 		},

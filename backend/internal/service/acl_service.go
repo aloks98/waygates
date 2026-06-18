@@ -797,6 +797,9 @@ func (s *ACLService) UpdateProxyAssignment(id int, pathPattern string, priority 
 	// Fetch existing assignment to preserve ProxyID and ACLGroupID
 	existing, err := s.aclRepo.GetProxyACLAssignmentByID(id)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProxyACLNotFound
+		}
 		return fmt.Errorf("getting proxy ACL assignment: %w", err)
 	}
 
@@ -1529,21 +1532,36 @@ func matchPath(pattern, path string) bool {
 
 	// Handle patterns like /api/*/users
 	if strings.Contains(pattern, "*") {
-		// Convert to a simple regex-like match
 		parts := strings.Split(pattern, "*")
 		remaining := path
+		lastIdx := len(parts) - 1
 		for i, part := range parts {
 			if part == "" {
 				continue
 			}
-			idx := strings.Index(remaining, part)
-			if idx == -1 {
-				return false
+			switch i {
+			case 0:
+				// The first literal must match at the start.
+				if !strings.HasPrefix(remaining, part) {
+					return false
+				}
+				remaining = remaining[len(part):]
+			case lastIdx:
+				// The trailing literal (the pattern does not end with '*') must
+				// match at the very end of the path; otherwise a rule scoped to
+				// e.g. /api/*/users would also cover /api/v1/users/extra.
+				if !strings.HasSuffix(remaining, part) {
+					return false
+				}
+				remaining = ""
+			default:
+				// Middle literals must appear in order somewhere in between.
+				idx := strings.Index(remaining, part)
+				if idx == -1 {
+					return false
+				}
+				remaining = remaining[idx+len(part):]
 			}
-			if i == 0 && idx != 0 {
-				return false // First part must match at start
-			}
-			remaining = remaining[idx+len(part):]
 		}
 		return true
 	}

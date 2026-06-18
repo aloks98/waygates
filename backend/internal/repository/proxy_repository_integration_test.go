@@ -260,6 +260,22 @@ func TestProxyRepository_Update(t *testing.T) {
 		fetched, _ := repo.GetByID(proxy.ID)
 		assert.NotNil(t, fetched.Upstreams)
 	})
+
+	t.Run("Success_DisableSSL", func(t *testing.T) {
+		proxy := CreateTestProxy(t, tdb.DB, user.ID, "SSL Toggle", "ssl-toggle.example.com", models.ProxyTypeReverseProxy)
+
+		// Ensure SSL is enabled in the database to start.
+		require.NoError(t, tdb.DB.Model(&models.Proxy{}).Where("id = ?", proxy.ID).Update("ssl_enabled", true).Error)
+
+		// Disabling SSL must persist. With db.Updates(struct), the false zero
+		// value is silently dropped and SSL stays enabled.
+		proxy.SSLEnabled = false
+		require.NoError(t, repo.Update(proxy))
+
+		fetched, err := repo.GetByID(proxy.ID)
+		require.NoError(t, err)
+		assert.False(t, fetched.SSLEnabled, "disabling SSL should persist")
+	})
 }
 
 func TestProxyRepository_Delete(t *testing.T) {

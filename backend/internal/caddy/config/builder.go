@@ -30,6 +30,11 @@ type Builder struct {
 
 	// L4 SNI hostnames that need TLS certificates (for TLS termination)
 	l4TLSHostnames []string
+
+	// Trusted proxy configuration for real-client-IP resolution behind an
+	// upstream proxy/tunnel (empty = Caddy treated as the edge).
+	trustedProxies  []string
+	clientIPHeaders []string
 }
 
 // Settings holds the application settings for building the config.
@@ -44,6 +49,13 @@ type Settings struct {
 
 	// DNS provider credentials (loaded from environment)
 	DNSCredentials map[string]string
+
+	// TrustedProxies are CIDR ranges of upstream proxies/tunnels (e.g.
+	// cloudflared, Pangolin) whose forwarded client-IP headers Caddy should
+	// trust. Empty means Caddy is the edge. ClientIPHeaders lists the headers
+	// to read the real client IP from (defaults to X-Forwarded-For in Caddy).
+	TrustedProxies  []string
+	ClientIPHeaders []string
 }
 
 // BuilderOption is a functional option for configuring the Builder.
@@ -87,8 +99,12 @@ func WithACLBuilder(aclBuilder *ACLBuilder) BuilderOption {
 // SetSettings sets the application settings.
 func (b *Builder) SetSettings(settings *Settings) *Builder {
 	b.tlsBuilder.SetSettings(settings)
-	if b.aclBuilder != nil && settings != nil {
-		b.aclBuilder.SetWaygatesURLs(settings.WaygatesVerifyURL, settings.WaygatesLoginURL)
+	if settings != nil {
+		if b.aclBuilder != nil {
+			b.aclBuilder.SetWaygatesURLs(settings.WaygatesVerifyURL, settings.WaygatesLoginURL)
+		}
+		b.trustedProxies = settings.TrustedProxies
+		b.clientIPHeaders = settings.ClientIPHeaders
 	}
 	return b
 }
@@ -168,6 +184,7 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 		httpApp := NewHTTPApp()
 		server := NewHTTPServer(":443", ":80")
 		server.AddRoutes(routes...)
+		b.applyTrustedProxies(server)
 		httpApp.AddServer(DefaultServerName, server)
 		config.Apps.HTTP = httpApp
 	}
@@ -188,6 +205,22 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 	}
 
 	return config, nil
+}
+
+// applyTrustedProxies configures the server to resolve the real client IP from
+// trusted upstream proxies (e.g. a Cloudflare or Pangolin tunnel). It is a no-op
+// when no trusted proxies are configured, leaving Caddy as the edge.
+func (b *Builder) applyTrustedProxies(server *HTTPServer) {
+	if len(b.trustedProxies) == 0 {
+		return
+	}
+	server.TrustedProxies = &TrustedProxiesSource{
+		Source: "static",
+		Ranges: b.trustedProxies,
+	}
+	if len(b.clientIPHeaders) > 0 {
+		server.ClientIPHeaders = b.clientIPHeaders
+	}
 }
 
 // BuildJSON generates the Caddy configuration as formatted JSON bytes.

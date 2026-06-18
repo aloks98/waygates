@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -25,29 +26,27 @@ import (
 	"github.com/aloks98/waygates/backend/internal/service"
 )
 
-// SetupRoutes configures all application routes
-func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInstance *goauth.Auth[*auth.CustomClaims]) *chi.Mux {
+// SetupRoutes configures all application routes. It also starts the background
+// sync service and returns it so the caller can stop it during graceful
+// shutdown.
+func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInstance *goauth.Auth[*auth.CustomClaims]) (*chi.Mux, *service.SyncService) {
 	r := chi.NewRouter()
 
-	// Validate CORS configuration - warn if wildcard with credentials
-	corsOrigins := cfg.Security.CORSOrigins
-	for _, origin := range corsOrigins {
-		if origin == "*" {
-			log.Println("[SECURITY WARNING] CORS wildcard '*' is configured. This is insecure when AllowCredentials is true.")
-			// Replace wildcard with empty to prevent insecure configuration
-			// In production, explicit origins should be configured
-			corsOrigins = []string{}
-			break
-		}
+	// CORS configuration. A wildcard origin cannot be combined with credentials
+	// per the CORS spec, so resolveCORSOptions opens all origins WITHOUT
+	// credentials in that case rather than silently denying every request.
+	corsOrigins, corsAllowCredentials := resolveCORSOptions(cfg.Security.CORSOrigins)
+	if corsAllowCredentials {
+		log.Println("[security] CORS restricted to configured origins (credentials allowed)")
+	} else {
+		log.Println("[security] CORS wildcard '*' configured: allowing all origins without credentials")
 	}
-
-	// CORS configuration
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
+		AllowCredentials: corsAllowCredentials,
 		MaxAge:           300,
 	}))
 
@@ -94,6 +93,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		WaygatesVerifyURL:   cfg.ACL.WaygatesVerifyURL,
 		WaygatesLoginURL:    cfg.ACL.WaygatesLoginURL,
 		StoragePath:         cfg.Caddy.StoragePath,
+		TrustedProxies:      cfg.Caddy.TrustedProxies,
+		ClientIPHeaders:     cfg.Caddy.ClientIPHeaders,
 		ConfigRetentionDays: cfg.Caddy.ConfigRetentionDays,
 	})
 
@@ -162,13 +163,20 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	r.Group(func(r chi.Router) {
 		r.Get("/api/health", healthHandler.HealthCheck)
 		r.Get("/api/status", statusHandler.GetStatus)
-		r.Post("/api/auth/register", authHandler.Register)
-		r.Post("/api/auth/login", authHandler.Login)
+		// Rate-limit credential-checking endpoints (per client IP) to slow
+		// brute-force and account-enumeration attempts. The ACL verify endpoint
+		// is intentionally NOT limited: Caddy calls it on every protected request.
+		r.Group(func(r chi.Router) {
+			r.Use(authRateLimiter())
+			r.Post("/api/auth/register", authHandler.Register)
+			r.Post("/api/auth/login", authHandler.Login)
+			r.Post("/api/auth/acl/login", aclVerifyHandler.Login)
+		})
+
 		r.Post("/api/auth/refresh", authHandler.RefreshToken)
 
 		// ACL forward auth routes (called by Caddy, must be public)
 		r.Get("/api/auth/acl/verify", aclVerifyHandler.Verify)
-		r.Post("/api/auth/acl/login", aclVerifyHandler.Login)
 		r.Post("/api/auth/acl/logout", aclVerifyHandler.Logout)
 		r.Get("/api/auth/acl/session", aclVerifyHandler.GetSession)
 
@@ -322,7 +330,35 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		setupStaticFileServer(r, cfg.UI.Path, logger)
 	}
 
-	return r
+	return r, syncService
+}
+
+// resolveCORSOptions derives the allowed-origins list and credentials flag for
+// the CORS middleware from the configured origins. A wildcard ("*") cannot be
+// combined with credentials per the CORS spec, so it allows all origins with
+// credentials disabled; otherwise the explicit origins are used with
+// credentials enabled.
+func resolveCORSOptions(origins []string) (allowedOrigins []string, allowCredentials bool) {
+	for _, o := range origins {
+		if o == "*" {
+			return []string{"*"}, false
+		}
+	}
+	return origins, true
+}
+
+const (
+	// authRateLimitRequests is the number of requests allowed per IP per window
+	// on authentication endpoints before requests are rejected with 429.
+	authRateLimitRequests = 10
+	authRateLimitWindow   = time.Minute
+)
+
+// authRateLimiter returns rate-limiting middleware for authentication endpoints,
+// keyed by client IP, to slow credential brute-force and account-enumeration
+// attempts.
+func authRateLimiter() func(http.Handler) http.Handler {
+	return httprate.LimitByIP(authRateLimitRequests, authRateLimitWindow)
 }
 
 // getEnvOrDefault returns the environment variable value or a default

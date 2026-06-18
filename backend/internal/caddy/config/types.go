@@ -106,10 +106,22 @@ type HTTPApp struct {
 
 // HTTPServer configures an HTTP server instance.
 type HTTPServer struct {
-	Listen          []string         `json:"listen,omitempty"`
-	Routes          []*HTTPRoute     `json:"routes,omitempty"`
-	AutoHTTPS       *AutoHTTPSConfig `json:"automatic_https,omitempty"`
-	TLSConnPolicies []*TLSConnPolicy `json:"tls_connection_policies,omitempty"`
+	Listen          []string              `json:"listen,omitempty"`
+	Routes          []*HTTPRoute          `json:"routes,omitempty"`
+	AutoHTTPS       *AutoHTTPSConfig      `json:"automatic_https,omitempty"`
+	TLSConnPolicies []*TLSConnPolicy      `json:"tls_connection_policies,omitempty"`
+	TrustedProxies  *TrustedProxiesSource `json:"trusted_proxies,omitempty"`
+	ClientIPHeaders []string              `json:"client_ip_headers,omitempty"`
+}
+
+// TrustedProxiesSource configures which upstream proxies Caddy trusts when
+// resolving the real client IP, using the "static" IP source with explicit
+// CIDR ranges. When set, {http.vars.client_ip} is taken from
+// client_ip_headers for requests arriving from these proxies.
+// See: https://caddyserver.com/docs/json/apps/http/servers/trusted_proxies/
+type TrustedProxiesSource struct {
+	Source string   `json:"source"` // always "static"
+	Ranges []string `json:"ranges,omitempty"`
 }
 
 // HTTPRoute defines a route for request matching and handling.

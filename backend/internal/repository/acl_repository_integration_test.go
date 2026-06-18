@@ -286,6 +286,27 @@ func TestACLRepository_ListGroups(t *testing.T) {
 		assert.Len(t, groups, 5)
 	})
 
+	t.Run("preloads OAuth provider restrictions", func(t *testing.T) {
+		CleanACLTables(t, tdb.DB)
+		user := CreateTestUser(t, tdb.DB)
+		group := CreateTestACLGroup(t, tdb.DB, user.ID, "OAuth Group")
+
+		require.NoError(t, repo.CreateOAuthProviderRestriction(&models.ACLOAuthProviderRestriction{
+			ACLGroupID:     group.ID,
+			Provider:       "google",
+			AllowedDomains: models.JSONStringArray{"@company.com"},
+			Enabled:        true,
+		}))
+
+		// The sync service relies on ListGroups returning fully-populated groups
+		// so it doesn't need a follow-up GetGroupByID per group.
+		groups, _, err := repo.ListGroups(ACLGroupListParams{Page: 1, Limit: 10})
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		assert.Len(t, groups[0].OAuthProviderRestrictions, 1,
+			"ListGroups should preload OAuth provider restrictions")
+	})
+
 	t.Run("search", func(t *testing.T) {
 		CleanACLTables(t, tdb.DB)
 		user := CreateTestUser(t, tdb.DB)

@@ -16,6 +16,26 @@ import (
 	"github.com/aloks98/waygates/backend/internal/utils"
 )
 
+// trustedClientIPHeader carries the client IP as seen by Caddy's connection
+// peer. The Waygates forward-auth config sets it with `set` semantics, so a
+// client cannot forge it. Must match the header written in the Caddy ACL
+// builder (internal/caddy/config/acl_builder.go).
+const trustedClientIPHeader = "X-Waygates-Client-IP"
+
+// clientIPForACL returns the client IP used for IP-based ACL decisions. It
+// prefers the trusted X-Waygates-Client-IP header (set by Caddy's forward-auth
+// and not forgeable by the client). It falls back to X-Forwarded-For / the
+// remote address only for direct, non-forward-auth callers.
+func clientIPForACL(r *http.Request) string {
+	if trusted := r.Header.Get(trustedClientIPHeader); trusted != "" {
+		return strings.TrimSpace(trusted)
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.TrimSpace(strings.Split(xff, ",")[0])
+	}
+	return getClientIP(r)
+}
+
 // ACLVerifyHandler handles ACL forward auth verification and login
 type ACLVerifyHandler struct {
 	aclService   service.ACLServiceInterface
@@ -101,15 +121,7 @@ func (h *ACLVerifyHandler) Verify(w http.ResponseWriter, r *http.Request) {
 		method = r.Method
 	}
 
-	// Get client IP from X-Forwarded-For or fall back to remote address
-	remoteIP := r.Header.Get("X-Forwarded-For")
-	if remoteIP == "" {
-		remoteIP = getClientIP(r)
-	} else {
-		// X-Forwarded-For can contain multiple IPs, take the first one (original client)
-		parts := strings.Split(remoteIP, ",")
-		remoteIP = strings.TrimSpace(parts[0])
-	}
+	remoteIP := clientIPForACL(r)
 
 	// Extract session token from cookie
 	var sessionToken string

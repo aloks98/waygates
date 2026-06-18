@@ -190,12 +190,14 @@ func (r *ACLRepository) ListGroups(params ACLGroupListParams) ([]models.ACLGroup
 	offset := (params.Page - 1) * params.Limit
 	query = query.Offset(offset).Limit(params.Limit)
 
-	// Preload relations
+	// Preload relations. This mirrors GetGroupByID so callers (e.g. the sync
+	// service) get fully-populated groups without an extra query per group.
 	query = query.Preload("Creator").
 		Preload("IPRules").
 		Preload("BasicAuthUsers").
 		Preload("WaygatesAuth").
-		Preload("ExternalProviders")
+		Preload("ExternalProviders").
+		Preload("OAuthProviderRestrictions")
 
 	// Execute query
 	if err := query.Find(&groups).Error; err != nil {

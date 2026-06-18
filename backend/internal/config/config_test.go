@@ -61,6 +61,39 @@ func TestLoad_Success(t *testing.T) {
 	}
 }
 
+func TestLoad_TrustedProxies(t *testing.T) {
+	resetViper()
+	defer resetViper()
+
+	setEnv(t, "JWT_SECRET", "this-is-a-very-secure-secret-key-for-testing-purposes")
+	setEnv(t, "CADDY_TRUSTED_PROXIES", "172.18.0.0/16, 127.0.0.1/8")
+	setEnv(t, "CADDY_CLIENT_IP_HEADERS", "Cf-Connecting-Ip")
+	defer func() {
+		unsetEnv(t, "JWT_SECRET")
+		unsetEnv(t, "CADDY_TRUSTED_PROXIES")
+		unsetEnv(t, "CADDY_CLIENT_IP_HEADERS")
+	}()
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	wantProxies := []string{"172.18.0.0/16", "127.0.0.1/8"}
+	if len(cfg.Caddy.TrustedProxies) != len(wantProxies) {
+		t.Fatalf("expected %d trusted proxies, got %v", len(wantProxies), cfg.Caddy.TrustedProxies)
+	}
+	for i, want := range wantProxies {
+		if cfg.Caddy.TrustedProxies[i] != want {
+			t.Errorf("trusted proxy %d: expected %q, got %q", i, want, cfg.Caddy.TrustedProxies[i])
+		}
+	}
+
+	if len(cfg.Caddy.ClientIPHeaders) != 1 || cfg.Caddy.ClientIPHeaders[0] != "Cf-Connecting-Ip" {
+		t.Errorf("expected client IP headers [Cf-Connecting-Ip], got %v", cfg.Caddy.ClientIPHeaders)
+	}
+}
+
 func TestLoad_MissingJWTSecret(t *testing.T) {
 	resetViper()
 	defer resetViper()
