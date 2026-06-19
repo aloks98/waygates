@@ -1374,6 +1374,59 @@ func TestCreateProxy_SSLEnabledDefault(t *testing.T) {
 	assert.True(t, capturedProxy.SSLEnabled, "SSLEnabled should default to true")
 }
 
+func TestCreateProxy_BlockExploitsExplicitlyFalse(t *testing.T) {
+	t.Parallel()
+	var capturedProxy *models.Proxy
+	mockService := &mocks.MockProxyService{
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
+			capturedProxy = proxy
+			proxy.ID = 1
+			return nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":           "Test Proxy",
+		"hostname":       "test.example.com",
+		"type":           "reverse_proxy",
+		"block_exploits": false,
+	})
+	req := requestWithUserID(http.MethodPost, "/api/proxies", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.CreateProxy(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	assert.False(t, capturedProxy.BlockExploits, "BlockExploits should be false when explicitly set")
+}
+
+func TestCreateProxy_BlockExploitsDefault(t *testing.T) {
+	t.Parallel()
+	var capturedProxy *models.Proxy
+	mockService := &mocks.MockProxyService{
+		CreateProxyFunc: func(proxy *models.Proxy, _ int) error {
+			capturedProxy = proxy
+			proxy.ID = 1
+			return nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":     "Test Proxy",
+		"hostname": "test.example.com",
+		"type":     "reverse_proxy",
+	})
+	req := requestWithUserID(http.MethodPost, "/api/proxies", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.CreateProxy(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	assert.True(t, capturedProxy.BlockExploits, "BlockExploits should default to true")
+}
+
 // =============================================================================
 // Audit Logging Tests
 // =============================================================================

@@ -38,7 +38,7 @@ export function LoginPage() {
       password: '',
     },
     validators: {
-      onBlur: loginSchema,
+      onChange: loginSchema,
     },
     onSubmit: async ({ value }) => {
       setError(null);

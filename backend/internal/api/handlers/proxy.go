@@ -196,10 +196,14 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, proxy, "")
 }
 
-// createProxyRequest wraps proxy with optional fields for proper default handling
+// createProxyRequest wraps proxy with optional fields for proper default handling.
+// These bool fields are pointers so the handler can distinguish "omitted" (apply
+// the secure default) from an explicit false (persist it). The model no longer
+// carries GORM `default` tags for them, so the handler owns the defaulting.
 type createProxyRequest struct {
 	models.Proxy
-	SSLEnabled *bool `json:"ssl_enabled"`
+	SSLEnabled    *bool `json:"ssl_enabled"`
+	BlockExploits *bool `json:"block_exploits"`
 }
 
 // CreateProxy handles POST /api/proxies
@@ -226,11 +230,17 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 
 	proxy := req.Proxy
 
-	// Set defaults - SSLEnabled defaults to true unless explicitly set to false
+	// Set defaults - SSLEnabled and BlockExploits default to true unless the
+	// client explicitly sends false.
 	if req.SSLEnabled != nil {
 		proxy.SSLEnabled = *req.SSLEnabled
 	} else {
 		proxy.SSLEnabled = true
+	}
+	if req.BlockExploits != nil {
+		proxy.BlockExploits = *req.BlockExploits
+	} else {
+		proxy.BlockExploits = true
 	}
 	proxy.SSLForced = true
 	proxy.IsActive = true

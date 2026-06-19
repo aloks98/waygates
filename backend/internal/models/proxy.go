@@ -9,23 +9,32 @@ import (
 
 // Proxy represents a proxy configuration
 type Proxy struct {
-	ID          int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	Type        string    `json:"type" gorm:"type:varchar(50);not null"`
-	Name        string    `json:"name" gorm:"type:varchar(255);not null"`
-	Hostname    string    `json:"hostname" gorm:"type:varchar(255);uniqueIndex;not null"`
-	Description *string   `json:"description,omitempty" gorm:"type:text"`
-	SSLEnabled  bool      `json:"ssl_enabled" gorm:"default:true;not null"`
-	SSLForced   bool      `json:"ssl_forced" gorm:"default:true;not null"`
-	IsActive    bool      `json:"is_active" gorm:"default:true;not null"`
-	CreatedBy   int       `json:"-" gorm:"not null"`
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID          int     `json:"id" gorm:"primaryKey;autoIncrement"`
+	Type        string  `json:"type" gorm:"type:varchar(50);not null"`
+	Name        string  `json:"name" gorm:"type:varchar(255);not null"`
+	Hostname    string  `json:"hostname" gorm:"type:varchar(255);uniqueIndex;not null"`
+	Description *string `json:"description,omitempty" gorm:"type:text"`
+	// SSLEnabled deliberately has no GORM `default` tag. A `default` tag makes
+	// GORM omit the column from INSERT whenever the field holds its zero value
+	// (false), so the database default wins and an explicitly-disabled toggle is
+	// silently re-enabled on create. The create handler applies the "true"
+	// default when the client omits the field. The DB column keeps its DEFAULT
+	// for backfilling existing rows.
+	SSLEnabled bool      `json:"ssl_enabled" gorm:"not null"`
+	SSLForced  bool      `json:"ssl_forced" gorm:"default:true;not null"`
+	IsActive   bool      `json:"is_active" gorm:"default:true;not null"`
+	CreatedBy  int       `json:"-" gorm:"not null"`
+	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Type-specific fields (stored as JSON in database)
-	Upstreams             interface{}   `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
-	LoadBalancing         JSONField     `json:"load_balancing,omitempty" gorm:"type:text"`
-	BlockExploits         bool          `json:"block_exploits" gorm:"default:true;not null"`
-	TLSInsecureSkipVerify bool          `json:"tls_insecure_skip_verify" gorm:"default:false;not null"`
+	Upstreams     interface{} `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
+	LoadBalancing JSONField   `json:"load_balancing,omitempty" gorm:"type:text"`
+	// BlockExploits / TLSInsecureSkipVerify omit the GORM `default` tag for the
+	// same reason as SSLEnabled above: it would drop an explicit "false" on
+	// create. Defaults for omitted fields are applied in the create handler.
+	BlockExploits         bool          `json:"block_exploits" gorm:"not null"`
+	TLSInsecureSkipVerify bool          `json:"tls_insecure_skip_verify" gorm:"not null"`
 	CustomHeaders         CustomHeaders `json:"custom_headers,omitempty" gorm:"type:text"`
 	RedirectConfig        JSONField     `json:"redirect,omitempty" gorm:"type:text;column:redirect_config"`
 	StaticConfig          JSONField     `json:"static,omitempty" gorm:"type:text;column:static_config"`

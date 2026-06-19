@@ -152,6 +152,11 @@ func CreateTestProxy(t *testing.T, db *gorm.DB, userID int, name, hostname, prox
 		Hostname:  hostname,
 		IsActive:  true,
 		CreatedBy: userID,
+		// Set the secure-by-default toggles explicitly. The model no longer
+		// carries GORM `default` tags for these (so explicit "false" persists),
+		// which means unset fields would otherwise be stored as false here.
+		SSLEnabled:    true,
+		BlockExploits: true,
 	}
 
 	// Add type-specific configuration

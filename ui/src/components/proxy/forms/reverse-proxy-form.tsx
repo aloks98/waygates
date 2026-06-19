@@ -112,6 +112,10 @@ export function ReverseProxyForm({
   onCancel,
 }: ReverseProxyFormProps) {
   const [upstreams, setUpstreams] = useState(() => normalizeUpstreams(initialData));
+  // The upstream rows are backed by local state rather than form.Field, so their
+  // validation errors aren't rendered by TanStack. Surface them after a submit
+  // attempt (the array's per-row errors otherwise fail silently).
+  const [showUpstreamErrors, setShowUpstreamErrors] = useState(false);
   const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
     initialACLAssignments ?? [],
   );
@@ -172,8 +176,11 @@ export function ReverseProxyForm({
 
   const form = useForm({
     defaultValues,
+    // Validate on change so errors surface and clear live. With onSubmit-only
+    // validation, a failed submit leaves canSubmit=false and later change events
+    // never re-run the validator, so the form can silently refuse to submit.
     validators: {
-      onSubmit: reverseProxySchema,
+      onChange: reverseProxySchema,
     },
     onSubmit: async ({ value }) => {
       const data: CreateReverseProxyRequest = {
@@ -262,6 +269,7 @@ export function ReverseProxyForm({
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        setShowUpstreamErrors(true);
         form.handleSubmit();
       }}
       className="space-y-6"
@@ -368,57 +376,65 @@ export function ReverseProxyForm({
               {upstreams.length > 1 && <div className="w-9" />}
             </div>
           )}
-          {upstreams.map((upstream, index) => (
-            <div key={index} className="flex items-start gap-2">
-              <div className="w-24">
-                <Select
-                  value={upstream.scheme}
-                  onValueChange={(value: 'http' | 'https') =>
-                    updateUpstream(index, 'scheme', value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Scheme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="http">HTTP</SelectItem>
-                    <SelectItem value="https">HTTPS</SelectItem>
-                  </SelectContent>
-                </Select>
+          {upstreams.map((upstream, index) => {
+            const hostInvalid = showUpstreamErrors && !upstream.host.trim();
+            const portInvalid = showUpstreamErrors && (!upstream.port || upstream.port < 1);
+            return (
+              <div key={index} className="flex items-start gap-2">
+                <div className="w-24">
+                  <Select
+                    value={upstream.scheme}
+                    onValueChange={(value: 'http' | 'https') =>
+                      updateUpstream(index, 'scheme', value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Scheme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="http">HTTP</SelectItem>
+                      <SelectItem value="https">HTTPS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Input
+                    placeholder="192.168.1.100"
+                    value={upstream.host}
+                    onChange={(e) => updateUpstream(index, 'host', e.target.value)}
+                    aria-invalid={hostInvalid}
+                  />
+                  {hostInvalid && <p className="mt-1 text-sm text-destructive">Host is required</p>}
+                </div>
+                <div className="w-24">
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="8080"
+                    value={upstream.port || ''}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '');
+                      const port = value ? Math.min(parseInt(value, 10), 65535) : 0;
+                      updateUpstream(index, 'port', port);
+                    }}
+                    aria-invalid={portInvalid}
+                  />
+                  {portInvalid && <p className="mt-1 text-sm text-destructive">Invalid</p>}
+                </div>
+                {upstreams.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeUpstream(index)}
+                  >
+                    <Trash2 className="size-4 text-destructive" />
+                  </Button>
+                )}
               </div>
-              <div className="flex-1">
-                <Input
-                  placeholder="192.168.1.100"
-                  value={upstream.host}
-                  onChange={(e) => updateUpstream(index, 'host', e.target.value)}
-                />
-              </div>
-              <div className="w-24">
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="8080"
-                  value={upstream.port || ''}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '');
-                    const port = value ? Math.min(parseInt(value, 10), 65535) : 0;
-                    updateUpstream(index, 'port', port);
-                  }}
-                />
-              </div>
-              {upstreams.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeUpstream(index)}
-                >
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
 
