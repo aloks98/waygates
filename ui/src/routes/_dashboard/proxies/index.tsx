@@ -12,12 +12,13 @@ import {
   type FilterFieldsConfig,
   Filters,
   Input,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { PaginationState } from '@tanstack/react-table';
 import { Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ProxiesTabs } from '@/components/layout/proxies-tabs';
 import { ProxyDataGrid } from '@/components/proxy';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
@@ -168,6 +169,9 @@ export function ProxiesListPage() {
 
   return (
     <div className="space-y-6">
+      <div className="mb-4">
+        <ProxiesTabs active="http" />
+      </div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Proxies</h1>
         {canCreateProxies && (

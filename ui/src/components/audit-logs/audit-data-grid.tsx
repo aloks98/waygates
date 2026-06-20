@@ -10,7 +10,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import {
   type ColumnDef,
   getCoreRowModel,
@@ -62,10 +62,10 @@ export function AuditDataGrid({
           const date = new Date(row.getValue('created_at') as string);
           return (
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground text-sm cursor-default">
-                  {formatDistanceToNow(date, { addSuffix: true })}
-                </span>
+              <TooltipTrigger
+                render={<span className="text-muted-foreground text-sm cursor-default" />}
+              >
+                {formatDistanceToNow(date, { addSuffix: true })}
               </TooltipTrigger>
               <TooltipContent>
                 <p>{format(date, 'dd/MM/yyyy HH:mm:ss xxx')}</p>
@@ -171,16 +171,18 @@ export function AuditDataGrid({
         cell: ({ row }) => (
           <div className="flex justify-end">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="size-8 p-0"
-                  onClick={() => handleViewLog(row.original)}
-                >
-                  <Eye className="size-4" />
-                  <span className="sr-only">View details</span>
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="size-8 p-0"
+                    onClick={() => handleViewLog(row.original)}
+                  />
+                }
+              >
+                <Eye className="size-4" />
+                <span className="sr-only">View details</span>
               </TooltipTrigger>
               <TooltipContent>
                 <p>View details</p>
@@ -228,7 +230,10 @@ export function AuditDataGrid({
         <DataGridContainer>
           <DataGridTable />
           <div className="border-t px-4 py-2">
-            <DataGridPagination sizes={[10, 20, 50, 100]} />
+            <DataGridPagination
+              sizes={[10, 20, 50, 100]}
+              className="[&_[data-slot=select-trigger]]:w-fit"
+            />
           </div>
         </DataGridContainer>
       </DataGrid>

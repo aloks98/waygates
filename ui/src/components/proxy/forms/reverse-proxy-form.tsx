@@ -1,12 +1,11 @@
 import {
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Field,
   FieldContent,
   FieldDescription,
@@ -19,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -277,10 +276,8 @@ export function ReverseProxyForm({
       {/* Basic Information */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>General settings for this reverse proxy</CardDescription>
-          </CardHeading>
+          <CardTitle>Basic Information</CardTitle>
+          <CardDescription>General settings for this reverse proxy</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -354,18 +351,16 @@ export function ReverseProxyForm({
       {/* Upstream Servers */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Backend Servers</CardTitle>
-            <CardDescription>
-              Where to forward incoming traffic. Add the IP and port of your service.
-            </CardDescription>
-          </CardHeading>
-          <CardToolbar>
+          <CardTitle>Backend Servers</CardTitle>
+          <CardDescription>
+            Where to forward incoming traffic. Add the IP and port of your service.
+          </CardDescription>
+          <CardAction>
             <Button type="button" variant="outline" size="sm" onClick={addUpstream}>
               <Plus className="mr-1 size-4" />
               Add Server
             </Button>
-          </CardToolbar>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
           {upstreams.length > 0 && (
@@ -443,12 +438,10 @@ export function ReverseProxyForm({
         {upstreams.length > 1 && (
           <Card>
             <CardHeader>
-              <CardHeading>
-                <CardTitle>Load Balancing</CardTitle>
-                <CardDescription>
-                  How to distribute traffic across your backend servers
-                </CardDescription>
-              </CardHeading>
+              <CardTitle>Load Balancing</CardTitle>
+              <CardDescription>
+                How to distribute traffic across your backend servers
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <form.Field name="lb_strategy">
@@ -547,10 +540,8 @@ export function ReverseProxyForm({
 
         <Card className={upstreams.length <= 1 ? 'lg:col-span-2' : ''}>
           <CardHeader>
-            <CardHeading>
-              <CardTitle>Security</CardTitle>
-              <CardDescription>HTTPS and connection security options</CardDescription>
-            </CardHeading>
+            <CardTitle>Security</CardTitle>
+            <CardDescription>HTTPS and connection security options</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form.Field name="ssl_enabled">
@@ -601,12 +592,10 @@ export function ReverseProxyForm({
       {/* Custom Headers */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Custom Headers</CardTitle>
-            <CardDescription>
-              Add headers sent to the upstream (request) or returned to the client (response).
-            </CardDescription>
-          </CardHeading>
+          <CardTitle>Custom Headers</CardTitle>
+          <CardDescription>
+            Add headers sent to the upstream (request) or returned to the client (response).
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {(

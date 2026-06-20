@@ -7,11 +7,9 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
   Checkbox,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -26,12 +24,7 @@ import {
   Label,
   Skeleton,
   Switch,
-  TagsInput,
-  TagsInputInput,
-  TagsInputTag,
-  TagsInputTagRemove,
-  TagsInputTagText,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import {
   AlertCircle,
@@ -48,6 +41,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
 
+import { TagsInput } from '@/components/ui/tags-input';
 import {
   useConfigureWaygatesAuth,
   useOAuthProviderRestrictions,
@@ -199,7 +193,7 @@ function ProviderRestrictionModal({
             {providerName} Restrictions
           </DialogTitle>
         </DialogHeader>
-        <DialogBody className="space-y-6">
+        <div className="grid gap-4 py-2 space-y-6">
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel>Enable Restrictions</FieldLabel>
@@ -219,18 +213,10 @@ function ProviderRestrictionModal({
             <TagsInput
               value={state.allowed_emails}
               onValueChange={handleEmailsChange}
-              placeholder="Type email and press Enter"
+              placeholder="Add email..."
               delimiters={['Enter', ',', ' ']}
               validation={emailTagsValidation}
-            >
-              {state.allowed_emails.map((email, index) => (
-                <TagsInputTag key={email} index={index}>
-                  <TagsInputTagText>{email}</TagsInputTagText>
-                  <TagsInputTagRemove />
-                </TagsInputTag>
-              ))}
-              <TagsInputInput placeholder="Add email..." />
-            </TagsInput>
+            />
             <FieldDescription>
               Specific email addresses allowed via {providerName}. Press Enter or comma to add.
             </FieldDescription>
@@ -244,23 +230,15 @@ function ProviderRestrictionModal({
             <TagsInput
               value={state.allowed_domains}
               onValueChange={handleDomainsChange}
-              placeholder="Type domain and press Enter"
+              placeholder="Add domain (e.g., @company.com)..."
               delimiters={['Enter', ',', ' ']}
               validation={domainTagsValidation}
-            >
-              {state.allowed_domains.map((domain, index) => (
-                <TagsInputTag key={domain} index={index}>
-                  <TagsInputTagText>{domain}</TagsInputTagText>
-                  <TagsInputTagRemove />
-                </TagsInputTag>
-              ))}
-              <TagsInputInput placeholder="Add domain (e.g., @company.com)..." />
-            </TagsInput>
+            />
             <FieldDescription>
               Email domains allowed. Users with emails ending in these domains can authenticate.
             </FieldDescription>
           </Field>
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -438,17 +416,14 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       {/* OAuth Providers Section - Independent of Waygates Auth */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <KeyRound className="size-5" />
-              OAuth Providers
-            </CardTitle>
-            <CardDescription>
-              Allow users to authenticate using external OAuth providers. Users don't need a
-              Waygates account - they can sign in directly with their Google, GitHub, or other OAuth
-              accounts.
-            </CardDescription>
-          </CardHeading>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="size-5" />
+            OAuth Providers
+          </CardTitle>
+          <CardDescription>
+            Allow users to authenticate using external OAuth providers. Users don't need a Waygates
+            account - they can sign in directly with their Google, GitHub, or other OAuth accounts.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {isLoadingProviders ? (
@@ -555,16 +530,14 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
       {/* Waygates Authentication Section - Separate from OAuth */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="size-5" />
-              Waygates Authentication
-            </CardTitle>
-            <CardDescription>
-              Allow users with Waygates accounts to authenticate using their platform credentials.
-              This is separate from OAuth - users need an account in Waygates to use this method.
-            </CardDescription>
-          </CardHeading>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="size-5" />
+            Waygates Authentication
+          </CardTitle>
+          <CardDescription>
+            Allow users with Waygates accounts to authenticate using their platform credentials.
+            This is separate from OAuth - users need an account in Waygates to use this method.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form.Field name="enabled">
@@ -666,17 +639,10 @@ export function WaygatesAuthTab({ groupId }: WaygatesAuthTabProps) {
                         <TagsInput
                           value={field.state.value || []}
                           onValueChange={field.handleChange}
+                          placeholder="Add pattern (e.g., *@company.com)..."
                           delimiters={['Enter', ',']}
                           validation={emailPatternTagsValidation}
-                        >
-                          {(field.state.value || []).map((pattern, index) => (
-                            <TagsInputTag key={pattern} index={index}>
-                              <TagsInputTagText>{pattern}</TagsInputTagText>
-                              <TagsInputTagRemove />
-                            </TagsInputTag>
-                          ))}
-                          <TagsInputInput placeholder="Add pattern (e.g., *@company.com)..." />
-                        </TagsInput>
+                        />
                         <FieldDescription>
                           Email patterns. Use * as wildcard. Press Enter or comma to add.
                         </FieldDescription>

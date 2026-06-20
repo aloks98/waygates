@@ -1,4 +1,4 @@
-import { Badge } from '@e412/titanium';
+import { Badge } from '@e412/rnui-react';
 import { ArrowRight, FolderOpen, Globe, Network, Radio } from 'lucide-react';
 import type { ReactNode } from 'react';
 

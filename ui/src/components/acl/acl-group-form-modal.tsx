@@ -3,7 +3,6 @@ import {
   AlertDescription,
   Button,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -20,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { useNavigate } from '@tanstack/react-router';
 import { Info, Shield } from 'lucide-react';
@@ -106,7 +105,7 @@ export function ACLGroupFormModal({
         // Navigate to the newly created group's detail page to configure rules
         if (response.data?.id) {
           navigate({
-            to: '/dashboard/acl/$groupId',
+            to: '/dashboard/access/$groupId',
             params: { groupId: String(response.data.id) },
           });
         }
@@ -147,7 +146,7 @@ export function ACLGroupFormModal({
             form.handleSubmit();
           }}
         >
-          <DialogBody>
+          <div className="grid gap-4 py-2">
             {!isEditMode && (
               <Alert className="mb-4">
                 <Info className="size-4" />
@@ -236,7 +235,7 @@ export function ACLGroupFormModal({
                 )}
               </form.Field>
             </FieldGroup>
-          </DialogBody>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel

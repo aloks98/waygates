@@ -1,4 +1,4 @@
-import { Button } from '@e412/titanium';
+import { Button } from '@e412/rnui-react';
 import type { ReactNode } from 'react';
 
 import type { OAuthProvider } from '@/types/acl';

@@ -112,7 +112,7 @@ const proxyDetailRoute = createRoute({
 // L4 Proxies routes
 const l4ProxiesRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/l4-proxies',
+  path: '/proxies/tcp-udp',
   component: lazyRouteComponent(
     () => import('@/routes/_dashboard/l4-proxies/index'),
     'L4ProxiesListPage',
@@ -121,7 +121,7 @@ const l4ProxiesRoute = createRoute({
 
 const l4ProxyCreateRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/l4-proxies/new',
+  path: '/proxies/tcp-udp/new',
   component: lazyRouteComponent(
     () => import('@/routes/_dashboard/l4-proxies/new'),
     'L4ProxyCreatePage',
@@ -130,7 +130,7 @@ const l4ProxyCreateRoute = createRoute({
 
 const l4ProxyDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/l4-proxies/$l4ProxyId',
+  path: '/proxies/tcp-udp/$l4ProxyId',
   component: lazyRouteComponent(
     () => import('@/routes/_dashboard/l4-proxies/$l4ProxyId'),
     'L4ProxyDetailPage',
@@ -145,23 +145,47 @@ const settingsRoute = createRoute({
 
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/audit-logs',
+  path: '/activity',
   component: lazyRouteComponent(() => import('@/routes/_dashboard/audit-logs'), 'AuditLogsPage'),
 });
 
 const aclRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/acl',
+  path: '/access',
   component: lazyRouteComponent(() => import('@/routes/_dashboard/acl/index'), 'ACLGroupsPage'),
 });
 
 const aclGroupDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
-  path: '/acl/$groupId',
+  path: '/access/$groupId',
   component: lazyRouteComponent(
     () => import('@/routes/_dashboard/acl/$groupId'),
     'ACLGroupDetailPage',
   ),
+});
+
+const l4RedirectRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/l4-proxies',
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard/proxies/tcp-udp' });
+  },
+});
+
+const aclRedirectRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/acl',
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard/access' });
+  },
+});
+
+const auditRedirectRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/audit-logs',
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard/activity' });
+  },
 });
 
 const themePreviewRoute = createRoute({
@@ -189,6 +213,9 @@ const routeTree = rootRoute.addChildren([
     auditLogsRoute,
     aclRoute,
     aclGroupDetailRoute,
+    l4RedirectRoute,
+    aclRedirectRoute,
+    auditRedirectRoute,
   ]),
 ]);
 

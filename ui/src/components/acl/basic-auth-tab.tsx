@@ -11,12 +11,10 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardAction,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -37,7 +35,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { format } from 'date-fns';
 import { Eye, EyeOff, Key, Plus, Trash2, User } from 'lucide-react';
@@ -118,7 +116,7 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
             form.handleSubmit();
           }}
         >
-          <DialogBody>
+          <div className="grid gap-4 py-2">
             <FieldGroup>
               <form.Field name="username">
                 {(field) => {
@@ -186,7 +184,7 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
                 }}
               </form.Field>
             </FieldGroup>
-          </DialogBody>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
@@ -222,22 +220,20 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
     <>
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="size-5" />
-              Basic Authentication Users
-            </CardTitle>
-            <CardDescription>
-              Manage users who can access protected resources using HTTP Basic Auth. Passwords are
-              securely hashed and cannot be retrieved.
-            </CardDescription>
-          </CardHeading>
-          <CardToolbar>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="size-5" />
+            Basic Authentication Users
+          </CardTitle>
+          <CardDescription>
+            Manage users who can access protected resources using HTTP Basic Auth. Passwords are
+            securely hashed and cannot be retrieved.
+          </CardDescription>
+          <CardAction>
             <Button onClick={() => setAddModalOpen(true)}>
               <Plus className="size-4" />
               Add User
             </Button>
-          </CardToolbar>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -280,20 +276,20 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
                     </TableCell>
                     <TableCell>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm text-muted-foreground cursor-default">
-                            {format(new Date(user.created_at), 'MMM d, yyyy')}
-                          </span>
+                        <TooltipTrigger
+                          render={<span className="text-sm text-muted-foreground cursor-default" />}
+                        >
+                          {format(new Date(user.created_at), 'MMM d, yyyy')}
                         </TooltipTrigger>
                         <TooltipContent>{format(new Date(user.created_at), 'PPpp')}</TooltipContent>
                       </Tooltip>
                     </TableCell>
                     <TableCell>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm text-muted-foreground cursor-default">
-                            {format(new Date(user.updated_at), 'MMM d, yyyy')}
-                          </span>
+                        <TooltipTrigger
+                          render={<span className="text-sm text-muted-foreground cursor-default" />}
+                        >
+                          {format(new Date(user.updated_at), 'MMM d, yyyy')}
                         </TooltipTrigger>
                         <TooltipContent>{format(new Date(user.updated_at), 'PPpp')}</TooltipContent>
                       </Tooltip>
@@ -301,16 +297,18 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
                     <TableCell>
                       <div className="flex justify-end">
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => setDeletingUser(user)}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingUser(user)}
+                              />
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="sr-only">Delete</span>
                           </TooltipTrigger>
                           <TooltipContent>Delete user</TooltipContent>
                         </Tooltip>

@@ -2,12 +2,11 @@ import {
   Badge,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Field,
   FieldContent,
   FieldDescription,
@@ -20,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { ChevronDown, ChevronUp, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -231,10 +230,8 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
       {/* Basic Information */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>General settings for this TCP/UDP proxy</CardDescription>
-          </CardHeading>
+          <CardTitle>Basic Information</CardTitle>
+          <CardDescription>General settings for this TCP/UDP proxy</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -355,14 +352,12 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
             return (
               <>
                 <CardHeader>
-                  <CardHeading>
-                    <CardTitle>Routes</CardTitle>
-                    <CardDescription>
-                      Define how incoming connections are matched and forwarded to your backend
-                      servers. You can add multiple routes with different matching rules.
-                    </CardDescription>
-                  </CardHeading>
-                  <CardToolbar>
+                  <CardTitle>Routes</CardTitle>
+                  <CardDescription>
+                    Define how incoming connections are matched and forwarded to your backend
+                    servers. You can add multiple routes with different matching rules.
+                  </CardDescription>
+                  <CardAction>
                     <Button
                       type="button"
                       variant="outline"
@@ -375,36 +370,34 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                       <Plus className="mr-1 size-4" />
                       Add Route
                     </Button>
-                  </CardToolbar>
+                  </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {routes.map((route, routeIndex) => (
                     <Card key={routeIndex} className="border-dashed">
                       <CardHeader className="pb-2">
-                        <CardHeading>
-                          <button
-                            type="button"
-                            className="flex items-center gap-2 text-left"
-                            onClick={() => toggleRouteExpansion(routeIndex)}
-                          >
-                            {expandedRoutes.has(routeIndex) ? (
-                              <ChevronUp className="size-4" />
-                            ) : (
-                              <ChevronDown className="size-4" />
-                            )}
-                            <CardTitle className="text-base">Route {routeIndex + 1}</CardTitle>
-                            <Badge variant="outline" className="ml-2">
-                              {MATCHER_TYPE_CONFIG[route.matcher_type].label}
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-left"
+                          onClick={() => toggleRouteExpansion(routeIndex)}
+                        >
+                          {expandedRoutes.has(routeIndex) ? (
+                            <ChevronUp className="size-4" />
+                          ) : (
+                            <ChevronDown className="size-4" />
+                          )}
+                          <CardTitle className="text-base">Route {routeIndex + 1}</CardTitle>
+                          <Badge variant="outline" className="ml-2">
+                            {MATCHER_TYPE_CONFIG[route.matcher_type].label}
+                          </Badge>
+                          {route.upstreams.length > 0 && route.upstreams[0].host && (
+                            <Badge variant="secondary" className="ml-1">
+                              {route.upstreams.length} upstream
+                              {route.upstreams.length > 1 ? 's' : ''}
                             </Badge>
-                            {route.upstreams.length > 0 && route.upstreams[0].host && (
-                              <Badge variant="secondary" className="ml-1">
-                                {route.upstreams.length} upstream
-                                {route.upstreams.length > 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                          </button>
-                        </CardHeading>
-                        <CardToolbar>
+                          )}
+                        </button>
+                        <CardAction>
                           {routes.length > 1 && (
                             <Button
                               type="button"
@@ -425,7 +418,7 @@ export function L4ProxyForm({ initialData, onSubmit, loading, onCancel }: L4Prox
                               <Trash2 className="size-4 text-destructive" />
                             </Button>
                           )}
-                        </CardToolbar>
+                        </CardAction>
                       </CardHeader>
 
                       {expandedRoutes.has(routeIndex) && (

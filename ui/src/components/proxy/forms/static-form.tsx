@@ -1,12 +1,11 @@
 import {
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Field,
   FieldContent,
   FieldDescription,
@@ -14,7 +13,7 @@ import {
   FieldLabel,
   Input,
   Switch,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -141,10 +140,8 @@ export function StaticForm({
       {/* Basic Information */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>General settings for this static file server</CardDescription>
-          </CardHeading>
+          <CardTitle>Basic Information</CardTitle>
+          <CardDescription>General settings for this static file server</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -215,10 +212,8 @@ export function StaticForm({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardHeading>
-              <CardTitle>File Server</CardTitle>
-              <CardDescription>Configure how static files are served</CardDescription>
-            </CardHeading>
+            <CardTitle>File Server</CardTitle>
+            <CardDescription>Configure how static files are served</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form.Field name="root_path">
@@ -269,10 +264,8 @@ export function StaticForm({
 
         <Card>
           <CardHeader>
-            <CardHeading>
-              <CardTitle>Options</CardTitle>
-              <CardDescription>SSL and serving behavior</CardDescription>
-            </CardHeading>
+            <CardTitle>Options</CardTitle>
+            <CardDescription>SSL and serving behavior</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form.Field name="ssl_enabled">
@@ -321,18 +314,16 @@ export function StaticForm({
       {/* Try Files */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Try Files (Optional)</CardTitle>
-            <CardDescription>
-              Specify fallback files when the requested path is not found
-            </CardDescription>
-          </CardHeading>
-          <CardToolbar>
+          <CardTitle>Try Files (Optional)</CardTitle>
+          <CardDescription>
+            Specify fallback files when the requested path is not found
+          </CardDescription>
+          <CardAction>
             <Button type="button" variant="outline" size="sm" onClick={addTryFile}>
               <Plus className="mr-1 size-4" />
               Add File
             </Button>
-          </CardToolbar>
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-3">
           {tryFiles.length === 0 ? (

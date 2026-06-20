@@ -1,4 +1,4 @@
-import { Badge } from '@e412/titanium';
+import { Badge } from '@e412/rnui-react';
 
 import type { AuditAction } from '@/types/audit';
 

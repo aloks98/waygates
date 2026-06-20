@@ -14,7 +14,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { useEffect } from 'react';
 import { z } from 'zod';

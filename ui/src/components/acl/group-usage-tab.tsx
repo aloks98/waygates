@@ -9,7 +9,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
@@ -154,19 +154,21 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
           return (
             <div className="flex justify-end">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-8 p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleProxyClick(proxy.id);
-                    }}
-                  >
-                    <ExternalLink className="size-4" />
-                    <span className="sr-only">View proxy</span>
-                  </Button>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="size-8 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleProxyClick(proxy.id);
+                      }}
+                    />
+                  }
+                >
+                  <ExternalLink className="size-4" />
+                  <span className="sr-only">View proxy</span>
                 </TooltipTrigger>
                 <TooltipContent>View proxy</TooltipContent>
               </Tooltip>

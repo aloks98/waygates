@@ -5,7 +5,6 @@ import {
   Badge,
   Button,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -13,14 +12,18 @@ import {
   DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Field,
-  FieldError,
   FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Sidebar,
   SidebarContent,
@@ -33,11 +36,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
-} from '@e412/titanium';
-import { useForm } from '@tanstack/react-form';
+} from '@e412/rnui-react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { Link, useLocation, useRouter } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
 import {
   CheckCircle2,
   ChevronUp,
@@ -46,16 +48,19 @@ import {
   Home,
   KeyRound,
   LogOut,
-  Network,
   Settings,
   Shield,
   User,
   XCircle,
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { CommandPalette } from '@/components/layout/command-palette';
+import { TopBar } from '@/components/layout/top-bar';
 import { WaygateLogo } from '@/components/layout/waygate-logo';
+import { useLogout } from '@/hooks/use-logout';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 
@@ -66,36 +71,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  {
-    label: 'Dashboard',
-    path: '/dashboard',
-    icon: <Home className="size-4" />,
-  },
-  {
-    label: 'Proxies',
-    path: '/dashboard/proxies',
-    icon: <Globe className="size-4" />,
-  },
-  {
-    label: 'TCP/UDP Proxies',
-    path: '/dashboard/l4-proxies',
-    icon: <Network className="size-4" />,
-  },
-  {
-    label: 'Audit Logs',
-    path: '/dashboard/audit-logs',
-    icon: <ClipboardList className="size-4" />,
-  },
-  {
-    label: 'Access Control',
-    path: '/dashboard/acl',
-    icon: <Shield className="size-4" />,
-  },
-  {
-    label: 'Settings',
-    path: '/dashboard/settings',
-    icon: <Settings className="size-4" />,
-  },
+  { label: 'Dashboard', path: '/dashboard', icon: <Home className="size-4" /> },
+  { label: 'Proxies', path: '/dashboard/proxies', icon: <Globe className="size-4" /> },
+  { label: 'Access', path: '/dashboard/access', icon: <Shield className="size-4" /> },
+  { label: 'Activity', path: '/dashboard/activity', icon: <ClipboardList className="size-4" /> },
+  { label: 'Settings', path: '/dashboard/settings', icon: <Settings className="size-4" /> },
 ];
 
 const passwordSchema = z
@@ -108,6 +88,7 @@ const passwordSchema = z
     message: "Passwords don't match",
     path: ['confirm_password'],
   });
+type PasswordValues = z.infer<typeof passwordSchema>;
 
 function ChangePasswordDialog({
   open,
@@ -118,21 +99,13 @@ function ChangePasswordDialog({
 }) {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const form = useForm({
+  const form = useForm<PasswordValues>({
+    resolver: zodResolver(passwordSchema),
+    mode: 'onTouched',
     defaultValues: {
       current_password: '',
       new_password: '',
       confirm_password: '',
-    },
-    validators: {
-      onBlur: passwordSchema,
-    },
-    onSubmit: async ({ value }) => {
-      setStatus(null);
-      mutation.mutate({
-        current_password: value.current_password,
-        new_password: value.new_password,
-      });
     },
   });
 
@@ -153,6 +126,14 @@ function ChangePasswordDialog({
     },
   });
 
+  const onSubmit = (value: PasswordValues) => {
+    setStatus(null);
+    mutation.mutate({
+      current_password: value.current_password,
+      new_password: value.new_password,
+    });
+  };
+
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setStatus(null);
@@ -168,99 +149,74 @@ function ChangePasswordDialog({
           <DialogTitle>Change Password</DialogTitle>
           <DialogDescription>Enter your current password and choose a new one.</DialogDescription>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-        >
-          <DialogBody>
-            <FieldGroup>
-              {status && (
-                <Alert variant={status.type === 'error' ? 'destructive' : 'success'}>
-                  {status.type === 'success' ? (
-                    <CheckCircle2 className="size-4" />
-                  ) : (
-                    <XCircle className="size-4" />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2">
+              <FieldGroup>
+                {status && (
+                  <Alert variant={status.type === 'error' ? 'destructive' : 'success'}>
+                    {status.type === 'success' ? (
+                      <CheckCircle2 className="size-4" />
+                    ) : (
+                      <XCircle className="size-4" />
+                    )}
+                    <AlertDescription>{status.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="current_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="current-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                  <AlertDescription>{status.message}</AlertDescription>
-                </Alert>
-              )}
+                />
 
-              <form.Field name="current_password">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Current Password</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="password"
-                        autoComplete="current-password"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+                <FormField
+                  control={form.control}
+                  name="new_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="new_password">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>New Password</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="password"
-                        autoComplete="new-password"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-
-              <form.Field name="confirm_password">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Confirm New Password</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="password"
-                        autoComplete="new-password"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-            </FieldGroup>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={mutation.isPending || status?.type === 'success'}>
-              {mutation.isPending ? 'Changing...' : 'Change Password'}
-            </Button>
-          </DialogFooter>
-        </form>
+                <FormField
+                  control={form.control}
+                  name="confirm_password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </FieldGroup>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={mutation.isPending || status?.type === 'success'}>
+                {mutation.isPending ? 'Changing...' : 'Change Password'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -281,7 +237,7 @@ function ProfileDialog({
         <DialogHeader>
           <DialogTitle>Profile</DialogTitle>
         </DialogHeader>
-        <DialogBody className="space-y-4">
+        <div className="grid gap-4 py-2 space-y-4">
           <div className="flex items-center gap-4">
             <Avatar className="size-16">
               <div className="flex size-full items-center justify-center bg-primary text-primary-foreground text-xl font-medium">
@@ -322,7 +278,7 @@ function ProfileDialog({
               </div>
             </div>
           )}
-        </DialogBody>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
@@ -335,20 +291,10 @@ function ProfileDialog({
 
 export function AppSidebar({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
+  const handleLogout = useLogout();
   const [profileOpen, setProfileOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
-
-  const handleLogout = async () => {
-    try {
-      await api.post('auth/logout');
-    } catch {
-      // Ignore errors, logout locally anyway
-    }
-    logout();
-    router.navigate({ to: '/login' });
-  };
 
   return (
     <SidebarProvider>
@@ -372,14 +318,16 @@ export function AppSidebar({ children }: { children: ReactNode }) {
             <SidebarGroupContent>
               <SidebarMenu>
                 {navItems.map((item) => {
-                  const isActive = location.pathname === item.path;
+                  const isActive =
+                    item.path === '/dashboard'
+                      ? location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+                      : location.pathname === item.path ||
+                        location.pathname.startsWith(`${item.path}/`);
                   return (
                     <SidebarMenuItem key={item.path}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={item.path}>
-                          {item.icon}
-                          <span>{item.label}</span>
-                        </Link>
+                      <SidebarMenuButton render={<Link to={item.path} />} isActive={isActive}>
+                        {item.icon}
+                        <span>{item.label}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -391,24 +339,26 @@ export function AppSidebar({ children }: { children: ReactNode }) {
 
         <SidebarFooter className="border-t border-border p-2">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start h-auto py-2 px-2">
-                <div className="flex items-center gap-3 flex-1">
-                  <Avatar className="size-8">
-                    <div className="flex size-full items-center justify-center bg-primary text-primary-foreground text-sm font-medium">
-                      {user?.name?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                  </Avatar>
-                  <div className="flex-1 truncate text-left">
-                    <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
-                    <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+            <DropdownMenuTrigger
+              render={<Button variant="ghost" className="w-full justify-start h-auto py-2 px-2" />}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                <Avatar className="size-8">
+                  <div className="flex size-full items-center justify-center bg-primary text-primary-foreground text-sm font-medium">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <ChevronUp className="size-4 text-muted-foreground" />
+                </Avatar>
+                <div className="flex-1 truncate text-left">
+                  <p className="truncate text-sm font-medium">{user?.name || 'User'}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                 </div>
-              </Button>
+                <ChevronUp className="size-4 text-muted-foreground" />
+              </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setProfileOpen(true)}>
                 <User className="size-4" />
@@ -432,14 +382,13 @@ export function AppSidebar({ children }: { children: ReactNode }) {
       </Sidebar>
 
       <SidebarInset>
-        <header className="flex h-14 items-center gap-4 border-b border-border px-4">
-          <SidebarTrigger />
-        </header>
+        <TopBar />
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </SidebarInset>
 
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
       <ChangePasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} />
+      <CommandPalette />
     </SidebarProvider>
   );
 }

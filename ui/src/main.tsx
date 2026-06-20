@@ -1,6 +1,7 @@
-import { ThemeProvider, Toaster } from '@e412/titanium';
+import { Toaster, TooltipProvider } from '@e412/rnui-react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
+import { ThemeProvider } from 'next-themes';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -11,11 +12,13 @@ import './app.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="dark" defaultThemeColorScheme="default">
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <Toaster richColors position="top-right" />
-      </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+          <Toaster richColors position="top-right" />
+        </QueryClientProvider>
+      </TooltipProvider>
     </ThemeProvider>
   </StrictMode>,
 );

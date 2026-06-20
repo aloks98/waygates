@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@e412/titanium';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@e412/rnui-react';
 
 import { AuditConfigPanel } from '@/components/audit-logs';
 import { ACLBrandingSettings, CatchallSettings } from '@/components/settings';

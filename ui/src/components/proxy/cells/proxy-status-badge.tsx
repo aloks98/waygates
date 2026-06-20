@@ -1,4 +1,4 @@
-import { Badge, Switch } from '@e412/titanium';
+import { Badge, Switch } from '@e412/rnui-react';
 
 interface ProxyStatusBadgeProps {
   isActive: boolean;

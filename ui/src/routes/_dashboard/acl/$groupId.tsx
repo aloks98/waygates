@@ -13,14 +13,13 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
   Skeleton,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { format } from 'date-fns';
 import {
@@ -107,12 +106,10 @@ function OverviewTab({ groupId }: { groupId: number }) {
     <div className="grid gap-6 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="size-4" />
-              Group Details
-            </CardTitle>
-          </CardHeading>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="size-4" />
+            Group Details
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -143,12 +140,10 @@ function OverviewTab({ groupId }: { groupId: number }) {
 
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="size-4" />
-              Metadata
-            </CardTitle>
-          </CardHeading>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="size-4" />
+            Metadata
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -177,12 +172,10 @@ function OverviewTab({ groupId }: { groupId: number }) {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Configuration Summary</CardTitle>
-            <CardDescription>
-              Overview of all authentication methods configured for this group
-            </CardDescription>
-          </CardHeading>
+          <CardTitle>Configuration Summary</CardTitle>
+          <CardDescription>
+            Overview of all authentication methods configured for this group
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -230,7 +223,7 @@ function OverviewTab({ groupId }: { groupId: number }) {
 }
 
 export function ACLGroupDetailPage() {
-  const params = useParams({ from: '/dashboard/acl/$groupId' });
+  const params = useParams({ from: '/dashboard/access/$groupId' });
   const groupId = parseInt(params.groupId, 10);
   const navigate = useNavigate();
 
@@ -243,7 +236,7 @@ export function ACLGroupDetailPage() {
   const handleDelete = async () => {
     await deleteGroup(groupId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/acl' });
+    navigate({ to: '/dashboard/access' });
   };
 
   if (isLoading) {
@@ -269,7 +262,7 @@ export function ACLGroupDetailPage() {
         <p className="text-muted-foreground">
           The access control group you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/acl' })}>
+        <Button onClick={() => navigate({ to: '/dashboard/access' })}>
           <ArrowLeft className="size-4" />
           Back to Groups
         </Button>
@@ -281,7 +274,7 @@ export function ACLGroupDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/dashboard/acl' })}>
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/dashboard/access' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>

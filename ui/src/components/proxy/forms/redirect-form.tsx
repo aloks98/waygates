@@ -4,7 +4,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
   Field,
   FieldContent,
@@ -18,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
   Switch,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
@@ -129,10 +128,8 @@ export function RedirectForm({
       {/* Basic Information */}
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Basic Information</CardTitle>
-            <CardDescription>General settings for this redirect</CardDescription>
-          </CardHeading>
+          <CardTitle>Basic Information</CardTitle>
+          <CardDescription>General settings for this redirect</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -203,10 +200,8 @@ export function RedirectForm({
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardHeading>
-              <CardTitle>Redirect Target</CardTitle>
-              <CardDescription>Where to redirect visitors</CardDescription>
-            </CardHeading>
+            <CardTitle>Redirect Target</CardTitle>
+            <CardDescription>Where to redirect visitors</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form.Field name="target">
@@ -263,10 +258,8 @@ export function RedirectForm({
 
         <Card>
           <CardHeader>
-            <CardHeading>
-              <CardTitle>Options</CardTitle>
-              <CardDescription>SSL and redirect behavior</CardDescription>
-            </CardHeading>
+            <CardTitle>Options</CardTitle>
+            <CardDescription>SSL and redirect behavior</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form.Field name="ssl_enabled">

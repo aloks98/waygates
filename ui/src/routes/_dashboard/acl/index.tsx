@@ -19,7 +19,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -105,7 +105,7 @@ export function ACLGroupsPage() {
 
   const handleRowClick = useCallback(
     (group: ACLGroup) => {
-      navigate({ to: '/dashboard/acl/$groupId', params: { groupId: String(group.id) } });
+      navigate({ to: '/dashboard/access/$groupId', params: { groupId: String(group.id) } });
     },
     [navigate],
   );
@@ -194,10 +194,10 @@ export function ACLGroupsPage() {
           const date = new Date(row.getValue('created_at') as string);
           return (
             <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground text-sm cursor-default">
-                  {formatDistanceToNow(date, { addSuffix: true })}
-                </span>
+              <TooltipTrigger
+                render={<span className="text-muted-foreground text-sm cursor-default" />}
+              >
+                {formatDistanceToNow(date, { addSuffix: true })}
               </TooltipTrigger>
               <TooltipContent>
                 <p>{format(date, 'dd/MM/yyyy HH:mm:ss')}</p>
@@ -217,19 +217,21 @@ export function ACLGroupsPage() {
         cell: ({ row }) => (
           <div className="flex justify-end gap-1">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="size-8 p-0 text-destructive hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeletingGroup(row.original);
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                  <span className="sr-only">Delete</span>
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="size-8 p-0 text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingGroup(row.original);
+                    }}
+                  />
+                }
+              >
+                <Trash2 className="size-4" />
+                <span className="sr-only">Delete</span>
               </TooltipTrigger>
               <TooltipContent>Delete group</TooltipContent>
             </Tooltip>
@@ -313,7 +315,10 @@ export function ACLGroupsPage() {
         <DataGridContainer>
           <DataGridTable />
           <div className="border-t px-4 py-2">
-            <DataGridPagination sizes={[10, 20, 50]} />
+            <DataGridPagination
+              sizes={[10, 20, 50]}
+              className="[&_[data-slot=select-trigger]]:w-fit"
+            />
           </div>
         </DataGridContainer>
       </DataGrid>

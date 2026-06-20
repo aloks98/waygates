@@ -10,7 +10,7 @@ import {
   Badge,
   Button,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Globe, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';

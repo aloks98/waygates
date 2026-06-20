@@ -10,7 +10,7 @@ import {
   Badge,
   Button,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Network, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -28,7 +28,7 @@ function getProtocolLabel(protocol: string): string {
 }
 
 export function L4ProxyDetailPage() {
-  const params = useParams({ from: '/dashboard/l4-proxies/$l4ProxyId' });
+  const params = useParams({ from: '/dashboard/proxies/tcp-udp/$l4ProxyId' });
   const l4ProxyId = parseInt(params.l4ProxyId, 10);
   const navigate = useNavigate();
 
@@ -45,11 +45,11 @@ export function L4ProxyDetailPage() {
   const handleDelete = async () => {
     await remove(l4ProxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/l4-proxies' });
+    navigate({ to: '/dashboard/proxies/tcp-udp' });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/l4-proxies' });
+    navigate({ to: '/dashboard/proxies/tcp-udp' });
   };
 
   if (isLoading) {
@@ -83,7 +83,7 @@ export function L4ProxyDetailPage() {
         <p className="text-muted-foreground">
           The TCP/UDP proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/l4-proxies' })}>
+        <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}>
           <ArrowLeft className="size-4" />
           Back to TCP/UDP Proxies
         </Button>
@@ -99,7 +99,7 @@ export function L4ProxyDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate({ to: '/dashboard/l4-proxies' })}
+            onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}
           >
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>

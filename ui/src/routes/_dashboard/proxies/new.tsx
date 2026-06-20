@@ -1,4 +1,4 @@
-import { Button } from '@e412/titanium';
+import { Button } from '@e412/rnui-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ArrowLeft, ArrowRight, Check, FolderOpen, Globe } from 'lucide-react';
 import { useState } from 'react';

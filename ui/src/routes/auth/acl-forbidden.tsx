@@ -1,4 +1,4 @@
-import { Button, Card, CardContent } from '@e412/titanium';
+import { Button, Card, CardContent } from '@e412/rnui-react';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, ArrowLeft, Ban, LogOut, Mail, ShieldX } from 'lucide-react';
 

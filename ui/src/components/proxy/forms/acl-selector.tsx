@@ -2,12 +2,11 @@ import {
   Badge,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Field,
   FieldDescription,
   FieldLabel,
@@ -18,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, Plus, Shield, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
@@ -102,16 +101,14 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
   return (
     <Card>
       <CardHeader>
-        <CardHeading>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="size-5" />
-            Access Control
-          </CardTitle>
-          <CardDescription>
-            Assign ACL groups to protect this proxy with authentication rules
-          </CardDescription>
-        </CardHeading>
-        <CardToolbar>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="size-5" />
+          Access Control
+        </CardTitle>
+        <CardDescription>
+          Assign ACL groups to protect this proxy with authentication rules
+        </CardDescription>
+        <CardAction>
           {!showAddForm && (
             <Button
               type="button"
@@ -124,7 +121,7 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
               Add ACL
             </Button>
           )}
-        </CardToolbar>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
@@ -138,7 +135,7 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
             <p className="text-sm">No ACL groups available</p>
             <p className="text-xs mt-1">
               <Link
-                to="/dashboard/acl"
+                to="/dashboard/access"
                 className="text-primary hover:underline inline-flex items-center gap-1"
               >
                 Create an ACL group first

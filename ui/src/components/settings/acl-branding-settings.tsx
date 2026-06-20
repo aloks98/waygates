@@ -5,7 +5,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardHeading,
   CardTitle,
   Field,
   FieldContent,
@@ -17,7 +16,7 @@ import {
   Skeleton,
   Spinner,
   Textarea,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { Eye, Lock, RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -354,12 +353,10 @@ export function ACLBrandingSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardHeading>
-          <CardTitle>Login Branding</CardTitle>
-          <CardDescription>
-            Customize the login page that users see when accessing protected resources.
-          </CardDescription>
-        </CardHeading>
+        <CardTitle>Login Branding</CardTitle>
+        <CardDescription>
+          Customize the login page that users see when accessing protected resources.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-8 lg:grid-cols-2">

@@ -7,7 +7,7 @@ import {
   DataGridPagination,
   DataGridTable,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { Link } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -217,17 +217,17 @@ export function ProxyDataGrid({
             Create your first proxy to start routing traffic through Waygates.
           </p>
           <div className="mt-4 flex gap-2">
-            <Button size="sm" asChild>
-              <Link to="/dashboard/proxies/new">
-                <Plus className="size-4" />
-                HTTP Proxy
-              </Link>
+            <Button size="sm" render={<Link to="/dashboard/proxies/new" />}>
+              <Plus className="size-4" />
+              HTTP Proxy
             </Button>
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/dashboard/l4-proxies/new">
-                <Network className="size-4" />
-                TCP/UDP Proxy
-              </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              render={<Link to="/dashboard/proxies/tcp-udp/new" />}
+            >
+              <Network className="size-4" />
+              TCP/UDP Proxy
             </Button>
           </div>
         </div>
@@ -236,7 +236,10 @@ export function ProxyDataGrid({
       <DataGridContainer>
         <DataGridTable />
         <div className="border-t px-4 py-2">
-          <DataGridPagination sizes={[10, 20, 50]} />
+          <DataGridPagination
+            sizes={[10, 20, 50]}
+            className="[&_[data-slot=select-trigger]]:w-fit"
+          />
         </div>
       </DataGridContainer>
     </DataGrid>

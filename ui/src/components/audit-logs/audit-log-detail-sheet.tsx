@@ -7,7 +7,7 @@ import {
   SheetHeader,
   SheetTitle,
   Skeleton,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { format } from 'date-fns';
 import { AlertCircle, ArrowRight, Clock, Globe, Monitor, Server, User } from 'lucide-react';
 import type { ReactNode } from 'react';

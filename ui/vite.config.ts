@@ -31,7 +31,7 @@ export default defineConfig({
             },
             {
               name: 'vendor-ui',
-              test: /node_modules\/(@e412\/titanium|lucide-react|sonner)/,
+              test: /node_modules\/(@e412\/rnui-react|lucide-react|sonner)/,
             },
           ],
         },

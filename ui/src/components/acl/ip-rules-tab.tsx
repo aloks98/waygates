@@ -12,12 +12,10 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardAction,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -44,7 +42,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { format } from 'date-fns';
 import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -186,7 +184,7 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
             form.handleSubmit();
           }}
         >
-          <DialogBody>
+          <div className="grid gap-4 py-2">
             <FieldGroup>
               <form.Field name="cidr">
                 {(field) => {
@@ -278,7 +276,7 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                 }}
               </form.Field>
             </FieldGroup>
-          </DialogBody>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
@@ -318,21 +316,19 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
     <>
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Network className="size-5" />
-              IP Rules
-            </CardTitle>
-            <CardDescription>
-              Control access based on client IP addresses. Rules are evaluated in priority order.
-            </CardDescription>
-          </CardHeading>
-          <CardToolbar>
+          <CardTitle className="flex items-center gap-2">
+            <Network className="size-5" />
+            IP Rules
+          </CardTitle>
+          <CardDescription>
+            Control access based on client IP addresses. Rules are evaluated in priority order.
+          </CardDescription>
+          <CardAction>
             <Button onClick={() => setCreateModalOpen(true)}>
               <Plus className="size-4" />
               Add Rule
             </Button>
-          </CardToolbar>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -391,10 +387,10 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
                     </TableCell>
                     <TableCell>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm text-muted-foreground cursor-default">
-                            {format(new Date(rule.created_at), 'MMM d, yyyy')}
-                          </span>
+                        <TooltipTrigger
+                          render={<span className="text-sm text-muted-foreground cursor-default" />}
+                        >
+                          {format(new Date(rule.created_at), 'MMM d, yyyy')}
                         </TooltipTrigger>
                         <TooltipContent>{format(new Date(rule.created_at), 'PPpp')}</TooltipContent>
                       </Tooltip>
@@ -402,30 +398,34 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-8 p-0"
-                              onClick={() => setEditingRule(rule)}
-                            >
-                              <Pencil className="size-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-8 p-0"
+                                onClick={() => setEditingRule(rule)}
+                              />
+                            }
+                          >
+                            <Pencil className="size-4" />
+                            <span className="sr-only">Edit</span>
                           </TooltipTrigger>
                           <TooltipContent>Edit rule</TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => setDeletingRule(rule)}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingRule(rule)}
+                              />
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="sr-only">Delete</span>
                           </TooltipTrigger>
                           <TooltipContent>Delete rule</TooltipContent>
                         </Tooltip>

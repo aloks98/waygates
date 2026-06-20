@@ -19,7 +19,7 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -32,6 +32,7 @@ import {
 import { Network, Plus, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ProxiesTabs } from '@/components/layout/proxies-tabs';
 import { L4ProtocolBadge, ProxyStatusBadge } from '@/components/proxy/cells';
 import { useL4Proxies, useL4ProxyStats } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -112,7 +113,7 @@ export function L4ProxiesListPage() {
   const handleRowClick = useCallback(
     (proxy: L4Proxy) => {
       navigate({
-        to: '/dashboard/l4-proxies/$l4ProxyId',
+        to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
         params: { l4ProxyId: String(proxy.id) },
       });
     },
@@ -244,12 +245,15 @@ export function L4ProxiesListPage() {
 
   return (
     <div className="space-y-6">
+      <div className="mb-4">
+        <ProxiesTabs active="tcp-udp" />
+      </div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">L4 Proxies</h1>
+        <h1 className="text-2xl font-bold">TCP/UDP Proxies</h1>
         {canCreateProxies && (
-          <Button onClick={() => navigate({ to: '/dashboard/l4-proxies/new' })}>
+          <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp/new' })}>
             <Plus className="size-4" />
-            Add L4 Proxy
+            Add TCP/UDP Proxy
           </Button>
         )}
       </div>
@@ -305,7 +309,10 @@ export function L4ProxiesListPage() {
         <DataGridContainer>
           <DataGridTable />
           <div className="border-t px-4 py-2">
-            <DataGridPagination sizes={[10, 20, 50]} />
+            <DataGridPagination
+              sizes={[10, 20, 50]}
+              className="[&_[data-slot=select-trigger]]:w-fit"
+            />
           </div>
         </DataGridContainer>
       </DataGrid>

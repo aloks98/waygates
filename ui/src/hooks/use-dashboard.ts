@@ -2,17 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { api, publicApi } from '@/lib/api';
-import type {
-  ApiResponse,
-  AppStatus,
-  HealthStatus,
-  PaginatedResponse,
-  ProxyStats,
-  SyncStatus,
-} from '@/types/api';
+import type { ApiResponse, AppStatus, HealthStatus, ProxyStats, SyncStatus } from '@/types/api';
 import type { AuditLog } from '@/types/audit';
 import type { L4ProxyStats } from '@/types/l4-proxy';
-import type { ProxyConfig } from '@/types/proxy';
 
 const SYNC_STATUS_KEY = ['sync-status'] as const;
 const HEALTH_KEY = ['health'] as const;
@@ -100,16 +92,6 @@ export function useDashboardData() {
     },
   });
 
-  const recentProxies = useQuery({
-    queryKey: ['proxies', 'recent'],
-    queryFn: async () => {
-      const response = await api
-        .get('proxies', { searchParams: { limit: '5', sort: 'created_at', order: 'desc' } })
-        .json<ApiResponse<PaginatedResponse<ProxyConfig>>>();
-      return response.data?.items ?? [];
-    },
-  });
-
   const recentActivity = useQuery({
     queryKey: ['audit-logs', 'dashboard-recent'],
     queryFn: async () => {
@@ -123,12 +105,7 @@ export function useDashboardData() {
   return {
     proxyStats: proxyStats.data,
     l4ProxyStats: l4ProxyStats.data,
-    recentProxies: recentProxies.data ?? [],
     recentActivity: recentActivity.data ?? [],
-    isLoading:
-      proxyStats.isLoading ||
-      l4ProxyStats.isLoading ||
-      recentProxies.isLoading ||
-      recentActivity.isLoading,
+    isLoading: proxyStats.isLoading || l4ProxyStats.isLoading || recentActivity.isLoading,
   };
 }

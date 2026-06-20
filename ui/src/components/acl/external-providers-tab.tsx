@@ -12,12 +12,10 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardAction,
   CardHeader,
-  CardHeading,
   CardTitle,
-  CardToolbar,
   Dialog,
-  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -44,7 +42,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { useForm } from '@tanstack/react-form';
 import { format } from 'date-fns';
 import { ExternalLink, Globe, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
@@ -203,7 +201,7 @@ function ProviderFormModal({
             form.handleSubmit();
           }}
         >
-          <DialogBody>
+          <div className="grid gap-4 py-2">
             <FieldGroup>
               <form.Field name="provider_type">
                 {(field) => (
@@ -322,7 +320,7 @@ function ProviderFormModal({
                 </form.Subscribe>
               </Field>
             </FieldGroup>
-          </DialogBody>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
@@ -359,22 +357,20 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
     <>
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="size-5" />
-              External Authentication Providers
-            </CardTitle>
-            <CardDescription>
-              Integrate with external authentication services like Authelia, Authentik, or custom
-              forward auth providers.
-            </CardDescription>
-          </CardHeading>
-          <CardToolbar>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="size-5" />
+            External Authentication Providers
+          </CardTitle>
+          <CardDescription>
+            Integrate with external authentication services like Authelia, Authentik, or custom
+            forward auth providers.
+          </CardDescription>
+          <CardAction>
             <Button onClick={() => setCreateModalOpen(true)}>
               <Plus className="size-4" />
               Add Provider
             </Button>
-          </CardToolbar>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -430,15 +426,17 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
                           {provider.verify_url}
                         </code>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <a
-                              href={provider.verify_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <ExternalLink className="size-3" />
-                            </a>
+                          <TooltipTrigger
+                            render={
+                              <a
+                                href={provider.verify_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-foreground"
+                              />
+                            }
+                          >
+                            <ExternalLink className="size-3" />
                           </TooltipTrigger>
                           <TooltipContent>Open URL</TooltipContent>
                         </Tooltip>
@@ -446,10 +444,10 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
                     </TableCell>
                     <TableCell>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm text-muted-foreground cursor-default">
-                            {format(new Date(provider.created_at), 'MMM d, yyyy')}
-                          </span>
+                        <TooltipTrigger
+                          render={<span className="text-sm text-muted-foreground cursor-default" />}
+                        >
+                          {format(new Date(provider.created_at), 'MMM d, yyyy')}
                         </TooltipTrigger>
                         <TooltipContent>
                           {format(new Date(provider.created_at), 'PPpp')}
@@ -459,30 +457,34 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-8 p-0"
-                              onClick={() => setEditingProvider(provider)}
-                            >
-                              <Pencil className="size-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-8 p-0"
+                                onClick={() => setEditingProvider(provider)}
+                              />
+                            }
+                          >
+                            <Pencil className="size-4" />
+                            <span className="sr-only">Edit</span>
                           </TooltipTrigger>
                           <TooltipContent>Edit provider</TooltipContent>
                         </Tooltip>
                         <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="size-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => setDeletingProvider(provider)}
-                            >
-                              <Trash2 className="size-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="size-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setDeletingProvider(provider)}
+                              />
+                            }
+                          >
+                            <Trash2 className="size-4" />
+                            <span className="sr-only">Delete</span>
                           </TooltipTrigger>
                           <TooltipContent>Delete provider</TooltipContent>
                         </Tooltip>

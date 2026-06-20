@@ -15,7 +15,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardHeading,
   CardTitle,
   Checkbox,
   Collapsible,
@@ -23,7 +22,7 @@ import {
   CollapsibleTrigger,
   Skeleton,
   Spinner,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { ChevronRight, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -206,12 +205,10 @@ export function AuditConfigPanel() {
     return (
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Event Logging Configuration</CardTitle>
-            <CardDescription>
-              Choose which events to log. Disabled events will not create audit log entries.
-            </CardDescription>
-          </CardHeading>
+          <CardTitle>Event Logging Configuration</CardTitle>
+          <CardDescription>
+            Choose which events to log. Disabled events will not create audit log entries.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
@@ -247,12 +244,10 @@ export function AuditConfigPanel() {
     <>
       <Card>
         <CardHeader>
-          <CardHeading>
-            <CardTitle>Event Logging Configuration</CardTitle>
-            <CardDescription>
-              Choose which events to log. Disabled events will not create audit log entries.
-            </CardDescription>
-          </CardHeading>
+          <CardTitle>Event Logging Configuration</CardTitle>
+          <CardDescription>
+            Choose which events to log. Disabled events will not create audit log entries.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {newlyDisabledSecurityEvents.length > 0 && (
@@ -315,30 +310,32 @@ export function AuditConfigPanel() {
                         onCheckedChange={() => handleGroupToggle(group.events)}
                         id={`group-${group.key}`}
                       />
-                      <CollapsibleTrigger asChild>
-                        <button
-                          type="button"
-                          className="flex flex-1 items-center gap-2 text-left cursor-pointer"
-                        >
-                          <ChevronRight
-                            className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                      <CollapsibleTrigger
+                        render={
+                          <button
+                            type="button"
+                            className="flex flex-1 items-center gap-2 text-left cursor-pointer"
                           />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{group.label}</span>
-                              {isSecurity && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-                                  <ShieldAlert className="size-3" />
-                                  Security
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">{group.description}</p>
+                        }
+                      >
+                        <ChevronRight
+                          className={`size-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{group.label}</span>
+                            {isSecurity && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                <ShieldAlert className="size-3" />
+                                Security
+                              </span>
+                            )}
                           </div>
-                          <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-                            {enabledCount}/{group.events.length}
-                          </span>
-                        </button>
+                          <p className="text-xs text-muted-foreground">{group.description}</p>
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                          {enabledCount}/{group.events.length}
+                        </span>
                       </CollapsibleTrigger>
                     </div>
 
@@ -401,27 +398,25 @@ export function AuditConfigPanel() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Disable Security Event Logging?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  You are about to disable logging for{' '}
-                  <strong>
-                    {newlyDisabledSecurityEvents.length} security-related{' '}
-                    {newlyDisabledSecurityEvents.length === 1 ? 'event' : 'events'}
-                  </strong>
-                  . These events help detect unauthorized access, brute-force attacks, and
-                  credential misuse.
-                </p>
-                <ul className="list-disc pl-5 text-sm space-y-1">
-                  {newlyDisabledSecurityEvents.map((key) => (
-                    <li key={key}>{key.replaceAll('_', ' ')}</li>
-                  ))}
-                </ul>
-                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                  Disabling these events may impact compliance requirements and reduce your ability
-                  to investigate security incidents.
-                </p>
-              </div>
+            <AlertDialogDescription render={<div className="space-y-3" />}>
+              <p>
+                You are about to disable logging for{' '}
+                <strong>
+                  {newlyDisabledSecurityEvents.length} security-related{' '}
+                  {newlyDisabledSecurityEvents.length === 1 ? 'event' : 'events'}
+                </strong>
+                . These events help detect unauthorized access, brute-force attacks, and credential
+                misuse.
+              </p>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                {newlyDisabledSecurityEvents.map((key) => (
+                  <li key={key}>{key.replaceAll('_', ' ')}</li>
+                ))}
+              </ul>
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                Disabling these events may impact compliance requirements and reduce your ability to
+                investigate security incidents.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

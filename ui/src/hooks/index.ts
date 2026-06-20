@@ -53,6 +53,7 @@ export {
 // Dashboard Hooks
 export { useAppStatus, useDashboardData, useHealthStatus, useSyncStatus } from './use-dashboard';
 
+export { useLogout } from './use-logout';
 export { usePermissions } from './use-permissions';
 export { useProxies, useProxy } from './use-proxies';
 export { useNotFoundSettings } from './use-settings';

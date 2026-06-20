@@ -1,4 +1,4 @@
-import { Button, type Filter, type FilterFieldsConfig, Filters, Input } from '@e412/titanium';
+import { Button, type Filter, type FilterFieldsConfig, Filters, Input } from '@e412/rnui-react';
 import type { PaginationState } from '@tanstack/react-table';
 import { Download, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

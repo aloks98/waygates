@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/titanium';
+import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/rnui-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, CheckCircle, Lock, RefreshCw } from 'lucide-react';

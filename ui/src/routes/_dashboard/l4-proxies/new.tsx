@@ -1,4 +1,4 @@
-import { Button } from '@e412/titanium';
+import { Button } from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 
@@ -16,16 +16,16 @@ export function L4ProxyCreatePage() {
 
     if (l4ProxyId) {
       navigate({
-        to: '/dashboard/l4-proxies/$l4ProxyId',
+        to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
         params: { l4ProxyId: String(l4ProxyId) },
       });
     } else {
-      navigate({ to: '/dashboard/l4-proxies' });
+      navigate({ to: '/dashboard/proxies/tcp-udp' });
     }
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/l4-proxies' });
+    navigate({ to: '/dashboard/proxies/tcp-udp' });
   };
 
   return (
@@ -35,7 +35,7 @@ export function L4ProxyCreatePage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate({ to: '/dashboard/l4-proxies' })}
+          onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}
         >
           <ArrowLeft className="size-4" />
           <span className="sr-only">Back</span>

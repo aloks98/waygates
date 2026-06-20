@@ -1,4 +1,4 @@
-import { Badge, Tooltip, TooltipContent, TooltipTrigger } from '@e412/titanium';
+import { Badge, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
 import { Server } from 'lucide-react';
 
 import type { ProxyConfig } from '@/types/proxy';
@@ -25,15 +25,13 @@ export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
 
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="font-mono text-xs shrink-0">
-              {formatUpstream(proxy.upstreams[0])}
-            </Badge>
-            <Badge variant="outline" className="text-xs shrink-0 gap-1">
-              <Server className="size-3" />+{count - 1}
-            </Badge>
-          </div>
+        <TooltipTrigger render={<div className="flex items-center gap-2" />}>
+          <Badge variant="secondary" className="font-mono text-xs shrink-0">
+            {formatUpstream(proxy.upstreams[0])}
+          </Badge>
+          <Badge variant="outline" className="text-xs shrink-0 gap-1">
+            <Server className="size-3" />+{count - 1}
+          </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="start">
           <div className="space-y-1">
