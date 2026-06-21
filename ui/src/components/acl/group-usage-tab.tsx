@@ -39,8 +39,8 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
   });
 
   const handleProxyClick = useCallback(
-    (_proxyId: number) => {
-      navigate({ to: '/dashboard/proxies' });
+    (proxyId: number) => {
+      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } });
     },
     [navigate],
   );
@@ -162,7 +162,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
                       className="size-8 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleProxyClick(proxy.id);
+                        handleProxyClick(row.original.proxy_id);
                       }}
                     />
                   }
@@ -202,7 +202,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
         <Shield className="size-12 mx-auto mb-4 opacity-50" />
         <p>No proxies using this group</p>
         <p className="text-sm mt-1">
-          Assign this ACL group to a proxy to protect it with these access controls
+          Assign this access group to a proxy to protect it with these access controls
         </p>
         <Button
           variant="outline"

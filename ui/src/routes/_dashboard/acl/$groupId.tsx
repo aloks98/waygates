@@ -27,6 +27,7 @@ import {
   Calendar,
   Globe,
   Key,
+  KeyRound,
   Network,
   Pencil,
   Shield,
@@ -36,26 +37,16 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import { getModeLabel } from '@/components/acl/access-labels';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { BasicAuthTab } from '@/components/acl/basic-auth-tab';
+import { ExternalProvidersTab } from '@/components/acl/external-providers-tab';
 import { GroupUsageTab } from '@/components/acl/group-usage-tab';
 import { IPRulesTab } from '@/components/acl/ip-rules-tab';
-import { WaygatesAuthTab } from '@/components/acl/waygates-auth-tab';
+import { OAuthSSOTab } from '@/components/acl/oauth-sso-tab';
+import { WaygatesAccountTab } from '@/components/acl/waygates-account-tab';
 import { useACLGroup, useDeleteACLGroup } from '@/hooks';
 import type { CombinationMode } from '@/types/acl';
-
-function getCombinationModeLabel(mode: CombinationMode): string {
-  switch (mode) {
-    case 'any':
-      return 'Any Match';
-    case 'all':
-      return 'All Required';
-    case 'ip_bypass':
-      return 'IP Bypass';
-    default:
-      return mode;
-  }
-}
 
 function getCombinationModeDescription(mode: CombinationMode): string {
   switch (mode) {
@@ -70,7 +61,13 @@ function getCombinationModeDescription(mode: CombinationMode): string {
   }
 }
 
-function OverviewTab({ groupId }: { groupId: number }) {
+function OverviewTab({
+  groupId,
+  onTabChange,
+}: {
+  groupId: number;
+  onTabChange: (tab: string) => void;
+}) {
   const { group, isLoading } = useACLGroup(groupId);
 
   if (isLoading) {
@@ -126,10 +123,10 @@ function OverviewTab({ groupId }: { groupId: number }) {
           )}
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-              Combination Mode
+              How methods combine
             </p>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">{getCombinationModeLabel(group.combination_mode)}</Badge>
+              <Badge variant="secondary">{getModeLabel(group.combination_mode)}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {getCombinationModeDescription(group.combination_mode)}
@@ -178,8 +175,12 @@ function OverviewTab({ groupId }: { groupId: number }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <button
+              type="button"
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => onTabChange('ip-rules')}
+            >
               <div className="flex items-center justify-center size-10 rounded bg-blue-500/10">
                 <Network className="size-5 text-blue-500" />
               </div>
@@ -187,34 +188,61 @@ function OverviewTab({ groupId }: { groupId: number }) {
                 <p className="text-2xl font-bold">{group.ip_rules?.length ?? 0}</p>
                 <p className="text-xs text-muted-foreground">IP Rules</p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => onTabChange('basic-auth')}
+            >
               <div className="flex items-center justify-center size-10 rounded bg-green-500/10">
                 <Key className="size-5 text-green-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{group.basic_auth_users?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Basic Auth Users</p>
+                <p className="text-xs text-muted-foreground">Basic Auth</p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => onTabChange('oauth-sso')}
+            >
+              <div className="flex items-center justify-center size-10 rounded bg-yellow-500/10">
+                <KeyRound className="size-5 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {group.waygates_auth?.allowed_providers?.length ?? 0}
+                </p>
+                <p className="text-xs text-muted-foreground">OAuth Providers</p>
+              </div>
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => onTabChange('account')}
+            >
               <div className="flex items-center justify-center size-10 rounded bg-purple-500/10">
                 <Users className="size-5 text-purple-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{group.waygates_auth?.enabled ? 'Yes' : 'No'}</p>
-                <p className="text-xs text-muted-foreground">Waygates Auth</p>
+                <p className="text-xs text-muted-foreground">Waygates Account</p>
               </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded border bg-muted/30">
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              onClick={() => onTabChange('forward-auth')}
+            >
               <div className="flex items-center justify-center size-10 rounded bg-orange-500/10">
                 <Globe className="size-5 text-orange-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{group.external_providers?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">External Providers</p>
+                <p className="text-xs text-muted-foreground">Forward Auth</p>
               </div>
-            </div>
+            </button>
           </div>
         </CardContent>
       </Card>
@@ -232,6 +260,7 @@ export function ACLGroupDetailPage() {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const handleDelete = async () => {
     await deleteGroup(groupId);
@@ -306,17 +335,19 @@ export function ACLGroupDetailPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ip-rules">IP Rules</TabsTrigger>
           <TabsTrigger value="basic-auth">Basic Auth</TabsTrigger>
-          <TabsTrigger value="waygates-auth">Waygates Auth</TabsTrigger>
+          <TabsTrigger value="oauth-sso">OAuth / SSO</TabsTrigger>
+          <TabsTrigger value="account">Waygates Account</TabsTrigger>
+          <TabsTrigger value="forward-auth">Forward Auth</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
-          <OverviewTab groupId={groupId} />
+          <OverviewTab groupId={groupId} onTabChange={setActiveTab} />
         </TabsContent>
 
         <TabsContent value="ip-rules" className="mt-6">
@@ -327,8 +358,16 @@ export function ACLGroupDetailPage() {
           <BasicAuthTab groupId={groupId} />
         </TabsContent>
 
-        <TabsContent value="waygates-auth" className="mt-6">
-          <WaygatesAuthTab groupId={groupId} />
+        <TabsContent value="oauth-sso" className="mt-6">
+          <OAuthSSOTab groupId={groupId} />
+        </TabsContent>
+
+        <TabsContent value="account" className="mt-6">
+          <WaygatesAccountTab groupId={groupId} />
+        </TabsContent>
+
+        <TabsContent value="forward-auth" className="mt-6">
+          <ExternalProvidersTab groupId={groupId} />
         </TabsContent>
 
         <TabsContent value="usage" className="mt-6">
@@ -346,7 +385,7 @@ export function ACLGroupDetailPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete ACL Group</AlertDialogTitle>
+            <AlertDialogTitle>Delete Access Group</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{group.name}</strong>? This will remove all
               associated IP rules, authentication settings, and provider configurations. Proxies

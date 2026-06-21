@@ -5,4 +5,5 @@ export { ExternalProvidersTab } from './external-providers-tab';
 export { GroupUsageTab } from './group-usage-tab';
 export { IPRulesTab } from './ip-rules-tab';
 export { OAuthProviderButton, OAuthProvidersList } from './oauth-provider-button';
-export { WaygatesAuthTab } from './waygates-auth-tab';
+export { OAuthSSOTab } from './oauth-sso-tab';
+export { WaygatesAccountTab } from './waygates-account-tab';

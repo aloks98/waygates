@@ -30,40 +30,13 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Check, Plus, Search, Shield, Trash2, X } from 'lucide-react';
+import { Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { getModeLabel, groupAuthMethods } from '@/components/acl/access-labels';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { useACLGroups, useDeleteACLGroup } from '@/hooks';
-import type { ACLGroup, CombinationMode } from '@/types/acl';
-
-function getCombinationModeLabel(mode: CombinationMode): string {
-  switch (mode) {
-    case 'any':
-      return 'Any Match';
-    case 'all':
-      return 'All Required';
-    case 'ip_bypass':
-      return 'IP Bypass';
-    default:
-      return mode;
-  }
-}
-
-function getCombinationModeBadgeVariant(
-  mode: CombinationMode,
-): 'primary' | 'secondary' | 'outline' | 'destructive' {
-  switch (mode) {
-    case 'any':
-      return 'secondary';
-    case 'all':
-      return 'primary';
-    case 'ip_bypass':
-      return 'outline';
-    default:
-      return 'secondary';
-  }
-}
+import type { ACLGroup } from '@/types/acl';
 
 export function ACLGroupsPage() {
   const navigate = useNavigate();
@@ -137,10 +110,9 @@ export function ACLGroupsPage() {
         accessorKey: 'combination_mode',
         header: 'Mode',
         cell: ({ row }) => {
-          const mode = row.getValue('combination_mode') as CombinationMode;
           return (
-            <Badge variant={getCombinationModeBadgeVariant(mode)}>
-              {getCombinationModeLabel(mode)}
+            <Badge variant="secondary">
+              {getModeLabel(row.getValue('combination_mode') as string)}
             </Badge>
           );
         },
@@ -167,24 +139,27 @@ export function ACLGroupsPage() {
       },
       {
         id: 'basic_auth',
-        header: 'Auth',
+        header: 'Methods',
         cell: ({ row }) => {
-          const hasBasicAuth = (row.original.basic_auth_users?.length ?? 0) > 0;
-          const hasWaygates = row.original.waygates_auth?.enabled;
-          const hasProviders = (row.original.external_providers?.length ?? 0) > 0;
-          const hasAnyAuth = hasBasicAuth || hasWaygates || hasProviders;
-
-          return hasAnyAuth ? (
-            <Check className="size-4 text-green-500" />
-          ) : (
-            <X className="size-4 text-muted-foreground" />
+          const methods = groupAuthMethods(row.original);
+          if (methods.length === 0) {
+            return <span className="text-sm text-muted-foreground">None</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {methods.map((m) => (
+                <Badge key={m.key} variant="secondary" className="text-xs">
+                  {m.label}
+                </Badge>
+              ))}
+            </div>
           );
         },
         enableSorting: false,
-        minSize: 60,
-        maxSize: 80,
+        minSize: 120,
+        maxSize: 220,
         meta: {
-          skeleton: <Skeleton className="size-4" />,
+          skeleton: <Skeleton className="h-5 w-24" />,
         },
       },
       {
@@ -272,7 +247,7 @@ export function ACLGroupsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Access Control Groups</h1>
+        <h1 className="text-2xl font-bold">Access Groups</h1>
         <Button onClick={() => setCreateModalOpen(true)}>
           <Plus className="size-4" />
           New Group
@@ -285,7 +260,7 @@ export function ACLGroupsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name..."
-          aria-label="Search access control groups"
+          aria-label="Search access groups"
           className="pl-9"
         />
       </div>
@@ -300,7 +275,7 @@ export function ACLGroupsPage() {
             <div className="rounded bg-muted p-4">
               <Shield className="size-8 text-muted-foreground" />
             </div>
-            <h3 className="mt-4 text-base font-medium">No access control groups yet</h3>
+            <h3 className="mt-4 text-base font-medium">No access groups yet</h3>
             <p className="mt-1.5 text-sm text-muted-foreground max-w-[280px]">
               Create a group to protect your proxies with IP rules, passwords, or OAuth.
             </p>
@@ -328,7 +303,7 @@ export function ACLGroupsPage() {
       <AlertDialog open={!!deletingGroup} onOpenChange={(open) => !open && setDeletingGroup(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete ACL Group</AlertDialogTitle>
+            <AlertDialogTitle>Delete access group</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{deletingGroup?.name}</strong>? This will
               remove all associated IP rules, authentication settings, and provider configurations.

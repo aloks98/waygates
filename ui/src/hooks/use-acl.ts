@@ -143,11 +143,11 @@ export function useCreateACLGroup() {
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ACL_GROUPS_KEY });
-      toast.success(`ACL group "${response.data?.name}" created successfully`);
+      toast.success(`Access group "${response.data?.name}" created successfully`);
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to create ACL group', { description: message });
+      toast.error('Failed to create access group', { description: message });
     },
   });
 
@@ -167,11 +167,11 @@ export function useUpdateACLGroup() {
     onSuccess: (response, variables) => {
       queryClient.invalidateQueries({ queryKey: ACL_GROUPS_KEY });
       queryClient.invalidateQueries({ queryKey: aclGroupKey(variables.id) });
-      toast.success(`ACL group "${response.data?.name}" updated successfully`);
+      toast.success(`Access group "${response.data?.name}" updated successfully`);
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to update ACL group', { description: message });
+      toast.error('Failed to update access group', { description: message });
     },
   });
 
@@ -190,11 +190,11 @@ export function useDeleteACLGroup() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACL_GROUPS_KEY });
-      toast.success('ACL group deleted successfully');
+      toast.success('Access group deleted successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to delete ACL group', { description: message });
+      toast.error('Failed to delete access group', { description: message });
     },
   });
 
@@ -714,11 +714,11 @@ export function useAssignACL() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: proxyAclKey(variables.proxyId) });
-      toast.success('ACL assigned to proxy successfully');
+      toast.success('Access group assigned to proxy successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to assign ACL to proxy', { description: message });
+      toast.error('Failed to assign access group to proxy', { description: message });
     },
   });
 
@@ -747,11 +747,11 @@ export function useUpdateProxyACLAssignment() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: proxyAclKey(variables.proxyId) });
-      toast.success('ACL assignment updated successfully');
+      toast.success('Access group assignment updated successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to update ACL assignment', { description: message });
+      toast.error('Failed to update access group assignment', { description: message });
     },
   });
 
@@ -770,11 +770,11 @@ export function useRemoveACL() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: proxyAclKey(variables.proxyId) });
-      toast.success('ACL removed from proxy successfully');
+      toast.success('Access group removed from proxy successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to remove ACL from proxy', { description: message });
+      toast.error('Failed to remove access group from proxy', { description: message });
     },
   });
 
@@ -815,11 +815,11 @@ export function useUpdateACLBranding() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACL_BRANDING_KEY });
-      toast.success('ACL branding updated successfully');
+      toast.success('Access branding updated successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);
-      toast.error('Failed to update ACL branding', { description: message });
+      toast.error('Failed to update access branding', { description: message });
     },
   });
 

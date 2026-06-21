@@ -26,6 +26,7 @@ import { Info, Shield } from 'lucide-react';
 import { useEffect } from 'react';
 import { z } from 'zod';
 
+import { getModeLabel } from '@/components/acl/access-labels';
 import { useCreateACLGroup, useUpdateACLGroup } from '@/hooks';
 import type { ACLGroup, CombinationMode } from '@/types/acl';
 
@@ -47,18 +48,18 @@ interface ACLGroupFormModalProps {
 const combinationModeOptions = [
   {
     value: 'any',
-    label: 'Any Match',
+    label: getModeLabel('any'),
     description: 'Access granted if any single auth method passes (OR logic)',
   },
   {
     value: 'all',
-    label: 'All Required',
+    label: getModeLabel('all'),
     description: 'All configured auth methods must pass (AND logic)',
   },
   {
     value: 'ip_bypass',
-    label: 'IP Bypass',
-    description: 'Matching IPs skip authentication entirely, others must authenticate',
+    label: getModeLabel('ip_bypass'),
+    description: 'Trusted IPs skip authentication entirely; others must authenticate normally',
   },
 ];
 
@@ -136,7 +137,7 @@ export function ACLGroupFormModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="size-5" />
-            {isEditMode ? 'Edit ACL Group' : 'Create ACL Group'}
+            {isEditMode ? 'Edit Access Group' : 'Create Access Group'}
           </DialogTitle>
         </DialogHeader>
         <form
@@ -152,8 +153,8 @@ export function ACLGroupFormModal({
                 <Info className="size-4" />
                 <AlertDescription>
                   After creating the group, you will be redirected to configure access rules
-                  including IP restrictions, basic authentication, Waygates auth, and external
-                  providers.
+                  including IP restrictions, basic authentication, OAuth / SSO, Waygates Account,
+                  and Forward Auth.
                 </AlertDescription>
               </Alert>
             )}
@@ -202,7 +203,7 @@ export function ACLGroupFormModal({
               <form.Field name="combination_mode">
                 {(field) => (
                   <Field>
-                    <FieldLabel>Combination Mode</FieldLabel>
+                    <FieldLabel>How methods combine</FieldLabel>
                     <Select
                       value={field.state.value}
                       onValueChange={(val) => field.handleChange(val as CombinationMode)}

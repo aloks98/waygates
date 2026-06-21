@@ -49,6 +49,7 @@ import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
+import { getRuleTypeLabel } from '@/components/acl/access-labels';
 import { useAddIPRule, useDeleteIPRule, useIPRules, useUpdateIPRule } from '@/hooks';
 import type { ACLIPRule, IPRuleType } from '@/types/acl';
 
@@ -82,19 +83,6 @@ function getRuleTypeBadgeVariant(
       return 'secondary';
     default:
       return 'outline';
-  }
-}
-
-function getRuleTypeLabel(type: IPRuleType): string {
-  switch (type) {
-    case 'allow':
-      return 'Allow';
-    case 'deny':
-      return 'Deny';
-    case 'bypass':
-      return 'Bypass';
-    default:
-      return type;
   }
 }
 
@@ -212,7 +200,7 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
               <form.Field name="rule_type">
                 {(field) => (
                   <Field>
-                    <FieldLabel>Rule Type</FieldLabel>
+                    <FieldLabel>Action</FieldLabel>
                     <Select
                       value={field.state.value}
                       onValueChange={(val) => field.handleChange(val as IPRuleType)}
@@ -221,11 +209,17 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="allow">Allow - Grant access to this IP</SelectItem>
-                        <SelectItem value="deny">Deny - Block access from this IP</SelectItem>
-                        <SelectItem value="bypass">Bypass - Skip other auth methods</SelectItem>
+                        <SelectItem value="allow">Allow — grant access to this IP</SelectItem>
+                        <SelectItem value="deny">Block — deny access from this IP</SelectItem>
+                        <SelectItem value="bypass">
+                          Trusted — skips other auth for matching IPs
+                        </SelectItem>
                       </SelectContent>
                     </Select>
+                    <FieldDescription>
+                      "Trusted" IPs skip all other authentication methods and are granted access
+                      directly.
+                    </FieldDescription>
                   </Field>
                 )}
               </form.Field>

@@ -191,7 +191,7 @@ function ProviderFormModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Globe className="size-5" />
-            {isEditMode ? 'Edit External Provider' : 'Add External Provider'}
+            {isEditMode ? 'Edit Forward Auth Provider' : 'Add Forward Auth Provider'}
           </DialogTitle>
         </DialogHeader>
         <form
@@ -359,10 +359,10 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Globe className="size-5" />
-            External Authentication Providers
+            Forward Auth
           </CardTitle>
           <CardDescription>
-            Integrate with external authentication services like Authelia, Authentik, or custom
+            Integrate with forward authentication services like Authelia, Authentik, or custom
             forward auth providers.
           </CardDescription>
           <CardAction>
@@ -388,9 +388,9 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
           ) : providers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Shield className="size-12 mx-auto mb-4 opacity-50" />
-              <p>No external providers configured</p>
+              <p>No forward auth providers configured</p>
               <p className="text-sm mt-1">
-                Add providers like Authelia or Authentik for SSO integration
+                Add providers like Authelia or Authentik for forward auth integration
               </p>
             </div>
           ) : (
@@ -521,11 +521,11 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete External Provider</AlertDialogTitle>
+            <AlertDialogTitle>Delete Forward Auth Provider</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{deletingProvider?.name}</strong>? Users
-              authenticating through this provider will no longer have access. This action cannot be
-              undone.
+              authenticating through this forward auth provider will no longer have access. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
