@@ -24,6 +24,7 @@ type MockProxyService struct {
 	BulkDeleteFunc    func(ids []int) service.BulkResult
 	ExportProxiesFunc func(ids []int, filters service.ListProxiesRequest) ([]service.ProxyExport, error)
 	GetStatsFunc      func() (*repository.ProxyStats, error)
+	ImportProxiesFunc func(inputs []service.ImportInput, dryRun bool, userID int) service.ImportReport
 }
 
 // ListProxies implements ProxyServiceInterface.
@@ -112,6 +113,14 @@ func (m *MockProxyService) GetStats() (*repository.ProxyStats, error) {
 		return m.GetStatsFunc()
 	}
 	return &repository.ProxyStats{}, nil
+}
+
+// ImportProxies implements ProxyServiceInterface.
+func (m *MockProxyService) ImportProxies(inputs []service.ImportInput, dryRun bool, userID int) service.ImportReport {
+	if m.ImportProxiesFunc != nil {
+		return m.ImportProxiesFunc(inputs, dryRun, userID)
+	}
+	return service.ImportReport{}
 }
 
 // MockSettingsService is a mock implementation of SettingsServiceInterface

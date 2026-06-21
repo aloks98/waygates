@@ -12,16 +12,17 @@ import (
 
 // MockProxyRepository is a mock implementation of ProxyRepositoryInterface
 type MockProxyRepository struct {
-	ListFunc           func(params repository.ProxyListParams) ([]models.Proxy, int64, error)
-	GetByIDFunc        func(id int) (*models.Proxy, error)
-	GetByIDsFunc       func(ids []int) ([]models.Proxy, error)
-	GetByHostnameFunc  func(hostname string) (*models.Proxy, error)
-	CreateFunc         func(proxy *models.Proxy) error
-	UpdateFunc         func(proxy *models.Proxy) error
-	DeleteFunc         func(id int) error
-	UpdateStatusFunc   func(id int, isActive bool) error
-	HostnameExistsFunc func(hostname string, excludeID int) (bool, error)
-	GetStatsFunc       func() (*repository.ProxyStats, error)
+	ListFunc              func(params repository.ProxyListParams) ([]models.Proxy, int64, error)
+	GetByIDFunc           func(id int) (*models.Proxy, error)
+	GetByIDsFunc          func(ids []int) ([]models.Proxy, error)
+	GetByHostnameFunc     func(hostname string) (*models.Proxy, error)
+	ExistingHostnamesFunc func(hostnames []string) (map[string]bool, error)
+	CreateFunc            func(proxy *models.Proxy) error
+	UpdateFunc            func(proxy *models.Proxy) error
+	DeleteFunc            func(id int) error
+	UpdateStatusFunc      func(id int, isActive bool) error
+	HostnameExistsFunc    func(hostname string, excludeID int) (bool, error)
+	GetStatsFunc          func() (*repository.ProxyStats, error)
 }
 
 func (m *MockProxyRepository) List(params repository.ProxyListParams) ([]models.Proxy, int64, error) {
@@ -43,6 +44,13 @@ func (m *MockProxyRepository) GetByIDs(ids []int) ([]models.Proxy, error) {
 		return m.GetByIDsFunc(ids)
 	}
 	return []models.Proxy{}, nil
+}
+
+func (m *MockProxyRepository) ExistingHostnames(hostnames []string) (map[string]bool, error) {
+	if m.ExistingHostnamesFunc != nil {
+		return m.ExistingHostnamesFunc(hostnames)
+	}
+	return map[string]bool{}, nil
 }
 
 func (m *MockProxyRepository) GetByHostname(hostname string) (*models.Proxy, error) {

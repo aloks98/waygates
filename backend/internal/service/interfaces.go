@@ -20,6 +20,7 @@ type ProxyServiceInterface interface {
 	BulkDelete(ids []int) BulkResult
 	ExportProxies(ids []int, filters ListProxiesRequest) ([]ProxyExport, error)
 	GetStats() (*repository.ProxyStats, error)
+	ImportProxies(inputs []ImportInput, dryRun bool, userID int) ImportReport
 }
 
 // SettingsServiceInterface defines the interface for settings operations

@@ -27,6 +27,7 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 	//   tls_insecure_skip_verify: true  (column default false)
 	//   ssl_enabled:              false (column default true)
 	//   block_exploits:           false (column default true)
+	//   is_active:                false (column default true) — import round-trip
 	t.Run("Create_NonDefaultBools", func(t *testing.T) {
 		proxy := &models.Proxy{
 			Type:     models.ProxyTypeReverseProxy,
@@ -38,6 +39,7 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 			SSLEnabled:            false, // wants HTTPS OFF
 			BlockExploits:         false, // wants exploit-blocking OFF
 			TLSInsecureSkipVerify: true,  // wants self-signed ON
+			IsActive:              false, // imported as inactive
 			CreatedBy:             user.ID,
 		}
 		require.NoError(t, repo.Create(proxy))
@@ -48,6 +50,7 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 		assert.True(t, fetched.TLSInsecureSkipVerify, "tls_insecure_skip_verify=true should persist on create")
 		assert.False(t, fetched.SSLEnabled, "ssl_enabled=false should persist on create")
 		assert.False(t, fetched.BlockExploits, "block_exploits=false should persist on create")
+		assert.False(t, fetched.IsActive, "is_active=false should persist on create (import round-trip)")
 	})
 
 	// Scenario 2: the exact reported bug. Create a proxy with self-signed ON,

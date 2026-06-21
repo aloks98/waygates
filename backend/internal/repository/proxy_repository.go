@@ -194,6 +194,26 @@ func (r *ProxyRepository) GetByIDs(ids []int) ([]models.Proxy, error) {
 	return proxies, nil
 }
 
+// ExistingHostnames returns, as a set, which of the given hostnames already
+// exist in a single query. Used by bulk import to replace a HostnameExists call
+// per item with one round-trip.
+func (r *ProxyRepository) ExistingHostnames(hostnames []string) (map[string]bool, error) {
+	set := make(map[string]bool)
+	if len(hostnames) == 0 {
+		return set, nil
+	}
+	var found []string
+	if err := r.db.Model(&models.Proxy{}).
+		Where("hostname IN ?", hostnames).
+		Pluck("hostname", &found).Error; err != nil {
+		return nil, err
+	}
+	for _, h := range found {
+		set[h] = true
+	}
+	return set, nil
+}
+
 // GetByHostname retrieves a proxy by hostname
 func (r *ProxyRepository) GetByHostname(hostname string) (*models.Proxy, error) {
 	var proxy models.Proxy

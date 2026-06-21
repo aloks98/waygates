@@ -1566,6 +1566,9 @@ func (m *oauthMockProxyRepository) GetByID(_ int) (*models.Proxy, error) {
 func (m *oauthMockProxyRepository) GetByIDs(_ []int) ([]models.Proxy, error) {
 	return nil, nil
 }
+func (m *oauthMockProxyRepository) ExistingHostnames(_ []string) (map[string]bool, error) {
+	return nil, nil
+}
 func (m *oauthMockProxyRepository) GetByHostname(hostname string) (*models.Proxy, error) {
 	if m.GetByHostnameFunc != nil {
 		return m.GetByHostnameFunc(hostname)

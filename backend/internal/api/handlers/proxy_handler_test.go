@@ -415,6 +415,147 @@ func TestCreateProxy_ValidationError(t *testing.T) {
 }
 
 // =============================================================================
+// ImportProxies Tests
+// =============================================================================
+
+func TestImportProxies_DryRunMixedItems(t *testing.T) {
+	t.Parallel()
+	var capturedInputs []service.ImportInput
+	var capturedDryRun bool
+	mockService := &mocks.MockProxyService{
+		ImportProxiesFunc: func(inputs []service.ImportInput, dryRun bool, _ int) service.ImportReport {
+			capturedInputs = inputs
+			capturedDryRun = dryRun
+			// Mirror the real service classification for the two items.
+			report := service.ImportReport{
+				Summary: service.ImportSummary{Total: len(inputs), Importable: 1, Invalid: 1},
+				Items:   make([]service.ImportItemResult, 0, len(inputs)),
+			}
+			for i, in := range inputs {
+				if in.Proxy == nil {
+					report.Items = append(report.Items, service.ImportItemResult{
+						Index:  i,
+						Status: service.ImportStatusInvalid,
+						Reason: in.DecodeError,
+					})
+					continue
+				}
+				report.Items = append(report.Items, service.ImportItemResult{
+					Index:    i,
+					Name:     in.Proxy.Name,
+					Hostname: in.Proxy.Hostname,
+					Status:   service.ImportStatusValid,
+				})
+			}
+			return report
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body := []byte(`{"dry_run":true,"proxies":[{"name":"Valid","hostname":"valid.example.com","type":"reverse"},"not-an-object"]}`)
+	req := requestWithUserID(http.MethodPost, "/api/proxies/import", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.ImportProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, capturedDryRun, "dry_run should be passed through")
+	require.Len(t, capturedInputs, 2)
+	assert.NotNil(t, capturedInputs[0].Proxy, "first item should decode")
+	assert.True(t, capturedInputs[0].Proxy.SSLEnabled, "ssl_enabled defaults to true")
+	assert.True(t, capturedInputs[0].Proxy.BlockExploits, "block_exploits defaults to true")
+	assert.True(t, capturedInputs[0].Proxy.SSLForced)
+	assert.True(t, capturedInputs[0].Proxy.IsActive)
+	assert.Nil(t, capturedInputs[1].Proxy, "second item should fail to decode")
+	assert.NotEmpty(t, capturedInputs[1].DecodeError)
+
+	var resp struct {
+		Success bool                 `json:"success"`
+		Data    service.ImportReport `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	require.Len(t, resp.Data.Items, 2)
+	assert.Equal(t, service.ImportStatusValid, resp.Data.Items[0].Status)
+	assert.Equal(t, service.ImportStatusInvalid, resp.Data.Items[1].Status)
+}
+
+func TestImportProxies_PreservesIsActive(t *testing.T) {
+	t.Parallel()
+	var capturedInputs []service.ImportInput
+	mockService := &mocks.MockProxyService{
+		ImportProxiesFunc: func(inputs []service.ImportInput, _ bool, _ int) service.ImportReport {
+			capturedInputs = inputs
+			return service.ImportReport{
+				Summary: service.ImportSummary{Total: len(inputs), Importable: len(inputs)},
+				Items:   make([]service.ImportItemResult, 0),
+			}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	// Item 0: is_active:false must be preserved (exported inactive proxy).
+	// Item 1: is_active omitted must default to active (matches CreateProxy).
+	body := []byte(`{"dry_run":true,"proxies":[` +
+		`{"name":"Inactive","hostname":"inactive.example.com","type":"reverse","is_active":false},` +
+		`{"name":"Default","hostname":"default.example.com","type":"reverse"}` +
+		`]}`)
+	req := requestWithUserID(http.MethodPost, "/api/proxies/import", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.ImportProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, capturedInputs, 2)
+	require.NotNil(t, capturedInputs[0].Proxy)
+	assert.False(t, capturedInputs[0].Proxy.IsActive, "is_active:false must be preserved on import")
+	require.NotNil(t, capturedInputs[1].Proxy)
+	assert.True(t, capturedInputs[1].Proxy.IsActive, "omitted is_active defaults to active")
+}
+
+func TestImportProxies_EmptyProxies(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{
+		ImportProxiesFunc: func(_ []service.ImportInput, _ bool, _ int) service.ImportReport {
+			t.Fatal("service should not be called for empty proxies")
+			return service.ImportReport{}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body := []byte(`{"dry_run":false,"proxies":[]}`)
+	req := requestWithUserID(http.MethodPost, "/api/proxies/import", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.ImportProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestImportProxies_TooManyProxies(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{
+		ImportProxiesFunc: func(_ []service.ImportInput, _ bool, _ int) service.ImportReport {
+			t.Fatal("service should not be called when over the cap")
+			return service.ImportReport{}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	items := make([]json.RawMessage, maxImportProxies+1)
+	for i := range items {
+		items[i] = json.RawMessage(`{"name":"p","hostname":"p.example.com"}`)
+	}
+	body, _ := json.Marshal(importProxyRequest{Proxies: items})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/import", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.ImportProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// =============================================================================
 // UpdateProxy Tests
 // =============================================================================
 

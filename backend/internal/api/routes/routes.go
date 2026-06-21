@@ -214,6 +214,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 			// Create operations - require proxies:create
 			r.With(chimw.RequirePermission(authAdapter, "proxies:create", mwConfig)).Post("/", proxyHandler.CreateProxy)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:create", mwConfig)).Post("/import", proxyHandler.ImportProxies)
 
 			// Update operations - require proxies:update
 			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Put("/{id}", proxyHandler.UpdateProxy)

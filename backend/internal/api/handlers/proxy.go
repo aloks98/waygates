@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -204,6 +205,7 @@ type createProxyRequest struct {
 	models.Proxy
 	SSLEnabled    *bool `json:"ssl_enabled"`
 	BlockExploits *bool `json:"block_exploits"`
+	IsActive      *bool `json:"is_active"`
 }
 
 // CreateProxy handles POST /api/proxies
@@ -274,6 +276,84 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Return created proxy
 	utils.Created(w, proxy, "Proxy created successfully")
+}
+
+// importProxyRequest is the body for POST /api/proxies/import. Each item in
+// Proxies is decoded lazily so a single malformed item is reported rather than
+// failing the whole request.
+type importProxyRequest struct {
+	DryRun  bool              `json:"dry_run"`
+	Proxies []json.RawMessage `json:"proxies"`
+}
+
+const maxImportProxies = 1000
+
+// ImportProxies handles POST /api/proxies/import
+func (h *ProxyHandler) ImportProxies(w http.ResponseWriter, r *http.Request) {
+	userIDStr := chimw.UserID(r)
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		utils.Unauthorized(w, "Invalid user ID")
+		return
+	}
+
+	var req importProxyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body format", nil)
+		return
+	}
+	if len(req.Proxies) == 0 {
+		utils.BadRequest(w, "No proxies to import", nil)
+		return
+	}
+	if len(req.Proxies) > maxImportProxies {
+		utils.BadRequest(w, fmt.Sprintf("Too many proxies to import (max %d)", maxImportProxies), nil)
+		return
+	}
+
+	// Decode each item the same way create does, capturing per-item decode errors.
+	inputs := make([]service.ImportInput, 0, len(req.Proxies))
+	for _, raw := range req.Proxies {
+		var cpr createProxyRequest
+		if err := json.Unmarshal(raw, &cpr); err != nil {
+			inputs = append(inputs, service.ImportInput{DecodeError: "invalid item format: " + err.Error()})
+			continue
+		}
+		proxy := cpr.Proxy
+		if cpr.SSLEnabled != nil {
+			proxy.SSLEnabled = *cpr.SSLEnabled
+		} else {
+			proxy.SSLEnabled = true
+		}
+		if cpr.BlockExploits != nil {
+			proxy.BlockExploits = *cpr.BlockExploits
+		} else {
+			proxy.BlockExploits = true
+		}
+		proxy.SSLForced = true
+		// Preserve is_active from the imported item (exports carry it) so an
+		// exported inactive proxy imports inactive; default to active when the
+		// field is absent, matching CreateProxy.
+		if cpr.IsActive != nil {
+			proxy.IsActive = *cpr.IsActive
+		} else {
+			proxy.IsActive = true
+		}
+		inputs = append(inputs, service.ImportInput{Proxy: &proxy})
+	}
+
+	report := h.service.ImportProxies(inputs, req.DryRun, userID)
+
+	if h.logger != nil {
+		h.logger.Info("proxy import processed",
+			zap.Bool("dry_run", req.DryRun),
+			zap.Int("total", report.Summary.Total),
+			zap.Int("created", report.Summary.Created),
+			zap.Int("user_id", userID),
+		)
+	}
+
+	utils.Success(w, report, "Import processed")
 }
 
 // updateProxyRequest wraps proxy with optional fields for proper handling

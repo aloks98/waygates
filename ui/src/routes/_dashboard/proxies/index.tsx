@@ -15,13 +15,14 @@ import {
 } from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { PaginationState, RowSelectionState } from '@tanstack/react-table';
-import { Download, Plus, Search } from 'lucide-react';
+import { Download, Plus, Search, Upload } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ProxiesTabs } from '@/components/layout/proxies-tabs';
 import { ProxyDataGrid } from '@/components/proxy';
 import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
+import { ProxyImportDialog } from '@/components/proxy/proxy-import-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
 import { api } from '@/lib/api';
@@ -174,6 +175,9 @@ export function ProxiesListPage() {
   const [deletingProxy, setDeletingProxy] = useState<ProxyConfig | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
+  // Import state
+  const [importOpen, setImportOpen] = useState(false);
+
   // Export state
   const [isExporting, setIsExporting] = useState(false);
 
@@ -280,6 +284,12 @@ export function ProxiesListPage() {
             {isExporting ? 'Exporting...' : 'Export'}
           </Button>
           {canCreateProxies && (
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="size-4" />
+              Import
+            </Button>
+          )}
+          {canCreateProxies && (
             <Button onClick={() => navigate({ to: '/dashboard/proxies/new' })}>
               <Plus className="size-4" />
               Add Proxy
@@ -336,6 +346,8 @@ export function ProxiesListPage() {
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
       />
+
+      <ProxyImportDialog open={importOpen} onOpenChange={setImportOpen} />
 
       <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
         <AlertDialogContent>

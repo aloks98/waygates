@@ -420,6 +420,76 @@ Returns the newly created proxy object.
 
 ---
 
+### 3a. Import Proxies
+
+**POST** `/api/proxies/import`
+
+Validates and (optionally) creates a batch of proxies in a single request. Requires the `proxies:create` permission.
+
+Each item is validated and conflict-checked independently. The operation is **best-effort**: a single invalid or conflicting item never aborts the rest of the batch. When `dry_run` is `true`, the request performs the identical validation and conflict checks but writes nothing, so the report is an exact preview of what `dry_run:false` would do.
+
+Each item uses the same body shape and the same `ssl_enabled`/`block_exploits` defaulting as `POST /api/proxies` (both default to `true` unless explicitly set to `false`; `ssl_forced` and `is_active` are forced to `true`). A maximum of **1000** items may be imported per request.
+
+#### Request Body
+```json
+{
+  "dry_run": true,
+  "proxies": [
+    { "name": "App", "hostname": "app.example.com", "type": "reverse_proxy", "upstreams": [{ "host": "10.0.0.5", "port": 8080 }] },
+    { "name": "Old", "hostname": "old.example.com", "type": "redirect", "redirect": { "to": "https://new.example.com", "status_code": 308 } }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dry_run` | boolean | When `true`, validate and preview without persisting. Defaults to `false`. |
+| `proxies` | array | Proxy objects to import (1–1000). Each uses the same shape as `POST /api/proxies`. |
+
+#### Response (200 OK)
+Returns a report with an aggregate `summary` and a per-item `items` list. The endpoint returns `200` even when individual items are invalid or conflicting — inspect each item's `status`.
+
+```json
+{
+  "success": true,
+  "message": "Import processed",
+  "data": {
+    "summary": {
+      "total": 2,
+      "importable": 1,
+      "conflicts": 0,
+      "invalid": 1,
+      "created": 0,
+      "failed": 0
+    },
+    "items": [
+      { "index": 0, "name": "App", "hostname": "app.example.com", "type": "reverse_proxy", "status": "valid" },
+      { "index": 1, "status": "invalid", "reason": "invalid item format: ..." }
+    ]
+  }
+}
+```
+
+**Per-item `status` values:**
+
+| Mode | Status | Meaning |
+|------|--------|---------|
+| dry-run (`dry_run:true`) | `valid` | Passes validation and has no hostname conflict; would be created. |
+| dry-run | `conflict` | Hostname conflicts with an existing proxy (or an earlier item in the batch). |
+| dry-run | `invalid` | Could not be decoded or failed validation; `reason` explains why. |
+| apply (`dry_run:false`) | `created` | Successfully created. |
+| apply | `skipped_conflict` | Skipped because the hostname already exists. |
+| apply | `invalid` | Could not be decoded or failed validation; `reason` explains why. |
+| apply | `failed` | Passed validation but creation failed (e.g. Caddy/database error); `reason` explains why. |
+
+**`summary` fields** count the corresponding statuses: `importable` (dry-run `valid`), `conflicts`, `invalid`, `created`, `failed`, and `total` (item count).
+
+#### Error Responses
+- **400 Bad Request**: If the request body is invalid, `proxies` is empty, or more than 1000 items are supplied.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+
+---
+
 ### 4. Update Proxy
 
 **PUT** `/api/proxies/:id`

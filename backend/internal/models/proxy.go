@@ -20,12 +20,17 @@ type Proxy struct {
 	// silently re-enabled on create. The create handler applies the "true"
 	// default when the client omits the field. The DB column keeps its DEFAULT
 	// for backfilling existing rows.
-	SSLEnabled bool      `json:"ssl_enabled" gorm:"not null"`
-	SSLForced  bool      `json:"ssl_forced" gorm:"default:true;not null"`
-	IsActive   bool      `json:"is_active" gorm:"default:true;not null"`
-	CreatedBy  int       `json:"-" gorm:"not null"`
-	CreatedAt  time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt  time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	SSLEnabled bool `json:"ssl_enabled" gorm:"not null"`
+	SSLForced  bool `json:"ssl_forced" gorm:"default:true;not null"`
+	// IsActive omits the GORM `default` tag for the same reason as SSLEnabled
+	// above: a `default` tag drops an explicit "false" on create, which would
+	// silently re-activate an inactive proxy brought in via import. Create paths
+	// apply the "true" default explicitly; the DB column keeps its DEFAULT for
+	// backfilling existing rows.
+	IsActive  bool      `json:"is_active" gorm:"not null"`
+	CreatedBy int       `json:"-" gorm:"not null"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 
 	// Type-specific fields (stored as JSON in database)
 	Upstreams     interface{} `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
