@@ -35,8 +35,8 @@ import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
-export function ProxyDetailPage() {
-  const params = useParams({ from: '/dashboard/proxies/$proxyId' });
+export function ProxyEditPage() {
+  const params = useParams({ from: '/dashboard/proxies/$proxyId/edit' });
   const proxyId = parseInt(params.proxyId, 10);
   const navigate = useNavigate();
 
@@ -115,7 +115,7 @@ export function ProxyDetailPage() {
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } });
   };
 
   if (isLoading) {
@@ -165,7 +165,9 @@ export function ProxyDetailPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate({ to: '/dashboard/proxies' })}
+            onClick={() =>
+              navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } })
+            }
           >
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>

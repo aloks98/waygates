@@ -104,8 +104,17 @@ const proxyDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies/$proxyId',
   component: lazyRouteComponent(
-    () => import('@/routes/_dashboard/proxies/$proxyId'),
-    'ProxyDetailPage',
+    () => import('@/routes/_dashboard/proxies/$proxyId/overview'),
+    'ProxyOverviewPage',
+  ),
+});
+
+const proxyEditRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxies/$proxyId/edit',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxies/$proxyId/edit'),
+    'ProxyEditPage',
   ),
 });
 
@@ -132,8 +141,17 @@ const l4ProxyDetailRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/proxies/tcp-udp/$l4ProxyId',
   component: lazyRouteComponent(
-    () => import('@/routes/_dashboard/l4-proxies/$l4ProxyId'),
-    'L4ProxyDetailPage',
+    () => import('@/routes/_dashboard/l4-proxies/$l4ProxyId/overview'),
+    'L4ProxyOverviewPage',
+  ),
+});
+
+const l4ProxyEditRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxies/tcp-udp/$l4ProxyId/edit',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/l4-proxies/$l4ProxyId/edit'),
+    'L4ProxyEditPage',
   ),
 });
 
@@ -244,9 +262,11 @@ const routeTree = rootRoute.addChildren([
     proxiesRoute,
     proxyCreateRoute,
     proxyDetailRoute,
+    proxyEditRoute,
     l4ProxiesRoute,
     l4ProxyCreateRoute,
     l4ProxyDetailRoute,
+    l4ProxyEditRoute,
     settingsRoute.addChildren([
       settingsIndexRoute,
       settingsDefaultPageRoute,

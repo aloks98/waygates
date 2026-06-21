@@ -44,6 +44,7 @@ interface ProxyDataGridProps {
   onDuplicate?: (proxy: ProxyConfig) => void;
   onToggleStatus: (id: number, enable: boolean) => void;
   isToggling: boolean;
+  onRowClick?: (proxy: ProxyConfig) => void;
   // Pagination props
   pageCount: number;
   pagination: PaginationState;
@@ -64,6 +65,7 @@ export function ProxyDataGrid({
   onDuplicate,
   onToggleStatus,
   isToggling,
+  onRowClick,
   pageCount,
   pagination,
   onPaginationChange,
@@ -260,6 +262,7 @@ export function ProxyDataGrid({
       recordCount={total}
       isLoading={isLoading}
       loadingMode="skeleton"
+      onRowClick={onRowClick}
       emptyMessage={
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="rounded bg-muted p-4">

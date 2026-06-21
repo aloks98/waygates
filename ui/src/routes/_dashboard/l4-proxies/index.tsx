@@ -35,7 +35,7 @@ import {
   type RowSelectionState,
   useReactTable,
 } from '@tanstack/react-table';
-import { Copy, Download, Network, Plus, Search, Trash2 } from 'lucide-react';
+import { Copy, Download, Network, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -200,6 +200,16 @@ export function L4ProxiesListPage() {
     [navigate],
   );
 
+  const handleEdit = useCallback(
+    (p: L4Proxy) => {
+      navigate({
+        to: '/dashboard/proxies/tcp-udp/$l4ProxyId/edit',
+        params: { l4ProxyId: String(p.id) },
+      });
+    },
+    [navigate],
+  );
+
   const handleBulkEnable = useCallback(async () => {
     const s = await bulkSetActive(selectedIds, true);
     if (s.failed > 0) {
@@ -345,6 +355,26 @@ export function L4ProxiesListPage() {
         header: '',
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
+            {canUpdateProxies && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(row.original);
+                      }}
+                    />
+                  }
+                >
+                  <Pencil className="size-4" />
+                  <span className="sr-only">Edit proxy</span>
+                </TooltipTrigger>
+                <TooltipContent>Edit</TooltipContent>
+              </Tooltip>
+            )}
             {canCreateProxies && (
               <Tooltip>
                 <TooltipTrigger
@@ -400,6 +430,7 @@ export function L4ProxiesListPage() {
       canDeleteProxies,
       canUpdateProxies,
       handleDuplicate,
+      handleEdit,
       handleToggleStatus,
       isToggling,
     ],

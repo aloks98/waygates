@@ -183,6 +183,13 @@ export function ProxiesListPage() {
 
   const handleEdit = useCallback(
     (proxy: ProxyConfig) => {
+      navigate({ to: '/dashboard/proxies/$proxyId/edit', params: { proxyId: String(proxy.id) } });
+    },
+    [navigate],
+  );
+
+  const handleRowClick = useCallback(
+    (proxy: ProxyConfig) => {
       navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
     },
     [navigate],
@@ -339,6 +346,7 @@ export function ProxiesListPage() {
         onDuplicate={canCreateProxies ? handleDuplicate : undefined}
         onToggleStatus={handleToggleStatus}
         isToggling={isToggling}
+        onRowClick={handleRowClick}
         pageCount={totalPages}
         pagination={pagination}
         onPaginationChange={setPagination}
