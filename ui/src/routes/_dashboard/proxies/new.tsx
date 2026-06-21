@@ -107,13 +107,28 @@ export function ProxyCreatePage() {
 
       {/* Forms */}
       {selectedType === 'reverse_proxy' && (
-        <ReverseProxyForm onSubmit={handleSubmit} loading={isCreating} onCancel={handleCancel} />
+        <ReverseProxyForm
+          mode="create"
+          onSubmit={handleSubmit}
+          loading={isCreating}
+          onCancel={handleCancel}
+        />
       )}
       {selectedType === 'redirect' && (
-        <RedirectForm onSubmit={handleSubmit} loading={isCreating} onCancel={handleCancel} />
+        <RedirectForm
+          mode="create"
+          onSubmit={handleSubmit}
+          loading={isCreating}
+          onCancel={handleCancel}
+        />
       )}
       {selectedType === 'static' && (
-        <StaticForm onSubmit={handleSubmit} loading={isCreating} onCancel={handleCancel} />
+        <StaticForm
+          mode="create"
+          onSubmit={handleSubmit}
+          loading={isCreating}
+          onCancel={handleCancel}
+        />
       )}
     </div>
   );

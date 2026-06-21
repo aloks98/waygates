@@ -127,3 +127,80 @@ export const l4ProxySchema = z.object({
 });
 
 export type L4ProxyFormValues = z.infer<typeof l4ProxySchema>;
+
+// ============================================================================
+// HTTP Proxy Validation Schemas (M2a)
+// ============================================================================
+
+export const upstreamSchema = z.object({
+  host: z.string().min(1, 'Host is required'),
+  // z.number() (not z.coerce): keeping the schema's input type === output type
+  // avoids the RHF/zodResolver TFieldValues degradation. The field converts the
+  // input string to a number in its onChange.
+  port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
+  scheme: z.enum(['http', 'https']),
+});
+export type UpstreamFormValues = z.infer<typeof upstreamSchema>;
+
+export const headerPairSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+});
+export type HeaderPairFormValues = z.infer<typeof headerPairSchema>;
+
+// useFieldArray needs object items; try_files (string[]) is wrapped as { value }.
+export const tryFileSchema = z.object({ value: z.string() });
+
+export const reverseProxySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
+  description: z.string().max(500, 'Description must be at most 500 characters').optional(),
+  upstreams: z.array(upstreamSchema).min(1, 'Add at least one backend server'),
+  ssl_enabled: z.boolean(),
+  block_exploits: z.boolean(),
+  tls_insecure_skip_verify: z.boolean(),
+  lb_strategy: z.enum(['round_robin', 'least_conn', 'ip_hash', 'random']),
+  health_check_enabled: z.boolean(),
+  health_check_path: z.string(),
+  health_check_interval: z.string(),
+  health_check_timeout: z.string(),
+  request_headers: z.array(headerPairSchema),
+  response_headers: z.array(headerPairSchema),
+});
+export type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
+
+export const redirectSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
+  description: z.string().max(500, 'Description must be at most 500 characters').optional(),
+  ssl_enabled: z.boolean(),
+  target: z.string().min(1, 'Target URL is required').url('Target must be a valid URL'),
+  status_code: z.number().refine((val) => [301, 302, 307, 308].includes(val), {
+    message: 'Status code must be 301, 302, 307, or 308',
+  }),
+  preserve_path: z.boolean(),
+  preserve_query: z.boolean(),
+});
+export type RedirectFormValues = z.infer<typeof redirectSchema>;
+
+export const staticSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
+  hostname: z
+    .string()
+    .min(1, 'Hostname is required')
+    .max(253, 'Hostname must be at most 253 characters'),
+  description: z.string().max(500, 'Description must be at most 500 characters').optional(),
+  ssl_enabled: z.boolean(),
+  root_path: z.string().min(1, 'Root path is required'),
+  index_file: z.string().min(1, 'Index file is required'),
+  browse: z.boolean(),
+  template_rendering: z.boolean(),
+  try_files: z.array(tryFileSchema),
+});
+export type StaticFormValues = z.infer<typeof staticSchema>;

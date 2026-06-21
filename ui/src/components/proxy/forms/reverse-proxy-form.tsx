@@ -1,60 +1,31 @@
-import {
-  Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-} from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
-import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { z } from 'zod';
+import { Button, Card, CardContent, CardHeader, CardTitle, Form } from '@e412/rnui-react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useState } from 'react';
+import { type FieldErrors, useForm, useFormContext } from 'react-hook-form';
 
+import { type ReverseProxyFormValues, reverseProxySchema } from '@/lib/form-validation';
 import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
 
 import { type ACLAssignment, ACLSelector } from './acl-selector';
+import { BackendFields } from './shared/backend-fields';
+import { BasicsFields } from './shared/basics-fields';
+import { CustomHeadersFields } from './shared/custom-headers-fields';
+import { FormSection } from './shared/form-section';
+import { LoadBalancingFields } from './shared/load-balancing-fields';
+import {
+  REVERSE_PROXY_DEFAULTS,
+  mapProxyToReverseDefaults,
+  mapReverseValuesToRequest,
+} from './shared/proxy-form-mappers';
+import { ReviewRow, ReviewSection, WizardActions, WizardStepNav } from './shared/proxy-wizard';
+import { SecurityFields } from './shared/security-fields';
 
-const upstreamSchema = z.object({
-  host: z.string().min(1, 'Host is required'),
-  port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
-  scheme: z.enum(['http', 'https']),
-});
-
-const reverseProxySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
-  hostname: z
-    .string()
-    .min(1, 'Hostname is required')
-    .max(253, 'Hostname must be at most 253 characters'),
-  description: z.string().max(500, 'Description must be at most 500 characters').optional(),
-  upstreams: z.array(upstreamSchema).min(1, 'Add at least one backend server'),
-  ssl_enabled: z.boolean(),
-  block_exploits: z.boolean(),
-  tls_insecure_skip_verify: z.boolean(),
-  lb_strategy: z.enum(['round_robin', 'least_conn', 'ip_hash', 'random']),
-  health_check_enabled: z.boolean(),
-  health_check_path: z.string(),
-  health_check_interval: z.string(),
-  health_check_timeout: z.string(),
-});
-
-type ReverseProxyFormValues = z.infer<typeof reverseProxySchema>;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface ReverseProxyFormProps {
+  mode: 'create' | 'edit';
   initialData?: ProxyConfig | null;
   initialACLAssignments?: ACLAssignment[];
   onSubmit: (data: CreateReverseProxyRequest, aclAssignments?: ACLAssignment[]) => void;
@@ -62,611 +33,386 @@ interface ReverseProxyFormProps {
   onCancel: () => void;
 }
 
-// Helper to normalize upstreams from initial data
-function normalizeUpstreams(
-  data?: ProxyConfig | null,
-): Array<{ host: string; port: number; scheme: 'http' | 'https' }> {
-  if (!data?.upstreams?.length) {
-    return [{ host: '', port: 8080, scheme: 'http' }];
-  }
-  return data.upstreams.map((u) => ({
-    host: u.host || '',
-    port: u.port || 8080,
-    scheme: (String(u.scheme || '').toLowerCase() === 'https' ? 'https' : 'http') as
-      | 'http'
-      | 'https',
-  }));
+interface OpenSections {
+  backend: boolean;
+  security: boolean;
+  headers: boolean;
 }
 
-// Helper to get a valid lb_strategy value
-function getValidLbStrategy(
-  strategy: string | undefined,
-): 'round_robin' | 'least_conn' | 'ip_hash' | 'random' {
-  const validStrategies = ['round_robin', 'least_conn', 'ip_hash', 'random'] as const;
-  if (strategy && validStrategies.includes(strategy as (typeof validStrategies)[number])) {
-    return strategy as (typeof validStrategies)[number];
-  }
-  return 'round_robin';
-}
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-type HeaderPair = { name: string; value: string };
+const WIZARD_STEPS = [
+  { step: 1, title: 'Basics' },
+  { step: 2, title: 'Backend' },
+  { step: 3, title: 'Security' },
+  { step: 4, title: 'Headers' },
+  { step: 5, title: 'Access' },
+  { step: 6, title: 'Review' },
+];
 
-const toPairs = (rec?: Record<string, string>): HeaderPair[] =>
-  Object.entries(rec ?? {}).map(([name, value]) => ({ name, value }));
-
-const toRecord = (pairs: HeaderPair[]): Record<string, string> => {
-  const out: Record<string, string> = {};
-  for (const p of pairs) {
-    const name = p.name.trim();
-    if (name) out[name] = p.value;
-  }
-  return out;
+const STEP_FIELDS: Record<number, (keyof ReverseProxyFormValues)[]> = {
+  1: ['name', 'hostname', 'description'],
+  2: ['upstreams'],
+  3: [
+    'ssl_enabled',
+    'block_exploits',
+    'tls_insecure_skip_verify',
+    'lb_strategy',
+    'health_check_enabled',
+    'health_check_path',
+    'health_check_interval',
+    'health_check_timeout',
+  ],
+  4: ['request_headers', 'response_headers'],
+  5: [],
 };
 
+// ---------------------------------------------------------------------------
+// ReverseReview — step 6 summary
+// ---------------------------------------------------------------------------
+
+function ReverseReview({ acl }: { acl: ACLAssignment[] }) {
+  const form = useFormContext<ReverseProxyFormValues>();
+  const values = form.getValues();
+
+  return (
+    <div className="space-y-4">
+      <ReviewSection title="Basics">
+        <ReviewRow label="Name" value={values.name || '—'} />
+        <ReviewRow label="Hostname" value={values.hostname || '—'} />
+        {values.description && <ReviewRow label="Description" value={values.description} />}
+      </ReviewSection>
+
+      <ReviewSection title="Backend Servers">
+        {values.upstreams.length === 0 ? (
+          <ReviewRow label="Servers" value="None" />
+        ) : (
+          values.upstreams.map((u, i) => (
+            <ReviewRow
+              key={`${u.scheme}://${u.host}:${u.port}`}
+              label={`Server ${i + 1}`}
+              value={`${u.scheme}://${u.host}:${u.port}`}
+            />
+          ))
+        )}
+      </ReviewSection>
+
+      <ReviewSection title="Security">
+        <ReviewRow label="HTTPS" value={values.ssl_enabled ? 'Yes' : 'No'} />
+        <ReviewRow label="Block Exploits" value={values.block_exploits ? 'Yes' : 'No'} />
+        <ReviewRow
+          label="Allow Self-Signed Certs"
+          value={values.tls_insecure_skip_verify ? 'Yes' : 'No'}
+        />
+      </ReviewSection>
+
+      {values.upstreams.length > 1 && (
+        <ReviewSection title="Load Balancing">
+          <ReviewRow label="Strategy" value={values.lb_strategy} />
+          <ReviewRow
+            label="Health Checks"
+            value={
+              values.health_check_enabled
+                ? `${values.health_check_path} every ${values.health_check_interval}`
+                : 'Disabled'
+            }
+          />
+        </ReviewSection>
+      )}
+
+      <ReviewSection title="Headers">
+        <ReviewRow
+          label="Request Headers"
+          value={
+            values.request_headers.length > 0
+              ? `${values.request_headers.length} configured`
+              : 'None'
+          }
+        />
+        <ReviewRow
+          label="Response Headers"
+          value={
+            values.response_headers.length > 0
+              ? `${values.response_headers.length} configured`
+              : 'None'
+          }
+        />
+      </ReviewSection>
+
+      {acl.length > 0 && (
+        <ReviewSection title="Access Control">
+          <ReviewRow label="ACL Assignments" value={`${acl.length} configured`} />
+        </ReviewSection>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ReverseWizard — create mode
+// ---------------------------------------------------------------------------
+
+interface ReverseWizardProps {
+  acl: ACLAssignment[];
+  onAclChange: (acl: ACLAssignment[]) => void;
+  loading: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}
+
+function ReverseWizard({ acl, onAclChange, loading, onCancel, onSubmit }: ReverseWizardProps) {
+  const form = useFormContext<ReverseProxyFormValues>();
+  const [activeStep, setActiveStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  const advance = async () => {
+    const fields = STEP_FIELDS[activeStep] ?? [];
+    const valid = await form.trigger(fields);
+    if (valid) {
+      setCompletedSteps((prev) => new Set(prev).add(activeStep));
+      setActiveStep((s) => s + 1);
+    }
+  };
+
+  const goTo = (step: number) => {
+    if (step < activeStep || completedSteps.has(step)) {
+      setActiveStep(step);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <WizardStepNav
+        steps={WIZARD_STEPS}
+        activeStep={activeStep}
+        completedSteps={completedSteps}
+        onStepClick={goTo}
+      />
+
+      <Card>
+        <CardContent className="pt-6">
+          {activeStep === 1 && <BasicsFields autoFocusName />}
+          {activeStep === 2 && <BackendFields />}
+          {activeStep === 3 && (
+            <div className="space-y-6">
+              <SecurityFields />
+              <LoadBalancingFields />
+            </div>
+          )}
+          {activeStep === 4 && <CustomHeadersFields />}
+          {activeStep === 5 && (
+            <ACLSelector value={acl} onChange={onAclChange} disabled={loading} />
+          )}
+          {activeStep === 6 && <ReverseReview acl={acl} />}
+        </CardContent>
+      </Card>
+
+      <WizardActions
+        activeStep={activeStep}
+        lastStep={6}
+        onBack={() => setActiveStep((s) => s - 1)}
+        onNext={advance}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+        submitting={loading}
+        submitLabel="Create Proxy"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ReverseEdit — edit mode
+// ---------------------------------------------------------------------------
+
+interface ReverseEditProps {
+  acl: ACLAssignment[];
+  onAclChange: (acl: ACLAssignment[]) => void;
+  loading: boolean;
+  onCancel: () => void;
+  openSections: OpenSections;
+  setOpenSections: React.Dispatch<React.SetStateAction<OpenSections>>;
+}
+
+function ReverseEdit({
+  acl,
+  onAclChange,
+  loading,
+  onCancel,
+  openSections,
+  setOpenSections,
+}: ReverseEditProps) {
+  const form = useFormContext<ReverseProxyFormValues>();
+  const errors = form.formState.errors;
+
+  const securityHasError = !!(
+    errors.ssl_enabled ||
+    errors.block_exploits ||
+    errors.tls_insecure_skip_verify ||
+    errors.lb_strategy ||
+    errors.health_check_path ||
+    errors.health_check_interval ||
+    errors.health_check_timeout
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Basics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Basics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BasicsFields />
+        </CardContent>
+      </Card>
+
+      {/* Backend */}
+      <FormSection
+        title="Backend Servers"
+        open={openSections.backend}
+        onOpenChange={(v) => setOpenSections((s) => ({ ...s, backend: v }))}
+        hasError={!!errors.upstreams}
+      >
+        <BackendFields />
+      </FormSection>
+
+      {/* Security & Load Balancing */}
+      <FormSection
+        title="Security & Load Balancing"
+        open={openSections.security}
+        onOpenChange={(v) => setOpenSections((s) => ({ ...s, security: v }))}
+        hasError={securityHasError}
+      >
+        <div className="space-y-6">
+          <SecurityFields />
+          <LoadBalancingFields />
+        </div>
+      </FormSection>
+
+      {/* Custom Headers */}
+      <FormSection
+        title="Custom Headers"
+        open={openSections.headers}
+        onOpenChange={(v) => setOpenSections((s) => ({ ...s, headers: v }))}
+        hasError={!!(errors.request_headers || errors.response_headers)}
+      >
+        <CustomHeadersFields />
+      </FormSection>
+
+      {/* Access Control */}
+      <ACLSelector value={acl} onChange={onAclChange} disabled={loading} />
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2 border-t pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Saving…' : 'Save Changes'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ReverseProxyForm — public export
+// ---------------------------------------------------------------------------
+
 export function ReverseProxyForm({
+  mode,
   initialData,
   initialACLAssignments,
   onSubmit,
   loading,
   onCancel,
 }: ReverseProxyFormProps) {
-  const [upstreams, setUpstreams] = useState(() => normalizeUpstreams(initialData));
-  // The upstream rows are backed by local state rather than form.Field, so their
-  // validation errors aren't rendered by TanStack. Surface them after a submit
-  // attempt (the array's per-row errors otherwise fail silently).
-  const [showUpstreamErrors, setShowUpstreamErrors] = useState(false);
   const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
     initialACLAssignments ?? [],
   );
-
-  const [requestHeaders, setRequestHeaders] = useState<HeaderPair[]>(() =>
-    toPairs(initialData?.custom_headers?.request),
-  );
-  const [responseHeaders, setResponseHeaders] = useState<HeaderPair[]>(() =>
-    toPairs(initialData?.custom_headers?.response),
-  );
-
-  const addHeader = (setter: typeof setRequestHeaders) =>
-    setter((prev) => [...prev, { name: '', value: '' }]);
-  const removeHeader = (setter: typeof setRequestHeaders, index: number) =>
-    setter((prev) => prev.filter((_, i) => i !== index));
-  const updateHeader = (
-    setter: typeof setRequestHeaders,
-    index: number,
-    key: keyof HeaderPair,
-    val: string,
-  ) => setter((prev) => prev.map((h, i) => (i === index ? { ...h, [key]: val } : h)));
-
-  // Compute default values based on initialData
-  // This ensures the form is always initialized with the correct values
-  const defaultValues = useMemo<ReverseProxyFormValues>(() => {
-    if (initialData) {
-      const upstreamData = normalizeUpstreams(initialData);
-      return {
-        name: initialData.name || '',
-        hostname: initialData.hostname || '',
-        description: initialData.description || '',
-        upstreams: upstreamData,
-        ssl_enabled: initialData.ssl_enabled ?? true,
-        block_exploits: initialData.block_exploits ?? true,
-        tls_insecure_skip_verify: initialData.tls_insecure_skip_verify ?? false,
-        lb_strategy: getValidLbStrategy(initialData.load_balancing?.strategy),
-        health_check_enabled: initialData.load_balancing?.health_checks?.enabled ?? false,
-        health_check_path: initialData.load_balancing?.health_checks?.path || '/health',
-        health_check_interval: initialData.load_balancing?.health_checks?.interval || '30s',
-        health_check_timeout: initialData.load_balancing?.health_checks?.timeout || '5s',
-      };
-    }
-    return {
-      name: '',
-      hostname: '',
-      description: '',
-      upstreams: [{ host: '', port: 8080, scheme: 'http' as const }],
-      ssl_enabled: true,
-      block_exploits: true,
-      tls_insecure_skip_verify: false,
-      lb_strategy: 'round_robin' as const,
-      health_check_enabled: false,
-      health_check_path: '/health',
-      health_check_interval: '30s',
-      health_check_timeout: '5s',
-    };
-  }, [initialData]);
-
-  const form = useForm({
-    defaultValues,
-    // Validate on change so errors surface and clear live. With onSubmit-only
-    // validation, a failed submit leaves canSubmit=false and later change events
-    // never re-run the validator, so the form can silently refuse to submit.
-    validators: {
-      onChange: reverseProxySchema,
-    },
-    onSubmit: async ({ value }) => {
-      const data: CreateReverseProxyRequest = {
-        type: 'reverse_proxy',
-        name: value.name,
-        hostname: value.hostname,
-        description: value.description || undefined,
-        ssl_enabled: value.ssl_enabled,
-        upstreams: value.upstreams,
-        block_exploits: value.block_exploits,
-        tls_insecure_skip_verify: value.tls_insecure_skip_verify,
-      };
-
-      if (value.upstreams.length > 1) {
-        data.load_balancing = {
-          strategy: value.lb_strategy,
-          health_checks: value.health_check_enabled
-            ? {
-                enabled: true,
-                path: value.health_check_path,
-                interval: value.health_check_interval,
-                timeout: value.health_check_timeout,
-                unhealthy_threshold: 3,
-                healthy_threshold: 2,
-              }
-            : undefined,
-        };
-      }
-
-      const reqHeaders = toRecord(requestHeaders);
-      const resHeaders = toRecord(responseHeaders);
-      if (Object.keys(reqHeaders).length > 0 || Object.keys(resHeaders).length > 0) {
-        data.custom_headers = {
-          ...(Object.keys(reqHeaders).length > 0 ? { request: reqHeaders } : {}),
-          ...(Object.keys(resHeaders).length > 0 ? { response: resHeaders } : {}),
-        };
-      }
-
-      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
-    },
+  const [openSections, setOpenSections] = useState<OpenSections>({
+    backend: true,
+    security: false,
+    headers: false,
   });
 
-  // Reset form when initialData changes (for edit mode)
-  // Use defaultValues from useMemo to avoid duplication
-  useEffect(() => {
-    if (initialData) {
-      setUpstreams(normalizeUpstreams(initialData));
-      setRequestHeaders(toPairs(initialData.custom_headers?.request));
-      setResponseHeaders(toPairs(initialData.custom_headers?.response));
-      form.reset(defaultValues);
-    }
-  }, [initialData, form, defaultValues]);
+  const form = useForm<ReverseProxyFormValues>({
+    resolver: zodResolver(reverseProxySchema),
+    mode: 'onTouched',
+    defaultValues:
+      mode === 'edit' && initialData
+        ? mapProxyToReverseDefaults(initialData)
+        : REVERSE_PROXY_DEFAULTS,
+  });
 
-  // Update ACL assignments when initialACLAssignments changes (async load)
+  // ACL arrives async on edit
   useEffect(() => {
-    if (initialACLAssignments) {
-      setAclAssignments(initialACLAssignments);
-    }
+    if (initialACLAssignments) setAclAssignments(initialACLAssignments);
   }, [initialACLAssignments]);
 
-  const addUpstream = () => {
-    const newUpstreams = [...upstreams, { host: '', port: 8080, scheme: 'http' as const }];
-    setUpstreams(newUpstreams);
-    form.setFieldValue('upstreams', newUpstreams);
+  // Proxy data arrives async on edit — reset form when it lands.
+  // form is a stable ref and mode is constant per mount, so this still only
+  // re-runs when initialData changes.
+  useEffect(() => {
+    if (mode === 'edit' && initialData) form.reset(mapProxyToReverseDefaults(initialData));
+  }, [initialData, mode, form]);
+
+  const submit = (values: ReverseProxyFormValues) => {
+    onSubmit(mapReverseValuesToRequest(values), aclAssignments.length ? aclAssignments : undefined);
   };
 
-  const removeUpstream = (index: number) => {
-    const newUpstreams = upstreams.filter((_, i) => i !== index);
-    setUpstreams(newUpstreams);
-    form.setFieldValue('upstreams', newUpstreams);
-  };
-
-  const updateUpstream = (
-    index: number,
-    key: keyof (typeof upstreams)[0],
-    value: string | number,
-  ) => {
-    const newUpstreams = [...upstreams];
-    newUpstreams[index] = { ...newUpstreams[index], [key]: value };
-    setUpstreams(newUpstreams);
-    form.setFieldValue('upstreams', newUpstreams);
+  const onInvalid = (errors: FieldErrors<ReverseProxyFormValues>) => {
+    if (mode !== 'edit') return;
+    setOpenSections((prev) => ({
+      backend: prev.backend || !!errors.upstreams,
+      security:
+        prev.security ||
+        !!(
+          errors.ssl_enabled ||
+          errors.block_exploits ||
+          errors.tls_insecure_skip_verify ||
+          errors.lb_strategy ||
+          errors.health_check_path ||
+          errors.health_check_interval ||
+          errors.health_check_timeout
+        ),
+      headers: prev.headers || !!(errors.request_headers || errors.response_headers),
+    }));
   };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setShowUpstreamErrors(true);
-        form.handleSubmit();
-      }}
-      className="space-y-6"
-    >
-      {/* Basic Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-          <CardDescription>General settings for this reverse proxy</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <form.Field name="name">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                    <Input
-                      id={field.name}
-                      placeholder="My Backend API"
-                      autoFocus={!initialData}
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      aria-invalid={hasError}
-                    />
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-
-            <form.Field name="hostname">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
-                    <Input
-                      id={field.name}
-                      placeholder="api.example.com"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      aria-invalid={hasError}
-                    />
-                    <FieldDescription>
-                      The domain visitors will use to reach this service
-                    </FieldDescription>
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-          </div>
-
-          <form.Field name="description">
-            {(field) => {
-              const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-              return (
-                <Field data-invalid={hasError}>
-                  <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-                  <Input
-                    id={field.name}
-                    placeholder="A brief description of this proxy"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    aria-invalid={hasError}
-                  />
-                  {hasError && <FieldError errors={field.state.meta.errors} />}
-                </Field>
-              );
-            }}
-          </form.Field>
-        </CardContent>
-      </Card>
-
-      {/* Upstream Servers */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Backend Servers</CardTitle>
-          <CardDescription>
-            Where to forward incoming traffic. Add the IP and port of your service.
-          </CardDescription>
-          <CardAction>
-            <Button type="button" variant="outline" size="sm" onClick={addUpstream}>
-              <Plus className="mr-1 size-4" />
-              Add Server
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {upstreams.length > 0 && (
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <div className="w-24">Scheme</div>
-              <div className="flex-1">Host</div>
-              <div className="w-24">Port</div>
-              {upstreams.length > 1 && <div className="w-9" />}
-            </div>
-          )}
-          {upstreams.map((upstream, index) => {
-            const hostInvalid = showUpstreamErrors && !upstream.host.trim();
-            const portInvalid = showUpstreamErrors && (!upstream.port || upstream.port < 1);
-            return (
-              <div key={index} className="flex items-start gap-2">
-                <div className="w-24">
-                  <Select
-                    value={upstream.scheme}
-                    onValueChange={(value: 'http' | 'https') =>
-                      updateUpstream(index, 'scheme', value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Scheme" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="http">HTTP</SelectItem>
-                      <SelectItem value="https">HTTPS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <Input
-                    placeholder="192.168.1.100"
-                    value={upstream.host}
-                    onChange={(e) => updateUpstream(index, 'host', e.target.value)}
-                    aria-invalid={hostInvalid}
-                  />
-                  {hostInvalid && <p className="mt-1 text-sm text-destructive">Host is required</p>}
-                </div>
-                <div className="w-24">
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="8080"
-                    value={upstream.port || ''}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '');
-                      const port = value ? Math.min(parseInt(value, 10), 65535) : 0;
-                      updateUpstream(index, 'port', port);
-                    }}
-                    aria-invalid={portInvalid}
-                  />
-                  {portInvalid && <p className="mt-1 text-sm text-destructive">Invalid</p>}
-                </div>
-                {upstreams.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeUpstream(index)}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Load Balancing + Security side by side on large screens */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {upstreams.length > 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Load Balancing</CardTitle>
-              <CardDescription>
-                How to distribute traffic across your backend servers
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form.Field name="lb_strategy">
-                {(field) => (
-                  <Field>
-                    <FieldLabel>Strategy</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(val) => field.handleChange(val as typeof field.state.value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="round_robin">
-                          Round Robin — each server takes turns
-                        </SelectItem>
-                        <SelectItem value="least_conn">
-                          Least Connections — prefer less busy servers
-                        </SelectItem>
-                        <SelectItem value="ip_hash">
-                          Sticky — same visitor always reaches same server
-                        </SelectItem>
-                        <SelectItem value="random">Random</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
-              </form.Field>
-
-              <form.Field name="health_check_enabled">
-                {(field) => (
-                  <Field orientation="horizontal">
-                    <FieldContent>
-                      <FieldLabel>Health Checks</FieldLabel>
-                      <FieldDescription>
-                        Periodically check if your backend servers are reachable
-                      </FieldDescription>
-                    </FieldContent>
-                    <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                  </Field>
-                )}
-              </form.Field>
-
-              <form.Subscribe selector={(state) => state.values.health_check_enabled}>
-                {(healthCheckEnabled) =>
-                  healthCheckEnabled && (
-                    <div className="space-y-4">
-                      <form.Field name="health_check_path">
-                        {(field) => (
-                          <Field>
-                            <FieldLabel>Path</FieldLabel>
-                            <Input
-                              placeholder="/health"
-                              value={field.state.value}
-                              onChange={(e) => field.handleChange(e.target.value)}
-                            />
-                          </Field>
-                        )}
-                      </form.Field>
-                      <div className="grid gap-4 grid-cols-2">
-                        <form.Field name="health_check_interval">
-                          {(field) => (
-                            <Field>
-                              <FieldLabel>Check Every</FieldLabel>
-                              <Input
-                                placeholder="30s"
-                                value={field.state.value}
-                                onChange={(e) => field.handleChange(e.target.value)}
-                              />
-                              <FieldDescription>e.g., 30s, 1m, 5m</FieldDescription>
-                            </Field>
-                          )}
-                        </form.Field>
-                        <form.Field name="health_check_timeout">
-                          {(field) => (
-                            <Field>
-                              <FieldLabel>Timeout</FieldLabel>
-                              <Input
-                                placeholder="5s"
-                                value={field.state.value}
-                                onChange={(e) => field.handleChange(e.target.value)}
-                              />
-                              <FieldDescription>How long to wait for a response</FieldDescription>
-                            </Field>
-                          )}
-                        </form.Field>
-                      </div>
-                    </div>
-                  )
-                }
-              </form.Subscribe>
-            </CardContent>
-          </Card>
+    <Form {...form}>
+      {/* In create (wizard) mode, native form submission is suppressed entirely —
+          the wizard submits only via its explicit Create button (onSubmit below).
+          This blocks Enter-in-input and any button-morph from auto-creating. */}
+      <form
+        onSubmit={
+          mode === 'edit' ? form.handleSubmit(submit, onInvalid) : (e) => e.preventDefault()
+        }
+        className="space-y-6"
+      >
+        {mode === 'create' ? (
+          <ReverseWizard
+            acl={aclAssignments}
+            onAclChange={setAclAssignments}
+            loading={loading}
+            onCancel={onCancel}
+            onSubmit={form.handleSubmit(submit, onInvalid)}
+          />
+        ) : (
+          <ReverseEdit
+            acl={aclAssignments}
+            onAclChange={setAclAssignments}
+            loading={loading}
+            onCancel={onCancel}
+            openSections={openSections}
+            setOpenSections={setOpenSections}
+          />
         )}
-
-        <Card className={upstreams.length <= 1 ? 'lg:col-span-2' : ''}>
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>HTTPS and connection security options</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form.Field name="ssl_enabled">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Enable HTTPS</FieldLabel>
-                    <FieldDescription>
-                      Automatically obtain and manage SSL/TLS certificates
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-
-            <form.Field name="block_exploits">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Block Common Exploits</FieldLabel>
-                    <FieldDescription>
-                      Block SQL injection, XSS, and other common attacks
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-
-            <form.Field name="tls_insecure_skip_verify">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Allow Self-Signed Certificates</FieldLabel>
-                    <FieldDescription>
-                      Trust the backend server even if its certificate isn't from a public authority
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Custom Headers */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Custom Headers</CardTitle>
-          <CardDescription>
-            Add headers sent to the upstream (request) or returned to the client (response).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {(
-            [
-              {
-                label: 'Request headers (to upstream)',
-                pairs: requestHeaders,
-                setter: setRequestHeaders,
-              },
-              {
-                label: 'Response headers (to client)',
-                pairs: responseHeaders,
-                setter: setResponseHeaders,
-              },
-            ] as const
-          ).map((group) => (
-            <div key={group.label} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <FieldLabel>{group.label}</FieldLabel>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addHeader(group.setter)}
-                >
-                  <Plus className="mr-1 size-4" />
-                  Add header
-                </Button>
-              </div>
-              {group.pairs.map((pair, index) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: header rows are positional, edited in place
-                <div key={index} className="flex items-center gap-2">
-                  <Input
-                    placeholder="Header-Name"
-                    value={pair.name}
-                    onChange={(e) => updateHeader(group.setter, index, 'name', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="value"
-                    value={pair.value}
-                    onChange={(e) => updateHeader(group.setter, index, 'value', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeHeader(group.setter, index)}
-                  >
-                    <Trash2 className="size-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Access Control */}
-      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
-
-      {/* Actions */}
-      <div className="flex justify-end gap-2 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create Proxy'}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </Form>
   );
 }

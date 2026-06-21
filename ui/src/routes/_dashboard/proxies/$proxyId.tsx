@@ -23,9 +23,17 @@ import {
   StaticForm,
 } from '@/components/proxy';
 import { getProxyTypeIcon } from '@/components/proxy/cells';
+import {
+  mapProxyToRedirectDefaults,
+  mapProxyToReverseDefaults,
+  mapProxyToStaticDefaults,
+  mapRedirectValuesToRequest,
+  mapReverseValuesToRequest,
+  mapStaticValuesToRequest,
+} from '@/components/proxy/forms/shared/proxy-form-mappers';
 import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
-import type { CreateProxyRequest, CustomHeaders, ProxyConfig } from '@/types/proxy';
+import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
 export function ProxyDetailPage() {
   const params = useParams({ from: '/dashboard/proxies/$proxyId' });
@@ -52,46 +60,18 @@ export function ProxyDetailPage() {
 
   const hasProxyDataChanged = useCallback(
     (newData: CreateProxyRequest, originalProxy: ProxyConfig): boolean => {
-      if (newData.name !== originalProxy.name) return true;
-      if (newData.hostname !== originalProxy.hostname) return true;
-      if (newData.type !== originalProxy.type) return true;
-      if (newData.ssl_enabled !== originalProxy.ssl_enabled) return true;
-      if (newData.block_exploits !== originalProxy.block_exploits) return true;
-      if (newData.tls_insecure_skip_verify !== originalProxy.tls_insecure_skip_verify) return true;
-
-      if (originalProxy.type === 'reverse_proxy') {
-        const oldUpstreams = originalProxy.upstreams || [];
-        const newUpstreams = newData.upstreams || [];
-        if (JSON.stringify(oldUpstreams) !== JSON.stringify(newUpstreams)) return true;
-        const sortedHeaders = (h?: CustomHeaders) =>
-          JSON.stringify({
-            request: Object.fromEntries(Object.entries(h?.request ?? {}).sort()),
-            response: Object.fromEntries(Object.entries(h?.response ?? {}).sort()),
-          });
-        const newHeaders = newData.type === 'reverse_proxy' ? newData.custom_headers : undefined;
-        if (sortedHeaders(originalProxy.custom_headers) !== sortedHeaders(newHeaders)) {
-          return true;
-        }
-        if (newData.health_check_path !== originalProxy.health_check_path) return true;
-        if (newData.load_balancing !== originalProxy.load_balancing) return true;
-      }
-
-      if (originalProxy.type === 'redirect') {
-        if (newData.redirect_url !== originalProxy.redirect_url) return true;
-        if (newData.redirect_code !== originalProxy.redirect_code) return true;
-      }
-
-      if (originalProxy.type === 'static') {
-        if (newData.root_path !== originalProxy.root_path) return true;
-        if (
-          JSON.stringify(newData.try_files || []) !== JSON.stringify(originalProxy.try_files || [])
-        )
-          return true;
-        if (newData.browse !== originalProxy.browse) return true;
-        if (newData.index !== originalProxy.index) return true;
-      }
-
-      return false;
+      // Round-trip the original proxy through the exact mapper pipeline the form
+      // uses to build newData, then compare the serialized requests. This keeps
+      // change-detection in lockstep with the submit shape — no hand-maintained
+      // field list to drift out of sync (which previously compared stale flat
+      // field names and silently skipped redirect/static-only edits).
+      const toRequest: Record<ProxyConfig['type'], () => CreateProxyRequest> = {
+        reverse_proxy: () => mapReverseValuesToRequest(mapProxyToReverseDefaults(originalProxy)),
+        redirect: () => mapRedirectValuesToRequest(mapProxyToRedirectDefaults(originalProxy)),
+        static: () => mapStaticValuesToRequest(mapProxyToStaticDefaults(originalProxy)),
+      };
+      const original = toRequest[originalProxy.type]();
+      return JSON.stringify(newData) !== JSON.stringify(original);
     },
     [],
   );
@@ -220,6 +200,7 @@ export function ProxyDetailPage() {
       {/* Form */}
       {proxy.type === 'reverse_proxy' && (
         <ReverseProxyForm
+          mode="edit"
           initialData={proxy}
           initialACLAssignments={aclAssignments}
           onSubmit={handleUpdate}
@@ -229,6 +210,7 @@ export function ProxyDetailPage() {
       )}
       {proxy.type === 'redirect' && (
         <RedirectForm
+          mode="edit"
           initialData={proxy}
           initialACLAssignments={aclAssignments}
           onSubmit={handleUpdate}
@@ -238,6 +220,7 @@ export function ProxyDetailPage() {
       )}
       {proxy.type === 'static' && (
         <StaticForm
+          mode="edit"
           initialData={proxy}
           initialACLAssignments={aclAssignments}
           onSubmit={handleUpdate}

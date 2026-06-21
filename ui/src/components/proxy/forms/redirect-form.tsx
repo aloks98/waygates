@@ -1,50 +1,29 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Switch,
-} from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { Button, Card, CardContent, CardHeader, CardTitle, Form } from '@e412/rnui-react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
-import { z } from 'zod';
+import { type FieldErrors, useForm, useFormContext } from 'react-hook-form';
 
+import { type RedirectFormValues, redirectSchema } from '@/lib/form-validation';
 import type { CreateRedirectRequest, ProxyConfig } from '@/types/proxy';
 
 import { type ACLAssignment, ACLSelector } from './acl-selector';
+import { BasicsFields } from './shared/basics-fields';
+import { FormSection } from './shared/form-section';
+import {
+  REDIRECT_DEFAULTS,
+  mapProxyToRedirectDefaults,
+  mapRedirectValuesToRequest,
+} from './shared/proxy-form-mappers';
+import { ReviewRow, ReviewSection, WizardActions, WizardStepNav } from './shared/proxy-wizard';
+import { RedirectOptionsFields } from './shared/redirect-options-fields';
+import { RedirectTargetFields } from './shared/redirect-target-fields';
 
-const redirectSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
-  hostname: z
-    .string()
-    .min(1, 'Hostname is required')
-    .max(253, 'Hostname must be at most 253 characters'),
-  description: z.string().max(500, 'Description must be at most 500 characters').optional(),
-  ssl_enabled: z.boolean(),
-  target: z.string().min(1, 'Target URL is required').url('Target must be a valid URL'),
-  status_code: z.number().refine((val) => [301, 302, 307, 308].includes(val), {
-    message: 'Status code must be 301, 302, 307, or 308',
-  }),
-  preserve_path: z.boolean(),
-  preserve_query: z.boolean(),
-});
-
-type RedirectFormValues = z.infer<typeof redirectSchema>;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface RedirectFormProps {
+  mode: 'create' | 'edit';
   initialData?: ProxyConfig | null;
   initialACLAssignments?: ACLAssignment[];
   onSubmit: (data: CreateRedirectRequest, aclAssignments?: ACLAssignment[]) => void;
@@ -52,7 +31,225 @@ interface RedirectFormProps {
   onCancel: () => void;
 }
 
+interface OpenSections {
+  target: boolean;
+  options: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const WIZARD_STEPS = [
+  { step: 1, title: 'Basics' },
+  { step: 2, title: 'Target' },
+  { step: 3, title: 'Options' },
+  { step: 4, title: 'Access' },
+  { step: 5, title: 'Review' },
+];
+
+const STEP_FIELDS: Record<number, (keyof RedirectFormValues)[]> = {
+  1: ['name', 'hostname', 'description'],
+  2: ['target', 'status_code'],
+  3: ['ssl_enabled', 'preserve_path', 'preserve_query'],
+  4: [],
+};
+
+// ---------------------------------------------------------------------------
+// Status code labels for the review screen
+// ---------------------------------------------------------------------------
+
+const STATUS_CODE_LABELS: Record<number, string> = {
+  301: '301 — Permanent',
+  302: '302 — Temporary',
+  307: '307 — Temporary (preserve method)',
+  308: '308 — Permanent (preserve method)',
+};
+
+// ---------------------------------------------------------------------------
+// RedirectReview — step 5 summary
+// ---------------------------------------------------------------------------
+
+function RedirectReview({ acl }: { acl: ACLAssignment[] }) {
+  const form = useFormContext<RedirectFormValues>();
+  const values = form.getValues();
+
+  return (
+    <div className="space-y-4">
+      <ReviewSection title="Basics">
+        <ReviewRow label="Name" value={values.name || '—'} />
+        <ReviewRow label="Hostname" value={values.hostname || '—'} />
+        {values.description && <ReviewRow label="Description" value={values.description} />}
+      </ReviewSection>
+
+      <ReviewSection title="Target">
+        <ReviewRow label="Target URL" value={values.target || '—'} />
+        <ReviewRow
+          label="Redirect Type"
+          value={STATUS_CODE_LABELS[values.status_code] ?? String(values.status_code)}
+        />
+      </ReviewSection>
+
+      <ReviewSection title="Options">
+        <ReviewRow label="HTTPS" value={values.ssl_enabled ? 'Yes' : 'No'} />
+        <ReviewRow label="Preserve Path" value={values.preserve_path ? 'Yes' : 'No'} />
+        <ReviewRow label="Preserve Query" value={values.preserve_query ? 'Yes' : 'No'} />
+      </ReviewSection>
+
+      {acl.length > 0 && (
+        <ReviewSection title="Access Control">
+          <ReviewRow label="ACL Assignments" value={`${acl.length} configured`} />
+        </ReviewSection>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RedirectWizard — create mode
+// ---------------------------------------------------------------------------
+
+interface RedirectWizardProps {
+  acl: ACLAssignment[];
+  onAclChange: (acl: ACLAssignment[]) => void;
+  loading: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}
+
+function RedirectWizard({ acl, onAclChange, loading, onCancel, onSubmit }: RedirectWizardProps) {
+  const form = useFormContext<RedirectFormValues>();
+  const [activeStep, setActiveStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  const advance = async () => {
+    const fields = STEP_FIELDS[activeStep] ?? [];
+    const valid = await form.trigger(fields);
+    if (valid) {
+      setCompletedSteps((prev) => new Set(prev).add(activeStep));
+      setActiveStep((s) => s + 1);
+    }
+  };
+
+  const goTo = (step: number) => {
+    if (step < activeStep || completedSteps.has(step)) {
+      setActiveStep(step);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <WizardStepNav
+        steps={WIZARD_STEPS}
+        activeStep={activeStep}
+        completedSteps={completedSteps}
+        onStepClick={goTo}
+      />
+
+      <Card>
+        <CardContent className="pt-6">
+          {activeStep === 1 && <BasicsFields autoFocusName />}
+          {activeStep === 2 && <RedirectTargetFields />}
+          {activeStep === 3 && <RedirectOptionsFields />}
+          {activeStep === 4 && (
+            <ACLSelector value={acl} onChange={onAclChange} disabled={loading} />
+          )}
+          {activeStep === 5 && <RedirectReview acl={acl} />}
+        </CardContent>
+      </Card>
+
+      <WizardActions
+        activeStep={activeStep}
+        lastStep={5}
+        onBack={() => setActiveStep((s) => s - 1)}
+        onNext={advance}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+        submitting={loading}
+        submitLabel="Create Proxy"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RedirectEdit — edit mode
+// ---------------------------------------------------------------------------
+
+interface RedirectEditProps {
+  acl: ACLAssignment[];
+  onAclChange: (acl: ACLAssignment[]) => void;
+  loading: boolean;
+  onCancel: () => void;
+  openSections: OpenSections;
+  setOpenSections: React.Dispatch<React.SetStateAction<OpenSections>>;
+}
+
+function RedirectEdit({
+  acl,
+  onAclChange,
+  loading,
+  onCancel,
+  openSections,
+  setOpenSections,
+}: RedirectEditProps) {
+  const form = useFormContext<RedirectFormValues>();
+  const errors = form.formState.errors;
+
+  return (
+    <div className="space-y-6">
+      {/* Basics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Basics</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BasicsFields />
+        </CardContent>
+      </Card>
+
+      {/* Redirect Target */}
+      <FormSection
+        title="Redirect Target"
+        open={openSections.target}
+        onOpenChange={(v) => setOpenSections((s) => ({ ...s, target: v }))}
+        hasError={!!(errors.target || errors.status_code)}
+      >
+        <RedirectTargetFields />
+      </FormSection>
+
+      {/* Options */}
+      <FormSection
+        title="Options"
+        open={openSections.options}
+        onOpenChange={(v) => setOpenSections((s) => ({ ...s, options: v }))}
+        hasError={!!(errors.ssl_enabled || errors.preserve_path || errors.preserve_query)}
+      >
+        <RedirectOptionsFields />
+      </FormSection>
+
+      {/* Access Control */}
+      <ACLSelector value={acl} onChange={onAclChange} disabled={loading} />
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2 border-t pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Saving…' : 'Save Changes'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RedirectForm — public export
+// ---------------------------------------------------------------------------
+
 export function RedirectForm({
+  mode,
   initialData,
   initialACLAssignments,
   onSubmit,
@@ -62,261 +259,76 @@ export function RedirectForm({
   const [aclAssignments, setAclAssignments] = useState<ACLAssignment[]>(
     initialACLAssignments ?? [],
   );
-
-  const form = useForm({
-    defaultValues: {
-      name: '',
-      hostname: '',
-      description: '',
-      ssl_enabled: true,
-      target: '',
-      status_code: 301,
-      preserve_path: true,
-      preserve_query: true,
-    } as RedirectFormValues,
-    validators: {
-      onSubmit: redirectSchema,
-    },
-    onSubmit: async ({ value }) => {
-      const data: CreateRedirectRequest = {
-        type: 'redirect',
-        name: value.name,
-        hostname: value.hostname,
-        description: value.description || undefined,
-        ssl_enabled: value.ssl_enabled,
-        redirect: {
-          target: value.target,
-          status_code: value.status_code as 301 | 302 | 307 | 308,
-          preserve_path: value.preserve_path,
-          preserve_query: value.preserve_query,
-        },
-      };
-
-      onSubmit(data, aclAssignments.length > 0 ? aclAssignments : undefined);
-    },
+  const [openSections, setOpenSections] = useState<OpenSections>({
+    target: true,
+    options: false,
   });
 
-  useEffect(() => {
-    if (initialData) {
-      form.setFieldValue('name', initialData.name || '');
-      form.setFieldValue('hostname', initialData.hostname || '');
-      form.setFieldValue('description', initialData.description || '');
-      form.setFieldValue('ssl_enabled', initialData.ssl_enabled ?? true);
-      form.setFieldValue('target', initialData.redirect?.target || '');
-      form.setFieldValue('status_code', initialData.redirect?.status_code || 301);
-      form.setFieldValue('preserve_path', initialData.redirect?.preserve_path ?? true);
-      form.setFieldValue('preserve_query', initialData.redirect?.preserve_query ?? true);
-    }
-  }, [initialData, form.setFieldValue]);
+  const form = useForm<RedirectFormValues>({
+    resolver: zodResolver(redirectSchema),
+    mode: 'onTouched',
+    defaultValues:
+      mode === 'edit' && initialData ? mapProxyToRedirectDefaults(initialData) : REDIRECT_DEFAULTS,
+  });
 
-  // Update ACL assignments when initialACLAssignments changes (async load)
+  // ACL arrives async on edit
   useEffect(() => {
-    if (initialACLAssignments) {
-      setAclAssignments(initialACLAssignments);
-    }
+    if (initialACLAssignments) setAclAssignments(initialACLAssignments);
   }, [initialACLAssignments]);
 
+  // Proxy data arrives async on edit — reset form when it lands.
+  // form is a stable ref and mode is constant per mount, so this still only
+  // re-runs when initialData changes.
+  useEffect(() => {
+    if (mode === 'edit' && initialData) form.reset(mapProxyToRedirectDefaults(initialData));
+  }, [initialData, mode, form]);
+
+  const submit = (values: RedirectFormValues) => {
+    onSubmit(
+      mapRedirectValuesToRequest(values),
+      aclAssignments.length ? aclAssignments : undefined,
+    );
+  };
+
+  const onInvalid = (errors: FieldErrors<RedirectFormValues>) => {
+    if (mode !== 'edit') return;
+    setOpenSections((prev) => ({
+      target: prev.target || !!(errors.target || errors.status_code),
+      options:
+        prev.options || !!(errors.ssl_enabled || errors.preserve_path || errors.preserve_query),
+    }));
+  };
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        form.handleSubmit();
-      }}
-      className="space-y-6"
-    >
-      {/* Basic Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-          <CardDescription>General settings for this redirect</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <form.Field name="name">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                    <Input
-                      id={field.name}
-                      placeholder="Blog Redirect"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      aria-invalid={hasError}
-                    />
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-
-            <form.Field name="hostname">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel htmlFor={field.name}>Hostname</FieldLabel>
-                    <Input
-                      id={field.name}
-                      placeholder="old.example.com"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      aria-invalid={hasError}
-                    />
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-          </div>
-
-          <form.Field name="description">
-            {(field) => {
-              const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-              return (
-                <Field data-invalid={hasError}>
-                  <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-                  <Input
-                    id={field.name}
-                    placeholder="Redirect old domain to new"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    onBlur={field.handleBlur}
-                    aria-invalid={hasError}
-                  />
-                  {hasError && <FieldError errors={field.state.meta.errors} />}
-                </Field>
-              );
-            }}
-          </form.Field>
-        </CardContent>
-      </Card>
-
-      {/* Redirect Configuration + Options side by side */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Redirect Target</CardTitle>
-            <CardDescription>Where to redirect visitors</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form.Field name="target">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel htmlFor={field.name}>Target URL</FieldLabel>
-                    <Input
-                      id={field.name}
-                      placeholder="https://new.example.com"
-                      value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      onBlur={field.handleBlur}
-                      aria-invalid={hasError}
-                    />
-                    <FieldDescription>The URL to redirect visitors to</FieldDescription>
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-
-            <form.Field name="status_code">
-              {(field) => {
-                const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                return (
-                  <Field data-invalid={hasError}>
-                    <FieldLabel>Redirect Type</FieldLabel>
-                    <Select
-                      value={String(field.state.value)}
-                      onValueChange={(val) => field.handleChange(parseInt(val, 10))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="301">301 - Permanent</SelectItem>
-                        <SelectItem value="302">302 - Temporary</SelectItem>
-                        <SelectItem value="307">307 - Temporary (preserve method)</SelectItem>
-                        <SelectItem value="308">308 - Permanent (preserve method)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>
-                      301/308 are cached by browsers, 302/307 are temporary
-                    </FieldDescription>
-                    {hasError && <FieldError errors={field.state.meta.errors} />}
-                  </Field>
-                );
-              }}
-            </form.Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Options</CardTitle>
-            <CardDescription>SSL and redirect behavior</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form.Field name="ssl_enabled">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Enable HTTPS</FieldLabel>
-                    <FieldDescription>
-                      Automatically obtain and manage SSL/TLS certificates
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-
-            <form.Field name="preserve_path">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Preserve Path</FieldLabel>
-                    <FieldDescription>Append the original path to the target URL</FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-
-            <form.Field name="preserve_query">
-              {(field) => (
-                <Field orientation="horizontal">
-                  <FieldContent>
-                    <FieldLabel>Preserve Query String</FieldLabel>
-                    <FieldDescription>
-                      Append the original query parameters to the target URL
-                    </FieldDescription>
-                  </FieldContent>
-                  <Switch checked={field.state.value} onCheckedChange={field.handleChange} />
-                </Field>
-              )}
-            </form.Field>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Access Control */}
-      <ACLSelector value={aclAssignments} onChange={setAclAssignments} disabled={loading} />
-
-      {/* Actions */}
-      <div className="flex justify-end gap-2 pt-4 border-t">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={loading}>
-          {loading ? 'Saving...' : initialData ? 'Save Changes' : 'Create Proxy'}
-        </Button>
-      </div>
-    </form>
+    <Form {...form}>
+      {/* In create (wizard) mode, native form submission is suppressed entirely —
+          the wizard submits only via its explicit Create button (onSubmit below).
+          This blocks Enter-in-input and any button-morph from auto-creating. */}
+      <form
+        onSubmit={
+          mode === 'edit' ? form.handleSubmit(submit, onInvalid) : (e) => e.preventDefault()
+        }
+        className="space-y-6"
+      >
+        {mode === 'create' ? (
+          <RedirectWizard
+            acl={aclAssignments}
+            onAclChange={setAclAssignments}
+            loading={loading}
+            onCancel={onCancel}
+            onSubmit={form.handleSubmit(submit, onInvalid)}
+          />
+        ) : (
+          <RedirectEdit
+            acl={aclAssignments}
+            onAclChange={setAclAssignments}
+            loading={loading}
+            onCancel={onCancel}
+            openSections={openSections}
+            setOpenSections={setOpenSections}
+          />
+        )}
+      </form>
+    </Form>
   );
 }
