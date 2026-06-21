@@ -16,6 +16,60 @@ export const L4_MATCHER_TYPES = [
 ] as const;
 export type L4MatcherType = (typeof L4_MATCHER_TYPES)[number];
 
+// Matcher type display metadata — single source of truth shared by the form
+// select, the route-card badge, and the review summary. `label` is the full
+// descriptive name (select + review); `shortLabel` is the compact badge form.
+export const L4_MATCHER_CONFIG: Record<
+  L4MatcherType,
+  { label: string; shortLabel: string; description: string }
+> = {
+  any: {
+    label: 'Any (Match All)',
+    shortLabel: 'Any',
+    description: 'Matches all incoming connections without any filtering',
+  },
+  tls: {
+    label: 'TLS/SNI',
+    shortLabel: 'TLS/SNI',
+    description: 'Match TLS connections by Server Name Indication (hostname)',
+  },
+  ssh: {
+    label: 'SSH',
+    shortLabel: 'SSH',
+    description: 'Detect and match SSH protocol connections',
+  },
+  postgres: {
+    label: 'PostgreSQL',
+    shortLabel: 'PostgreSQL',
+    description: 'Detect and match PostgreSQL database connections',
+  },
+  http: {
+    label: 'HTTP',
+    shortLabel: 'HTTP',
+    description: 'Detect and match HTTP protocol at Layer 4',
+  },
+  rdp: {
+    label: 'RDP',
+    shortLabel: 'RDP',
+    description: 'Detect and match Remote Desktop Protocol connections',
+  },
+  socks5: {
+    label: 'SOCKS5',
+    shortLabel: 'SOCKS5',
+    description: 'Detect and match SOCKS5 proxy protocol connections',
+  },
+  remote_ip: {
+    label: 'Remote IP',
+    shortLabel: 'Remote IP',
+    description: 'Match connections from specific IP addresses or CIDR ranges',
+  },
+  regexp: {
+    label: 'Regular Expression',
+    shortLabel: 'Regexp',
+    description: 'Match connections using a regex pattern on initial data',
+  },
+};
+
 // L4 Load balancing policy constants
 export const L4_LOAD_BALANCING_POLICIES = [
   'round_robin',

@@ -44,7 +44,12 @@ export function L4ProxyCreatePage() {
       </div>
 
       {/* L4 Proxy Form */}
-      <L4ProxyForm onSubmit={handleSubmit} loading={isCreating} onCancel={handleCancel} />
+      <L4ProxyForm
+        mode="create"
+        onSubmit={handleSubmit}
+        loading={isCreating}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

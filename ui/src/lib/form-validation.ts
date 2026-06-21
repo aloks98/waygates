@@ -35,12 +35,20 @@ export function zodValidator<T>(schema: ZodSchema<T>) {
 // L4 Proxy Validation Schemas
 // ============================================================================
 
+// useFieldArray needs object items; sni_hostnames / allowed_ip_ranges
+// (string[]) are wrapped as { value } for RHF field-array editing.
+export const sniHostnameSchema = z.object({ value: z.string().min(1, 'Hostname is required') });
+export const ipRangeSchema = z.object({ value: z.string().min(1, 'IP range is required') });
+
 /**
  * Schema for L4 upstream server configuration
  */
 export const l4UpstreamSchema = z.object({
   host: z.string().min(1, 'Host is required'),
-  port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
+  port: z
+    .number({ error: 'Port is required' })
+    .min(1, 'Port must be at least 1')
+    .max(65535, 'Port must be at most 65535'),
   weight: z.number().min(1, 'Weight must be at least 1').optional(),
 });
 
@@ -51,12 +59,12 @@ export type L4UpstreamFormValues = z.infer<typeof l4UpstreamSchema>;
  */
 export const l4RouteSchema = z
   .object({
-    priority: z.number().min(0, 'Priority must be at least 0'),
+    priority: z.number({ error: 'Priority is required' }).min(0, 'Priority must be at least 0'),
     matcher_type: z.enum(L4_MATCHER_TYPES, {
       errorMap: () => ({ message: 'Invalid matcher type' }),
     }),
-    sni_hostnames: z.array(z.string()).optional(),
-    allowed_ip_ranges: z.array(z.string()).optional(),
+    sni_hostnames: z.array(sniHostnameSchema).optional(),
+    allowed_ip_ranges: z.array(ipRangeSchema).optional(),
     regex_pattern: z.string().optional(),
     upstreams: z.array(l4UpstreamSchema).min(1, 'At least one upstream is required'),
     load_balancing_policy: z.enum(L4_LOAD_BALANCING_POLICIES, {
@@ -116,7 +124,7 @@ export const l4ProxySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   listen_port: z
-    .number()
+    .number({ error: 'Port is required' })
     .min(1, 'Port must be at least 1')
     .max(65535, 'Port must be at most 65535'),
   protocol: z.enum(L4_PROTOCOLS, {
@@ -137,7 +145,10 @@ export const upstreamSchema = z.object({
   // z.number() (not z.coerce): keeping the schema's input type === output type
   // avoids the RHF/zodResolver TFieldValues degradation. The field converts the
   // input string to a number in its onChange.
-  port: z.number().min(1, 'Port must be at least 1').max(65535, 'Port must be at most 65535'),
+  port: z
+    .number({ error: 'Port is required' })
+    .min(1, 'Port must be at least 1')
+    .max(65535, 'Port must be at most 65535'),
   scheme: z.enum(['http', 'https']),
 });
 export type UpstreamFormValues = z.infer<typeof upstreamSchema>;

@@ -135,6 +135,7 @@ export function L4ProxyDetailPage() {
 
       {/* Form */}
       <L4ProxyForm
+        mode="edit"
         initialData={proxy}
         onSubmit={handleUpdate}
         loading={isUpdating}
