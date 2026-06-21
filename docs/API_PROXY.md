@@ -518,6 +518,181 @@ Disables an active proxy, removing its configuration from the Caddy server.
 
 ---
 
+### 8. Bulk Enable Proxies
+
+**POST** `/api/proxies/bulk/enable`
+
+Enables multiple proxies in a single request. Requires the `proxies:update` permission.
+
+The operation is **best-effort**: each id is processed independently and a failure on
+one id never aborts the batch. The response reports the per-id outcome along with
+aggregate counts.
+
+#### Request Body
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+- `ids` (array of integers, required): The proxy ids to enable. Must be non-empty and
+  contain at most **1000** ids.
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Bulk enable completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "error", "error": "proxy not found" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+- `status` is `"ok"` or `"error"`. `error` is present only when `status` is `"error"`.
+
+#### Error Responses
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `proxies:update` permission.
+
+---
+
+### 9. Bulk Disable Proxies
+
+**POST** `/api/proxies/bulk/disable`
+
+Disables multiple proxies in a single request. Requires the `proxies:update` permission.
+Same request/response shape and best-effort semantics as **Bulk Enable Proxies**.
+
+#### Request Body
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Bulk disable completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 3,
+    "failed": 0,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "ok" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `proxies:update` permission.
+
+---
+
+### 10. Bulk Delete Proxies
+
+**POST** `/api/proxies/bulk/delete`
+
+Deletes multiple proxies in a single request. Requires the `proxies:delete` permission.
+Same request/response shape and best-effort semantics as **Bulk Enable Proxies**.
+
+#### Request Body
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "Bulk delete completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "error", "error": "proxy not found" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `proxies:delete` permission.
+
+---
+
+### 11. Export Proxies
+
+**GET** `/api/proxies/export`
+
+Returns proxies as a JSON array of portable export objects suitable for re-import.
+Server-managed fields (`id`, `created_at`, `updated_at`, `created_by`, `ssl_forced`)
+are dropped; everything needed to recreate the proxy is kept, including `is_active`
+so an exported inactive proxy imports inactive. Requires the `proxies:read` permission.
+
+#### Query Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ids` | string | Optional comma-separated proxy ids (e.g. `?ids=1,2,3`). When provided, exactly these proxies are exported and any id that no longer exists is silently skipped. |
+| `search` | string | Optional. Same as List: substring match on name/hostname. Ignored when `ids` is provided. |
+| `type` | string | Optional. Same as List (`reverse_proxy`/`redirect`/`static`, supports `in:`/`not_in:`/`not:` operators). Ignored when `ids` is provided. |
+| `status` | string | Optional. Same as List (`active`/`inactive`, supports `not:` operator). Ignored when `ids` is provided. |
+| `ssl_enabled` | string | Optional. `true` or `false`. Ignored when `ids` is provided. |
+
+When no `ids` are supplied, all proxies matching the given filters are exported (no pagination).
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "type": "reverse_proxy",
+      "name": "My App",
+      "hostname": "app.example.com",
+      "ssl_enabled": true,
+      "is_active": true,
+      "block_exploits": true,
+      "tls_insecure_skip_verify": false,
+      "upstreams": ["localhost:8080"]
+    }
+  ]
+}
+```
+
+`data` is an array of export objects. Per object: `description`, `upstreams`,
+`load_balancing`, `custom_headers`, `redirect`, and `static` are omitted when empty.
+
+#### Error Responses
+- **400 Bad Request**: If `ids` contains a non-integer value, or a filter parameter is invalid.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `proxies:read` permission.
+
+---
+
 ## Load Balancing Details
 
 ### Strategies

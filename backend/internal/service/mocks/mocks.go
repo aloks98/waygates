@@ -13,14 +13,17 @@ import (
 
 // MockProxyService is a mock implementation of ProxyServiceInterface
 type MockProxyService struct {
-	ListProxiesFunc  func(req service.ListProxiesRequest) (*models.ProxyListResponse, error)
-	GetProxyByIDFunc func(id int) (*models.Proxy, error)
-	CreateProxyFunc  func(proxy *models.Proxy, userID int) error
-	UpdateProxyFunc  func(id int, proxy *models.Proxy) error
-	DeleteProxyFunc  func(id int) error
-	EnableProxyFunc  func(id int) error
-	DisableProxyFunc func(id int) error
-	GetStatsFunc     func() (*repository.ProxyStats, error)
+	ListProxiesFunc   func(req service.ListProxiesRequest) (*models.ProxyListResponse, error)
+	GetProxyByIDFunc  func(id int) (*models.Proxy, error)
+	CreateProxyFunc   func(proxy *models.Proxy, userID int) error
+	UpdateProxyFunc   func(id int, proxy *models.Proxy) error
+	DeleteProxyFunc   func(id int) error
+	EnableProxyFunc   func(id int) error
+	DisableProxyFunc  func(id int) error
+	BulkSetActiveFunc func(ids []int, enable bool) service.BulkResult
+	BulkDeleteFunc    func(ids []int) service.BulkResult
+	ExportProxiesFunc func(ids []int, filters service.ListProxiesRequest) ([]service.ProxyExport, error)
+	GetStatsFunc      func() (*repository.ProxyStats, error)
 }
 
 // ListProxies implements ProxyServiceInterface.
@@ -77,6 +80,30 @@ func (m *MockProxyService) DisableProxy(id int) error {
 		return m.DisableProxyFunc(id)
 	}
 	return nil
+}
+
+// BulkSetActive implements ProxyServiceInterface.
+func (m *MockProxyService) BulkSetActive(ids []int, enable bool) service.BulkResult {
+	if m.BulkSetActiveFunc != nil {
+		return m.BulkSetActiveFunc(ids, enable)
+	}
+	return service.BulkResult{Requested: len(ids), Succeeded: len(ids), Results: []service.BulkItemResult{}}
+}
+
+// BulkDelete implements ProxyServiceInterface.
+func (m *MockProxyService) BulkDelete(ids []int) service.BulkResult {
+	if m.BulkDeleteFunc != nil {
+		return m.BulkDeleteFunc(ids)
+	}
+	return service.BulkResult{Requested: len(ids), Succeeded: len(ids), Results: []service.BulkItemResult{}}
+}
+
+// ExportProxies implements ProxyServiceInterface.
+func (m *MockProxyService) ExportProxies(ids []int, filters service.ListProxiesRequest) ([]service.ProxyExport, error) {
+	if m.ExportProxiesFunc != nil {
+		return m.ExportProxiesFunc(ids, filters)
+	}
+	return []service.ProxyExport{}, nil
 }
 
 // GetStats implements ProxyServiceInterface.

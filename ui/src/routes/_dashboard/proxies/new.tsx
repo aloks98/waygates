@@ -1,12 +1,12 @@
-import { Button } from '@e412/rnui-react';
+import { Button, Skeleton } from '@e412/rnui-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ArrowLeft, ArrowRight, Check, FolderOpen, Globe } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { type ACLAssignment, RedirectForm, ReverseProxyForm, StaticForm } from '@/components/proxy';
 import { useAssignACL } from '@/hooks';
-import { useProxies } from '@/hooks/use-proxies';
-import type { CreateProxyRequest, ProxyType } from '@/types/proxy';
+import { useProxy, useProxies } from '@/hooks/use-proxies';
+import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 
 interface ProxyTypeOption {
   type: ProxyType;
@@ -34,7 +34,7 @@ const proxyTypes: ProxyTypeOption[] = [
 
 export function ProxyCreatePage() {
   const navigate = useNavigate();
-  const searchParams = useSearch({ strict: false }) as { type?: string };
+  const searchParams = useSearch({ strict: false }) as { type?: string; duplicate?: string };
 
   const validTypes: ProxyType[] = ['reverse_proxy', 'redirect', 'static'];
   const initialType = validTypes.includes(searchParams.type as ProxyType)
@@ -42,6 +42,23 @@ export function ProxyCreatePage() {
     : 'reverse_proxy';
 
   const [selectedType, setSelectedType] = useState<ProxyType>(initialType);
+
+  // Duplicate support — fetch source proxy when ?duplicate=<id> is present
+  const dupId = Number(searchParams.duplicate) || 0;
+  const { proxy: source } = useProxy(dupId);
+
+  // Once the source proxy loads, lock the type selector to match its type
+  useEffect(() => {
+    if (source) {
+      setSelectedType(source.type as ProxyType);
+    }
+  }, [source]);
+
+  // Build the seed: clear hostname, suffix name. null when not duplicating or source not yet loaded.
+  const seed = useMemo<ProxyConfig | null>(
+    () => (source ? { ...source, hostname: '', name: `${source.name} (copy)` } : null),
+    [source],
+  );
 
   const { create: createProxy, isCreating } = useProxies();
   const { assignACL } = useAssignACL();
@@ -105,30 +122,43 @@ export function ProxyCreatePage() {
       {/* Type switcher pills */}
       <div className="flex flex-wrap items-center gap-2">{proxyTypes.map(renderTypePill)}</div>
 
-      {/* Forms */}
-      {selectedType === 'reverse_proxy' && (
-        <ReverseProxyForm
-          mode="create"
-          onSubmit={handleSubmit}
-          loading={isCreating}
-          onCancel={handleCancel}
-        />
-      )}
-      {selectedType === 'redirect' && (
-        <RedirectForm
-          mode="create"
-          onSubmit={handleSubmit}
-          loading={isCreating}
-          onCancel={handleCancel}
-        />
-      )}
-      {selectedType === 'static' && (
-        <StaticForm
-          mode="create"
-          onSubmit={handleSubmit}
-          loading={isCreating}
-          onCancel={handleCancel}
-        />
+      {/* While waiting for duplicate source to load, show skeleton */}
+      {dupId > 0 && !source ? (
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-2/3" />
+        </div>
+      ) : (
+        <>
+          {selectedType === 'reverse_proxy' && (
+            <ReverseProxyForm
+              mode="create"
+              initialData={seed}
+              onSubmit={handleSubmit}
+              loading={isCreating}
+              onCancel={handleCancel}
+            />
+          )}
+          {selectedType === 'redirect' && (
+            <RedirectForm
+              mode="create"
+              initialData={seed}
+              onSubmit={handleSubmit}
+              loading={isCreating}
+              onCancel={handleCancel}
+            />
+          )}
+          {selectedType === 'static' && (
+            <StaticForm
+              mode="create"
+              initialData={seed}
+              onSubmit={handleSubmit}
+              loading={isCreating}
+              onCancel={handleCancel}
+            />
+          )}
+        </>
       )}
     </div>
   );

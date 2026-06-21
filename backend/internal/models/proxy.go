@@ -41,6 +41,10 @@ type Proxy struct {
 
 	// Relations (will be populated when needed)
 	Creator *User `json:"created_by,omitempty" gorm:"foreignKey:CreatedBy"`
+
+	// ACL summary — computed by the repository List query, not persisted.
+	ACLGroupCount int      `json:"acl_group_count" gorm:"-"`
+	ACLGroupNames []string `json:"acl_group_names" gorm:"-"`
 }
 
 // TableName specifies the table name for GORM

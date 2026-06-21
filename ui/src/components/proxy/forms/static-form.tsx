@@ -266,8 +266,7 @@ export function StaticForm({
   const form = useForm<StaticFormValues>({
     resolver: zodResolver(staticSchema),
     mode: 'onTouched',
-    defaultValues:
-      mode === 'edit' && initialData ? mapProxyToStaticDefaults(initialData) : STATIC_DEFAULTS,
+    defaultValues: initialData ? mapProxyToStaticDefaults(initialData) : STATIC_DEFAULTS,
   });
 
   // ACL arrives async on edit
@@ -275,12 +274,11 @@ export function StaticForm({
     if (initialACLAssignments) setAclAssignments(initialACLAssignments);
   }, [initialACLAssignments]);
 
-  // Proxy data arrives async on edit — reset form when it lands.
-  // form is a stable ref and mode is constant per mount, so this still only
-  // re-runs when initialData changes.
+  // Proxy data arrives async (edit or duplicate) — reset form when it lands.
+  // form is a stable ref so this only re-runs when initialData changes.
   useEffect(() => {
-    if (mode === 'edit' && initialData) form.reset(mapProxyToStaticDefaults(initialData));
-  }, [initialData, mode, form]);
+    if (initialData) form.reset(mapProxyToStaticDefaults(initialData));
+  }, [initialData, form]);
 
   const submit = (values: StaticFormValues) => {
     onSubmit(mapStaticValuesToRequest(values), aclAssignments.length ? aclAssignments : undefined);

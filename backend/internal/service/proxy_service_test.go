@@ -14,6 +14,7 @@ import (
 type MockProxyRepository struct {
 	ListFunc           func(params repository.ProxyListParams) ([]models.Proxy, int64, error)
 	GetByIDFunc        func(id int) (*models.Proxy, error)
+	GetByIDsFunc       func(ids []int) ([]models.Proxy, error)
 	GetByHostnameFunc  func(hostname string) (*models.Proxy, error)
 	CreateFunc         func(proxy *models.Proxy) error
 	UpdateFunc         func(proxy *models.Proxy) error
@@ -35,6 +36,13 @@ func (m *MockProxyRepository) GetByID(id int) (*models.Proxy, error) {
 		return m.GetByIDFunc(id)
 	}
 	return nil, gorm.ErrRecordNotFound
+}
+
+func (m *MockProxyRepository) GetByIDs(ids []int) ([]models.Proxy, error) {
+	if m.GetByIDsFunc != nil {
+		return m.GetByIDsFunc(ids)
+	}
+	return []models.Proxy{}, nil
 }
 
 func (m *MockProxyRepository) GetByHostname(hostname string) (*models.Proxy, error) {

@@ -267,8 +267,7 @@ export function RedirectForm({
   const form = useForm<RedirectFormValues>({
     resolver: zodResolver(redirectSchema),
     mode: 'onTouched',
-    defaultValues:
-      mode === 'edit' && initialData ? mapProxyToRedirectDefaults(initialData) : REDIRECT_DEFAULTS,
+    defaultValues: initialData ? mapProxyToRedirectDefaults(initialData) : REDIRECT_DEFAULTS,
   });
 
   // ACL arrives async on edit
@@ -276,12 +275,11 @@ export function RedirectForm({
     if (initialACLAssignments) setAclAssignments(initialACLAssignments);
   }, [initialACLAssignments]);
 
-  // Proxy data arrives async on edit — reset form when it lands.
-  // form is a stable ref and mode is constant per mount, so this still only
-  // re-runs when initialData changes.
+  // Proxy data arrives async (edit or duplicate) — reset form when it lands.
+  // form is a stable ref so this only re-runs when initialData changes.
   useEffect(() => {
-    if (mode === 'edit' && initialData) form.reset(mapProxyToRedirectDefaults(initialData));
-  }, [initialData, mode, form]);
+    if (initialData) form.reset(mapProxyToRedirectDefaults(initialData));
+  }, [initialData, form]);
 
   const submit = (values: RedirectFormValues) => {
     onSubmit(

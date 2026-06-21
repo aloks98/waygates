@@ -2304,3 +2304,272 @@ func TestGetStats_ContextCancellation(t *testing.T) {
 	// The handler should still work even with canceled context
 	require.True(t, rec.Code == http.StatusOK || rec.Code == http.StatusInternalServerError)
 }
+
+// =============================================================================
+// Bulk Operation Tests
+// =============================================================================
+
+func TestBulkEnableProxies_Success(t *testing.T) {
+	t.Parallel()
+	var capturedIDs []int
+	var capturedEnable bool
+	mockService := &mocks.MockProxyService{
+		BulkSetActiveFunc: func(ids []int, enable bool) service.BulkResult {
+			capturedIDs = ids
+			capturedEnable = enable
+			return service.BulkResult{
+				Requested: 3,
+				Succeeded: 2,
+				Failed:    1,
+				Results: []service.BulkItemResult{
+					{ID: 1, Status: "ok"},
+					{ID: 2, Status: "error", Error: "proxy not found"},
+					{ID: 3, Status: "ok"},
+				},
+			}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{1, 2, 3}})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/enable", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnableProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, []int{1, 2, 3}, capturedIDs)
+	assert.True(t, capturedEnable, "enable should be true for BulkEnableProxies")
+
+	var resp struct {
+		Success bool               `json:"success"`
+		Data    service.BulkResult `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, 3, resp.Data.Requested)
+	assert.Equal(t, 2, resp.Data.Succeeded)
+	assert.Equal(t, 1, resp.Data.Failed)
+	require.Len(t, resp.Data.Results, 3)
+	assert.Equal(t, "error", resp.Data.Results[1].Status)
+}
+
+func TestBulkDisableProxies_PassesEnableFalse(t *testing.T) {
+	t.Parallel()
+	var capturedEnable bool
+	mockService := &mocks.MockProxyService{
+		BulkSetActiveFunc: func(ids []int, enable bool) service.BulkResult {
+			capturedEnable = enable
+			return service.BulkResult{Requested: len(ids), Succeeded: len(ids)}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{7}})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/disable", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDisableProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.False(t, capturedEnable, "enable should be false for BulkDisableProxies")
+}
+
+func TestBulkDeleteProxies_Success(t *testing.T) {
+	t.Parallel()
+	var capturedIDs []int
+	mockService := &mocks.MockProxyService{
+		BulkDeleteFunc: func(ids []int) service.BulkResult {
+			capturedIDs = ids
+			return service.BulkResult{
+				Requested: 2,
+				Succeeded: 2,
+				Results: []service.BulkItemResult{
+					{ID: 10, Status: "ok"},
+					{ID: 11, Status: "ok"},
+				},
+			}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{10, 11}})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/delete", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDeleteProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, []int{10, 11}, capturedIDs)
+
+	var resp struct {
+		Success bool               `json:"success"`
+		Data    service.BulkResult `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, 2, resp.Data.Succeeded)
+}
+
+func TestBulkProxies_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	called := false
+	mockService := &mocks.MockProxyService{
+		BulkSetActiveFunc: func(_ []int, _ bool) service.BulkResult {
+			called = true
+			return service.BulkResult{}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{}})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/enable", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnableProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.False(t, called, "service should not be called for empty ids")
+}
+
+func TestBulkProxies_TooManyIDs(t *testing.T) {
+	t.Parallel()
+	called := false
+	mockService := &mocks.MockProxyService{
+		BulkDeleteFunc: func(_ []int) service.BulkResult {
+			called = true
+			return service.BulkResult{}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	ids := make([]int, 1001)
+	for i := range ids {
+		ids[i] = i + 1
+	}
+	body, _ := json.Marshal(map[string]interface{}{"ids": ids})
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/delete", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDeleteProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.False(t, called, "service should not be called when over the limit")
+}
+
+func TestBulkProxies_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	req := requestWithUserID(http.MethodPost, "/api/proxies/bulk/enable", []byte(`{invalid}`), "123")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnableProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// =============================================================================
+// ExportProxies Tests
+// =============================================================================
+
+func TestExportProxies_WithIDs(t *testing.T) {
+	t.Parallel()
+	var capturedIDs []int
+	var capturedFilters service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ExportProxiesFunc: func(ids []int, filters service.ListProxiesRequest) ([]service.ProxyExport, error) {
+			capturedIDs = ids
+			capturedFilters = filters
+			return []service.ProxyExport{
+				{Type: "reverse_proxy", Name: "p1", Hostname: "one.example.com", SSLEnabled: true, IsActive: true},
+				{Type: "redirect", Name: "p3", Hostname: "three.example.com"},
+			}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies/export?ids=1,2,3", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, []int{1, 2, 3}, capturedIDs)
+	assert.Empty(t, capturedFilters.Types)
+
+	var resp struct {
+		Success bool                  `json:"success"`
+		Data    []service.ProxyExport `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	require.Len(t, resp.Data, 2)
+	assert.Equal(t, "p1", resp.Data[0].Name)
+	assert.True(t, resp.Data[0].IsActive)
+}
+
+func TestExportProxies_WithFilters(t *testing.T) {
+	t.Parallel()
+	var capturedIDs []int
+	var capturedFilters service.ListProxiesRequest
+	mockService := &mocks.MockProxyService{
+		ExportProxiesFunc: func(ids []int, filters service.ListProxiesRequest) ([]service.ProxyExport, error) {
+			capturedIDs = ids
+			capturedFilters = filters
+			return []service.ProxyExport{}, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies/export?type=in:reverse_proxy,redirect&status=active&ssl_enabled=true&search=foo", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Nil(t, capturedIDs, "no ids means export all matching filters")
+	assert.Equal(t, []string{"reverse_proxy", "redirect"}, capturedFilters.Types)
+	assert.Equal(t, "active", capturedFilters.Status)
+	require.NotNil(t, capturedFilters.SSLEnabled)
+	assert.True(t, *capturedFilters.SSLEnabled)
+	assert.Equal(t, "foo", capturedFilters.Search)
+}
+
+func TestExportProxies_InvalidIDs(t *testing.T) {
+	t.Parallel()
+	called := false
+	mockService := &mocks.MockProxyService{
+		ExportProxiesFunc: func(_ []int, _ service.ListProxiesRequest) ([]service.ProxyExport, error) {
+			called = true
+			return nil, nil
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies/export?ids=1,abc,3", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportProxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.False(t, called, "service should not be called for malformed ids")
+}
+
+func TestExportProxies_ServiceError(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{
+		ExportProxiesFunc: func(_ []int, _ service.ListProxiesRequest) ([]service.ProxyExport, error) {
+			return nil, errors.New("database error")
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/proxies/export", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportProxies(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}

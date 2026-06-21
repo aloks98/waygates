@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"fmt"
 	"strings"
 
 	"gorm.io/gorm"
@@ -126,7 +127,48 @@ func (r *ProxyRepository) List(params ProxyListParams) ([]models.Proxy, int64, e
 		return nil, 0, err
 	}
 
+	if len(proxies) > 0 {
+		ids := make([]int, len(proxies))
+		for i := range proxies {
+			ids[i] = proxies[i].ID
+		}
+		var rows []aclSummaryRow
+		if err := r.db.
+			Table("proxy_acl_assignments").
+			Select("proxy_acl_assignments.proxy_id, acl_groups.name").
+			Joins("JOIN acl_groups ON acl_groups.id = proxy_acl_assignments.acl_group_id").
+			Where("proxy_acl_assignments.proxy_id IN ?", ids).
+			Order("proxy_acl_assignments.priority ASC, proxy_acl_assignments.id ASC").
+			Scan(&rows).Error; err != nil {
+			return nil, 0, fmt.Errorf("loading proxy ACL summaries: %w", err)
+		}
+		applyACLSummaries(proxies, rows)
+	}
+
 	return proxies, total, nil
+}
+
+// aclSummaryRow is one (proxy, acl group name) pair from the summary query.
+type aclSummaryRow struct {
+	ProxyID int
+	Name    string
+}
+
+// applyACLSummaries populates ACLGroupCount/ACLGroupNames on each proxy from the
+// flat rows. Every proxy gets a non-nil names slice (empty when unprotected).
+func applyACLSummaries(proxies []models.Proxy, rows []aclSummaryRow) {
+	byProxy := make(map[int][]string, len(proxies))
+	for _, row := range rows {
+		byProxy[row.ProxyID] = append(byProxy[row.ProxyID], row.Name)
+	}
+	for i := range proxies {
+		names := byProxy[proxies[i].ID]
+		if names == nil {
+			names = []string{}
+		}
+		proxies[i].ACLGroupNames = names
+		proxies[i].ACLGroupCount = len(names)
+	}
 }
 
 // GetByID retrieves a proxy by ID
@@ -136,6 +178,20 @@ func (r *ProxyRepository) GetByID(id int) (*models.Proxy, error) {
 		return nil, err
 	}
 	return &proxy, nil
+}
+
+// GetByIDs retrieves multiple proxies in a single query (WHERE id IN (...)).
+// Missing ids are simply absent from the result — no error — so the caller gets
+// only the proxies that still exist. Result order is not guaranteed.
+func (r *ProxyRepository) GetByIDs(ids []int) ([]models.Proxy, error) {
+	if len(ids) == 0 {
+		return []models.Proxy{}, nil
+	}
+	var proxies []models.Proxy
+	if err := r.db.Where("id IN ?", ids).Find(&proxies).Error; err != nil {
+		return nil, err
+	}
+	return proxies, nil
 }
 
 // GetByHostname retrieves a proxy by hostname

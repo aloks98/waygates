@@ -10,6 +10,7 @@ import (
 type ProxyRepositoryInterface interface {
 	List(params ProxyListParams) ([]models.Proxy, int64, error)
 	GetByID(id int) (*models.Proxy, error)
+	GetByIDs(ids []int) ([]models.Proxy, error)
 	GetByHostname(hostname string) (*models.Proxy, error)
 	Create(proxy *models.Proxy) error
 	Update(proxy *models.Proxy) error

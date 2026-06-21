@@ -1,5 +1,5 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 
 import type { ProxyConfig } from '@/types/proxy';
 
@@ -9,6 +9,7 @@ interface ProxyActionsCellProps {
   canDelete?: boolean;
   onEdit?: (proxy: ProxyConfig) => void;
   onDelete?: (proxy: ProxyConfig) => void;
+  onDuplicate?: (proxy: ProxyConfig) => void;
 }
 
 export function ProxyActionsCell({
@@ -17,8 +18,9 @@ export function ProxyActionsCell({
   canDelete = false,
   onEdit,
   onDelete,
+  onDuplicate,
 }: ProxyActionsCellProps) {
-  if (!canEdit && !canDelete) {
+  if (!canEdit && !canDelete && !onDuplicate) {
     return null;
   }
 
@@ -33,6 +35,17 @@ export function ProxyActionsCell({
             <span className="sr-only">Edit proxy</span>
           </TooltipTrigger>
           <TooltipContent>Edit proxy</TooltipContent>
+        </Tooltip>
+      )}
+      {onDuplicate && (
+        <Tooltip>
+          <TooltipTrigger
+            render={<Button variant="ghost" size="sm" onClick={() => onDuplicate(proxy)} />}
+          >
+            <Copy className="size-4" />
+            <span className="sr-only">Duplicate proxy</span>
+          </TooltipTrigger>
+          <TooltipContent>Duplicate</TooltipContent>
         </Tooltip>
       )}
       {canDelete && onDelete && (

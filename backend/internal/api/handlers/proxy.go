@@ -504,6 +504,197 @@ func (h *ProxyHandler) DisableProxy(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, nil, "Proxy disabled successfully")
 }
 
+// maxBulkProxyIDs caps the number of ids accepted in a single bulk request.
+const maxBulkProxyIDs = 1000
+
+// bulkProxyRequest is the request body shared by the bulk endpoints.
+type bulkProxyRequest struct {
+	IDs []int `json:"ids"`
+}
+
+// decodeBulkProxyIDs decodes and validates the bulk request body, writing the
+// appropriate error response and returning ok=false when invalid.
+func (h *ProxyHandler) decodeBulkProxyIDs(w http.ResponseWriter, r *http.Request) (ids []int, ok bool) {
+	var req bulkProxyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body format", nil)
+		return nil, false
+	}
+	if len(req.IDs) == 0 {
+		utils.BadRequest(w, "ids must not be empty", nil)
+		return nil, false
+	}
+	if len(req.IDs) > maxBulkProxyIDs {
+		utils.BadRequest(w, "too many ids: maximum is 1000 per request", nil)
+		return nil, false
+	}
+	return req.IDs, true
+}
+
+// BulkEnableProxies handles POST /api/proxies/bulk/enable
+func (h *ProxyHandler) BulkEnableProxies(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkSetActive(ids, true)
+
+	if h.logger != nil {
+		h.logger.Info("bulk enable proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk enable completed")
+}
+
+// BulkDisableProxies handles POST /api/proxies/bulk/disable
+func (h *ProxyHandler) BulkDisableProxies(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkSetActive(ids, false)
+
+	if h.logger != nil {
+		h.logger.Info("bulk disable proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk disable completed")
+}
+
+// BulkDeleteProxies handles POST /api/proxies/bulk/delete
+func (h *ProxyHandler) BulkDeleteProxies(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkDelete(ids)
+
+	if h.logger != nil {
+		h.logger.Info("bulk delete proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk delete completed")
+}
+
+// parseExportIDs parses the optional comma-separated `ids` query parameter
+// (e.g. ?ids=1,2,3) into a slice of ints, writing a 400 response and returning
+// ok=false on a malformed value. An empty/absent parameter yields a nil slice
+// with ok=true (meaning "export all matching filters").
+func parseExportIDs(w http.ResponseWriter, r *http.Request) (ids []int, ok bool) {
+	idsParam := strings.TrimSpace(r.URL.Query().Get("ids"))
+	if idsParam == "" {
+		return nil, true
+	}
+	for _, part := range strings.Split(idsParam, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.Atoi(part)
+		if err != nil {
+			utils.BadRequest(w, "Invalid ids parameter: must be a comma-separated list of integers", nil)
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
+}
+
+// ExportProxies handles GET /api/proxies/export. When `ids` is provided it
+// exports those proxies (skipping missing ones); otherwise it exports all
+// proxies matching the same filters as ListProxies (search/type/status/ssl_enabled).
+// The response data is an array of export objects suitable for re-import.
+func (h *ProxyHandler) ExportProxies(w http.ResponseWriter, r *http.Request) {
+	ids, ok := parseExportIDs(w, r)
+	if !ok {
+		return
+	}
+
+	var req service.ListProxiesRequest
+	req.Search = r.URL.Query().Get("search")
+
+	// Parse type filter (supports operator:value format)
+	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
+		fv := parseFilterParam(typeParam)
+		switch fv.Operator {
+		case OpIn, OpEq:
+			if len(fv.Values) > 0 {
+				req.Types = fv.Values
+			} else {
+				req.Types = splitAndTrim(fv.Value)
+			}
+		case OpNotIn, OpNot:
+			if len(fv.Values) > 0 {
+				req.TypesExclude = fv.Values
+			} else {
+				req.TypesExclude = splitAndTrim(fv.Value)
+			}
+		default:
+			utils.BadRequest(w, "Invalid operator for type filter", nil)
+			return
+		}
+	}
+
+	// Parse status filter (supports operator:value format)
+	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
+		fv := parseFilterParam(statusParam)
+		statusVal := fv.Value
+		if statusVal != "active" && statusVal != "inactive" {
+			utils.BadRequest(w, "Invalid status parameter: must be 'active' or 'inactive'", nil)
+			return
+		}
+		switch fv.Operator {
+		case OpEq:
+			req.Status = statusVal
+		case OpNot:
+			req.StatusNot = statusVal
+		default:
+			utils.BadRequest(w, "Invalid operator for status filter", nil)
+			return
+		}
+	}
+
+	// Parse ssl_enabled filter
+	if sslParam := r.URL.Query().Get("ssl_enabled"); sslParam != "" {
+		switch sslParam {
+		case "true":
+			sslEnabled := true
+			req.SSLEnabled = &sslEnabled
+		case "false":
+			sslEnabled := false
+			req.SSLEnabled = &sslEnabled
+		default:
+			utils.BadRequest(w, "Invalid ssl_enabled parameter: must be 'true' or 'false'", nil)
+			return
+		}
+	}
+
+	exports, err := h.service.ExportProxies(ids, req)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to export proxies",
+				zap.Int("requested_ids", len(ids)),
+				zap.Error(err))
+		}
+		utils.InternalError(w, "Failed to export proxies")
+		return
+	}
+
+	utils.Success(w, exports, "")
+}
+
 // GetStats handles GET /api/proxies/stats
 func (h *ProxyHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	stats, err := h.service.GetStats()

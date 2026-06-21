@@ -54,6 +54,9 @@ export interface ProxyConfig {
   created_at: string;
   updated_at: string;
   created_by?: number;
+  // ACL summary (from the list endpoint)
+  acl_group_count?: number;
+  acl_group_names?: string[];
   // Reverse proxy fields
   upstreams?: Upstream[];
   load_balancing?: LoadBalancing;

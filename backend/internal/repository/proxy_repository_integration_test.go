@@ -174,6 +174,40 @@ func TestProxyRepository_GetByID(t *testing.T) {
 	})
 }
 
+func TestProxyRepository_GetByIDs(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	repo := NewProxyRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	p1 := CreateTestProxy(t, tdb.DB, user.ID, "Batch 1", "batch1.example.com", models.ProxyTypeReverseProxy)
+	p2 := CreateTestProxy(t, tdb.DB, user.ID, "Batch 2", "batch2.example.com", models.ProxyTypeReverseProxy)
+	p3 := CreateTestProxy(t, tdb.DB, user.ID, "Batch 3", "batch3.example.com", models.ProxyTypeReverseProxy)
+
+	t.Run("ReturnsRequestedInOneQuery", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{p1.ID, p3.ID})
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		ids := map[int]bool{got[0].ID: true, got[1].ID: true}
+		assert.True(t, ids[p1.ID])
+		assert.True(t, ids[p3.ID])
+		assert.False(t, ids[p2.ID], "p2 was not requested")
+	})
+
+	t.Run("SkipsMissing", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{p1.ID, 999999, p2.ID})
+		require.NoError(t, err)
+		assert.Len(t, got, 2, "missing id is simply absent, not an error")
+	})
+
+	t.Run("EmptyInput", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{})
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+}
+
 func TestProxyRepository_GetByHostname(t *testing.T) {
 	tdb := SetupTestDB(t)
 	defer tdb.Cleanup(t)
@@ -803,4 +837,47 @@ func TestProxyRepository_List_TargetFilter(t *testing.T) {
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, int64(1))
 	})
+}
+
+func TestProxyRepository_List_PopulatesACLSummary(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+	// Start from a clean ACL/proxy state so the per-proxy summary counts are
+	// deterministic regardless of test ordering.
+	CleanACLTables(t, tdb.DB)
+	defer CleanACLTables(t, tdb.DB)
+
+	repo := NewProxyRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	// Proxy A is protected by both ACL groups; proxy B has no assignments.
+	proxyA := CreateTestProxy(t, tdb.DB, user.ID, "Protected", "protected.example.com", models.ProxyTypeReverseProxy)
+	proxyB := CreateTestProxy(t, tdb.DB, user.ID, "Unprotected", "unprotected.example.com", models.ProxyTypeReverseProxy)
+
+	vpnGroup := CreateTestACLGroup(t, tdb.DB, user.ID, "vpn")
+	staffGroup := CreateTestACLGroup(t, tdb.DB, user.ID, "staff")
+
+	// Priorities drive the ordering of ACLGroupNames (priority ASC).
+	CreateTestProxyACLAssignment(t, tdb.DB, proxyA.ID, vpnGroup.ID, "/*", 0)
+	CreateTestProxyACLAssignment(t, tdb.DB, proxyA.ID, staffGroup.ID, "/*", 1)
+
+	proxies, total, err := repo.List(ProxyListParams{Page: 1, Limit: 10})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, total, int64(2))
+	require.Len(t, proxies, 2)
+
+	byID := make(map[int]models.Proxy, len(proxies))
+	for _, p := range proxies {
+		byID[p.ID] = p
+	}
+
+	gotA, ok := byID[proxyA.ID]
+	require.True(t, ok, "proxy A should be in the list")
+	assert.Equal(t, 2, gotA.ACLGroupCount)
+	assert.Equal(t, []string{"vpn", "staff"}, gotA.ACLGroupNames)
+
+	gotB, ok := byID[proxyB.ID]
+	require.True(t, ok, "proxy B should be in the list")
+	assert.Equal(t, 0, gotB.ACLGroupCount)
+	assert.Equal(t, []string{}, gotB.ACLGroupNames)
 }

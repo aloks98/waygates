@@ -204,9 +204,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 		// Proxy routes with permission checks
 		r.Route("/api/proxies", func(r chi.Router) {
-			// Read operations - require proxies:read
+			// Read operations - require proxies:read.
+			// Literal paths (/stats, /export) must be registered before /{id} so
+			// chi matches them instead of capturing them as an id.
 			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/", proxyHandler.ListProxies)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/stats", proxyHandler.GetStats)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/export", proxyHandler.ExportProxies)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:read", mwConfig)).Get("/{id}", proxyHandler.GetProxy)
 
 			// Create operations - require proxies:create
@@ -216,9 +219,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Put("/{id}", proxyHandler.UpdateProxy)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/{id}/enable", proxyHandler.EnableProxy)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/{id}/disable", proxyHandler.DisableProxy)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/bulk/enable", proxyHandler.BulkEnableProxies)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:update", mwConfig)).Post("/bulk/disable", proxyHandler.BulkDisableProxies)
 
 			// Delete operations - require proxies:delete
 			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Delete("/{id}", proxyHandler.DeleteProxy)
+			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Post("/bulk/delete", proxyHandler.BulkDeleteProxies)
 		})
 
 		// Settings routes - require settings:read or settings:write

@@ -342,10 +342,7 @@ export function ReverseProxyForm({
   const form = useForm<ReverseProxyFormValues>({
     resolver: zodResolver(reverseProxySchema),
     mode: 'onTouched',
-    defaultValues:
-      mode === 'edit' && initialData
-        ? mapProxyToReverseDefaults(initialData)
-        : REVERSE_PROXY_DEFAULTS,
+    defaultValues: initialData ? mapProxyToReverseDefaults(initialData) : REVERSE_PROXY_DEFAULTS,
   });
 
   // ACL arrives async on edit
@@ -353,12 +350,11 @@ export function ReverseProxyForm({
     if (initialACLAssignments) setAclAssignments(initialACLAssignments);
   }, [initialACLAssignments]);
 
-  // Proxy data arrives async on edit — reset form when it lands.
-  // form is a stable ref and mode is constant per mount, so this still only
-  // re-runs when initialData changes.
+  // Proxy data arrives async (edit or duplicate) — reset form when it lands.
+  // form is a stable ref so this only re-runs when initialData changes.
   useEffect(() => {
-    if (mode === 'edit' && initialData) form.reset(mapProxyToReverseDefaults(initialData));
-  }, [initialData, mode, form]);
+    if (initialData) form.reset(mapProxyToReverseDefaults(initialData));
+  }, [initialData, form]);
 
   const submit = (values: ReverseProxyFormValues) => {
     onSubmit(mapReverseValuesToRequest(values), aclAssignments.length ? aclAssignments : undefined);

@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  Checkbox,
   DataGrid,
   DataGridColumnHeader,
   DataGridContainer,
@@ -14,7 +15,9 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type OnChangeFn,
   type PaginationState,
+  type RowSelectionState,
   useReactTable,
 } from '@tanstack/react-table';
 import { ExternalLink, Globe, Network, Plus } from 'lucide-react';
@@ -23,6 +26,7 @@ import { useMemo } from 'react';
 import type { ProxyConfig } from '@/types/proxy';
 
 import {
+  ProxyAclCell,
   ProxyActionsCell,
   ProxySslCell,
   ProxyStatusBadge,
@@ -37,6 +41,7 @@ interface ProxyDataGridProps {
   canDeleteProxies: boolean;
   onEdit: (proxy: ProxyConfig) => void;
   onDelete: (proxy: ProxyConfig) => void;
+  onDuplicate?: (proxy: ProxyConfig) => void;
   onToggleStatus: (id: number, enable: boolean) => void;
   isToggling: boolean;
   // Pagination props
@@ -44,6 +49,9 @@ interface ProxyDataGridProps {
   pagination: PaginationState;
   onPaginationChange: (pagination: PaginationState) => void;
   total: number;
+  // Selection props
+  rowSelection: RowSelectionState;
+  onRowSelectionChange: OnChangeFn<RowSelectionState>;
 }
 
 export function ProxyDataGrid({
@@ -53,15 +61,38 @@ export function ProxyDataGrid({
   canDeleteProxies,
   onEdit,
   onDelete,
+  onDuplicate,
   onToggleStatus,
   isToggling,
   pageCount,
   pagination,
   onPaginationChange,
   total,
+  rowSelection,
+  onRowSelectionChange,
 }: ProxyDataGridProps) {
   const columns = useMemo<ColumnDef<ProxyConfig>[]>(
     () => [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        meta: { skeleton: <Skeleton className="size-4" /> },
+      },
       {
         accessorKey: 'name',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
@@ -152,7 +183,21 @@ export function ProxyDataGrid({
           skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
-      ...(canUpdateProxies || canDeleteProxies
+      {
+        id: 'acl',
+        accessorKey: 'acl_group_count',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Access" />,
+        cell: ({ row }) => (
+          <ProxyAclCell count={row.original.acl_group_count} names={row.original.acl_group_names} />
+        ),
+        enableSorting: false,
+        minSize: 100,
+        maxSize: 160,
+        meta: {
+          skeleton: <Skeleton className="h-5 w-20" />,
+        },
+      },
+      ...(canUpdateProxies || canDeleteProxies || onDuplicate
         ? [
             {
               id: 'actions',
@@ -164,14 +209,16 @@ export function ProxyDataGrid({
                   canDelete={canDeleteProxies}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onDuplicate={onDuplicate}
                 />
               ),
               enableSorting: false,
               minSize: 80,
-              maxSize: 100,
+              maxSize: 120,
               meta: {
                 skeleton: (
                   <div className="flex justify-end gap-2">
+                    <Skeleton className="size-8" />
                     <Skeleton className="size-8" />
                     <Skeleton className="size-8" />
                   </div>
@@ -181,7 +228,7 @@ export function ProxyDataGrid({
           ]
         : []),
     ],
-    [canUpdateProxies, canDeleteProxies, onEdit, onDelete, onToggleStatus, isToggling],
+    [canUpdateProxies, canDeleteProxies, onDuplicate, onEdit, onDelete, onToggleStatus, isToggling],
   );
 
   const table = useReactTable({
@@ -190,7 +237,11 @@ export function ProxyDataGrid({
     pageCount,
     state: {
       pagination,
+      rowSelection,
     },
+    enableRowSelection: true,
+    getRowId: (row) => String(row.id),
+    onRowSelectionChange,
     onPaginationChange: (updater) => {
       const newPagination = typeof updater === 'function' ? updater(pagination) : updater;
       onPaginationChange(newPagination);

@@ -3,6 +3,10 @@ package repository
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/aloks98/waygates/backend/internal/models"
 )
 
 // TestListProxies_SQLInjectionPrevented tests that SQL injection attempts are blocked
@@ -141,4 +145,21 @@ func TestAllowedSortOrders(t *testing.T) {
 	if allowedSortOrders["desc"] != "DESC" {
 		t.Errorf("Expected allowedSortOrders['desc'] to be 'DESC', got '%s'", allowedSortOrders["desc"])
 	}
+}
+
+func TestApplyACLSummaries(t *testing.T) {
+	proxies := []models.Proxy{{ID: 1}, {ID: 2}, {ID: 3}}
+	rows := []aclSummaryRow{
+		{ProxyID: 1, Name: "vpn"},
+		{ProxyID: 1, Name: "staff"},
+		{ProxyID: 3, Name: "vpn"},
+	}
+	applyACLSummaries(proxies, rows)
+
+	assert.Equal(t, 2, proxies[0].ACLGroupCount)
+	assert.Equal(t, []string{"vpn", "staff"}, proxies[0].ACLGroupNames)
+	assert.Equal(t, 0, proxies[1].ACLGroupCount)
+	assert.Equal(t, []string{}, proxies[1].ACLGroupNames) // never nil
+	assert.Equal(t, 1, proxies[2].ACLGroupCount)
+	assert.Equal(t, []string{"vpn"}, proxies[2].ACLGroupNames)
 }

@@ -16,6 +16,9 @@ type ProxyServiceInterface interface {
 	DeleteProxy(id int) error
 	EnableProxy(id int) error
 	DisableProxy(id int) error
+	BulkSetActive(ids []int, enable bool) BulkResult
+	BulkDelete(ids []int) BulkResult
+	ExportProxies(ids []int, filters ListProxiesRequest) ([]ProxyExport, error)
 	GetStats() (*repository.ProxyStats, error)
 }
 
