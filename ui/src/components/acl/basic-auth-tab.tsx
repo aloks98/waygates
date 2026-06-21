@@ -19,11 +19,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Skeleton,
   Table,
@@ -36,10 +38,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { Eye, EyeOff, Key, Plus, Trash2, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useAddBasicAuthUser, useBasicAuthUsers, useDeleteBasicAuthUser } from '@/hooks';
@@ -72,25 +75,20 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
   const { addUser, isAdding } = useAddBasicAuthUser();
   const [showPassword, setShowPassword] = useState(false);
 
-  const form = useForm({
+  const form = useForm<BasicAuthUserFormValues>({
+    resolver: zodResolver(basicAuthUserSchema),
     defaultValues: {
       username: '',
       password: '',
-    } as BasicAuthUserFormValues,
-    validators: {
-      onSubmit: basicAuthUserSchema,
-    },
-    onSubmit: async ({ value }) => {
-      await addUser({
-        groupId,
-        data: {
-          username: value.username,
-          password: value.password,
-        },
-      });
-      onOpenChange(false);
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({ username: '', password: '' });
+      setShowPassword(false);
+    }
+  }, [open, form]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -98,6 +96,17 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
       setShowPassword(false);
     }
     onOpenChange(isOpen);
+  };
+
+  const onSubmit = async (value: BasicAuthUserFormValues) => {
+    await addUser({
+      groupId,
+      data: {
+        username: value.username,
+        password: value.password,
+      },
+    });
+    onOpenChange(false);
   };
 
   return (
@@ -109,91 +118,77 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
             Add Basic Auth User
           </DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-        >
-          <div className="grid gap-4 py-2">
-            <FieldGroup>
-              <form.Field name="username">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Username</FieldLabel>
-                      <Input
-                        id={field.name}
-                        placeholder="e.g., john_doe"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                        autoComplete="off"
-                      />
-                      <FieldDescription>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Username</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., john_doe" autoComplete="off" {...field} />
+                      </FormControl>
+                      <FormDescription>
                         Letters, numbers, underscores, and hyphens only
-                      </FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="password">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                      <div className="relative">
-                        <Input
-                          id={field.name}
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder="Enter a secure password"
-                          value={field.state.value}
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          onBlur={field.handleBlur}
-                          aria-invalid={hasError}
-                          autoComplete="new-password"
-                          className="pr-10"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 size-8 p-0"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="size-4" />
-                          ) : (
-                            <Eye className="size-4" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? 'Hide password' : 'Show password'}
-                          </span>
-                        </Button>
-                      </div>
-                      <FieldDescription>Minimum 8 characters</FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-            </FieldGroup>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isAdding}>
-              {isAdding ? 'Adding...' : 'Add User'}
-            </Button>
-          </DialogFooter>
-        </form>
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Enter a secure password"
+                            autoComplete="new-password"
+                            className="pr-10"
+                            {...field}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 size-8 p-0"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? (
+                              <EyeOff className="size-4" />
+                            ) : (
+                              <Eye className="size-4" />
+                            )}
+                            <span className="sr-only">
+                              {showPassword ? 'Hide password' : 'Show password'}
+                            </span>
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormDescription>Minimum 8 characters</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isAdding}>
+                {isAdding ? 'Adding...' : 'Add User'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

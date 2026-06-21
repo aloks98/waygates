@@ -20,11 +20,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Select,
   SelectContent,
@@ -38,17 +40,26 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { ExternalLink, Globe, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { TagsInput } from '@/components/ui/tags-input';
+
+const FORWARD_AUTH_HEADER_SUGGESTIONS = [
+  'Remote-User',
+  'Remote-Name',
+  'Remote-Email',
+  'Remote-Groups',
+  'X-Forwarded-User',
+];
 import {
   useAddExternalProvider,
   useDeleteExternalProvider,
@@ -116,73 +127,67 @@ function ProviderFormModal({
   const isLoading = isAdding || isUpdating;
   const isEditMode = mode === 'edit' && initialData;
 
-  const [headersInput, setHeadersInput] = useState('');
-
-  const form = useForm({
+  const form = useForm<ExternalProviderFormValues>({
+    resolver: zodResolver(externalProviderSchema),
     defaultValues: {
       provider_type: 'authelia' as ProviderType,
       name: '',
       verify_url: '',
       auth_redirect_url: '',
-      headers_to_copy: [] as string[],
-    } as ExternalProviderFormValues,
-    validators: {
-      onSubmit: externalProviderSchema,
-    },
-    onSubmit: async ({ value }) => {
-      const data = {
-        provider_type: value.provider_type,
-        name: value.name,
-        verify_url: value.verify_url,
-        auth_redirect_url: value.auth_redirect_url || undefined,
-        headers_to_copy: value.headers_to_copy?.length ? value.headers_to_copy : undefined,
-      };
-
-      if (isEditMode) {
-        await updateProvider({
-          id: initialData.id,
-          groupId,
-          data,
-        });
-      } else {
-        await addProvider({
-          groupId,
-          data,
-        });
-      }
-      onOpenChange(false);
+      headers_to_copy: [],
     },
   });
 
   useEffect(() => {
+    if (!open) return;
     if (isEditMode) {
-      form.setFieldValue('provider_type', initialData.provider_type);
-      form.setFieldValue('name', initialData.name);
-      form.setFieldValue('verify_url', initialData.verify_url);
-      form.setFieldValue('auth_redirect_url', initialData.auth_redirect_url || '');
-      form.setFieldValue('headers_to_copy', initialData.headers_to_copy || []);
-      setHeadersInput((initialData.headers_to_copy || []).join(', '));
+      form.reset({
+        provider_type: initialData.provider_type,
+        name: initialData.name,
+        verify_url: initialData.verify_url,
+        auth_redirect_url: initialData.auth_redirect_url || '',
+        headers_to_copy: initialData.headers_to_copy || [],
+      });
     } else {
-      form.reset();
-      setHeadersInput('');
+      form.reset({
+        provider_type: 'authelia',
+        name: '',
+        verify_url: '',
+        auth_redirect_url: '',
+        headers_to_copy: [],
+      });
     }
-  }, [initialData, isEditMode, form.setFieldValue, form.reset]);
-
-  const handleHeadersChange = (value: string) => {
-    setHeadersInput(value);
-    const headers = value
-      .split(',')
-      .map((h) => h.trim())
-      .filter(Boolean);
-    form.setFieldValue('headers_to_copy', headers);
-  };
+  }, [open, isEditMode, initialData, form]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       form.reset();
-      setHeadersInput('');
     }
     onOpenChange(isOpen);
+  };
+
+  const onSubmit = async (value: ExternalProviderFormValues) => {
+    const data = {
+      provider_type: value.provider_type,
+      name: value.name,
+      verify_url: value.verify_url,
+      auth_redirect_url: value.auth_redirect_url || undefined,
+      headers_to_copy: value.headers_to_copy?.length ? value.headers_to_copy : undefined,
+    };
+
+    if (isEditMode) {
+      await updateProvider({
+        id: initialData.id,
+        groupId,
+        data,
+      });
+    } else {
+      await addProvider({
+        groupId,
+        data,
+      });
+    }
+    onOpenChange(false);
   };
 
   return (
@@ -194,142 +199,120 @@ function ProviderFormModal({
             {isEditMode ? 'Edit Forward Auth Provider' : 'Add Forward Auth Provider'}
           </DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-        >
-          <div className="grid gap-4 py-2">
-            <FieldGroup>
-              <form.Field name="provider_type">
-                {(field) => (
-                  <Field>
-                    <FieldLabel>Provider Type</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(val) => field.handleChange(val as ProviderType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="authelia">Authelia</SelectItem>
-                        <SelectItem value="authentik">Authentik</SelectItem>
-                        <SelectItem value="custom">Custom Provider</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>Select the type of authentication provider</FieldDescription>
-                  </Field>
-                )}
-              </form.Field>
-
-              <form.Field name="name">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                      <Input
-                        id={field.name}
-                        placeholder="e.g., Corporate SSO"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-
-              <form.Field name="verify_url">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Verify URL</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="url"
-                        placeholder="https://auth.example.com/api/verify"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      <FieldDescription>
-                        URL to verify authentication tokens/sessions
-                      </FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-
-              <form.Field name="auth_redirect_url">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Auth Redirect URL (optional)</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="url"
-                        placeholder="https://auth.example.com/login"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      <FieldDescription>
-                        URL to redirect unauthenticated users for login
-                      </FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-
-              <Field>
-                <FieldLabel>Headers to Copy (optional)</FieldLabel>
-                <Textarea
-                  placeholder="e.g., Remote-User, Remote-Groups, Remote-Email"
-                  value={headersInput}
-                  onChange={(e) => handleHeadersChange(e.target.value)}
-                  rows={2}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="provider_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Provider Type</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="authelia">Authelia</SelectItem>
+                          <SelectItem value="authentik">Authentik</SelectItem>
+                          <SelectItem value="custom">Custom Provider</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>Select the type of authentication provider</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <FieldDescription>
-                  Comma-separated list of headers to copy from auth response
-                </FieldDescription>
-                <form.Subscribe selector={(state) => state.values.headers_to_copy}>
-                  {(headers) =>
-                    headers &&
-                    headers.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {headers.map((header) => (
-                          <Badge key={header} variant="outline" className="font-mono text-xs">
-                            {header}
-                          </Badge>
-                        ))}
-                      </div>
-                    )
-                  }
-                </form.Subscribe>
-              </Field>
-            </FieldGroup>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Add Provider'}
-            </Button>
-          </DialogFooter>
-        </form>
+
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Corporate SSO" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="verify_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Verify URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://auth.example.com/api/verify"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        URL to verify authentication tokens/sessions
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="auth_redirect_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Auth Redirect URL (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="url" placeholder="https://auth.example.com/login" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        URL to redirect unauthenticated users for login
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="headers_to_copy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Headers to Copy (optional)</FormLabel>
+                      <FormControl>
+                        <TagsInput
+                          value={field.value ?? []}
+                          onValueChange={field.onChange}
+                          placeholder="e.g., Remote-User, Remote-Groups, Remote-Email"
+                          delimiters={['Enter', ',']}
+                          suggestions={FORWARD_AUTH_HEADER_SUGGESTIONS}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Pick common headers or type your own to copy from the auth response
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Add Provider'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

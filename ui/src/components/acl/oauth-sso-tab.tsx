@@ -14,17 +14,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Label,
   Skeleton,
   Switch,
 } from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, Globe, KeyRound, Mail, Save, Settings, Shield } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { TagsInput } from '@/components/ui/tags-input';
@@ -66,12 +70,15 @@ const oauthSSOSchema = z.object({
 
 type OAuthSSOFormValues = z.infer<typeof oauthSSOSchema>;
 
-// Per-provider restriction state
-interface ProviderRestrictionState {
-  allowed_emails: string[];
-  allowed_domains: string[];
-  enabled: boolean;
-}
+// Schema for the ProviderRestrictionModal — mirrors the prior useState validation exactly
+// (no per-tag validation at the form level; TagsInput enforces EMAIL_REGEX / DOMAIN_REGEX inline)
+const providerRestrictionSchema = z.object({
+  enabled: z.boolean(),
+  allowed_emails: z.array(z.string()),
+  allowed_domains: z.array(z.string()),
+});
+
+type ProviderRestrictionFormValues = z.infer<typeof providerRestrictionSchema>;
 
 // Modal component for provider restriction settings
 interface ProviderRestrictionModalProps {
@@ -96,48 +103,39 @@ function ProviderRestrictionModal({
   onSave,
   isSaving,
 }: ProviderRestrictionModalProps) {
-  const [state, setState] = useState<ProviderRestrictionState>({
-    allowed_emails: [],
-    allowed_domains: [],
-    enabled: true,
+  const form = useForm<ProviderRestrictionFormValues>({
+    resolver: zodResolver(providerRestrictionSchema),
+    defaultValues: {
+      enabled: true,
+      allowed_emails: [],
+      allowed_domains: [],
+    },
   });
 
-  // Initialize state from restriction when modal opens
+  // Seed from the provider's existing restriction when modal opens
   useEffect(() => {
     if (open) {
       if (restriction) {
-        setState({
+        form.reset({
+          enabled: restriction.enabled,
           allowed_emails: restriction.allowed_emails || [],
           allowed_domains: restriction.allowed_domains || [],
-          enabled: restriction.enabled,
         });
       } else {
-        setState({
+        form.reset({
+          enabled: true,
           allowed_emails: [],
           allowed_domains: [],
-          enabled: true,
         });
       }
     }
-  }, [open, restriction]);
+  }, [open, restriction, form]);
 
-  const handleEmailsChange = (value: string[]) => {
-    setState((prev) => ({ ...prev, allowed_emails: value }));
-  };
-
-  const handleDomainsChange = (value: string[]) => {
-    setState((prev) => ({ ...prev, allowed_domains: value }));
-  };
-
-  const handleEnabledChange = (enabled: boolean) => {
-    setState((prev) => ({ ...prev, enabled }));
-  };
-
-  const handleSave = async () => {
+  const onSubmit = async (value: ProviderRestrictionFormValues) => {
     await onSave({
-      allowed_emails: state.allowed_emails.length > 0 ? state.allowed_emails : undefined,
-      allowed_domains: state.allowed_domains.length > 0 ? state.allowed_domains : undefined,
-      enabled: state.enabled,
+      allowed_emails: value.allowed_emails.length > 0 ? value.allowed_emails : undefined,
+      allowed_domains: value.allowed_domains.length > 0 ? value.allowed_domains : undefined,
+      enabled: value.enabled,
     });
     onOpenChange(false);
   };
@@ -151,61 +149,93 @@ function ProviderRestrictionModal({
             {providerName} Restrictions
           </DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-2 space-y-6">
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldLabel>Enable Restrictions</FieldLabel>
-              <FieldDescription>
-                When enabled, only users matching the restrictions below can authenticate via{' '}
-                {providerName}
-              </FieldDescription>
-            </FieldContent>
-            <Switch checked={state.enabled} onCheckedChange={handleEnabledChange} />
-          </Field>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2 space-y-6">
+              <FormField
+                control={form.control}
+                name="enabled"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between">
+                    <div className="space-y-0.5">
+                      <FormLabel>Enable Restrictions</FormLabel>
+                      <FormDescription>
+                        When enabled, only users matching the restrictions below can authenticate
+                        via {providerName}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
-          <Field>
-            <FieldLabel className="flex items-center gap-2">
-              <Mail className="size-4" />
-              Allowed Emails
-            </FieldLabel>
-            <TagsInput
-              value={state.allowed_emails}
-              onValueChange={handleEmailsChange}
-              placeholder="Add email..."
-              delimiters={['Enter', ',', ' ']}
-              validation={emailTagsValidation}
-            />
-            <FieldDescription>
-              Specific email addresses allowed via {providerName}. Press Enter or comma to add.
-            </FieldDescription>
-          </Field>
+              <FormField
+                control={form.control}
+                name="allowed_emails"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Mail className="size-4" />
+                      Allowed Emails
+                    </FormLabel>
+                    <FormControl>
+                      <TagsInput
+                        value={field.value ?? []}
+                        onValueChange={field.onChange}
+                        placeholder="Add email..."
+                        delimiters={['Enter', ',', ' ']}
+                        validation={emailTagsValidation}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Specific email addresses allowed via {providerName}. Press Enter or comma to
+                      add.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <Field>
-            <FieldLabel className="flex items-center gap-2">
-              <Globe className="size-4" />
-              Allowed Domains
-            </FieldLabel>
-            <TagsInput
-              value={state.allowed_domains}
-              onValueChange={handleDomainsChange}
-              placeholder="Add domain (e.g., @company.com)..."
-              delimiters={['Enter', ',', ' ']}
-              validation={domainTagsValidation}
-            />
-            <FieldDescription>
-              Email domains allowed. Users with emails ending in these domains can authenticate.
-            </FieldDescription>
-          </Field>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={isSaving}>
-            <Save className="size-4" />
-            {isSaving ? 'Saving...' : 'Save Restrictions'}
-          </Button>
-        </DialogFooter>
+              <FormField
+                control={form.control}
+                name="allowed_domains"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Globe className="size-4" />
+                      Allowed Domains
+                    </FormLabel>
+                    <FormControl>
+                      <TagsInput
+                        value={field.value ?? []}
+                        onValueChange={field.onChange}
+                        placeholder="Add domain (e.g., @company.com)..."
+                        delimiters={['Enter', ',', ' ']}
+                        validation={domainTagsValidation}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Email domains allowed. Users with emails ending in these domains can
+                      authenticate.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                <Save className="size-4" />
+                {isSaving ? 'Saving...' : 'Save Restrictions'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -225,48 +255,35 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
     name: string;
   } | null>(null);
 
-  const form = useForm({
+  const form = useForm<OAuthSSOFormValues>({
+    resolver: zodResolver(oauthSSOSchema),
     defaultValues: {
       allowed_providers: [] as string[],
-    } as OAuthSSOFormValues,
-    validators: {
-      onSubmit: oauthSSOSchema,
-    },
-    onSubmit: async ({ value }) => {
-      await configureAuth({
-        groupId,
-        data: {
-          // preserve the account fields owned by the other tab
-          enabled: config?.enabled ?? false,
-          allowed_users: config?.allowed_users,
-          allowed_roles: config?.allowed_roles,
-          allowed_email_patterns: config?.allowed_email_patterns,
-          require_2fa: config?.require_2fa ?? false,
-          session_ttl: config?.session_ttl ?? 3600,
-          // this tab's slice:
-          allowed_providers: value.allowed_providers?.length ? value.allowed_providers : undefined,
-        },
-      });
     },
   });
 
+  // Seed this tab's slice from config on load (load-merge-save: form holds only the OAuth slice)
   useEffect(() => {
     if (config) {
-      form.setFieldValue('allowed_providers', config.allowed_providers || []);
+      form.reset({ allowed_providers: config.allowed_providers || [] });
     }
-  }, [config, form.setFieldValue]);
+  }, [config, form]);
 
-  // Toggle OAuth provider selection
-  const handleProviderToggle = (providerId: string, checked: boolean) => {
-    const currentProviders = form.getFieldValue('allowed_providers') || [];
-    if (checked) {
-      form.setFieldValue('allowed_providers', [...currentProviders, providerId]);
-    } else {
-      form.setFieldValue(
-        'allowed_providers',
-        currentProviders.filter((p: string) => p !== providerId),
-      );
-    }
+  const onSubmit = async (value: OAuthSSOFormValues) => {
+    await configureAuth({
+      groupId,
+      data: {
+        // preserve the account fields owned by the other tab
+        enabled: config?.enabled ?? false,
+        allowed_users: config?.allowed_users,
+        allowed_roles: config?.allowed_roles,
+        allowed_email_patterns: config?.allowed_email_patterns,
+        require_2fa: config?.require_2fa ?? false,
+        session_ttl: config?.session_ttl ?? 3600,
+        // this tab's slice:
+        allowed_providers: value.allowed_providers?.length ? value.allowed_providers : undefined,
+      },
+    });
   };
 
   // Open restriction modal for a provider
@@ -339,146 +356,159 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        form.handleSubmit();
-      }}
-      className="space-y-6"
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <KeyRound className="size-5" />
-            OAuth Providers
-          </CardTitle>
-          <CardDescription>
-            Allow users to authenticate using external OAuth providers. Users don't need a Waygates
-            account - they can sign in directly with their Google, GitHub, or other OAuth accounts.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isLoadingProviders ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Skeleton className="h-20 w-full rounded-lg" />
-              <Skeleton className="h-20 w-full rounded-lg" />
-            </div>
-          ) : hasNoAvailableProviders ? (
-            <Alert>
-              <AlertCircle className="size-4" />
-              <AlertDescription>
-                No OAuth providers are configured on the server. To enable OAuth authentication,
-                configure the following environment variables on the backend:
-                <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                  <li>
-                    <strong>Google:</strong> GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-                  </li>
-                  <li>
-                    <strong>GitHub:</strong> GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
-                  </li>
-                  <li>
-                    <strong>Microsoft:</strong> MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
-                  </li>
-                  <li>
-                    <strong>GitLab:</strong> GITLAB_CLIENT_ID, GITLAB_CLIENT_SECRET
-                  </li>
-                </ul>
-                <p className="mt-2">After configuring, restart the backend server.</p>
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <Field>
-              <FieldLabel className="flex items-center gap-2">
-                <Shield className="size-4" />
-                Enabled OAuth Providers
-              </FieldLabel>
-              <FieldDescription className="mb-3">
-                Select which OAuth providers users can use to authenticate. Click the configure
-                button to set email and domain restrictions for each provider.
-              </FieldDescription>
-              <form.Subscribe selector={(state) => state.values.allowed_providers}>
-                {(selectedProviders) => (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {providerList.map((provider) => {
-                      const isSelected = selectedProviders?.includes(provider.id) || false;
-                      const restrictionSummary = getRestrictionSummary(provider.id);
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="size-5" />
+              OAuth Providers
+            </CardTitle>
+            <CardDescription>
+              Allow users to authenticate using external OAuth providers. Users don't need a
+              Waygates account - they can sign in directly with their Google, GitHub, or other OAuth
+              accounts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {isLoadingProviders ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ) : hasNoAvailableProviders ? (
+              <Alert>
+                <AlertCircle className="size-4" />
+                <AlertDescription>
+                  No OAuth providers are configured on the server. To enable OAuth authentication,
+                  configure the following environment variables on the backend:
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>
+                      <strong>Google:</strong> GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+                    </li>
+                    <li>
+                      <strong>GitHub:</strong> GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
+                    </li>
+                    <li>
+                      <strong>Microsoft:</strong> MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
+                    </li>
+                    <li>
+                      <strong>GitLab:</strong> GITLAB_CLIENT_ID, GITLAB_CLIENT_SECRET
+                    </li>
+                  </ul>
+                  <p className="mt-2">After configuring, restart the backend server.</p>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <FormField
+                control={form.control}
+                name="allowed_providers"
+                render={({ field }) => {
+                  const selectedProviders: string[] = field.value ?? [];
+                  const toggle = (providerId: string, checked: boolean) => {
+                    field.onChange(
+                      checked
+                        ? [...selectedProviders, providerId]
+                        : selectedProviders.filter((p) => p !== providerId),
+                    );
+                  };
+                  return (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Shield className="size-4" />
+                        Enabled OAuth Providers
+                      </FormLabel>
+                      <FormDescription className="mb-3">
+                        Select which OAuth providers users can use to authenticate. Click the
+                        configure button to set email and domain restrictions for each provider.
+                      </FormDescription>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {providerList.map((provider) => {
+                          const isSelected = selectedProviders.includes(provider.id);
+                          const restrictionSummary = getRestrictionSummary(provider.id);
 
-                      return (
-                        <div
-                          key={provider.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg border ${
-                            isSelected ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'
-                          }`}
-                        >
-                          <Checkbox
-                            id={`provider-${provider.id}`}
-                            checked={isSelected}
-                            onCheckedChange={(checked) =>
-                              handleProviderToggle(provider.id, checked as boolean)
-                            }
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Label
-                                htmlFor={`provider-${provider.id}`}
-                                className="text-sm font-medium cursor-pointer"
-                              >
-                                {provider.name}
-                              </Label>
-                              {restrictionSummary && (
-                                <Badge variant="outline" className="text-xs">
-                                  {restrictionSummary}
-                                </Badge>
-                              )}
+                          return (
+                            <div
+                              key={provider.id}
+                              className={`flex items-start gap-3 p-3 rounded-lg border ${
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border bg-muted/30'
+                              }`}
+                            >
+                              <Checkbox
+                                id={`provider-${provider.id}`}
+                                checked={isSelected}
+                                onCheckedChange={(checked) =>
+                                  toggle(provider.id, checked as boolean)
+                                }
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Label
+                                    htmlFor={`provider-${provider.id}`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {provider.name}
+                                  </Label>
+                                  {restrictionSummary && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {restrictionSummary}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {provider.description}
+                                </p>
+                                {isSelected && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mt-2 h-7 px-2 text-xs"
+                                    onClick={() =>
+                                      handleConfigureProvider(provider.id, provider.name)
+                                    }
+                                    disabled={isLoadingRestrictions}
+                                  >
+                                    <Settings className="size-3 mr-1" />
+                                    Configure Restrictions
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {provider.description}
-                            </p>
-                            {isSelected && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="mt-2 h-7 px-2 text-xs"
-                                onClick={() => handleConfigureProvider(provider.id, provider.name)}
-                                disabled={isLoadingRestrictions}
-                              >
-                                <Settings className="size-3 mr-1" />
-                                Configure Restrictions
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </form.Subscribe>
-            </Field>
-          )}
-        </CardContent>
-      </Card>
+                          );
+                        })}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
+            )}
+          </CardContent>
+        </Card>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isConfiguring}>
-          <Save className="size-4" />
-          {isConfiguring ? 'Saving...' : 'Save Configuration'}
-        </Button>
-      </div>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isConfiguring}>
+            <Save className="size-4" />
+            {isConfiguring ? 'Saving...' : 'Save Configuration'}
+          </Button>
+        </div>
 
-      {/* Provider Restriction Modal */}
-      {selectedProvider && (
-        <ProviderRestrictionModal
-          open={restrictionModalOpen}
-          onOpenChange={setRestrictionModalOpen}
-          providerId={selectedProvider.id}
-          providerName={selectedProvider.name}
-          restriction={getRestrictionForProvider(selectedProvider.id)}
-          onSave={handleSaveProviderRestriction}
-          isSaving={isSetting}
-        />
-      )}
-    </form>
+        {/* Provider Restriction Modal */}
+        {selectedProvider && (
+          <ProviderRestrictionModal
+            open={restrictionModalOpen}
+            onOpenChange={setRestrictionModalOpen}
+            providerId={selectedProvider.id}
+            providerName={selectedProvider.name}
+            restriction={getRestrictionForProvider(selectedProvider.id)}
+            onSave={handleSaveProviderRestriction}
+            isSaving={isSetting}
+          />
+        )}
+      </form>
+    </Form>
   );
 }

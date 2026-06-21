@@ -7,11 +7,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Select,
   SelectContent,
@@ -20,10 +22,11 @@ import {
   SelectValue,
   Textarea,
 } from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { Info, Shield } from 'lucide-react';
 import { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { getModeLabel } from '@/components/acl/access-labels';
@@ -76,59 +79,65 @@ export function ACLGroupFormModal({
   const isLoading = isCreating || isUpdating;
   const isEditMode = mode === 'edit' && initialData;
 
-  const form = useForm({
+  const form = useForm<ACLGroupFormValues>({
+    resolver: zodResolver(aclGroupSchema),
     defaultValues: {
       name: '',
       description: '',
       combination_mode: 'any' as CombinationMode,
-    } as ACLGroupFormValues,
-    validators: {
-      onSubmit: aclGroupSchema,
-    },
-    onSubmit: async ({ value }) => {
-      if (isEditMode) {
-        await updateGroup({
-          id: initialData.id,
-          data: {
-            name: value.name,
-            description: value.description || undefined,
-            combination_mode: value.combination_mode,
-          },
-        });
-        onOpenChange(false);
-      } else {
-        const response = await createGroup({
-          name: value.name,
-          description: value.description || undefined,
-          combination_mode: value.combination_mode,
-        });
-        onOpenChange(false);
-        // Navigate to the newly created group's detail page to configure rules
-        if (response.data?.id) {
-          navigate({
-            to: '/dashboard/access/$groupId',
-            params: { groupId: String(response.data.id) },
-          });
-        }
-      }
     },
   });
 
   useEffect(() => {
+    if (!open) return;
     if (isEditMode) {
-      form.setFieldValue('name', initialData.name);
-      form.setFieldValue('description', initialData.description || '');
-      form.setFieldValue('combination_mode', initialData.combination_mode);
+      form.reset({
+        name: initialData.name,
+        description: initialData.description ?? '',
+        combination_mode: initialData.combination_mode,
+      });
     } else {
-      form.reset();
+      form.reset({
+        name: '',
+        description: '',
+        combination_mode: 'any',
+      });
     }
-  }, [initialData, isEditMode, form.setFieldValue, form.reset]);
+  }, [open, isEditMode, initialData, form]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       form.reset();
     }
     onOpenChange(isOpen);
+  };
+
+  const onSubmit = async (value: ACLGroupFormValues) => {
+    if (isEditMode) {
+      await updateGroup({
+        id: initialData.id,
+        data: {
+          name: value.name,
+          description: value.description || undefined,
+          combination_mode: value.combination_mode,
+        },
+      });
+      onOpenChange(false);
+    } else {
+      const response = await createGroup({
+        name: value.name,
+        description: value.description || undefined,
+        combination_mode: value.combination_mode,
+      });
+      onOpenChange(false);
+      // Navigate to the newly created group's detail page to configure rules
+      if (response.data?.id) {
+        navigate({
+          to: '/dashboard/access/$groupId',
+          params: { groupId: String(response.data.id) },
+        });
+      }
+    }
   };
 
   return (
@@ -140,112 +149,98 @@ export function ACLGroupFormModal({
             {isEditMode ? 'Edit Access Group' : 'Create Access Group'}
           </DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-        >
-          <div className="grid gap-4 py-2">
-            {!isEditMode && (
-              <Alert className="mb-4">
-                <Info className="size-4" />
-                <AlertDescription>
-                  After creating the group, you will be redirected to configure access rules
-                  including IP restrictions, basic authentication, OAuth / SSO, Waygates Account,
-                  and Forward Auth.
-                </AlertDescription>
-              </Alert>
-            )}
-            <FieldGroup>
-              <form.Field name="name">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Name</FieldLabel>
-                      <Input
-                        id={field.name}
-                        placeholder="e.g., Engineering Team"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2">
+              {!isEditMode && (
+                <Alert className="mb-4">
+                  <Info className="size-4" />
+                  <AlertDescription>
+                    After creating the group, you will be redirected to configure access rules
+                    including IP restrictions, basic authentication, OAuth / SSO, Waygates Account,
+                    and Forward Auth.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Engineering Team" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="description">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-                      <Textarea
-                        id={field.name}
-                        placeholder="A brief description of what this group is for..."
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        rows={3}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="A brief description of what this group is for..."
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="combination_mode">
-                {(field) => (
-                  <Field>
-                    <FieldLabel>How methods combine</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(val) => field.handleChange(val as CombinationMode)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select mode...">
-                          {combinationModeOptions.find((o) => o.value === field.state.value)?.label}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {combinationModeOptions.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            <div className="flex flex-col items-start">
-                              <span className="font-medium">{option.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {option.description}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>
-                      {
-                        combinationModeOptions.find((o) => o.value === field.state.value)
-                          ?.description
-                      }
-                    </FieldDescription>
-                  </Field>
-                )}
-              </form.Field>
-            </FieldGroup>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create & Configure'}
-            </Button>
-          </DialogFooter>
-        </form>
+                <FormField
+                  control={form.control}
+                  name="combination_mode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>How methods combine</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select mode...">
+                              {combinationModeOptions.find((o) => o.value === field.value)?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {combinationModeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <div className="flex flex-col items-start">
+                                <span className="font-medium">{option.label}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {option.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {combinationModeOptions.find((o) => o.value === field.value)?.description}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create & Configure'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

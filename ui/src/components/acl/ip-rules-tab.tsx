@@ -20,11 +20,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Select,
   SelectContent,
@@ -43,10 +45,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@e412/rnui-react';
-import { useForm } from '@tanstack/react-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { getRuleTypeLabel } from '@/components/acl/access-labels';
@@ -101,59 +104,66 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
   const isLoading = isAdding || isUpdating;
   const isEditMode = mode === 'edit' && initialData;
 
-  const form = useForm({
+  const form = useForm<IPRuleFormValues>({
+    resolver: zodResolver(ipRuleSchema),
     defaultValues: {
       cidr: '',
       rule_type: 'allow' as IPRuleType,
       description: '',
       priority: 100,
-    } as IPRuleFormValues,
-    validators: {
-      onSubmit: ipRuleSchema,
-    },
-    onSubmit: async ({ value }) => {
-      if (isEditMode) {
-        await updateRule({
-          id: initialData.id,
-          groupId,
-          data: {
-            cidr: value.cidr,
-            rule_type: value.rule_type,
-            description: value.description || undefined,
-            priority: value.priority,
-          },
-        });
-      } else {
-        await addRule({
-          groupId,
-          data: {
-            cidr: value.cidr,
-            rule_type: value.rule_type,
-            description: value.description || undefined,
-            priority: value.priority,
-          },
-        });
-      }
-      onOpenChange(false);
     },
   });
 
   useEffect(() => {
+    if (!open) return;
     if (isEditMode) {
-      form.setFieldValue('cidr', initialData.cidr);
-      form.setFieldValue('rule_type', initialData.rule_type);
-      form.setFieldValue('description', initialData.description || '');
-      form.setFieldValue('priority', initialData.priority);
+      form.reset({
+        cidr: initialData.cidr,
+        rule_type: initialData.rule_type,
+        description: initialData.description ?? '',
+        priority: initialData.priority,
+      });
     } else {
-      form.reset();
+      form.reset({
+        cidr: '',
+        rule_type: 'allow',
+        description: '',
+        priority: 100,
+      });
     }
-  }, [initialData, isEditMode, form.setFieldValue, form.reset]);
+  }, [open, isEditMode, initialData, form]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       form.reset();
     }
     onOpenChange(isOpen);
+  };
+
+  const onSubmit = async (value: IPRuleFormValues) => {
+    if (isEditMode) {
+      await updateRule({
+        id: initialData.id,
+        groupId,
+        data: {
+          cidr: value.cidr,
+          rule_type: value.rule_type,
+          description: value.description || undefined,
+          priority: value.priority,
+        },
+      });
+    } else {
+      await addRule({
+        groupId,
+        data: {
+          cidr: value.cidr,
+          rule_type: value.rule_type,
+          description: value.description || undefined,
+          priority: value.priority,
+        },
+      });
+    }
+    onOpenChange(false);
   };
 
   return (
@@ -165,121 +175,105 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
             {isEditMode ? 'Edit IP Rule' : 'Add IP Rule'}
           </DialogTitle>
         </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            form.handleSubmit();
-          }}
-        >
-          <div className="grid gap-4 py-2">
-            <FieldGroup>
-              <form.Field name="cidr">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>IP Address / CIDR</FieldLabel>
-                      <Input
-                        id={field.name}
-                        placeholder="e.g., 192.168.1.0/24 or 10.0.0.1"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      <FieldDescription>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-4">
+                <FormField
+                  control={form.control}
+                  name="cidr"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>IP Address / CIDR</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., 192.168.1.0/24 or 10.0.0.1" {...field} />
+                      </FormControl>
+                      <FormDescription>
                         Single IP or CIDR notation (e.g., 192.168.1.0/24)
-                      </FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="rule_type">
-                {(field) => (
-                  <Field>
-                    <FieldLabel>Action</FieldLabel>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(val) => field.handleChange(val as IPRuleType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="allow">Allow — grant access to this IP</SelectItem>
-                        <SelectItem value="deny">Block — deny access from this IP</SelectItem>
-                        <SelectItem value="bypass">
-                          Trusted — skips other auth for matching IPs
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FieldDescription>
-                      "Trusted" IPs skip all other authentication methods and are granted access
-                      directly.
-                    </FieldDescription>
-                  </Field>
-                )}
-              </form.Field>
+                <FormField
+                  control={form.control}
+                  name="rule_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Action</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="allow">Allow — grant access to this IP</SelectItem>
+                          <SelectItem value="deny">Block — deny access from this IP</SelectItem>
+                          <SelectItem value="bypass">
+                            Trusted — skips other auth for matching IPs
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        "Trusted" IPs skip all other authentication methods and are granted access
+                        directly.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="priority">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Priority</FieldLabel>
-                      <Input
-                        id={field.name}
-                        type="number"
-                        min={0}
-                        max={1000}
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(parseInt(e.target.value, 10) || 0)}
-                        onBlur={field.handleBlur}
-                        aria-invalid={hasError}
-                      />
-                      <FieldDescription>
-                        Lower numbers are evaluated first (0-1000)
-                      </FieldDescription>
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={1000}
+                          value={field.value ?? ''}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === '' ? 0 : e.target.valueAsNumber || 0)
+                          }
+                          onBlur={field.onBlur}
+                        />
+                      </FormControl>
+                      <FormDescription>Lower numbers are evaluated first (0-1000)</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <form.Field name="description">
-                {(field) => {
-                  const hasError = field.state.meta.isTouched && field.state.meta.errors.length > 0;
-                  return (
-                    <Field data-invalid={hasError}>
-                      <FieldLabel htmlFor={field.name}>Description (optional)</FieldLabel>
-                      <Textarea
-                        id={field.name}
-                        placeholder="e.g., Office network"
-                        value={field.state.value}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        onBlur={field.handleBlur}
-                        rows={2}
-                        aria-invalid={hasError}
-                      />
-                      {hasError && <FieldError errors={field.state.meta.errors} />}
-                    </Field>
-                  );
-                }}
-              </form.Field>
-            </FieldGroup>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Add Rule'}
-            </Button>
-          </DialogFooter>
-        </form>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="e.g., Office network" rows={2} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Add Rule'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

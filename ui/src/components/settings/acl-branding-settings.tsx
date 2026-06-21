@@ -6,33 +6,47 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Skeleton,
   Spinner,
   Textarea,
 } from '@e412/rnui-react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, Lock, RotateCcw } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 import { useACLBranding, useUpdateACLBranding } from '@/hooks';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
 import type { ACLBranding } from '@/types/acl';
 
-interface BrandingFormValues {
-  logo_url: string;
-  primary_color: string;
-  background_color: string;
-  title: string;
-  subtitle: string;
-  footer_text: string;
-  custom_css: string;
-}
+const brandingSchema = z.object({
+  logo_url: z
+    .string()
+    .optional()
+    .refine((val) => !val || isValidUrl(val), { message: 'Please enter a valid URL' }),
+  primary_color: z
+    .string()
+    .refine((val) => isValidHexColor(val), { message: 'Please enter a valid hex color' }),
+  background_color: z
+    .string()
+    .optional()
+    .refine((val) => !val || isValidHexColor(val), { message: 'Please enter a valid hex color' }),
+  title: z.string().optional(),
+  subtitle: z.string().optional(),
+  footer_text: z.string().optional(),
+  custom_css: z.string().optional(),
+});
+
+type BrandingFormValues = z.infer<typeof brandingSchema>;
 
 const DEFAULT_BRANDING: BrandingFormValues = {
   logo_url: '',
@@ -63,11 +77,13 @@ function ColorInput({
   onChange,
   id,
   label,
+  errorMessage,
 }: {
   value: string;
   onChange: (value: string) => void;
   id: string;
   label: string;
+  errorMessage?: string;
 }) {
   const [inputValue, setInputValue] = useState(value);
   const isValidHex = /^#[0-9A-Fa-f]{6}$/.test(inputValue);
@@ -88,38 +104,40 @@ function ColorInput({
     onChange(newValue);
   };
 
+  const showError = (!isValidHex && inputValue.length > 0) || !!errorMessage;
+
   return (
-    <Field data-invalid={!isValidHex && inputValue.length > 0}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <FieldContent>
-        <div className="flex gap-2">
-          <Input
-            id={id}
-            value={inputValue}
-            onChange={(e) => handleInputChange(e.target.value)}
-            placeholder="#000000"
-            className="flex-1 font-mono"
-            aria-invalid={!isValidHex && inputValue.length > 0}
+    <div data-invalid={showError || undefined} className="space-y-2">
+      <label htmlFor={id} className="text-sm font-medium leading-none">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <Input
+          id={id}
+          value={inputValue}
+          onChange={(e) => handleInputChange(e.target.value)}
+          placeholder="#000000"
+          className="flex-1 font-mono"
+          aria-invalid={showError}
+        />
+        <div className="relative">
+          <input
+            type="color"
+            value={isValidHex ? inputValue : '#000000'}
+            onChange={(e) => handleColorPickerChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label={`Color picker for ${label}`}
           />
-          <div className="relative">
-            <input
-              type="color"
-              value={isValidHex ? inputValue : '#000000'}
-              onChange={(e) => handleColorPickerChange(e.target.value)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              aria-label={`Color picker for ${label}`}
-            />
-            <div
-              className="w-10 h-10 rounded-md border border-input cursor-pointer shadow-sm"
-              style={{ backgroundColor: isValidHex ? inputValue : '#ffffff' }}
-            />
-          </div>
+          <div
+            className="w-10 h-10 rounded-md border border-input cursor-pointer shadow-sm"
+            style={{ backgroundColor: isValidHex ? inputValue : '#ffffff' }}
+          />
         </div>
-      </FieldContent>
+      </div>
       {!isValidHex && inputValue.length > 0 && (
-        <FieldError errors={[{ message: 'Please enter a valid hex color (e.g., #b5841a)' }]} />
+        <p className="text-sm text-destructive">Please enter a valid hex color (e.g., #b5841a)</p>
       )}
-    </Field>
+    </div>
   );
 }
 
@@ -261,69 +279,44 @@ function LoginPreview({
 export function ACLBrandingSettings() {
   const { branding, isLoading } = useACLBranding();
   const { updateBranding, isUpdating } = useUpdateACLBranding();
-  const [localValues, setLocalValues] = useState<BrandingFormValues>(DEFAULT_BRANDING);
-  const [savedValues, setSavedValues] = useState<BrandingFormValues>(DEFAULT_BRANDING);
 
-  // Initialize local values when branding loads
+  const form = useForm<BrandingFormValues>({
+    resolver: zodResolver(brandingSchema),
+    defaultValues: DEFAULT_BRANDING,
+  });
+
+  const { isDirty, isValid } = form.formState;
+
+  // Seed form from loaded branding
   useEffect(() => {
     if (branding) {
-      const formValues = brandingToForm(branding);
-      setLocalValues(formValues);
-      setSavedValues(formValues);
+      form.reset(brandingToForm(branding));
     }
-  }, [branding]);
+  }, [branding, form]);
 
-  // Track if there are unsaved changes
-  const hasChanges = useMemo(() => {
-    return (Object.keys(savedValues) as (keyof BrandingFormValues)[]).some(
-      (key) => savedValues[key] !== localValues[key],
-    );
-  }, [localValues, savedValues]);
+  // Drive the live preview from RHF watch
+  const watched = form.watch();
 
-  // Validate form
-  const errors = useMemo(() => {
-    const errs: Partial<Record<keyof BrandingFormValues, string>> = {};
-    if (localValues.logo_url && !isValidUrl(localValues.logo_url)) {
-      errs.logo_url = 'Please enter a valid URL';
-    }
-    if (!isValidHexColor(localValues.primary_color)) {
-      errs.primary_color = 'Please enter a valid hex color';
-    }
-    if (localValues.background_color && !isValidHexColor(localValues.background_color)) {
-      errs.background_color = 'Please enter a valid hex color';
-    }
-    return errs;
-  }, [localValues]);
-
-  const isValid = Object.keys(errors).length === 0;
-
-  const handleFieldChange = <K extends keyof BrandingFormValues>(
-    field: K,
-    value: BrandingFormValues[K],
-  ) => {
-    setLocalValues((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSave = async () => {
-    if (!isValid) return;
+  const onSubmit = async (values: BrandingFormValues) => {
     await updateBranding({
-      logo_url: localValues.logo_url || undefined,
-      primary_color: localValues.primary_color,
-      background_color: localValues.background_color,
-      title: localValues.title,
-      subtitle: localValues.subtitle || undefined,
-      footer_text: localValues.footer_text || undefined,
-      custom_css: localValues.custom_css || undefined,
+      logo_url: values.logo_url || undefined,
+      primary_color: values.primary_color,
+      background_color: values.background_color,
+      title: values.title,
+      subtitle: values.subtitle || undefined,
+      footer_text: values.footer_text || undefined,
+      custom_css: values.custom_css || undefined,
     });
-    setSavedValues(localValues);
-  };
-
-  const handleReset = () => {
-    setLocalValues(savedValues);
+    // Clear dirty state — mirrors original setSavedValues(localValues)
+    form.reset(values);
   };
 
   const handleResetToDefaults = () => {
-    setLocalValues(DEFAULT_BRANDING);
+    form.reset(DEFAULT_BRANDING, { keepDefaultValues: true });
+  };
+
+  const handleDiscard = () => {
+    form.reset();
   };
 
   if (isLoading) {
@@ -358,139 +351,202 @@ export function ACLBrandingSettings() {
           Customize the login page that users see when accessing protected resources.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="grid gap-8 lg:grid-cols-2">
-          {/* Form Fields */}
-          <FieldGroup className="space-y-5">
-            {/* Logo URL */}
-            <Field data-invalid={!!errors.logo_url}>
-              <FieldLabel htmlFor="logo_url">Logo URL</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="logo_url"
-                  value={localValues.logo_url}
-                  onChange={(e) => handleFieldChange('logo_url', e.target.value)}
-                  placeholder="https://example.com/logo.png"
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <CardContent>
+            <div className="grid gap-8 lg:grid-cols-2">
+              {/* Form Fields */}
+              <div className="space-y-5">
+                {/* Logo URL */}
+                <FormField
+                  control={form.control}
+                  name="logo_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Logo URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="https://example.com/logo.png"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        URL to your logo image. Recommended size: 200x50px or similar aspect ratio.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FieldContent>
-              <FieldDescription>
-                URL to your logo image. Recommended size: 200x50px or similar aspect ratio.
-              </FieldDescription>
-              {errors.logo_url && <FieldError errors={[{ message: errors.logo_url }]} />}
-            </Field>
 
-            {/* Primary Color */}
-            <ColorInput
-              id="primary_color"
-              label="Primary Color"
-              value={localValues.primary_color}
-              onChange={(value) => handleFieldChange('primary_color', value)}
-            />
-
-            {/* Background Color */}
-            <ColorInput
-              id="background_color"
-              label="Background Color"
-              value={localValues.background_color}
-              onChange={(value) => handleFieldChange('background_color', value)}
-            />
-
-            {/* Title */}
-            <Field>
-              <FieldLabel htmlFor="title">Title</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="title"
-                  value={localValues.title}
-                  onChange={(e) => handleFieldChange('title', e.target.value)}
-                  placeholder="Login Required"
+                {/* Primary Color */}
+                <FormField
+                  control={form.control}
+                  name="primary_color"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormControl>
+                        <ColorInput
+                          id="primary_color"
+                          label="Primary Color"
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          errorMessage={fieldState.error?.message}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </FieldContent>
-              <FieldDescription>Main heading displayed on the login page.</FieldDescription>
-            </Field>
 
-            {/* Subtitle */}
-            <Field>
-              <FieldLabel htmlFor="subtitle">Subtitle</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="subtitle"
-                  value={localValues.subtitle}
-                  onChange={(e) => handleFieldChange('subtitle', e.target.value)}
-                  placeholder="Sign in to continue"
+                {/* Background Color */}
+                <FormField
+                  control={form.control}
+                  name="background_color"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormControl>
+                        <ColorInput
+                          id="background_color"
+                          label="Background Color"
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          errorMessage={fieldState.error?.message}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
                 />
-              </FieldContent>
-              <FieldDescription>Secondary text shown below the title.</FieldDescription>
-            </Field>
 
-            {/* Footer Text */}
-            <Field>
-              <FieldLabel htmlFor="footer_text">Footer Text</FieldLabel>
-              <FieldContent>
-                <Input
-                  id="footer_text"
-                  value={localValues.footer_text}
-                  onChange={(e) => handleFieldChange('footer_text', e.target.value)}
-                  placeholder="© 2025 Your Company"
+                {/* Title */}
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Login Required" {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormDescription>Main heading displayed on the login page.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FieldContent>
-              <FieldDescription>Text displayed at the bottom of the login page.</FieldDescription>
-            </Field>
 
-            {/* Custom CSS (Advanced) */}
-            <Field>
-              <FieldLabel htmlFor="custom_css">Custom CSS (Advanced)</FieldLabel>
-              <FieldContent>
-                <Textarea
-                  id="custom_css"
-                  value={localValues.custom_css}
-                  onChange={(e) => handleFieldChange('custom_css', e.target.value)}
-                  placeholder={`.login-container {\n  /* Your custom styles */\n}`}
-                  className="font-mono min-h-[120px]"
-                  rows={5}
+                {/* Subtitle */}
+                <FormField
+                  control={form.control}
+                  name="subtitle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Subtitle</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Sign in to continue"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>Secondary text shown below the title.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FieldContent>
-              <FieldDescription>
-                Add custom CSS to further customize the login page appearance.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
 
-          {/* Live Preview */}
-          <div className="lg:sticky lg:top-6">
-            <LoginPreview
-              logoUrl={localValues.logo_url}
-              primaryColor={localValues.primary_color}
-              backgroundColor={localValues.background_color}
-              title={localValues.title}
-              subtitle={localValues.subtitle}
-              footerText={localValues.footer_text}
-              customCss={localValues.custom_css}
-            />
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex justify-between border-t">
-        <Button variant="ghost" onClick={handleResetToDefaults} disabled={isUpdating}>
-          <RotateCcw className="size-4" />
-          Reset to Defaults
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleReset} disabled={isUpdating || !hasChanges}>
-            Discard Changes
-          </Button>
-          <Button onClick={handleSave} disabled={isUpdating || !hasChanges || !isValid}>
-            {isUpdating ? (
-              <>
-                <Spinner variant="circle" />
-                Saving...
-              </>
-            ) : (
-              'Save Changes'
-            )}
-          </Button>
-        </div>
-      </CardFooter>
+                {/* Footer Text */}
+                <FormField
+                  control={form.control}
+                  name="footer_text"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Footer Text</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="© 2025 Your Company"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Text displayed at the bottom of the login page.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Custom CSS (Advanced) */}
+                <FormField
+                  control={form.control}
+                  name="custom_css"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Custom CSS (Advanced)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder={`.login-container {\n  /* Your custom styles */\n}`}
+                          className="font-mono min-h-[120px]"
+                          rows={5}
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Add custom CSS to further customize the login page appearance.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Live Preview — driven by form.watch() */}
+              <div className="lg:sticky lg:top-6">
+                <LoginPreview
+                  logoUrl={watched.logo_url ?? ''}
+                  primaryColor={watched.primary_color ?? ''}
+                  backgroundColor={watched.background_color ?? ''}
+                  title={watched.title ?? ''}
+                  subtitle={watched.subtitle ?? ''}
+                  footerText={watched.footer_text ?? ''}
+                  customCss={watched.custom_css ?? ''}
+                />
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResetToDefaults}
+              disabled={isUpdating}
+            >
+              <RotateCcw className="size-4" />
+              Reset to Defaults
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDiscard}
+                disabled={isUpdating || !isDirty}
+              >
+                Discard Changes
+              </Button>
+              <Button type="submit" disabled={isUpdating || !isDirty || !isValid}>
+                {isUpdating ? (
+                  <>
+                    <Spinner variant="circle" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
+            </div>
+          </CardFooter>
+        </form>
+      </Form>
     </Card>
   );
 }

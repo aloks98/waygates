@@ -7,9 +7,13 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Field,
-  FieldDescription,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Select,
   SelectContent,
@@ -18,9 +22,12 @@ import {
   SelectValue,
   Skeleton,
 } from '@e412/rnui-react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, Plus, Shield, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
 import { useACLGroups } from '@/hooks';
 import type { ACLGroup } from '@/types/acl';
@@ -41,6 +48,14 @@ interface ACLSelectorProps {
   disabled?: boolean;
 }
 
+const addAssignmentSchema = z.object({
+  group_id: z.string().min(1, 'Please select an ACL group'),
+  path_pattern: z.string(),
+  priority: z.number().min(0).max(1000),
+});
+
+type AddAssignmentFormValues = z.infer<typeof addAssignmentSchema>;
+
 function getCombinationModeLabel(mode: string): string {
   switch (mode) {
     case 'any':
@@ -57,9 +72,15 @@ function getCombinationModeLabel(mode: string): string {
 export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
   const { groups, isLoading } = useACLGroups({ limit: 100 });
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
-  const [pathPattern, setPathPattern] = useState('/*');
-  const [priority, setPriority] = useState(100);
+
+  const addForm = useForm<AddAssignmentFormValues>({
+    resolver: zodResolver(addAssignmentSchema),
+    defaultValues: {
+      group_id: '',
+      path_pattern: '/*',
+      priority: 100,
+    },
+  });
 
   // Get group details by ID
   const getGroup = (groupId: number): ACLGroup | undefined => {
@@ -69,23 +90,24 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
   // Get groups that haven't been assigned yet (or show all if path patterns differ)
   const availableGroups = groups;
 
-  const handleAddAssignment = () => {
-    if (!selectedGroupId) return;
-
+  const handleAddAssignment = (formValues: AddAssignmentFormValues) => {
     const newAssignment: ACLAssignment = {
-      acl_group_id: parseInt(selectedGroupId, 10),
-      path_pattern: pathPattern || '/*',
-      priority,
+      acl_group_id: parseInt(formValues.group_id, 10),
+      path_pattern: formValues.path_pattern || '/*',
+      priority: formValues.priority,
       enabled: true,
     };
 
     onChange([...value, newAssignment]);
 
-    // Reset form
-    setSelectedGroupId('');
-    setPathPattern('/*');
-    setPriority(100);
+    // Reset local add-form and hide it
+    addForm.reset();
     setShowAddForm(false);
+  };
+
+  const handleCancelAdd = () => {
+    setShowAddForm(false);
+    addForm.reset();
   };
 
   const handleRemoveAssignment = (index: number) => {
@@ -219,82 +241,98 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
 
             {/* Add Form */}
             {showAddForm && (
-              <div className="p-4 rounded border border-dashed bg-muted/20 space-y-4">
-                <Field>
-                  <FieldLabel>ACL Group</FieldLabel>
-                  <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select an ACL group..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableGroups.map((group) => (
-                        <SelectItem key={group.id} value={String(group.id)}>
-                          <div className="flex items-center gap-2">
-                            <Shield className="size-4 text-muted-foreground" />
-                            <span>{group.name}</span>
-                            <Badge variant="outline" className="text-xs ml-auto">
-                              {getCombinationModeLabel(group.combination_mode)}
-                            </Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    The ACL group containing authentication rules to apply
-                  </FieldDescription>
-                </Field>
+              <Form {...addForm}>
+                <form
+                  onSubmit={addForm.handleSubmit(handleAddAssignment)}
+                  className="p-4 rounded border border-dashed bg-muted/20 space-y-4"
+                >
+                  <FormField
+                    control={addForm.control}
+                    name="group_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>ACL Group</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an ACL group..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {availableGroups.map((group) => (
+                              <SelectItem key={group.id} value={String(group.id)}>
+                                <div className="flex items-center gap-2">
+                                  <Shield className="size-4 text-muted-foreground" />
+                                  <span>{group.name}</span>
+                                  <Badge variant="outline" className="text-xs ml-auto">
+                                    {getCombinationModeLabel(group.combination_mode)}
+                                  </Badge>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          The ACL group containing authentication rules to apply
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>Path Pattern</FieldLabel>
-                    <Input
-                      value={pathPattern}
-                      onChange={(e) => setPathPattern(e.target.value)}
-                      placeholder="/*"
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                      control={addForm.control}
+                      name="path_pattern"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Path Pattern</FormLabel>
+                          <FormControl>
+                            <Input placeholder="/*" {...field} />
+                          </FormControl>
+                          <FormDescription>
+                            URL path pattern to protect (e.g., /*, /api/*, /admin)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    <FieldDescription>
-                      URL path pattern to protect (e.g., /*, /api/*, /admin)
-                    </FieldDescription>
-                  </Field>
 
-                  <Field>
-                    <FieldLabel>Priority</FieldLabel>
-                    <Input
-                      type="number"
-                      value={priority}
-                      onChange={(e) => setPriority(parseInt(e.target.value, 10) || 100)}
-                      min={0}
-                      max={1000}
+                    <FormField
+                      control={addForm.control}
+                      name="priority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Priority</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={1000}
+                              value={field.value}
+                              onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 100)}
+                              onBlur={field.onBlur}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Lower numbers are evaluated first (0-1000)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    <FieldDescription>Lower numbers are evaluated first (0-1000)</FieldDescription>
-                  </Field>
-                </div>
+                  </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setSelectedGroupId('');
-                      setPathPattern('/*');
-                      setPriority(100);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleAddAssignment}
-                    disabled={!selectedGroupId}
-                  >
-                    Add Assignment
-                  </Button>
-                </div>
-              </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={handleCancelAdd}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" size="sm" disabled={!addForm.watch('group_id')}>
+                      Add Assignment
+                    </Button>
+                  </div>
+                </form>
+              </Form>
             )}
 
             {/* Empty state when no assignments */}
