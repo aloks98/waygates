@@ -450,10 +450,14 @@ func (s *AuditService) LogSettingsUpdate(ctx context.Context, userID int, key st
 		Action:       models.AuditActionSettingsUpdate,
 		ResourceType: models.AuditResourceTypeSettings,
 		ResourceName: key,
+		// Use the same nested `changes` shape as every other update event so the
+		// frontend reads one consistent structure (details.changes[field] =
+		// {old,new}) instead of special-casing settings.
 		Details: map[string]interface{}{
-			"key":       key,
-			"old_value": oldVal,
-			"new_value": newVal,
+			"key": key,
+			"changes": map[string]interface{}{
+				key: map[string]interface{}{"old": oldVal, "new": newVal},
+			},
 		},
 		IPAddress: ip,
 		UserAgent: userAgent,

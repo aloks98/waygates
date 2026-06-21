@@ -1976,6 +1976,47 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 	assert.Nil(t, changes, "should return nil when no changes")
 }
 
+func TestBuildProxyChanges_NewlyTrackedScalarFields(t *testing.T) {
+	t.Parallel()
+	descOld := "old desc"
+	descNew := "new desc"
+	old := &models.Proxy{
+		Description:           &descOld,
+		BlockExploits:         true,
+		TLSInsecureSkipVerify: false,
+	}
+	updated := &models.Proxy{
+		Description:           &descNew,
+		BlockExploits:         false,
+		TLSInsecureSkipVerify: true,
+	}
+
+	changes := buildProxyChanges(old, updated)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "description")
+	require.Contains(t, changes, "block_exploits")
+	require.Contains(t, changes, "tls_insecure_skip_verify")
+	be := changes["block_exploits"].(map[string]interface{})
+	assert.Equal(t, true, be["old"])
+	assert.Equal(t, false, be["new"])
+}
+
+func TestBuildProxyChanges_CustomHeadersChange(t *testing.T) {
+	t.Parallel()
+	old := &models.Proxy{
+		CustomHeaders: models.CustomHeaders{Request: map[string]string{"X-A": "1"}},
+	}
+	updated := &models.Proxy{
+		CustomHeaders: models.CustomHeaders{Request: map[string]string{"X-A": "2"}},
+	}
+
+	changes := buildProxyChanges(old, updated)
+
+	require.NotNil(t, changes)
+	require.Contains(t, changes, "custom_headers")
+}
+
 func TestBuildProxyChanges_HostnameChange(t *testing.T) {
 	t.Parallel()
 	old := &models.Proxy{Hostname: "old.example.com"}

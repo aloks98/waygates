@@ -272,7 +272,7 @@ export function ProxiesListPage() {
   }, [selectedIds, debouncedSearch, filters]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       <div className="mb-4">
         <ProxiesTabs active="http" />
       </div>

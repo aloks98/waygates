@@ -851,6 +851,54 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 		}
 	}
 
+	// Track description changes
+	if !jsonEqual(old.Description, updated.Description) {
+		changes["description"] = map[string]interface{}{
+			"old": old.Description,
+			"new": updated.Description,
+		}
+	}
+
+	// Track block_exploits changes
+	if old.BlockExploits != updated.BlockExploits {
+		changes["block_exploits"] = map[string]interface{}{
+			"old": old.BlockExploits,
+			"new": updated.BlockExploits,
+		}
+	}
+
+	// Track tls_insecure_skip_verify changes
+	if old.TLSInsecureSkipVerify != updated.TLSInsecureSkipVerify {
+		changes["tls_insecure_skip_verify"] = map[string]interface{}{
+			"old": old.TLSInsecureSkipVerify,
+			"new": updated.TLSInsecureSkipVerify,
+		}
+	}
+
+	// Track load_balancing changes (strategy + health check live here)
+	if !jsonEqual(old.LoadBalancing, updated.LoadBalancing) {
+		changes["load_balancing"] = map[string]interface{}{
+			"old": old.LoadBalancing,
+			"new": updated.LoadBalancing,
+		}
+	}
+
+	// Track custom_headers changes
+	if !jsonEqual(old.CustomHeaders, updated.CustomHeaders) {
+		changes["custom_headers"] = map[string]interface{}{
+			"old": old.CustomHeaders,
+			"new": updated.CustomHeaders,
+		}
+	}
+
+	// Track static config changes
+	if !jsonEqual(old.StaticConfig, updated.StaticConfig) {
+		changes["static"] = map[string]interface{}{
+			"old": old.StaticConfig,
+			"new": updated.StaticConfig,
+		}
+	}
+
 	if len(changes) == 0 {
 		return nil
 	}

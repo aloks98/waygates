@@ -146,7 +146,7 @@ const settingsRoute = createRoute({
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/activity',
-  component: lazyRouteComponent(() => import('@/routes/_dashboard/audit-logs'), 'AuditLogsPage'),
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/activity'), 'ActivityPage'),
 });
 
 const aclRoute = createRoute({

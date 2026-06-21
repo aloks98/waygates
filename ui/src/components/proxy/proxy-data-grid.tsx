@@ -91,6 +91,10 @@ export function ProxyDataGrid({
           />
         ),
         enableSorting: false,
+        size: 40,
+        minSize: 40,
+        maxSize: 40,
+        enableResizing: false,
         meta: { skeleton: <Skeleton className="size-4" /> },
       },
       {
@@ -217,9 +221,7 @@ export function ProxyDataGrid({
               maxSize: 120,
               meta: {
                 skeleton: (
-                  <div className="flex justify-end gap-2">
-                    <Skeleton className="size-8" />
-                    <Skeleton className="size-8" />
+                  <div className="flex justify-end">
                     <Skeleton className="size-8" />
                   </div>
                 ),

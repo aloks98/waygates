@@ -40,6 +40,20 @@ export function getActionLabel(action: string): string {
     'acl_group.create': 'created ACL group',
     'acl_group.update': 'updated ACL group',
     'acl_group.delete': 'deleted ACL group',
+    'acl_ip_rule.add': 'added an IP rule',
+    'acl_ip_rule.update': 'updated an IP rule',
+    'acl_ip_rule.delete': 'deleted an IP rule',
+    'acl_basic_auth.add': 'added a basic-auth user',
+    'acl_basic_auth.update': 'updated basic auth',
+    'acl_basic_auth.delete': 'deleted a basic-auth user',
+    'acl_waygates_auth.update': 'updated Waygates auth',
+    'acl_assignment.create': 'assigned ACL to a proxy',
+    'acl_assignment.update': 'updated an ACL assignment',
+    'acl_assignment.delete': 'removed ACL from a proxy',
+    'acl_branding.update': 'updated branding',
+    'acl_session.revoke': 'revoked a session',
+    'acl_oauth_restriction.set': 'configured an OAuth provider',
+    'acl_oauth_restriction.delete': 'removed an OAuth provider',
   };
   return labels[action] ?? action.replace(/[._]/g, ' ');
 }

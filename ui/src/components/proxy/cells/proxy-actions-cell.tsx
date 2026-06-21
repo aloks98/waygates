@@ -1,5 +1,12 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
-import { Copy, Pencil, Trash2 } from 'lucide-react';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@e412/rnui-react';
+import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
 import type { ProxyConfig } from '@/types/proxy';
 
@@ -25,40 +32,39 @@ export function ProxyActionsCell({
   }
 
   return (
-    <div className="flex justify-end gap-1">
-      {canEdit && onEdit && (
-        <Tooltip>
-          <TooltipTrigger
-            render={<Button variant="ghost" size="sm" onClick={() => onEdit(proxy)} />}
-          >
-            <Pencil className="size-4" />
-            <span className="sr-only">Edit proxy</span>
-          </TooltipTrigger>
-          <TooltipContent>Edit proxy</TooltipContent>
-        </Tooltip>
-      )}
-      {onDuplicate && (
-        <Tooltip>
-          <TooltipTrigger
-            render={<Button variant="ghost" size="sm" onClick={() => onDuplicate(proxy)} />}
-          >
-            <Copy className="size-4" />
-            <span className="sr-only">Duplicate proxy</span>
-          </TooltipTrigger>
-          <TooltipContent>Duplicate</TooltipContent>
-        </Tooltip>
-      )}
-      {canDelete && onDelete && (
-        <Tooltip>
-          <TooltipTrigger
-            render={<Button variant="ghost" size="sm" onClick={() => onDelete(proxy)} />}
-          >
-            <Trash2 className="size-4 text-destructive" />
-            <span className="sr-only">Delete proxy</span>
-          </TooltipTrigger>
-          <TooltipContent>Delete proxy</TooltipContent>
-        </Tooltip>
-      )}
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="size-8 p-0" />}>
+          <MoreHorizontal className="size-4" />
+          <span className="sr-only">Open actions menu</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          {canEdit && onEdit && (
+            <DropdownMenuItem onClick={() => onEdit(proxy)}>
+              <Pencil className="size-4" />
+              Edit
+            </DropdownMenuItem>
+          )}
+          {onDuplicate && (
+            <DropdownMenuItem onClick={() => onDuplicate(proxy)}>
+              <Copy className="size-4" />
+              Duplicate
+            </DropdownMenuItem>
+          )}
+          {canDelete && onDelete && (
+            <>
+              {(canEdit || onDuplicate) && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                onClick={() => onDelete(proxy)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

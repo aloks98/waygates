@@ -530,11 +530,19 @@ func TestAuditService_LogSettingsUpdate(t *testing.T) {
 	if log.Action != models.AuditActionSettingsUpdate {
 		t.Errorf("Expected action '%s', got '%s'", models.AuditActionSettingsUpdate, log.Action)
 	}
-	if log.Details["old_value"] != "light" {
-		t.Errorf("Expected old_value 'light', got '%v'", log.Details["old_value"])
+	changes, ok := log.Details["changes"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected details.changes map, got %v", log.Details["changes"])
 	}
-	if log.Details["new_value"] != "dark" {
-		t.Errorf("Expected new_value 'dark', got '%v'", log.Details["new_value"])
+	themeChange, ok := changes["theme"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected changes[theme] map, got %v", changes["theme"])
+	}
+	if themeChange["old"] != "light" {
+		t.Errorf("Expected old 'light', got '%v'", themeChange["old"])
+	}
+	if themeChange["new"] != "dark" {
+		t.Errorf("Expected new 'dark', got '%v'", themeChange["new"])
 	}
 }
 
