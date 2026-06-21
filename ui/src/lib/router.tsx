@@ -140,7 +140,45 @@ const l4ProxyDetailRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/settings',
-  component: lazyRouteComponent(() => import('@/routes/_dashboard/settings'), 'SettingsPage'),
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/layout'),
+    'SettingsLayout',
+  ),
+});
+
+const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard/settings/default-page' });
+  },
+});
+
+const settingsDefaultPageRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/default-page',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/default-page'),
+    'SettingsDefaultPage',
+  ),
+});
+
+const settingsBrandingRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/login-branding',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/login-branding'),
+    'SettingsLoginBrandingPage',
+  ),
+});
+
+const settingsAuditRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/audit-logs',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/audit-logs'),
+    'SettingsAuditLogsPage',
+  ),
 });
 
 const auditLogsRoute = createRoute({
@@ -209,7 +247,12 @@ const routeTree = rootRoute.addChildren([
     l4ProxiesRoute,
     l4ProxyCreateRoute,
     l4ProxyDetailRoute,
-    settingsRoute,
+    settingsRoute.addChildren([
+      settingsIndexRoute,
+      settingsDefaultPageRoute,
+      settingsBrandingRoute,
+      settingsAuditRoute,
+    ]),
     auditLogsRoute,
     aclRoute,
     aclGroupDetailRoute,
