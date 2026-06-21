@@ -1207,3 +1207,331 @@ func BenchmarkL4ProxyHandler_GetStats(b *testing.B) {
 		handler.GetStats(rec, req)
 	}
 }
+
+// =============================================================================
+// Bulk Enable Tests
+// =============================================================================
+
+func TestL4ProxyHandler_BulkEnable_Success(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{
+		BulkSetActiveFunc: func(ids []int, _ bool) service.BulkResult {
+			return service.BulkResult{
+				Requested: len(ids),
+				Succeeded: len(ids),
+				Failed:    0,
+				Results:   []service.BulkItemResult{{ID: ids[0], Status: "ok"}},
+			}
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{1}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/enable", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnable(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Data    struct {
+			Requested int `json:"requested"`
+			Succeeded int `json:"succeeded"`
+			Failed    int `json:"failed"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, "Bulk enable completed", resp.Message)
+	assert.Equal(t, 1, resp.Data.Requested)
+	assert.Equal(t, 1, resp.Data.Succeeded)
+}
+
+func TestL4ProxyHandler_BulkEnable_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/enable", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnable(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_BulkEnable_TooManyIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	ids := make([]int, 1001)
+	for i := range ids {
+		ids[i] = i + 1
+	}
+	body, _ := json.Marshal(map[string]interface{}{"ids": ids})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/enable", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnable(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_BulkEnable_InvalidJSON(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/enable", bytes.NewBufferString(`{invalid}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkEnable(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// =============================================================================
+// Bulk Disable Tests
+// =============================================================================
+
+func TestL4ProxyHandler_BulkDisable_Success(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{
+		BulkSetActiveFunc: func(ids []int, _ bool) service.BulkResult {
+			return service.BulkResult{
+				Requested: len(ids),
+				Succeeded: len(ids),
+				Failed:    0,
+				Results:   []service.BulkItemResult{{ID: ids[0], Status: "ok"}},
+			}
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{2}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/disable", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDisable(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, "Bulk disable completed", resp.Message)
+}
+
+func TestL4ProxyHandler_BulkDisable_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/disable", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDisable(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// =============================================================================
+// Bulk Delete Tests
+// =============================================================================
+
+func TestL4ProxyHandler_BulkDelete_Success(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{
+		BulkDeleteFunc: func(ids []int) service.BulkResult {
+			return service.BulkResult{
+				Requested: len(ids),
+				Succeeded: len(ids),
+				Failed:    0,
+				Results:   []service.BulkItemResult{{ID: ids[0], Status: "ok"}},
+			}
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{3}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/delete", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDelete(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, "Bulk delete completed", resp.Message)
+}
+
+func TestL4ProxyHandler_BulkDelete_EmptyIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"ids": []int{}})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/delete", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDelete(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_BulkDelete_TooManyIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	ids := make([]int, 1001)
+	for i := range ids {
+		ids[i] = i + 1
+	}
+	body, _ := json.Marshal(map[string]interface{}{"ids": ids})
+	req := httptest.NewRequest(http.MethodPost, "/api/l4-proxies/bulk/delete", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.BulkDelete(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// =============================================================================
+// Export L4 Proxies Tests
+// =============================================================================
+
+func TestL4ProxyHandler_ExportL4Proxies_NoIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{
+		ExportL4ProxiesFunc: func(_ []int, _ service.ListL4ProxiesRequest) ([]service.L4Export, error) {
+			return []service.L4Export{
+				{Name: "proxy-1", ListenPort: 8080, Protocol: "tcp", IsActive: true, Routes: []service.L4RouteExport{}},
+				{Name: "proxy-2", ListenPort: 9090, Protocol: "udp", IsActive: false, Routes: []service.L4RouteExport{}},
+			}, nil
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Success bool               `json:"success"`
+		Data    []service.L4Export `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Len(t, resp.Data, 2)
+	assert.Equal(t, "proxy-1", resp.Data[0].Name)
+}
+
+func TestL4ProxyHandler_ExportL4Proxies_WithIDs(t *testing.T) {
+	t.Parallel()
+	var capturedIDs []int
+	mockService := &mocks.MockL4ProxyService{
+		ExportL4ProxiesFunc: func(ids []int, _ service.ListL4ProxiesRequest) ([]service.L4Export, error) {
+			capturedIDs = ids
+			return []service.L4Export{
+				{Name: "proxy-1", ListenPort: 8080, Protocol: "tcp", IsActive: true, Routes: []service.L4RouteExport{}},
+			}, nil
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export?ids=1,2,3", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, capturedIDs)
+	assert.Equal(t, []int{1, 2, 3}, capturedIDs)
+}
+
+func TestL4ProxyHandler_ExportL4Proxies_InvalidIDs(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export?ids=1,abc,3", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_ExportL4Proxies_InvalidProtocol(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export?protocol=invalid", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_ExportL4Proxies_InvalidIsActive(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockL4ProxyService{}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export?is_active=maybe", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestL4ProxyHandler_ExportL4Proxies_WithProtocolFilter(t *testing.T) {
+	t.Parallel()
+	var capturedFilters service.ListL4ProxiesRequest
+	mockService := &mocks.MockL4ProxyService{
+		ExportL4ProxiesFunc: func(_ []int, filters service.ListL4ProxiesRequest) ([]service.L4Export, error) {
+			capturedFilters = filters
+			return []service.L4Export{}, nil
+		},
+	}
+	handler := NewL4ProxyHandler(mockService, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/l4-proxies/export?protocol=tcp&search=db", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ExportL4Proxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "tcp", capturedFilters.Protocol)
+	assert.Equal(t, "db", capturedFilters.Search)
+}

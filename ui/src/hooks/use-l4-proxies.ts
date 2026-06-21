@@ -160,6 +160,44 @@ export function useL4Proxies(options: UseL4ProxiesOptions = {}) {
     },
   });
 
+  const bulkSetActiveMutation = useMutation({
+    mutationFn: async ({ ids, enable }: { ids: number[]; enable: boolean }) => {
+      const response = await api
+        .post(`l4-proxies/bulk/${enable ? 'enable' : 'disable'}`, { json: { ids } })
+        .json<ApiResponse<{ requested: number; succeeded: number; failed: number }>>();
+      return { succeeded: response.data?.succeeded ?? 0, failed: response.data?.failed ?? 0 };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+
+  const bulkRemoveMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const response = await api
+        .post('l4-proxies/bulk/delete', { json: { ids } })
+        .json<ApiResponse<{ requested: number; succeeded: number; failed: number }>>();
+      return { succeeded: response.data?.succeeded ?? 0, failed: response.data?.failed ?? 0 };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    },
+  });
+
+  // Wrappers keep the 2-arg call sites and the no-throw contract: a hard request
+  // failure (network/4xx/5xx) resolves to all-failed so the list handlers show an
+  // error toast instead of an uncaught rejection.
+  const bulkSetActive = (ids: number[], enable: boolean) =>
+    bulkSetActiveMutation.mutateAsync({ ids, enable }).catch(() => ({
+      succeeded: 0,
+      failed: ids.length,
+    }));
+
+  const bulkRemove = (ids: number[]) =>
+    bulkRemoveMutation.mutateAsync(ids).catch(() => ({ succeeded: 0, failed: ids.length }));
+
+  const isBulkRunning = bulkSetActiveMutation.isPending || bulkRemoveMutation.isPending;
+
   return {
     // Query
     proxies: query.data?.items ?? [],
@@ -177,10 +215,15 @@ export function useL4Proxies(options: UseL4ProxiesOptions = {}) {
     remove: deleteMutation.mutateAsync,
     toggleActive: toggleMutation.mutateAsync,
 
+    // Bulk mutations
+    bulkSetActive,
+    bulkRemove,
+
     // Mutation states
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isToggling: toggleMutation.isPending,
+    isBulkRunning,
   };
 }

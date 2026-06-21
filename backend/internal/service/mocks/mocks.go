@@ -729,6 +729,7 @@ func (m *MockAuditService) LogACLOAuthRestrictionDelete(ctx context.Context, use
 type MockL4ProxyRepository struct {
 	CreateFunc    func(proxy *models.L4Proxy) error
 	GetByIDFunc   func(id int) (*models.L4Proxy, error)
+	GetByIDsFunc  func(ids []int) ([]models.L4Proxy, error)
 	ListFunc      func(params repository.L4ProxyListParams) ([]models.L4Proxy, int64, error)
 	UpdateFunc    func(proxy *models.L4Proxy) error
 	DeleteFunc    func(id int) error
@@ -749,6 +750,14 @@ func (m *MockL4ProxyRepository) GetByID(id int) (*models.L4Proxy, error) {
 		return m.GetByIDFunc(id)
 	}
 	return nil, nil
+}
+
+// GetByIDs implements L4ProxyRepositoryInterface.
+func (m *MockL4ProxyRepository) GetByIDs(ids []int) ([]models.L4Proxy, error) {
+	if m.GetByIDsFunc != nil {
+		return m.GetByIDsFunc(ids)
+	}
+	return []models.L4Proxy{}, nil
 }
 
 // List implements L4ProxyRepositoryInterface.
@@ -785,13 +794,17 @@ func (m *MockL4ProxyRepository) GetByPort(port int, protocol string) (*models.L4
 
 // MockL4ProxyService is a mock implementation of L4ProxyServiceInterface
 type MockL4ProxyService struct {
-	CreateFunc       func(req *service.CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error)
-	GetByIDFunc      func(id int) (*models.L4Proxy, error)
-	ListFunc         func(req *service.ListL4ProxiesRequest) (*models.L4ProxyListResponse, error)
-	UpdateFunc       func(id int, req *service.UpdateL4ProxyRequest) (*models.L4Proxy, error)
-	DeleteFunc       func(id int) error
-	ToggleActiveFunc func(id int) (*models.L4Proxy, error)
-	GetStatsFunc     func() (*models.L4ProxyStats, error)
+	CreateFunc          func(req *service.CreateL4ProxyRequest, createdBy int) (*models.L4Proxy, error)
+	GetByIDFunc         func(id int) (*models.L4Proxy, error)
+	ListFunc            func(req *service.ListL4ProxiesRequest) (*models.L4ProxyListResponse, error)
+	UpdateFunc          func(id int, req *service.UpdateL4ProxyRequest) (*models.L4Proxy, error)
+	DeleteFunc          func(id int) error
+	ToggleActiveFunc    func(id int) (*models.L4Proxy, error)
+	SetActiveFunc       func(id int, enable bool) (*models.L4Proxy, error)
+	BulkSetActiveFunc   func(ids []int, enable bool) service.BulkResult
+	BulkDeleteFunc      func(ids []int) service.BulkResult
+	ExportL4ProxiesFunc func(ids []int, filters service.ListL4ProxiesRequest) ([]service.L4Export, error)
+	GetStatsFunc        func() (*models.L4ProxyStats, error)
 }
 
 // Create implements L4ProxyServiceInterface.
@@ -840,6 +853,38 @@ func (m *MockL4ProxyService) ToggleActive(id int) (*models.L4Proxy, error) {
 		return m.ToggleActiveFunc(id)
 	}
 	return nil, service.ErrL4ProxyNotFound
+}
+
+// SetActive implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) SetActive(id int, enable bool) (*models.L4Proxy, error) {
+	if m.SetActiveFunc != nil {
+		return m.SetActiveFunc(id, enable)
+	}
+	return nil, service.ErrL4ProxyNotFound
+}
+
+// BulkSetActive implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) BulkSetActive(ids []int, enable bool) service.BulkResult {
+	if m.BulkSetActiveFunc != nil {
+		return m.BulkSetActiveFunc(ids, enable)
+	}
+	return service.BulkResult{Requested: len(ids), Succeeded: len(ids), Results: []service.BulkItemResult{}}
+}
+
+// BulkDelete implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) BulkDelete(ids []int) service.BulkResult {
+	if m.BulkDeleteFunc != nil {
+		return m.BulkDeleteFunc(ids)
+	}
+	return service.BulkResult{Requested: len(ids), Succeeded: len(ids), Results: []service.BulkItemResult{}}
+}
+
+// ExportL4Proxies implements L4ProxyServiceInterface.
+func (m *MockL4ProxyService) ExportL4Proxies(ids []int, filters service.ListL4ProxiesRequest) ([]service.L4Export, error) {
+	if m.ExportL4ProxiesFunc != nil {
+		return m.ExportL4ProxiesFunc(ids, filters)
+	}
+	return []service.L4Export{}, nil
 }
 
 // GetStats implements L4ProxyServiceInterface.

@@ -305,6 +305,68 @@ func TestL4ProxyRepository_GetByID(t *testing.T) {
 	})
 }
 
+func TestL4ProxyRepository_GetByIDs(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	repo := NewL4ProxyRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+	weight := 1
+
+	routes := []models.L4Route{
+		{
+			Priority:            10,
+			MatcherType:         models.L4MatcherAny,
+			LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+			TLSPassthrough:      true,
+			Upstreams:           models.L4UpstreamSlice{{Host: "b.local", Port: 80, Weight: &weight}},
+		},
+		{
+			Priority:            0,
+			MatcherType:         models.L4MatcherAny,
+			LoadBalancingPolicy: models.L4LoadBalancingRoundRobin,
+			TLSPassthrough:      true,
+			Upstreams:           models.L4UpstreamSlice{{Host: "a.local", Port: 80, Weight: &weight}},
+		},
+	}
+	p1 := CreateTestL4ProxyWithRoutes(t, tdb.DB, user.ID, "Batch 1", 9100, models.L4ProtocolTCP, routes)
+	p2 := CreateTestL4Proxy(t, tdb.DB, user.ID, "Batch 2", 9101, models.L4ProtocolTCP)
+	p3 := CreateTestL4Proxy(t, tdb.DB, user.ID, "Batch 3", 9102, models.L4ProtocolUDP)
+
+	t.Run("ReturnsRequestedWithRoutesInOneQuery", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{p1.ID, p3.ID})
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+
+		byID := map[int]models.L4Proxy{}
+		for _, p := range got {
+			byID[p.ID] = p
+		}
+		require.Contains(t, byID, p1.ID)
+		require.Contains(t, byID, p3.ID)
+		assert.NotContains(t, byID, p2.ID, "p2 was not requested")
+
+		// Routes are preloaded and ordered by priority ASC.
+		fetched1 := byID[p1.ID]
+		require.Len(t, fetched1.Routes, 2)
+		assert.Equal(t, 0, fetched1.Routes[0].Priority)
+		assert.Equal(t, "a.local", fetched1.Routes[0].Upstreams[0].Host)
+		assert.Equal(t, 10, fetched1.Routes[1].Priority)
+	})
+
+	t.Run("SkipsMissing", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{p1.ID, 999999, p2.ID})
+		require.NoError(t, err)
+		assert.Len(t, got, 2, "missing id is simply absent, not an error")
+	})
+
+	t.Run("EmptyInput", func(t *testing.T) {
+		got, err := repo.GetByIDs([]int{})
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+}
+
 func TestL4ProxyRepository_GetByPort(t *testing.T) {
 	tdb := SetupTestDB(t)
 	defer tdb.Cleanup(t)

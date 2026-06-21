@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
   Badge,
   Button,
+  Checkbox,
   DataGrid,
   DataGridColumnHeader,
   DataGridContainer,
@@ -19,6 +20,9 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -26,23 +30,31 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type OnChangeFn,
   type PaginationState,
+  type RowSelectionState,
   useReactTable,
 } from '@tanstack/react-table';
-import { Network, Plus, Search } from 'lucide-react';
+import { Copy, Download, Network, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { ProxiesTabs } from '@/components/layout/proxies-tabs';
 import { L4ProtocolBadge, ProxyStatusBadge } from '@/components/proxy/cells';
+import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
 import { useL4Proxies, useL4ProxyStats } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
+import { api } from '@/lib/api';
+import type { L4Export } from '@/lib/l4-export';
+import { downloadJson } from '@/lib/proxy-export';
+import type { ApiResponse } from '@/types/api';
 import type { L4Proxy } from '@/types/l4-proxy';
 
 type ProtocolFilter = 'all' | 'tcp' | 'udp';
 
 export function L4ProxiesListPage() {
   const navigate = useNavigate();
-  const { canCreateProxies, canUpdateProxies } = usePermissions();
+  const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
 
   // Filter state
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
@@ -58,6 +70,13 @@ export function L4ProxiesListPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Row selection state — owned by the page, cleared on page/search/protocol change
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  useEffect(() => {
+    setRowSelection({});
+  }, [pagination, debouncedSearch, protocolFilter]);
 
   // Debounce search input
   useEffect(() => {
@@ -104,11 +123,52 @@ export function L4ProxiesListPage() {
     return p;
   }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, protocolFilter]);
 
-  const { proxies, total, totalPages, isLoading, toggleActive, remove, isToggling, isDeleting } =
-    useL4Proxies(params);
+  const {
+    proxies,
+    total,
+    totalPages,
+    isLoading,
+    toggleActive,
+    remove,
+    isToggling,
+    isDeleting,
+    bulkSetActive,
+    bulkRemove,
+    isBulkRunning,
+  } = useL4Proxies(params);
+
+  // Derived selection
+  const selectedIds = useMemo(() => Object.keys(rowSelection).map(Number), [rowSelection]);
 
   // Delete state
   const [deletingProxy, setDeletingProxy] = useState<L4Proxy | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const searchParams: Record<string, string> = {};
+      if (selectedIds.length > 0) {
+        searchParams.ids = selectedIds.join(',');
+      } else {
+        if (debouncedSearch) searchParams.search = debouncedSearch;
+        if (protocolFilter !== 'all') searchParams.protocol = protocolFilter;
+      }
+      const response = await api
+        .get('l4-proxies/export', { searchParams })
+        .json<ApiResponse<L4Export[]>>();
+      const data = response.data ?? [];
+      downloadJson(`waygates-l4-proxies-${data.length}.json`, data);
+      toast.success(`Exported ${data.length} ${data.length === 1 ? 'proxy' : 'proxies'}`);
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [selectedIds, debouncedSearch, protocolFilter]);
 
   const handleRowClick = useCallback(
     (proxy: L4Proxy) => {
@@ -133,6 +193,44 @@ export function L4ProxiesListPage() {
     setDeletingProxy(null);
   };
 
+  const handleDuplicate = useCallback(
+    (p: L4Proxy) => {
+      navigate({ to: '/dashboard/proxies/tcp-udp/new', search: { duplicate: p.id } });
+    },
+    [navigate],
+  );
+
+  const handleBulkEnable = useCallback(async () => {
+    const s = await bulkSetActive(selectedIds, true);
+    if (s.failed > 0) {
+      toast.error(`Enabled ${s.succeeded}, ${s.failed} failed`);
+    } else {
+      toast.success(`Enabled ${s.succeeded}`);
+    }
+    setRowSelection({});
+  }, [bulkSetActive, selectedIds]);
+
+  const handleBulkDisable = useCallback(async () => {
+    const s = await bulkSetActive(selectedIds, false);
+    if (s.failed > 0) {
+      toast.error(`Disabled ${s.succeeded}, ${s.failed} failed`);
+    } else {
+      toast.success(`Disabled ${s.succeeded}`);
+    }
+    setRowSelection({});
+  }, [bulkSetActive, selectedIds]);
+
+  const handleBulkDelete = useCallback(async () => {
+    setBulkDeleteOpen(false);
+    const s = await bulkRemove(selectedIds);
+    if (s.failed > 0) {
+      toast.error(`Deleted ${s.succeeded}, ${s.failed} failed`);
+    } else {
+      toast.success(`Deleted ${s.succeeded} ${s.succeeded === 1 ? 'proxy' : 'proxies'}`);
+    }
+    setRowSelection({});
+  }, [bulkRemove, selectedIds]);
+
   // Fetch stats for counts
   const { stats } = useL4ProxyStats();
   const counts = useMemo(() => {
@@ -146,6 +244,26 @@ export function L4ProxiesListPage() {
   // DataGrid columns
   const columns = useMemo<ColumnDef<L4Proxy>[]>(
     () => [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <Checkbox
+            checked={table.getIsAllPageRowsSelected()}
+            indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(v) => row.toggleSelected(!!v)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        meta: { skeleton: <Skeleton className="size-4" /> },
+      },
       {
         accessorKey: 'name',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
@@ -222,8 +340,69 @@ export function L4ProxiesListPage() {
           skeleton: <Skeleton className="h-6 w-16 rounded" />,
         },
       },
+      {
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1">
+            {canCreateProxies && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDuplicate(row.original);
+                      }}
+                    />
+                  }
+                >
+                  <Copy className="size-4" />
+                  <span className="sr-only">Duplicate proxy</span>
+                </TooltipTrigger>
+                <TooltipContent>Duplicate</TooltipContent>
+              </Tooltip>
+            )}
+            {canDeleteProxies && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingProxy(row.original);
+                      }}
+                    />
+                  }
+                >
+                  <Trash2 className="size-4 text-destructive" />
+                  <span className="sr-only">Delete proxy</span>
+                </TooltipTrigger>
+                <TooltipContent>Delete</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        ),
+        enableSorting: false,
+        minSize: 80,
+        maxSize: 120,
+        meta: {
+          skeleton: <Skeleton className="h-8 w-16 rounded" />,
+        },
+      },
     ],
-    [canUpdateProxies, handleToggleStatus, isToggling],
+    [
+      canCreateProxies,
+      canDeleteProxies,
+      canUpdateProxies,
+      handleDuplicate,
+      handleToggleStatus,
+      isToggling,
+    ],
   );
 
   const table = useReactTable({
@@ -232,7 +411,11 @@ export function L4ProxiesListPage() {
     pageCount: totalPages,
     state: {
       pagination,
+      rowSelection,
     },
+    enableRowSelection: true,
+    getRowId: (row) => String(row.id),
+    onRowSelectionChange: setRowSelection as OnChangeFn<RowSelectionState>,
     onPaginationChange: (updater) => {
       const newPagination = typeof updater === 'function' ? updater(pagination) : updater;
       setPagination(newPagination);
@@ -250,12 +433,18 @@ export function L4ProxiesListPage() {
       </div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">TCP/UDP Proxies</h1>
-        {canCreateProxies && (
-          <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp/new' })}>
-            <Plus className="size-4" />
-            Add TCP/UDP Proxy
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            <Download className="size-4" />
+            {isExporting ? 'Exporting...' : 'Export'}
           </Button>
-        )}
+          {canCreateProxies && (
+            <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp/new' })}>
+              <Plus className="size-4" />
+              Add TCP/UDP Proxy
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -298,6 +487,15 @@ export function L4ProxiesListPage() {
         </div>
       </div>
 
+      <ProxyBulkBar
+        count={selectedIds.length}
+        onEnable={handleBulkEnable}
+        onDisable={handleBulkDisable}
+        onDelete={() => setBulkDeleteOpen(true)}
+        onClear={() => setRowSelection({})}
+        running={isBulkRunning}
+      />
+
       <DataGrid
         table={table}
         recordCount={total}
@@ -316,6 +514,30 @@ export function L4ProxiesListPage() {
           </div>
         </DataGridContainer>
       </DataGrid>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedIds.length} {selectedIds.length === 1 ? 'Proxy' : 'Proxies'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedIds.length}</strong>{' '}
+              {selectedIds.length === 1 ? 'proxy' : 'proxies'}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isBulkRunning}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkRunning ? 'Deleting...' : `Delete ${selectedIds.length}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deletingProxy} onOpenChange={(open) => !open && setDeletingProxy(null)}>
         <AlertDialogContent>

@@ -315,9 +315,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 		// L4 Proxy routes with permission checks
 		r.Route("/api/l4-proxies", func(r chi.Router) {
-			// Read operations - require l4proxies:read
+			// Read operations - require l4proxies:read.
+			// Literal paths (/stats, /export) must be registered before /{id} so
+			// chi matches them instead of capturing them as an id.
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/", l4ProxyHandler.List)
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/stats", l4ProxyHandler.GetStats)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/export", l4ProxyHandler.ExportL4Proxies)
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:read", mwConfig)).Get("/{id}", l4ProxyHandler.Get)
 
 			// Create operations - require l4proxies:create
@@ -326,9 +329,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			// Update operations - require l4proxies:update
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Put("/{id}", l4ProxyHandler.Update)
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Patch("/{id}/toggle", l4ProxyHandler.ToggleActive)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Post("/bulk/enable", l4ProxyHandler.BulkEnable)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:update", mwConfig)).Post("/bulk/disable", l4ProxyHandler.BulkDisable)
 
 			// Delete operations - require l4proxies:delete
 			r.With(chimw.RequirePermission(authAdapter, "l4proxies:delete", mwConfig)).Delete("/{id}", l4ProxyHandler.Delete)
+			r.With(chimw.RequirePermission(authAdapter, "l4proxies:delete", mwConfig)).Post("/bulk/delete", l4ProxyHandler.BulkDelete)
 		})
 	})
 

@@ -188,6 +188,10 @@ type L4ProxyServiceInterface interface {
 	Update(id int, req *UpdateL4ProxyRequest) (*models.L4Proxy, error)
 	Delete(id int) error
 	ToggleActive(id int) (*models.L4Proxy, error)
+	SetActive(id int, enable bool) (*models.L4Proxy, error)
+	BulkSetActive(ids []int, enable bool) BulkResult
+	BulkDelete(ids []int) BulkResult
+	ExportL4Proxies(ids []int, filters ListL4ProxiesRequest) ([]L4Export, error)
 	GetStats() (*models.L4ProxyStats, error)
 }
 

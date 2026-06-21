@@ -386,6 +386,208 @@ PATCH /api/l4-proxies/{id}/toggle
 
 ---
 
+### Bulk Enable L4 Proxies
+
+```
+POST /api/l4-proxies/bulk/enable
+```
+
+**Permission:** `l4proxies:update`
+
+Enables multiple L4 proxies in a single request. The operation is **best-effort**: each
+id is processed independently and a failure on one id never aborts the batch.
+
+**Request Body:**
+
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+- `ids` (array of integers, required): The proxy ids to enable. Must be non-empty and
+  contain at most **1000** ids.
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Bulk enable completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "error", "error": "l4 proxy not found" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+- `status` is `"ok"` or `"error"`. `error` is present only when `status` is `"error"`.
+
+**Error Responses:**
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `l4proxies:update` permission.
+
+---
+
+### Bulk Disable L4 Proxies
+
+```
+POST /api/l4-proxies/bulk/disable
+```
+
+**Permission:** `l4proxies:update`
+
+Disables multiple L4 proxies in a single request. Same request/response shape and
+best-effort semantics as **Bulk Enable L4 Proxies**.
+
+**Request Body:**
+
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Bulk disable completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 3,
+    "failed": 0,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "ok" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `l4proxies:update` permission.
+
+---
+
+### Bulk Delete L4 Proxies
+
+```
+POST /api/l4-proxies/bulk/delete
+```
+
+**Permission:** `l4proxies:delete`
+
+Deletes multiple L4 proxies in a single request. Same request/response shape and
+best-effort semantics as **Bulk Enable L4 Proxies**.
+
+**Request Body:**
+
+```json
+{
+  "ids": [1, 2, 3]
+}
+```
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Bulk delete completed",
+  "data": {
+    "requested": 3,
+    "succeeded": 2,
+    "failed": 1,
+    "results": [
+      { "id": 1, "status": "ok" },
+      { "id": 2, "status": "error", "error": "l4 proxy not found" },
+      { "id": 3, "status": "ok" }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+- **400 Bad Request**: If `ids` is empty, contains more than 1000 entries, or the body is malformed.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `l4proxies:delete` permission.
+
+---
+
+### Export L4 Proxies
+
+```
+GET /api/l4-proxies/export
+```
+
+**Permission:** `l4proxies:read`
+
+Returns L4 proxies as a JSON array of portable export objects suitable for re-import.
+Server-managed fields (`id`, `l4_proxy_id`, `created_at`, `updated_at`, `created_by`)
+are dropped; everything needed to recreate the proxy is kept, including `is_active`
+so an exported inactive proxy imports inactive.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ids` | string | Optional comma-separated proxy ids (e.g. `?ids=1,2,3`). When provided, exactly these proxies are exported and any id that no longer exists is silently skipped. |
+| `search` | string | Optional. Substring match on name. Ignored when `ids` is provided. |
+| `protocol` | string | Optional. `tcp` or `udp`. Ignored when `ids` is provided. |
+| `is_active` | string | Optional. `true` or `false`. Ignored when `ids` is provided. |
+
+When no `ids` are supplied, all L4 proxies matching the given filters are exported (no pagination).
+
+**Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "TLS Router",
+      "listen_port": 443,
+      "protocol": "tcp",
+      "is_active": true,
+      "routes": [
+        {
+          "priority": 0,
+          "matcher_type": "tls",
+          "sni_hostnames": ["api.example.com"],
+          "upstreams": [{"host": "api-server", "port": 8443}],
+          "load_balancing_policy": "round_robin",
+          "tls_terminate": false,
+          "tls_passthrough": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+`data` is an array of export objects. Per object: `description`, `sni_hostnames`,
+`allowed_ip_ranges`, `regex_pattern`, `weight`, and `proxy_protocol_version` are
+omitted when empty/nil.
+
+**Error Responses:**
+- **400 Bad Request**: If `ids` contains a non-integer value, or a filter parameter is invalid.
+- **401 Unauthorized**: If the JWT token is missing or invalid.
+- **403 Forbidden**: If the user lacks the `l4proxies:read` permission.
+
+---
+
 ### Get Statistics
 
 ```

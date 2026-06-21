@@ -58,6 +58,7 @@ type AuditLogRepositoryInterface interface {
 type L4ProxyRepositoryInterface interface {
 	Create(proxy *models.L4Proxy) error
 	GetByID(id int) (*models.L4Proxy, error)
+	GetByIDs(ids []int) ([]models.L4Proxy, error)
 	List(params L4ProxyListParams) ([]models.L4Proxy, int64, error)
 	Update(proxy *models.L4Proxy) error
 	Delete(id int) error

@@ -1,13 +1,33 @@
-import { Button } from '@e412/rnui-react';
-import { useNavigate } from '@tanstack/react-router';
+import { Button, Skeleton } from '@e412/rnui-react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
+import { useMemo } from 'react';
 
 import { L4ProxyForm } from '@/components/l4-proxy';
-import { useL4Proxies } from '@/hooks/use-l4-proxies';
-import type { CreateL4ProxyRequest } from '@/types/l4-proxy';
+import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
+import type { CreateL4ProxyRequest, L4Proxy } from '@/types/l4-proxy';
 
 export function L4ProxyCreatePage() {
   const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as { duplicate?: string };
+
+  // Duplicate support — fetch source proxy when ?duplicate=<id> is present
+  const dupId = Number(searchParams.duplicate) || 0;
+  const { proxy: source } = useL4Proxy(dupId);
+
+  // Build the seed: clear listen_port, suffix name. null when not duplicating or source not yet loaded.
+  const seed = useMemo<L4Proxy | null>(
+    () =>
+      source
+        ? {
+            ...source,
+            listen_port: undefined as unknown as number,
+            name: `${source.name} (copy)`,
+          }
+        : null,
+    [source],
+  );
+
   const { create: createL4Proxy, isCreating } = useL4Proxies();
 
   const handleSubmit = async (data: CreateL4ProxyRequest) => {
@@ -43,13 +63,22 @@ export function L4ProxyCreatePage() {
         <h1 className="text-2xl font-bold">Create L4 Proxy</h1>
       </div>
 
-      {/* L4 Proxy Form */}
-      <L4ProxyForm
-        mode="create"
-        onSubmit={handleSubmit}
-        loading={isCreating}
-        onCancel={handleCancel}
-      />
+      {/* While waiting for duplicate source to load, show skeleton */}
+      {dupId > 0 && !source ? (
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-2/3" />
+        </div>
+      ) : (
+        <L4ProxyForm
+          mode="create"
+          initialData={seed}
+          onSubmit={handleSubmit}
+          loading={isCreating}
+          onCancel={handleCancel}
+        />
+      )}
     </div>
   );
 }

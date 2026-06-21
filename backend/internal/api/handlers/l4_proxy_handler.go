@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	chimw "github.com/aloks98/goauth/middleware/chi"
 	"github.com/go-chi/chi/v5"
@@ -365,6 +366,161 @@ func (h *L4ProxyHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	utils.Success(w, stats, "")
+}
+
+// maxBulkL4ProxyIDs caps the number of ids accepted in a single bulk request.
+const maxBulkL4ProxyIDs = 1000
+
+// bulkL4ProxyRequest is the request body shared by the L4 bulk endpoints.
+type bulkL4ProxyRequest struct {
+	IDs []int `json:"ids"`
+}
+
+// decodeBulkL4ProxyIDs decodes and validates the bulk request body, writing the
+// appropriate error response and returning ok=false when invalid.
+func (h *L4ProxyHandler) decodeBulkL4ProxyIDs(w http.ResponseWriter, r *http.Request) (ids []int, ok bool) {
+	var req bulkL4ProxyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, "Invalid request body format", nil)
+		return nil, false
+	}
+	if len(req.IDs) == 0 {
+		utils.BadRequest(w, "ids must not be empty", nil)
+		return nil, false
+	}
+	if len(req.IDs) > maxBulkL4ProxyIDs {
+		utils.BadRequest(w, "too many ids: maximum is 1000 per request", nil)
+		return nil, false
+	}
+	return req.IDs, true
+}
+
+// BulkEnable handles POST /api/l4-proxies/bulk/enable
+func (h *L4ProxyHandler) BulkEnable(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkL4ProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkSetActive(ids, true)
+
+	if h.logger != nil {
+		h.logger.Info("bulk enable l4 proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk enable completed")
+}
+
+// BulkDisable handles POST /api/l4-proxies/bulk/disable
+func (h *L4ProxyHandler) BulkDisable(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkL4ProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkSetActive(ids, false)
+
+	if h.logger != nil {
+		h.logger.Info("bulk disable l4 proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk disable completed")
+}
+
+// BulkDelete handles POST /api/l4-proxies/bulk/delete
+func (h *L4ProxyHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	ids, ok := h.decodeBulkL4ProxyIDs(w, r)
+	if !ok {
+		return
+	}
+
+	report := h.service.BulkDelete(ids)
+
+	if h.logger != nil {
+		h.logger.Info("bulk delete l4 proxies",
+			zap.Int("requested", report.Requested),
+			zap.Int("succeeded", report.Succeeded),
+			zap.Int("failed", report.Failed))
+	}
+
+	utils.Success(w, report, "Bulk delete completed")
+}
+
+// parseL4ExportIDs parses the optional comma-separated `ids` query parameter
+// (e.g. ?ids=1,2,3) into a slice of ints, writing a 400 response and returning
+// ok=false on a malformed value. An empty/absent parameter yields a nil slice
+// with ok=true (meaning "export all matching filters").
+func parseL4ExportIDs(w http.ResponseWriter, r *http.Request) (ids []int, ok bool) {
+	idsParam := strings.TrimSpace(r.URL.Query().Get("ids"))
+	if idsParam == "" {
+		return nil, true
+	}
+	for _, part := range strings.Split(idsParam, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.Atoi(part)
+		if err != nil {
+			utils.BadRequest(w, "Invalid ids parameter: must be a comma-separated list of integers", nil)
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return ids, true
+}
+
+// ExportL4Proxies handles GET /api/l4-proxies/export. When `ids` is provided it
+// exports those L4 proxies (skipping missing ones); otherwise it exports all L4
+// proxies matching the same filters as List (search/protocol/is_active).
+// The response data is an array of export objects suitable for re-import.
+func (h *L4ProxyHandler) ExportL4Proxies(w http.ResponseWriter, r *http.Request) {
+	ids, ok := parseL4ExportIDs(w, r)
+	if !ok {
+		return
+	}
+
+	var req service.ListL4ProxiesRequest
+	req.Search = r.URL.Query().Get("search")
+	req.Protocol = r.URL.Query().Get("protocol")
+
+	if req.Protocol != "" && req.Protocol != "tcp" && req.Protocol != "udp" {
+		utils.BadRequest(w, "Invalid protocol parameter: must be 'tcp' or 'udp'", nil)
+		return
+	}
+
+	if isActiveStr := r.URL.Query().Get("is_active"); isActiveStr != "" {
+		switch isActiveStr {
+		case "true":
+			active := true
+			req.IsActive = &active
+		case "false":
+			active := false
+			req.IsActive = &active
+		default:
+			utils.BadRequest(w, "Invalid is_active parameter: must be 'true' or 'false'", nil)
+			return
+		}
+	}
+
+	exports, err := h.service.ExportL4Proxies(ids, req)
+	if err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to export L4 proxies",
+				zap.Int("requested_ids", len(ids)),
+				zap.Error(err))
+		}
+		utils.InternalError(w, "Failed to export L4 proxies")
+		return
+	}
+
+	utils.Success(w, exports, "")
 }
 
 // dtoToCreateL4ProxyRequest converts a CreateL4ProxyRequestDTO to a service.CreateL4ProxyRequest

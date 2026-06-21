@@ -48,6 +48,25 @@ func (r *L4ProxyRepository) GetByID(id int) (*models.L4Proxy, error) {
 	return &proxy, nil
 }
 
+// GetByIDs retrieves multiple L4 proxies (with their routes) in a single query
+// (WHERE id IN (...)). Missing ids are simply absent from the result — no error.
+// Result order is not guaranteed; routes are ordered by priority then id.
+func (r *L4ProxyRepository) GetByIDs(ids []int) ([]models.L4Proxy, error) {
+	if len(ids) == 0 {
+		return []models.L4Proxy{}, nil
+	}
+	var proxies []models.L4Proxy
+	if err := r.db.
+		Preload("Routes", func(db *gorm.DB) *gorm.DB {
+			return db.Order("priority ASC, id ASC")
+		}).
+		Where("id IN ?", ids).
+		Find(&proxies).Error; err != nil {
+		return nil, err
+	}
+	return proxies, nil
+}
+
 // List returns a paginated list of L4 proxies
 func (r *L4ProxyRepository) List(params L4ProxyListParams) ([]models.L4Proxy, int64, error) {
 	var proxies []models.L4Proxy
