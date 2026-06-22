@@ -66,6 +66,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
       - caddy-etc:/etc/caddy
+      - caddy-logs:/var/log/caddy
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,3 +82,4 @@ volumes:
   caddy-data:
   caddy-config:
   caddy-etc:
+  caddy-logs:

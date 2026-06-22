@@ -161,7 +161,7 @@ RUN chmod +x /entrypoint.sh
 # Note: JSON configuration (caddy.json) is generated dynamically by the backend
 
 # Create required directories
-RUN mkdir -p /etc/caddy/backup /data /config
+RUN mkdir -p /etc/caddy/backup /data /config /var/log/caddy
 
 # Expose ports
 # 80   - HTTP (redirect to HTTPS)
@@ -176,7 +176,7 @@ ENV UI_ENABLED=true
 ENV UI_PATH=/app/ui
 
 # Volume for persistent data
-VOLUME ["/data", "/config", "/etc/caddy"]
+VOLUME ["/data", "/config", "/etc/caddy", "/var/log/caddy"]
 
 # Use tini as init system for proper signal handling
 ENTRYPOINT ["/sbin/tini", "--"]

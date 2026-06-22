@@ -205,6 +205,12 @@ const auditLogsRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/_dashboard/activity'), 'ActivityPage'),
 });
 
+const caddyLogsRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/caddy-logs',
+  component: lazyRouteComponent(() => import('@/routes/_dashboard/caddy-logs'), 'CaddyLogsPage'),
+});
+
 const aclRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/access',
@@ -274,6 +280,7 @@ const routeTree = rootRoute.addChildren([
       settingsAuditRoute,
     ]),
     auditLogsRoute,
+    caddyLogsRoute,
     aclRoute,
     aclGroupDetailRoute,
     l4RedirectRoute,

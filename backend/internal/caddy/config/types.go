@@ -29,12 +29,17 @@ type LogConfig struct {
 	Writer  *LogWriter  `json:"writer,omitempty"`
 	Encoder *LogEncoder `json:"encoder,omitempty"`
 	Level   string      `json:"level,omitempty"`
+	Include []string    `json:"include,omitempty"`
 }
 
 // LogWriter configures where logs are written.
 type LogWriter struct {
-	Output   string `json:"output,omitempty"`
-	Filename string `json:"filename,omitempty"`
+	Output       string `json:"output,omitempty"`
+	Filename     string `json:"filename,omitempty"`
+	Roll         *bool  `json:"roll,omitempty"`
+	RollSizeMB   int    `json:"roll_size_mb,omitempty"`
+	RollKeep     int    `json:"roll_keep,omitempty"`
+	RollKeepDays int    `json:"roll_keep_days,omitempty"` // days
 }
 
 // LogEncoder configures how logs are formatted.
@@ -104,6 +109,11 @@ type HTTPApp struct {
 	Servers map[string]*HTTPServer `json:"servers,omitempty"`
 }
 
+// HTTPServerLogs enables access logging for an HTTP server.
+type HTTPServerLogs struct {
+	DefaultLoggerName string `json:"default_logger_name,omitempty"`
+}
+
 // HTTPServer configures an HTTP server instance.
 type HTTPServer struct {
 	Listen          []string              `json:"listen,omitempty"`
@@ -112,6 +122,7 @@ type HTTPServer struct {
 	TLSConnPolicies []*TLSConnPolicy      `json:"tls_connection_policies,omitempty"`
 	TrustedProxies  *TrustedProxiesSource `json:"trusted_proxies,omitempty"`
 	ClientIPHeaders []string              `json:"client_ip_headers,omitempty"`
+	Logs            *HTTPServerLogs       `json:"logs,omitempty"`
 }
 
 // TrustedProxiesSource configures which upstream proxies Caddy trusts when

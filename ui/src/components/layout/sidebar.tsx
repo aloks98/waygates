@@ -48,6 +48,7 @@ import {
   Home,
   KeyRound,
   LogOut,
+  ScrollText,
   Settings,
   Shield,
   User,
@@ -75,6 +76,7 @@ const navItems: NavItem[] = [
   { label: 'Proxies', path: '/dashboard/proxies', icon: <Globe className="size-4" /> },
   { label: 'Access', path: '/dashboard/access', icon: <Shield className="size-4" /> },
   { label: 'Activity', path: '/dashboard/activity', icon: <ClipboardList className="size-4" /> },
+  { label: 'Caddy Logs', path: '/dashboard/caddy-logs', icon: <ScrollText className="size-4" /> },
   { label: 'Settings', path: '/dashboard/settings', icon: <Settings className="size-4" /> },
 ];
 

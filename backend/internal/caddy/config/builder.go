@@ -4,6 +4,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"go.uber.org/zap"
@@ -18,6 +19,9 @@ type Builder struct {
 	httpBuilder *HTTPBuilder
 	tlsBuilder  *TLSBuilder
 	aclBuilder  *ACLBuilder
+
+	// Application settings (stored for use in Build).
+	settings *Settings
 
 	// Configuration inputs
 	httpProxies []models.Proxy
@@ -42,6 +46,7 @@ type Settings struct {
 	AdminEmail   string
 	ACMEProvider string
 	StoragePath  string
+	LogPath      string // Path for Caddy runtime + access log files (default: /var/log/caddy)
 
 	// Waygates auth URLs
 	WaygatesVerifyURL string
@@ -98,6 +103,7 @@ func WithACLBuilder(aclBuilder *ACLBuilder) BuilderOption {
 
 // SetSettings sets the application settings.
 func (b *Builder) SetSettings(settings *Settings) *Builder {
+	b.settings = settings
 	b.tlsBuilder.SetSettings(settings)
 	if settings != nil {
 		if b.aclBuilder != nil {
@@ -167,6 +173,24 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 		Apps: &AppsConfig{},
 	}
 
+	// Resolve log path (settings may be nil when builder is used stand-alone).
+	logPath := "/var/log/caddy"
+	if b.settings != nil && b.settings.LogPath != "" {
+		logPath = b.settings.LogPath
+	}
+	roll := true
+
+	// Always emit the runtime (default) log.
+	config.Logging = &LoggingConfig{
+		Logs: map[string]*LogConfig{
+			"default": {
+				Writer:  &LogWriter{Output: "file", Filename: filepath.Join(logPath, "runtime.log"), Roll: &roll, RollSizeMB: 10, RollKeep: 5, RollKeepDays: 7},
+				Encoder: &LogEncoder{Format: "json"},
+				Level:   "INFO",
+			},
+		},
+	}
+
 	// Build HTTP routes for all proxies
 	routes, err := b.buildHTTPRoutes()
 	if err != nil {
@@ -185,8 +209,16 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 		server := NewHTTPServer(":443", ":80")
 		server.AddRoutes(routes...)
 		b.applyTrustedProxies(server)
+		server.Logs = &HTTPServerLogs{}
 		httpApp.AddServer(DefaultServerName, server)
 		config.Apps.HTTP = httpApp
+
+		// Add HTTP access log config now that we have an HTTP server.
+		config.Logging.Logs["access"] = &LogConfig{
+			Include: []string{"http.log.access." + DefaultServerName},
+			Writer:  &LogWriter{Output: "file", Filename: filepath.Join(logPath, "access.log"), Roll: &roll, RollSizeMB: 10, RollKeep: 5, RollKeepDays: 7},
+			Encoder: &LogEncoder{Format: "json"},
+		}
 	}
 
 	// Collect domains for TLS and build TLS app

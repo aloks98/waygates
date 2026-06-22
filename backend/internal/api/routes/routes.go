@@ -93,6 +93,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		WaygatesVerifyURL:   cfg.ACL.WaygatesVerifyURL,
 		WaygatesLoginURL:    cfg.ACL.WaygatesLoginURL,
 		StoragePath:         cfg.Caddy.StoragePath,
+		LogPath:             cfg.Caddy.LogPath,
 		TrustedProxies:      cfg.Caddy.TrustedProxies,
 		ClientIPHeaders:     cfg.Caddy.ClientIPHeaders,
 		ConfigRetentionDays: cfg.Caddy.ConfigRetentionDays,
@@ -158,6 +159,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		Logger:          logger,
 	})
 	l4ProxyHandler := handlers.NewL4ProxyHandler(l4ProxyService, logger)
+	caddyLogsService := service.NewCaddyLogsService(cfg.Caddy.LogPath)
+	caddyLogsHandler := handlers.NewCaddyLogsHandler(caddyLogsService, logger)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -311,6 +314,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/", proxyACLHandler.AssignACLToProxy)
 			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{assignmentId}", proxyACLHandler.UpdateProxyACLAssignment)
 			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{groupId}", proxyACLHandler.RemoveACLFromProxy)
+		})
+
+		// Caddy logs routes - require caddy_logs:read
+		r.Route("/api/caddy-logs", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "caddy_logs:read", mwConfig)).Get("/", caddyLogsHandler.List)
+			r.With(chimw.RequirePermission(authAdapter, "caddy_logs:read", mwConfig)).Get("/stream", caddyLogsHandler.Stream)
 		})
 
 		// L4 Proxy routes with permission checks

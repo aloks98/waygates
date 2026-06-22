@@ -47,6 +47,7 @@ type CaddyConfig struct {
 	Email        string // Email for ACME certificates
 	ACMEProvider string // DNS provider for ACME challenge: cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh, http, off
 	StoragePath  string // Caddy storage path for certificates (default: /data)
+	LogPath      string // Caddy log path for runtime + access logs (default: /var/log/caddy)
 
 	// TrustedProxies are CIDR ranges of upstream proxies/tunnels (e.g.
 	// cloudflared, Pangolin) whose forwarded client-IP headers Caddy should
@@ -147,6 +148,7 @@ func Load() (*Config, error) {
 			Email:               viper.GetString("CADDY_EMAIL"),
 			ACMEProvider:        viper.GetString("CADDY_ACME_PROVIDER"),
 			StoragePath:         viper.GetString("CADDY_STORAGE_PATH"),
+			LogPath:             viper.GetString("CADDY_LOG_PATH"),
 			TrustedProxies:      splitAndTrimCSV(viper.GetString("CADDY_TRUSTED_PROXIES")),
 			ClientIPHeaders:     splitAndTrimCSV(viper.GetString("CADDY_CLIENT_IP_HEADERS")),
 			ConfigRetentionDays: viper.GetInt("WAYGATES_CADDY_CONFIG_RETENTION_DAYS"),
@@ -212,6 +214,7 @@ func setDefaults() {
 	viper.SetDefault("CADDY_EMAIL", "")
 	viper.SetDefault("CADDY_ACME_PROVIDER", "off") // off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
 	viper.SetDefault("CADDY_STORAGE_PATH", "/data")
+	viper.SetDefault("CADDY_LOG_PATH", "/var/log/caddy")
 
 	// Caddy backup configuration
 	viper.SetDefault("WAYGATES_CADDY_CONFIG_RETENTION_DAYS", 7) // Keep backups for 7 days

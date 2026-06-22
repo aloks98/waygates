@@ -70,6 +70,12 @@ permission_groups:
         name: "Delete ACL"
         description: "Remove ACL groups, rules, and assignments"
 
+  - name: "Caddy Logs"
+    permissions:
+      - key: "caddy_logs:read"
+        name: "View Caddy Logs"
+        description: "View Caddy runtime and access logs"
+
   - name: "L4 Proxies"
     permissions:
       - key: "l4proxies:read"

@@ -77,6 +77,7 @@ type SyncServiceConfig struct {
 	WaygatesVerifyURL string // Waygates auth verify URL for ACL
 	WaygatesLoginURL  string // Waygates auth login URL for ACL
 	StoragePath       string // Caddy storage path (default: /data)
+	LogPath           string // Caddy log path for runtime + access logs (default: /var/log/caddy)
 
 	// Trusted proxy configuration for real-client-IP resolution behind a
 	// tunnel/upstream proxy (empty = Caddy is the edge).
@@ -155,6 +156,7 @@ func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger)
 		AdminEmail:        cfg.Email,
 		ACMEProvider:      cfg.ACMEProvider,
 		StoragePath:       storagePath,
+		LogPath:           cfg.LogPath,
 		WaygatesVerifyURL: cfg.WaygatesVerifyURL,
 		WaygatesLoginURL:  cfg.WaygatesLoginURL,
 		TrustedProxies:    cfg.TrustedProxies,

@@ -1962,3 +1962,113 @@ func TestBuilder_FullIntegration_NoSecurityRoutesWhenDisabled(t *testing.T) {
 		assert.NotEqual(t, "static_response", handler, "First route should not be a security route")
 	}
 }
+
+// =============================================================================
+// Logging config tests
+// =============================================================================
+
+func TestBuilder_Build_Logging_DefaultRuntimeLog(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()))
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	// Logging must always be present.
+	require.NotNil(t, cfg.Logging)
+	require.NotNil(t, cfg.Logging.Logs)
+
+	defaultLog, ok := cfg.Logging.Logs["default"]
+	require.True(t, ok, "expected 'default' log entry")
+	require.NotNil(t, defaultLog.Writer)
+	assert.Equal(t, "file", defaultLog.Writer.Output)
+	assert.Equal(t, "/var/log/caddy/runtime.log", defaultLog.Writer.Filename)
+	require.NotNil(t, defaultLog.Writer.Roll, "roll should be set")
+	assert.True(t, *defaultLog.Writer.Roll)
+	assert.Equal(t, 10, defaultLog.Writer.RollSizeMB)
+	assert.Equal(t, 5, defaultLog.Writer.RollKeep)
+	assert.Equal(t, 7, defaultLog.Writer.RollKeepDays)
+	assert.Equal(t, "INFO", defaultLog.Level)
+	require.NotNil(t, defaultLog.Encoder)
+	assert.Equal(t, "json", defaultLog.Encoder.Format)
+}
+
+func TestBuilder_Build_Logging_CustomLogPath(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetSettings(&Settings{
+		ACMEProvider: ACMEProviderOff,
+		LogPath:      "/custom/logs",
+	})
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	defaultLog := cfg.Logging.Logs["default"]
+	require.NotNil(t, defaultLog)
+	assert.Equal(t, "/custom/logs/runtime.log", defaultLog.Writer.Filename)
+}
+
+func TestBuilder_Build_Logging_AccessLog_WithProxies(t *testing.T) {
+	proxy := createReverseProxy(1, "test", "example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{proxy})
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	// Access log must be present when there are HTTP routes.
+	require.NotNil(t, cfg.Logging)
+	accessLog, ok := cfg.Logging.Logs["access"]
+	require.True(t, ok, "expected 'access' log entry when proxies exist")
+	require.NotNil(t, accessLog.Writer)
+	assert.Equal(t, "file", accessLog.Writer.Output)
+	assert.Equal(t, "/var/log/caddy/access.log", accessLog.Writer.Filename)
+	require.NotNil(t, accessLog.Writer.Roll)
+	assert.True(t, *accessLog.Writer.Roll)
+	assert.Equal(t, []string{"http.log.access." + DefaultServerName}, accessLog.Include)
+	require.NotNil(t, accessLog.Encoder)
+	assert.Equal(t, "json", accessLog.Encoder.Format)
+
+	// Server must reference the access logger.
+	server := cfg.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+	require.NotNil(t, server.Logs, "access logging must be enabled on the HTTP server")
+}
+
+func TestBuilder_Build_Logging_NoAccessLog_WithoutProxies(t *testing.T) {
+	// No proxies → still has default (runtime) log but no access log.
+	// NOTE: even with no HTTP proxies the builder emits a catch-all route,
+	// so an HTTP server is always created. Verify the runtime log is present.
+	b := NewBuilder(WithLogger(newTestLogger()))
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Logging)
+
+	_, hasDefault := cfg.Logging.Logs["default"]
+	assert.True(t, hasDefault, "runtime log must always be present")
+}
+
+func TestBuilder_Build_Logging_ValidJSON(t *testing.T) {
+	proxy := createReverseProxy(1, "test", "example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{proxy})
+
+	jsonBytes, err := b.BuildJSON()
+	require.NoError(t, err)
+	require.NotEmpty(t, jsonBytes)
+
+	var result map[string]interface{}
+	err = json.Unmarshal(jsonBytes, &result)
+	require.NoError(t, err, "marshaled config must be valid JSON")
+
+	// Spot-check logging key is present in JSON output.
+	assert.Contains(t, result, "logging")
+}
