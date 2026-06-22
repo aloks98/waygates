@@ -73,17 +73,17 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: <Home className="size-4" /> },
-  { label: 'Proxies', path: '/dashboard/proxies', icon: <Globe className="size-4" /> },
-  { label: 'Access', path: '/dashboard/access', icon: <Shield className="size-4" /> },
-  { label: 'Activity', path: '/dashboard/activity', icon: <ClipboardList className="size-4" /> },
-  { label: 'Caddy Logs', path: '/dashboard/caddy-logs', icon: <ScrollText className="size-4" /> },
+  { label: 'Dashboard', path: '/', icon: <Home className="size-4" /> },
+  { label: 'Proxies', path: '/proxies', icon: <Globe className="size-4" /> },
+  { label: 'Access', path: '/access', icon: <Shield className="size-4" /> },
+  { label: 'Activity', path: '/activity', icon: <ClipboardList className="size-4" /> },
+  { label: 'Caddy Logs', path: '/caddy-logs', icon: <ScrollText className="size-4" /> },
   {
     label: 'Caddy Config',
-    path: '/dashboard/caddy-config',
+    path: '/caddy-config',
     icon: <FileCode2 className="size-4" />,
   },
-  { label: 'Settings', path: '/dashboard/settings', icon: <Settings className="size-4" /> },
+  { label: 'Settings', path: '/settings', icon: <Settings className="size-4" /> },
 ];
 
 const passwordSchema = z
@@ -327,8 +327,8 @@ export function AppSidebar({ children }: { children: ReactNode }) {
               <SidebarMenu>
                 {navItems.map((item) => {
                   const isActive =
-                    item.path === '/dashboard'
-                      ? location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+                    item.path === '/'
+                      ? location.pathname === '/'
                       : location.pathname === item.path ||
                         location.pathname.startsWith(`${item.path}/`);
                   return (

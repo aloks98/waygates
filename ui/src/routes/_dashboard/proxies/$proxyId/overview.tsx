@@ -30,7 +30,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
 
 export function ProxyOverviewPage() {
-  const params = useParams({ from: '/dashboard/proxies/$proxyId' });
+  const params = useParams({ from: '/proxies/$proxyId' });
   const proxyId = parseInt(params.proxyId, 10);
   const navigate = useNavigate();
   const { proxy, isLoading } = useProxy(proxyId);
@@ -42,7 +42,7 @@ export function ProxyOverviewPage() {
   const handleDelete = async () => {
     await remove(proxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/proxies' });
   };
 
   if (isLoading) {
@@ -70,7 +70,7 @@ export function ProxyOverviewPage() {
         <p className="text-muted-foreground">
           The proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/proxies' })}>
+        <Button onClick={() => navigate({ to: '/proxies' })}>
           <ArrowLeft className="size-4" />
           Back to Proxies
         </Button>
@@ -82,11 +82,7 @@ export function ProxyOverviewPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate({ to: '/dashboard/proxies' })}
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
@@ -113,7 +109,7 @@ export function ProxyOverviewPage() {
             <Button
               onClick={() =>
                 navigate({
-                  to: '/dashboard/proxies/$proxyId/edit',
+                  to: '/proxies/$proxyId/edit',
                   params: { proxyId: String(proxy.id) },
                 })
               }
@@ -135,7 +131,7 @@ export function ProxyOverviewPage() {
                   <DropdownMenuItem
                     onClick={() =>
                       navigate({
-                        to: '/dashboard/proxies/new',
+                        to: '/proxies/new',
                         search: { type: proxy.type, duplicate: proxy.id },
                       })
                     }

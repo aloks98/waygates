@@ -13,10 +13,10 @@ import { ProxiesTabs } from './proxies-tabs';
 
 test('renders both tabs with correct hrefs', () => {
   render(<ProxiesTabs active="http" />);
-  expect(screen.getByRole('link', { name: /HTTP/i })).toHaveAttribute('href', '/dashboard/proxies');
+  expect(screen.getByRole('link', { name: /HTTP/i })).toHaveAttribute('href', '/proxies');
   expect(screen.getByRole('link', { name: /TCP\/UDP/i })).toHaveAttribute(
     'href',
-    '/dashboard/proxies/tcp-udp',
+    '/proxies/tcp-udp',
   );
 });
 

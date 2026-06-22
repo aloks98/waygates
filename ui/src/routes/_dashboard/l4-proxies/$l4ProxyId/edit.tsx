@@ -28,7 +28,7 @@ function getProtocolLabel(protocol: string): string {
 }
 
 export function L4ProxyEditPage() {
-  const params = useParams({ from: '/dashboard/proxies/tcp-udp/$l4ProxyId/edit' });
+  const params = useParams({ from: '/proxies/tcp-udp/$l4ProxyId/edit' });
   const l4ProxyId = parseInt(params.l4ProxyId, 10);
   const navigate = useNavigate();
 
@@ -45,12 +45,12 @@ export function L4ProxyEditPage() {
   const handleDelete = async () => {
     await remove(l4ProxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/proxies/tcp-udp' });
+    navigate({ to: '/proxies/tcp-udp' });
   };
 
   const handleCancel = () => {
     navigate({
-      to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
+      to: '/proxies/tcp-udp/$l4ProxyId',
       params: { l4ProxyId: String(l4ProxyId) },
     });
   };
@@ -86,7 +86,7 @@ export function L4ProxyEditPage() {
         <p className="text-muted-foreground">
           The TCP/UDP proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}>
+        <Button onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
           <ArrowLeft className="size-4" />
           Back to TCP/UDP Proxies
         </Button>
@@ -104,7 +104,7 @@ export function L4ProxyEditPage() {
             size="icon"
             onClick={() =>
               navigate({
-                to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
+                to: '/proxies/tcp-udp/$l4ProxyId',
                 params: { l4ProxyId: String(l4ProxyId) },
               })
             }

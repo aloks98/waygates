@@ -3,8 +3,8 @@ import { Link } from '@tanstack/react-router';
 import { Globe, Network } from 'lucide-react';
 
 const tabs = [
-  { key: 'http', label: 'HTTP', to: '/dashboard/proxies', icon: Globe },
-  { key: 'tcp-udp', label: 'TCP/UDP', to: '/dashboard/proxies/tcp-udp', icon: Network },
+  { key: 'http', label: 'HTTP', to: '/proxies', icon: Globe },
+  { key: 'tcp-udp', label: 'TCP/UDP', to: '/proxies/tcp-udp', icon: Network },
 ] as const;
 
 export function ProxiesTabs({ active }: { active: 'http' | 'tcp-udp' }) {

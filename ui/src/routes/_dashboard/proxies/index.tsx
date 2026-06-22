@@ -183,14 +183,14 @@ export function ProxiesListPage() {
 
   const handleEdit = useCallback(
     (proxy: ProxyConfig) => {
-      navigate({ to: '/dashboard/proxies/$proxyId/edit', params: { proxyId: String(proxy.id) } });
+      navigate({ to: '/proxies/$proxyId/edit', params: { proxyId: String(proxy.id) } });
     },
     [navigate],
   );
 
   const handleRowClick = useCallback(
     (proxy: ProxyConfig) => {
-      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
+      navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxy.id) } });
     },
     [navigate],
   );
@@ -198,7 +198,7 @@ export function ProxiesListPage() {
   const handleDuplicate = useCallback(
     (proxy: ProxyConfig) => {
       navigate({
-        to: '/dashboard/proxies/new',
+        to: '/proxies/new',
         search: { type: proxy.type, duplicate: proxy.id },
       });
     },
@@ -297,7 +297,7 @@ export function ProxiesListPage() {
             </Button>
           )}
           {canCreateProxies && (
-            <Button onClick={() => navigate({ to: '/dashboard/proxies/new' })}>
+            <Button onClick={() => navigate({ to: '/proxies/new' })}>
               <Plus className="size-4" />
               Add Proxy
             </Button>

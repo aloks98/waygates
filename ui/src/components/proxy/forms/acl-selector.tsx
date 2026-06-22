@@ -157,7 +157,7 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
             <p className="text-sm">No ACL groups available</p>
             <p className="text-xs mt-1">
               <Link
-                to="/dashboard/access"
+                to="/access"
                 className="text-primary hover:underline inline-flex items-center gap-1"
               >
                 Create an ACL group first

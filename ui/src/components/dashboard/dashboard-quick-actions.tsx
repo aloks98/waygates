@@ -9,27 +9,19 @@ export function DashboardQuickActions() {
         <CardTitle className="text-base">Quick actions</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <Button
-          variant="outline"
-          className="justify-start"
-          render={<Link to="/dashboard/proxies/new" />}
-        >
+        <Button variant="outline" className="justify-start" render={<Link to="/proxies/new" />}>
           <Globe className="size-4" />
           New HTTP proxy
         </Button>
         <Button
           variant="outline"
           className="justify-start"
-          render={<Link to="/dashboard/proxies/tcp-udp/new" />}
+          render={<Link to="/proxies/tcp-udp/new" />}
         >
           <Network className="size-4" />
           New TCP/UDP proxy
         </Button>
-        <Button
-          variant="outline"
-          className="justify-start"
-          render={<Link to="/dashboard/access" />}
-        >
+        <Button variant="outline" className="justify-start" render={<Link to="/access" />}>
           <Shield className="size-4" />
           New access group
         </Button>

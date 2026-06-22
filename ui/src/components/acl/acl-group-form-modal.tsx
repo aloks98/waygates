@@ -133,7 +133,7 @@ export function ACLGroupFormModal({
       // Navigate to the newly created group's detail page to configure rules
       if (response.data?.id) {
         navigate({
-          to: '/dashboard/access/$groupId',
+          to: '/access/$groupId',
           params: { groupId: String(response.data.id) },
         });
       }

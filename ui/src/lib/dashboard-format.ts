@@ -70,9 +70,9 @@ export function getActivityLink(log: AuditLog): string | null {
   if (!log.resource_id || log.action.includes('delete')) return null;
   switch (log.resource_type) {
     case 'proxy':
-      return `/dashboard/proxies/${log.resource_id}`;
+      return `/proxies/${log.resource_id}`;
     case 'acl':
-      return `/dashboard/access/${log.resource_id}`;
+      return `/access/${log.resource_id}`;
     default:
       return null;
   }

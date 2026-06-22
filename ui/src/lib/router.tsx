@@ -16,25 +16,13 @@ const rootRoute = createRootRoute({
   component: RootLayout,
 });
 
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  beforeLoad: () => {
-    const { isAuthenticated } = useAuthStore.getState();
-    if (isAuthenticated) {
-      throw redirect({ to: '/dashboard' });
-    }
-    throw redirect({ to: '/login' });
-  },
-});
-
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   beforeLoad: () => {
     const { isAuthenticated } = useAuthStore.getState();
     if (isAuthenticated) {
-      throw redirect({ to: '/dashboard' });
+      throw redirect({ to: '/' });
     }
   },
   component: LoginPage,
@@ -46,7 +34,7 @@ const signupRoute = createRoute({
   beforeLoad: () => {
     const { isAuthenticated } = useAuthStore.getState();
     if (isAuthenticated) {
-      throw redirect({ to: '/dashboard' });
+      throw redirect({ to: '/' });
     }
   },
   component: SignupPage,
@@ -69,7 +57,7 @@ const aclForbiddenRoute = createRoute({
 
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard',
+  id: 'dashboard',
   beforeLoad: () => {
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
@@ -168,7 +156,7 @@ const settingsIndexRoute = createRoute({
   getParentRoute: () => settingsRoute,
   path: '/',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard/settings/default-page' });
+    throw redirect({ to: '/settings/default-page' });
   },
 });
 
@@ -239,7 +227,7 @@ const l4RedirectRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/l4-proxies',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard/proxies/tcp-udp' });
+    throw redirect({ to: '/proxies/tcp-udp' });
   },
 });
 
@@ -247,7 +235,7 @@ const aclRedirectRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/acl',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard/access' });
+    throw redirect({ to: '/access' });
   },
 });
 
@@ -255,7 +243,7 @@ const auditRedirectRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/audit-logs',
   beforeLoad: () => {
-    throw redirect({ to: '/dashboard/activity' });
+    throw redirect({ to: '/activity' });
   },
 });
 
@@ -266,7 +254,6 @@ const themePreviewRoute = createRoute({
 });
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
   loginRoute,
   signupRoute,
   themePreviewRoute,

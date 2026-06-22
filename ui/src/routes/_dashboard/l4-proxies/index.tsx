@@ -173,7 +173,7 @@ export function L4ProxiesListPage() {
   const handleRowClick = useCallback(
     (proxy: L4Proxy) => {
       navigate({
-        to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
+        to: '/proxies/tcp-udp/$l4ProxyId',
         params: { l4ProxyId: String(proxy.id) },
       });
     },
@@ -195,7 +195,7 @@ export function L4ProxiesListPage() {
 
   const handleDuplicate = useCallback(
     (p: L4Proxy) => {
-      navigate({ to: '/dashboard/proxies/tcp-udp/new', search: { duplicate: p.id } });
+      navigate({ to: '/proxies/tcp-udp/new', search: { duplicate: p.id } });
     },
     [navigate],
   );
@@ -203,7 +203,7 @@ export function L4ProxiesListPage() {
   const handleEdit = useCallback(
     (p: L4Proxy) => {
       navigate({
-        to: '/dashboard/proxies/tcp-udp/$l4ProxyId/edit',
+        to: '/proxies/tcp-udp/$l4ProxyId/edit',
         params: { l4ProxyId: String(p.id) },
       });
     },
@@ -470,7 +470,7 @@ export function L4ProxiesListPage() {
             {isExporting ? 'Exporting...' : 'Export'}
           </Button>
           {canCreateProxies && (
-            <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp/new' })}>
+            <Button onClick={() => navigate({ to: '/proxies/tcp-udp/new' })}>
               <Plus className="size-4" />
               Add TCP/UDP Proxy
             </Button>

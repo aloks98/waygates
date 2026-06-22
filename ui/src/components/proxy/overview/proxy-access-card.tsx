@@ -24,7 +24,7 @@ export function ProxyAccessCard({ proxyId }: { proxyId: number }) {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldOff className="size-4" />
             Unprotected &middot;{' '}
-            <Link to="/dashboard/access" className="text-primary hover:underline">
+            <Link to="/access" className="text-primary hover:underline">
               Configure access
             </Link>
           </div>
@@ -33,7 +33,7 @@ export function ProxyAccessCard({ proxyId }: { proxyId: number }) {
             {assignments.map((a) => (
               <li key={a.acl_group_id} className="flex items-center justify-between gap-3 text-sm">
                 <Link
-                  to="/dashboard/access/$groupId"
+                  to="/access/$groupId"
                   params={{ groupId: String(a.acl_group_id) }}
                   className="font-medium text-primary hover:underline"
                 >

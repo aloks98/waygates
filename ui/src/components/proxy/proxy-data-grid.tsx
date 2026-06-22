@@ -273,15 +273,11 @@ export function ProxyDataGrid({
             Create your first proxy to start routing traffic through Waygates.
           </p>
           <div className="mt-4 flex gap-2">
-            <Button size="sm" render={<Link to="/dashboard/proxies/new" />}>
+            <Button size="sm" render={<Link to="/proxies/new" />}>
               <Plus className="size-4" />
               HTTP Proxy
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              render={<Link to="/dashboard/proxies/tcp-udp/new" />}
-            >
+            <Button size="sm" variant="outline" render={<Link to="/proxies/tcp-udp/new" />}>
               <Network className="size-4" />
               TCP/UDP Proxy
             </Button>

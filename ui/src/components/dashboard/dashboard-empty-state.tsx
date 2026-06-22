@@ -12,11 +12,11 @@ export function DashboardEmptyState() {
           description="You don't have any proxies yet. Create your first one to start routing traffic — Waygates handles HTTPS automatically."
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              <Button render={<Link to="/dashboard/proxies/new" />}>
+              <Button render={<Link to="/proxies/new" />}>
                 <Globe className="size-4" />
                 Create HTTP proxy
               </Button>
-              <Button variant="outline" render={<Link to="/dashboard/proxies/tcp-udp/new" />}>
+              <Button variant="outline" render={<Link to="/proxies/tcp-udp/new" />}>
                 <Network className="size-4" />
                 Create TCP/UDP proxy
               </Button>

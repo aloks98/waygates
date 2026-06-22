@@ -52,7 +52,7 @@ export function LoginPage() {
         .json<ApiResponse<TokenPair>>();
       if (response.success && response.data) {
         setTokens(response.data);
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/' });
       } else {
         setError(response.message || 'Login failed');
       }

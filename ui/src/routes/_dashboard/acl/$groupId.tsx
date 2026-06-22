@@ -251,7 +251,7 @@ function OverviewTab({
 }
 
 export function ACLGroupDetailPage() {
-  const params = useParams({ from: '/dashboard/access/$groupId' });
+  const params = useParams({ from: '/access/$groupId' });
   const groupId = parseInt(params.groupId, 10);
   const navigate = useNavigate();
 
@@ -265,7 +265,7 @@ export function ACLGroupDetailPage() {
   const handleDelete = async () => {
     await deleteGroup(groupId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/access' });
+    navigate({ to: '/access' });
   };
 
   if (isLoading) {
@@ -291,7 +291,7 @@ export function ACLGroupDetailPage() {
         <p className="text-muted-foreground">
           The access control group you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/access' })}>
+        <Button onClick={() => navigate({ to: '/access' })}>
           <ArrowLeft className="size-4" />
           Back to Groups
         </Button>
@@ -303,7 +303,7 @@ export function ACLGroupDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/dashboard/access' })}>
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/access' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>

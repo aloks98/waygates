@@ -82,14 +82,14 @@ export function ProxyCreatePage() {
     }
 
     if (proxyId) {
-      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } });
+      navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxyId) } });
     } else {
-      navigate({ to: '/dashboard/proxies' });
+      navigate({ to: '/proxies' });
     }
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/proxies' });
   };
 
   const renderTypePill = (option: ProxyTypeOption) => (
@@ -112,7 +112,7 @@ export function ProxyCreatePage() {
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/dashboard/proxies' })}>
+        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies' })}>
           <ArrowLeft className="size-4" />
           <span className="sr-only">Back</span>
         </Button>

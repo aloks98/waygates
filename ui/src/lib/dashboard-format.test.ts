@@ -48,10 +48,10 @@ test('getActionColor flags destructive and success', () => {
 test('getActivityLink builds resource links and skips deletes', () => {
   expect(
     getActivityLink({ action: 'proxy.update', resource_type: 'proxy', resource_id: 5 } as any),
-  ).toBe('/dashboard/proxies/5');
+  ).toBe('/proxies/5');
   expect(
     getActivityLink({ action: 'acl_group.update', resource_type: 'acl', resource_id: 2 } as any),
-  ).toBe('/dashboard/access/2');
+  ).toBe('/access/2');
   expect(
     getActivityLink({ action: 'proxy.delete', resource_type: 'proxy', resource_id: 5 } as any),
   ).toBeNull();

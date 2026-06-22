@@ -36,7 +36,7 @@ import { useProxies, useProxy } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
 export function ProxyEditPage() {
-  const params = useParams({ from: '/dashboard/proxies/$proxyId/edit' });
+  const params = useParams({ from: '/proxies/$proxyId/edit' });
   const proxyId = parseInt(params.proxyId, 10);
   const navigate = useNavigate();
 
@@ -111,11 +111,11 @@ export function ProxyEditPage() {
   const handleDelete = async () => {
     await remove(proxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/proxies' });
+    navigate({ to: '/proxies' });
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } });
+    navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxyId) } });
   };
 
   if (isLoading) {
@@ -149,7 +149,7 @@ export function ProxyEditPage() {
         <p className="text-muted-foreground">
           The proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/proxies' })}>
+        <Button onClick={() => navigate({ to: '/proxies' })}>
           <ArrowLeft className="size-4" />
           Back to Proxies
         </Button>
@@ -166,7 +166,7 @@ export function ProxyEditPage() {
             variant="ghost"
             size="icon"
             onClick={() =>
-              navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } })
+              navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxyId) } })
             }
           >
             <ArrowLeft className="size-4" />

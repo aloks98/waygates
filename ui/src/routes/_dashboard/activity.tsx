@@ -116,7 +116,7 @@ export function ActivityPage() {
 
   const handleViewChange = useCallback(
     (v: ActivityView) => {
-      navigate({ to: '/dashboard/activity', search: { view: v }, replace: true });
+      navigate({ to: '/activity', search: { view: v }, replace: true });
     },
     [navigate],
   );

@@ -30,7 +30,7 @@ import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
 
 export function L4ProxyOverviewPage() {
-  const params = useParams({ from: '/dashboard/proxies/tcp-udp/$l4ProxyId' });
+  const params = useParams({ from: '/proxies/tcp-udp/$l4ProxyId' });
   const l4ProxyId = parseInt(params.l4ProxyId, 10);
   const navigate = useNavigate();
 
@@ -43,7 +43,7 @@ export function L4ProxyOverviewPage() {
   const handleDelete = async () => {
     await remove(l4ProxyId);
     setDeleteDialogOpen(false);
-    navigate({ to: '/dashboard/proxies/tcp-udp' });
+    navigate({ to: '/proxies/tcp-udp' });
   };
 
   if (isLoading) {
@@ -71,7 +71,7 @@ export function L4ProxyOverviewPage() {
         <p className="text-muted-foreground">
           The TCP/UDP proxy you're looking for doesn't exist or has been deleted.
         </p>
-        <Button onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}>
+        <Button onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
           <ArrowLeft className="size-4" />
           Back to TCP/UDP Proxies
         </Button>
@@ -84,11 +84,7 @@ export function L4ProxyOverviewPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
@@ -113,7 +109,7 @@ export function L4ProxyOverviewPage() {
             <Button
               onClick={() =>
                 navigate({
-                  to: '/dashboard/proxies/tcp-udp/$l4ProxyId/edit',
+                  to: '/proxies/tcp-udp/$l4ProxyId/edit',
                   params: { l4ProxyId: String(proxy.id) },
                 })
               }
@@ -135,7 +131,7 @@ export function L4ProxyOverviewPage() {
                   <DropdownMenuItem
                     onClick={() =>
                       navigate({
-                        to: '/dashboard/proxies/tcp-udp/new',
+                        to: '/proxies/tcp-udp/new',
                         search: { duplicate: proxy.id },
                       })
                     }
@@ -174,7 +170,7 @@ export function L4ProxyOverviewPage() {
           <DetailRow label="Description">{proxy.description || '—'}</DetailRow>
           <DetailRow label="Generated config">
             <Link
-              to="/dashboard/caddy-config"
+              to="/caddy-config"
               className="text-sm text-primary underline-offset-4 hover:underline"
             >
               View full config

@@ -78,7 +78,7 @@ export function ACLGroupsPage() {
 
   const handleRowClick = useCallback(
     (group: ACLGroup) => {
-      navigate({ to: '/dashboard/access/$groupId', params: { groupId: String(group.id) } });
+      navigate({ to: '/access/$groupId', params: { groupId: String(group.id) } });
     },
     [navigate],
   );

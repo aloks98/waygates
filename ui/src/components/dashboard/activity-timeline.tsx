@@ -33,7 +33,7 @@ export function ActivityTimeline({
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Recent activity</CardTitle>
         <CardAction>
-          <Button variant="ghost" size="sm" render={<Link to="/dashboard/activity" />}>
+          <Button variant="ghost" size="sm" render={<Link to="/activity" />}>
             View all
             <ArrowRight className="ml-1 size-3.5" />
           </Button>

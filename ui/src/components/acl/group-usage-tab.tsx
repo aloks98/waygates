@@ -40,7 +40,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
 
   const handleProxyClick = useCallback(
     (proxyId: number) => {
-      navigate({ to: '/dashboard/proxies/$proxyId', params: { proxyId: String(proxyId) } });
+      navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxyId) } });
     },
     [navigate],
   );
@@ -204,11 +204,7 @@ export function GroupUsageTab({ groupId }: GroupUsageTabProps) {
         <p className="text-sm mt-1">
           Assign this access group to a proxy to protect it with these access controls
         </p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => navigate({ to: '/dashboard/proxies' })}
-        >
+        <Button variant="outline" className="mt-4" onClick={() => navigate({ to: '/proxies' })}>
           <Globe className="size-4" />
           Go to Proxies
         </Button>

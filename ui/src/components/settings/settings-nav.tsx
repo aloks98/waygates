@@ -12,19 +12,19 @@ interface SettingsNavItem {
 
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   {
-    to: '/dashboard/settings/default-page',
+    to: '/settings/default-page',
     label: 'Default Page',
     description: 'Behavior for unmatched hostnames',
     icon: <FileQuestion className="size-4" />,
   },
   {
-    to: '/dashboard/settings/login-branding',
+    to: '/settings/login-branding',
     label: 'Login Branding',
     description: 'Customize the login page',
     icon: <Palette className="size-4" />,
   },
   {
-    to: '/dashboard/settings/audit-logs',
+    to: '/settings/audit-logs',
     label: 'Audit Logs',
     description: 'Configure event logging',
     icon: <ScrollText className="size-4" />,

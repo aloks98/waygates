@@ -36,27 +36,23 @@ export function L4ProxyCreatePage() {
 
     if (l4ProxyId) {
       navigate({
-        to: '/dashboard/proxies/tcp-udp/$l4ProxyId',
+        to: '/proxies/tcp-udp/$l4ProxyId',
         params: { l4ProxyId: String(l4ProxyId) },
       });
     } else {
-      navigate({ to: '/dashboard/proxies/tcp-udp' });
+      navigate({ to: '/proxies/tcp-udp' });
     }
   };
 
   const handleCancel = () => {
-    navigate({ to: '/dashboard/proxies/tcp-udp' });
+    navigate({ to: '/proxies/tcp-udp' });
   };
 
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate({ to: '/dashboard/proxies/tcp-udp' })}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
           <ArrowLeft className="size-4" />
           <span className="sr-only">Back</span>
         </Button>

@@ -64,37 +64,37 @@ export function CommandPalette() {
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Navigate">
-            <CommandItem onSelect={() => go('/dashboard')}>
+            <CommandItem onSelect={() => go('/')}>
               <Home className="size-4" />
               Dashboard
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/proxies')}>
+            <CommandItem onSelect={() => go('/proxies')}>
               <Globe className="size-4" />
               Proxies (HTTP)
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/proxies/tcp-udp')}>
+            <CommandItem onSelect={() => go('/proxies/tcp-udp')}>
               <Network className="size-4" />
               Proxies (TCP/UDP)
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/access')}>
+            <CommandItem onSelect={() => go('/access')}>
               <Shield className="size-4" />
               Access
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/activity')}>
+            <CommandItem onSelect={() => go('/activity')}>
               <Activity className="size-4" />
               Activity
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/settings')}>
+            <CommandItem onSelect={() => go('/settings')}>
               <Settings className="size-4" />
               Settings
             </CommandItem>
           </CommandGroup>
           <CommandGroup heading="Actions">
-            <CommandItem onSelect={() => go('/dashboard/proxies/new')}>
+            <CommandItem onSelect={() => go('/proxies/new')}>
               <Plus className="size-4" />
               New HTTP proxy
             </CommandItem>
-            <CommandItem onSelect={() => go('/dashboard/proxies/tcp-udp/new')}>
+            <CommandItem onSelect={() => go('/proxies/tcp-udp/new')}>
               <Plus className="size-4" />
               New TCP/UDP proxy
             </CommandItem>
