@@ -3,16 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { parseCaddyLogLine } from './caddy-logs';
 
 describe('parseCaddyLogLine', () => {
-  it('parses a valid access log JSON line', () => {
+  it('parses a valid access log JSON line (request details nested under `request`)', () => {
     const raw = JSON.stringify({
       ts: 1700000000.123,
       level: 'info',
-      logger: 'http.log.access',
+      logger: 'http.log.access.srv0',
       msg: 'handled request',
+      request: {
+        remote_ip: '172.18.0.1',
+        method: 'GET',
+        host: 'example.com',
+        uri: '/api/health',
+      },
       status: 200,
-      method: 'GET',
-      host: 'example.com',
-      uri: '/api/health',
       duration: 0.002,
     });
 
@@ -21,12 +24,13 @@ describe('parseCaddyLogLine', () => {
     expect(result.raw).toBe(raw);
     expect(result.ts).toBeCloseTo(1700000000.123);
     expect(result.level).toBe('info');
-    expect(result.logger).toBe('http.log.access');
+    expect(result.logger).toBe('http.log.access.srv0');
     expect(result.msg).toBe('handled request');
     expect(result.status).toBe(200);
     expect(result.method).toBe('GET');
     expect(result.host).toBe('example.com');
     expect(result.uri).toBe('/api/health');
+    expect(result.remoteIp).toBe('172.18.0.1');
     expect(result.duration).toBeCloseTo(0.002);
   });
 

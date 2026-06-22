@@ -81,6 +81,14 @@ export function useCaddyLogs(source: CaddyLogSource): UseCaddyLogsResult {
       });
   }, []);
 
+  // Reset the buffer when the source changes so each tab shows only its own
+  // log (otherwise the previous source's lines persist and the new source's
+  // backfill just appends, making the tabs look identical). Pause/resume keeps
+  // the buffer since `source` is unchanged.
+  useEffect(() => {
+    setLines([]);
+  }, [source]);
+
   // Start/restart stream when source changes or paused state transitions to false.
   useEffect(() => {
     if (paused) return;

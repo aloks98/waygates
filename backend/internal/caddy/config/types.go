@@ -30,6 +30,7 @@ type LogConfig struct {
 	Encoder *LogEncoder `json:"encoder,omitempty"`
 	Level   string      `json:"level,omitempty"`
 	Include []string    `json:"include,omitempty"`
+	Exclude []string    `json:"exclude,omitempty"`
 }
 
 // LogWriter configures where logs are written.

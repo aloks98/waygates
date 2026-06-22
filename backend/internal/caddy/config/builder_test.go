@@ -2029,7 +2029,13 @@ func TestBuilder_Build_Logging_AccessLog_WithProxies(t *testing.T) {
 	assert.Equal(t, "/var/log/caddy/access.log", accessLog.Writer.Filename)
 	require.NotNil(t, accessLog.Writer.Roll)
 	assert.True(t, *accessLog.Writer.Roll)
-	assert.Equal(t, []string{"http.log.access." + DefaultServerName}, accessLog.Include)
+	// Include the parent access namespace so it matches "http.log.access" and any
+	// per-server sub-logger; the default log must exclude the same namespace so
+	// access entries don't also land in runtime.log.
+	assert.Equal(t, []string{"http.log.access"}, accessLog.Include)
+	defaultLog := cfg.Logging.Logs["default"]
+	require.NotNil(t, defaultLog)
+	assert.Equal(t, []string{"http.log.access"}, defaultLog.Exclude)
 	require.NotNil(t, accessLog.Encoder)
 	assert.Equal(t, "json", accessLog.Encoder.Format)
 

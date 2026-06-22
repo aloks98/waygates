@@ -111,7 +111,7 @@ export function LogViewer({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="relative h-[600px] overflow-y-auto rounded border bg-muted/30 p-3 font-mono text-xs"
+        className="relative h-[600px] overflow-y-auto break-all rounded border bg-muted/30 p-3 font-mono text-xs"
       >
         {lines.length === 0 ? (
           <p className="text-muted-foreground">No log lines yet.</p>

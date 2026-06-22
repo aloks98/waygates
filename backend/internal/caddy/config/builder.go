@@ -180,13 +180,20 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 	}
 	roll := true
 
-	// Always emit the runtime (default) log.
+	// Caddy emits HTTP access logs under the "http.log.access" namespace (and any
+	// per-server sub-loggers beneath it). The runtime (default) log EXCLUDES that
+	// namespace and a dedicated "access" log INCLUDES it, so the two stream to
+	// separate files instead of access entries landing in runtime.log.
+	const accessLoggerNS = "http.log.access"
+
+	// Always emit the runtime (default) log — everything except access logs.
 	config.Logging = &LoggingConfig{
 		Logs: map[string]*LogConfig{
 			"default": {
 				Writer:  &LogWriter{Output: "file", Filename: filepath.Join(logPath, "runtime.log"), Roll: &roll, RollSizeMB: 10, RollKeep: 5, RollKeepDays: 7},
 				Encoder: &LogEncoder{Format: "json"},
 				Level:   "INFO",
+				Exclude: []string{accessLoggerNS},
 			},
 		},
 	}
@@ -215,7 +222,7 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 
 		// Add HTTP access log config now that we have an HTTP server.
 		config.Logging.Logs["access"] = &LogConfig{
-			Include: []string{"http.log.access." + DefaultServerName},
+			Include: []string{accessLoggerNS},
 			Writer:  &LogWriter{Output: "file", Filename: filepath.Join(logPath, "access.log"), Roll: &roll, RollSizeMB: 10, RollKeep: 5, RollKeepDays: 7},
 			Encoder: &LogEncoder{Format: "json"},
 		}

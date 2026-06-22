@@ -39,22 +39,15 @@ function formatDuration(duration?: number): string {
 }
 
 export function LogRow({ line }: LogRowProps) {
-  // Runtime log: has level or msg
-  if (line.level != null || line.msg != null) {
-    const ts = formatTimestamp(line.ts);
-    const level = (line.level ?? 'info').toUpperCase();
-    return (
-      <div className={`py-0.5 ${getLevelClass(line.level)}`}>
-        {ts && <span className="text-muted-foreground">{ts} </span>}
-        <span className="font-semibold">[{level}]</span>
-        {line.logger && <span className="text-muted-foreground"> {line.logger}</span>}
-        {line.msg && <span> {line.msg}</span>}
-      </div>
-    );
-  }
+  // Access log: Caddy access entries carry level=info + msg="handled request",
+  // so detect them by the access logger name (or request-derived fields) FIRST —
+  // otherwise they'd fall into the runtime branch and only show "handled request".
+  const isAccess =
+    line.logger?.startsWith('http.log.access') === true ||
+    line.status != null ||
+    line.method != null;
 
-  // Access log: has status or method
-  if (line.status != null || line.method != null) {
+  if (isAccess) {
     const ts = formatTimestamp(line.ts);
     return (
       <div className="py-0.5">
@@ -65,9 +58,24 @@ export function LogRow({ line }: LogRowProps) {
         {line.method && <span className="font-semibold">{line.method} </span>}
         {line.host && <span className="text-muted-foreground">{line.host}</span>}
         {line.uri && <span>{line.uri} </span>}
+        {line.remoteIp && <span className="text-muted-foreground">{line.remoteIp} </span>}
         {line.duration != null && (
           <span className="text-muted-foreground">{formatDuration(line.duration)}</span>
         )}
+      </div>
+    );
+  }
+
+  // Runtime log: has level or msg
+  if (line.level != null || line.msg != null) {
+    const ts = formatTimestamp(line.ts);
+    const level = (line.level ?? 'info').toUpperCase();
+    return (
+      <div className={`py-0.5 ${getLevelClass(line.level)}`}>
+        {ts && <span className="text-muted-foreground">{ts} </span>}
+        <span className="font-semibold">[{level}]</span>
+        {line.logger && <span className="text-muted-foreground"> {line.logger}</span>}
+        {line.msg && <span> {line.msg}</span>}
       </div>
     );
   }
