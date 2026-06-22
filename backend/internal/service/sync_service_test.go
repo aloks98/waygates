@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -3086,4 +3087,259 @@ func TestSyncService_JSONMode_ACLGroupLoading(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 	})
+}
+
+// =============================================================================
+// Config Preview Tests
+// =============================================================================
+
+// TestGenerateConfigJSON tests that GenerateConfigJSON returns valid JSON with apps.http.
+func TestGenerateConfigJSON(t *testing.T) {
+	svc, proxyRepo, settingsRepo, aclRepo, fileManager, _ := newTestSyncServiceWithJSON()
+
+	proxyRepo.ListFunc = func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+		return []models.Proxy{
+			{ID: 1, Hostname: "preview.example.com", Name: "Preview", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:3000"}},
+			{ID: 2, Hostname: "api.preview.com", Name: "API Preview", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:4000"}},
+		}, 2, nil
+	}
+	settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+		return &models.NotFoundSettings{Mode: "default"}, nil
+	}
+	aclRepo.ListGroupsFunc = func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		return []models.ACLGroup{}, 0, nil
+	}
+	aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+		return []models.ProxyACLAssignment{}, nil
+	}
+	fileManager.GetJSONConfigPathFunc = func() string { return "/etc/caddy/caddy.json" }
+	fileManager.FileExistsFunc = func(_ string) bool { return true }
+
+	raw, err := svc.GenerateConfigJSON()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(raw) == 0 {
+		t.Fatal("Expected non-empty JSON")
+	}
+
+	// Unmarshal into a generic map and verify apps.http is present
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("GenerateConfigJSON returned invalid JSON: %v", err)
+	}
+	apps, ok := parsed["apps"].(map[string]interface{})
+	if !ok {
+		t.Fatal("Expected 'apps' key in config")
+	}
+	if _, ok := apps["http"]; !ok {
+		t.Error("Expected 'apps.http' in generated config (at least one active proxy)")
+	}
+}
+
+// TestGenerateConfigJSON_DoesNotWriteOrReload verifies that GenerateConfigJSON
+// does not call WriteJSONConfig or ReloadJSON — it is read-only.
+func TestGenerateConfigJSON_DoesNotWriteOrReload(t *testing.T) {
+	svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader := newTestSyncServiceWithJSON()
+
+	proxyRepo.ListFunc = func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+		return []models.Proxy{}, 0, nil
+	}
+	settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+		return &models.NotFoundSettings{Mode: "default"}, nil
+	}
+	aclRepo.ListGroupsFunc = func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		return []models.ACLGroup{}, 0, nil
+	}
+	fileManager.GetJSONConfigPathFunc = func() string { return "/etc/caddy/caddy.json" }
+	fileManager.FileExistsFunc = func(_ string) bool { return true }
+
+	writeCalled := false
+	fileManager.WriteJSONConfigFunc = func(_ string, _ []byte) error {
+		writeCalled = true
+		return nil
+	}
+	reloadCalled := false
+	reloader.ReloadJSONFunc = func(_ context.Context, _ string) (*caddy.ReloadResult, error) {
+		reloadCalled = true
+		return &caddy.ReloadResult{Success: true}, nil
+	}
+
+	_, err := svc.GenerateConfigJSON()
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if writeCalled {
+		t.Error("GenerateConfigJSON must not write the config to disk")
+	}
+	if reloadCalled {
+		t.Error("GenerateConfigJSON must not reload Caddy")
+	}
+}
+
+// TestGenerateProxyConfigJSON_Found verifies that GenerateProxyConfigJSON returns a
+// config whose HTTP routes contain the proxy's hostname as a host matcher.
+func TestGenerateProxyConfigJSON_Found(t *testing.T) {
+	svc, proxyRepo, _, aclRepo, _, _ := newTestSyncServiceWithJSON()
+
+	targetProxy := &models.Proxy{
+		ID:       42,
+		Hostname: "myapp.example.com",
+		Name:     "MyApp",
+		IsActive: true,
+		Type:     models.ProxyTypeReverseProxy,
+		Upstreams: []interface{}{
+			map[string]interface{}{"host": "localhost", "port": float64(8080)},
+		},
+	}
+	proxyRepo.GetByIDFunc = func(id int) (*models.Proxy, error) {
+		if id == 42 {
+			return targetProxy, nil
+		}
+		return nil, gorm.ErrRecordNotFound
+	}
+	aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+		return []models.ProxyACLAssignment{}, nil
+	}
+
+	raw, err := svc.GenerateProxyConfigJSON(42)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(raw) == 0 {
+		t.Fatal("Expected non-empty JSON")
+	}
+
+	// The config must reference the proxy's hostname
+	jsonStr := string(raw)
+	if !contains(jsonStr, "myapp.example.com") {
+		t.Errorf("Expected proxy hostname 'myapp.example.com' in per-proxy config, got: %s", jsonStr)
+	}
+
+	// Verify it is valid JSON
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("GenerateProxyConfigJSON returned invalid JSON: %v", err)
+	}
+}
+
+// TestGenerateProxyConfigJSON_NotFound verifies ErrProxyNotFound is returned for a
+// missing proxy ID.
+func TestGenerateProxyConfigJSON_NotFound(t *testing.T) {
+	svc, proxyRepo, _, _, _, _ := newTestSyncServiceWithJSON()
+
+	proxyRepo.GetByIDFunc = func(_ int) (*models.Proxy, error) {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	_, err := svc.GenerateProxyConfigJSON(999)
+	if err == nil {
+		t.Fatal("Expected error for missing proxy")
+	}
+	if !errors.Is(err, ErrProxyNotFound) {
+		t.Errorf("Expected ErrProxyNotFound, got: %v", err)
+	}
+}
+
+// TestGenerateProxyConfigJSON_WithACL verifies that a proxy with an enabled ACL
+// assignment produces a config that includes ACL handler directives.
+func TestGenerateProxyConfigJSON_WithACL(t *testing.T) {
+	svc, proxyRepo, _, aclRepo, _, _ := newTestSyncServiceWithJSON()
+
+	targetProxy := &models.Proxy{
+		ID:       10,
+		Hostname: "secure.example.com",
+		Name:     "Secure",
+		IsActive: true,
+		Type:     models.ProxyTypeReverseProxy,
+		Upstreams: []interface{}{
+			map[string]interface{}{"host": "localhost", "port": float64(9000)},
+		},
+	}
+	proxyRepo.GetByIDFunc = func(id int) (*models.Proxy, error) {
+		if id == 10 {
+			return targetProxy, nil
+		}
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	// ACL group with basic-auth user so a handler is emitted
+	groupID := 7
+	group := &models.ACLGroup{
+		ID:   groupID,
+		Name: "BasicAuthGroup",
+		BasicAuthUsers: []models.ACLBasicAuthUser{
+			{ID: 1, ACLGroupID: groupID, Username: "alice", PasswordHash: "$2a$12$abc"},
+		},
+	}
+	aclRepo.GetProxyACLAssignmentsFunc = func(proxyID int) ([]models.ProxyACLAssignment, error) {
+		if proxyID == 10 {
+			return []models.ProxyACLAssignment{
+				{ID: 1, ProxyID: 10, ACLGroupID: groupID, Enabled: true, ACLGroup: group},
+			}, nil
+		}
+		return []models.ProxyACLAssignment{}, nil
+	}
+
+	raw, err := svc.GenerateProxyConfigJSON(10)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	jsonStr := string(raw)
+
+	// The config must contain something ACL-related (basic_auth or similar handler)
+	hasACL := contains(jsonStr, "basic_auth") || contains(jsonStr, "authentication") || contains(jsonStr, "authorize")
+	if !hasACL {
+		t.Errorf("Expected ACL handler directives in per-proxy config with enabled ACL assignment, got: %s", jsonStr)
+	}
+}
+
+// TestFullSync_BehaviorUnchangedAfterRefactor verifies the full sync still
+// writes and reloads (i.e. the refactor did not break its side-effects).
+func TestFullSync_BehaviorUnchangedAfterRefactor(t *testing.T) {
+	svc, proxyRepo, settingsRepo, aclRepo, fileManager, reloader := newTestSyncServiceWithJSON()
+
+	proxyRepo.ListFunc = func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
+		return []models.Proxy{
+			{ID: 1, Hostname: "refactor.test", Name: "Refactor", IsActive: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:5000"}},
+		}, 1, nil
+	}
+	settingsRepo.GetNotFoundSettingsFunc = func() (*models.NotFoundSettings, error) {
+		return &models.NotFoundSettings{Mode: "default"}, nil
+	}
+	aclRepo.ListGroupsFunc = func(_ repository.ACLGroupListParams) ([]models.ACLGroup, int64, error) {
+		return []models.ACLGroup{}, 0, nil
+	}
+	aclRepo.GetProxyACLAssignmentsFunc = func(_ int) ([]models.ProxyACLAssignment, error) {
+		return []models.ProxyACLAssignment{}, nil
+	}
+	fileManager.GetJSONConfigPathFunc = func() string { return "/etc/caddy/caddy.json" }
+	fileManager.FileExistsFunc = func(_ string) bool { return true }
+	fileManager.BackupJSONConfigFunc = func(_ string) error { return nil }
+
+	writeCalled := false
+	fileManager.WriteJSONConfigFunc = func(_ string, data []byte) error {
+		writeCalled = true
+		if len(data) == 0 {
+			t.Error("Expected non-empty config bytes written")
+		}
+		return nil
+	}
+	reloader.ValidateJSONFunc = func(_ string) error { return nil }
+	reloadCalled := false
+	reloader.ReloadJSONFunc = func(_ context.Context, _ string) (*caddy.ReloadResult, error) {
+		reloadCalled = true
+		return &caddy.ReloadResult{Success: true}, nil
+	}
+
+	if err := svc.FullSync(); err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if !writeCalled {
+		t.Error("FullSync must still write the config after refactor")
+	}
+	if !reloadCalled {
+		t.Error("FullSync must still reload Caddy after refactor")
+	}
 }

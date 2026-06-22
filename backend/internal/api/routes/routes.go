@@ -161,6 +161,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	l4ProxyHandler := handlers.NewL4ProxyHandler(l4ProxyService, logger)
 	caddyLogsService := service.NewCaddyLogsService(cfg.Caddy.LogPath)
 	caddyLogsHandler := handlers.NewCaddyLogsHandler(caddyLogsService, logger)
+	configPreviewHandler := handlers.NewConfigPreviewHandler(syncService, logger)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -320,6 +321,14 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Route("/api/caddy-logs", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "caddy_logs:read", mwConfig)).Get("/", caddyLogsHandler.List)
 			r.With(chimw.RequirePermission(authAdapter, "caddy_logs:read", mwConfig)).Get("/stream", caddyLogsHandler.Stream)
+		})
+
+		// Caddy config preview routes - require caddy_config:read (admin-only)
+		r.Route("/api/caddy-config", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Get("/", configPreviewHandler.GetFull)
+		})
+		r.Route("/api/proxies/{id}/config-preview", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Get("/", configPreviewHandler.GetForProxy)
 		})
 
 		// L4 Proxy routes with permission checks

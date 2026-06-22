@@ -24,6 +24,7 @@ import { getProxyTypeLabel } from '@/components/proxy';
 import { getProxyTypeIcon } from '@/components/proxy/cells';
 import { ProxyAccessCard } from '@/components/proxy/overview/proxy-access-card';
 import { ProxyConfigCard } from '@/components/proxy/overview/proxy-config-card';
+import { ProxyConfigPreviewCard } from '@/components/proxy/overview/proxy-config-preview-card';
 import { ProxyDetailsCard, ProxyHttpsCard } from '@/components/proxy/overview/proxy-meta-cards';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
@@ -164,6 +165,8 @@ export function ProxyOverviewPage() {
       <ProxyConfigCard proxy={proxy} />
 
       <ProxyAccessCard proxyId={proxy.id} />
+
+      <ProxyConfigPreviewCard proxyId={proxy.id} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ProxyHttpsCard proxy={proxy} />

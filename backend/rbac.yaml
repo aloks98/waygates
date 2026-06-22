@@ -76,6 +76,12 @@ permission_groups:
         name: "View Caddy Logs"
         description: "View Caddy runtime and access logs"
 
+  - name: "Caddy Config"
+    permissions:
+      - key: "caddy_config:read"
+        name: "View Caddy Config"
+        description: "View the generated Caddy configuration"
+
   - name: "L4 Proxies"
     permissions:
       - key: "l4proxies:read"

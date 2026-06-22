@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
   Skeleton,
 } from '@e412/rnui-react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Copy, MoreHorizontal, Network, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -172,6 +172,14 @@ export function L4ProxyOverviewPage() {
         </CardHeader>
         <CardContent className="divide-y">
           <DetailRow label="Description">{proxy.description || '—'}</DetailRow>
+          <DetailRow label="Generated config">
+            <Link
+              to="/dashboard/caddy-config"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              View full config
+            </Link>
+          </DetailRow>
           <DetailRow label="Created">{new Date(proxy.created_at).toLocaleString()}</DetailRow>
           <DetailRow label="Updated">{new Date(proxy.updated_at).toLocaleString()}</DetailRow>
         </CardContent>

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/caddy/config"
@@ -42,6 +45,11 @@ type SyncService struct {
 
 	// JSON configuration builder
 	jsonBuilder *config.Builder
+
+	// builderSettings holds the settings used to configure the shared JSON builder.
+	// Stored here so newConfiguredBuilder can construct identically-configured
+	// fresh builders for per-proxy preview (which must not mutate shared state).
+	builderSettings *config.Settings
 
 	// L4 configuration builder
 	l4Builder *config.L4Builder
@@ -152,7 +160,7 @@ func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger)
 		storagePath = "/data"
 	}
 
-	s.jsonBuilder.SetSettings(&config.Settings{
+	s.builderSettings = &config.Settings{
 		AdminEmail:        cfg.Email,
 		ACMEProvider:      cfg.ACMEProvider,
 		StoragePath:       storagePath,
@@ -161,7 +169,8 @@ func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger)
 		WaygatesLoginURL:  cfg.WaygatesLoginURL,
 		TrustedProxies:    cfg.TrustedProxies,
 		ClientIPHeaders:   cfg.ClientIPHeaders,
-	})
+	}
+	s.jsonBuilder.SetSettings(s.builderSettings)
 }
 
 // Start begins the periodic sync process
@@ -308,18 +317,17 @@ func (s *SyncService) performFullSync() error {
 	return s.performFullSyncJSON()
 }
 
-// performFullSyncJSON executes sync using JSON configuration builder
-func (s *SyncService) performFullSyncJSON() error {
-	ctx := context.Background()
-
-	s.logger.Debug("Starting JSON config sync")
-
+// buildConfigBytes gathers current state from the database, configures the
+// shared JSON builder, and returns the generated Caddy config as JSON bytes.
+//
+// CALLER MUST HOLD s.mu. (Extracted from performFullSyncJSON steps 1–6.)
+func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 	// 1. Get all proxies from DB
 	proxies, _, err := s.proxyRepo.List(repository.ProxyListParams{
 		Limit: 10000, // Get all proxies
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list proxies: %w", err)
+		return nil, fmt.Errorf("failed to list proxies: %w", err)
 	}
 
 	// 2. Get 404 settings from DB
@@ -338,12 +346,12 @@ func (s *SyncService) performFullSyncJSON() error {
 
 	if s.aclRepo != nil {
 		// Get all ACL groups
-		groups, _, err := s.aclRepo.ListGroups(repository.ACLGroupListParams{
+		groups, _, listErr := s.aclRepo.ListGroups(repository.ACLGroupListParams{
 			Limit: 10000, // Get all groups
 			Page:  1,
 		})
-		if err != nil {
-			s.logger.Warn("Failed to list ACL groups", zap.Error(err))
+		if listErr != nil {
+			s.logger.Warn("Failed to list ACL groups", zap.Error(listErr))
 		} else {
 			// ListGroups preloads all relations, so the groups are ready to use
 			// directly — no per-group GetGroupByID query needed.
@@ -352,11 +360,11 @@ func (s *SyncService) performFullSyncJSON() error {
 
 		// Get ACL assignments for each proxy
 		for i := range proxies {
-			assignments, err := s.aclRepo.GetProxyACLAssignments(proxies[i].ID)
-			if err != nil {
+			assignments, assignErr := s.aclRepo.GetProxyACLAssignments(proxies[i].ID)
+			if assignErr != nil {
 				s.logger.Warn("Failed to get ACL assignments for proxy",
 					zap.Int("proxy_id", proxies[i].ID),
-					zap.Error(err))
+					zap.Error(assignErr))
 				continue
 			}
 			aclAssignments = append(aclAssignments, assignments...)
@@ -371,18 +379,18 @@ func (s *SyncService) performFullSyncJSON() error {
 
 	if s.l4ProxyRepo != nil && s.l4Builder != nil {
 		isActive := true
-		l4Proxies, _, err := s.l4ProxyRepo.List(repository.L4ProxyListParams{
+		l4Proxies, _, l4Err := s.l4ProxyRepo.List(repository.L4ProxyListParams{
 			Limit:    10000, // Get all L4 proxies
 			Page:     1,
 			IsActive: &isActive, // Only active proxies
 		})
-		if err != nil {
-			s.logger.Warn("Failed to list L4 proxies", zap.Error(err))
+		if l4Err != nil {
+			s.logger.Warn("Failed to list L4 proxies", zap.Error(l4Err))
 		} else if len(l4Proxies) > 0 {
 			// Build Layer4 configuration
-			layer4App, err := s.l4Builder.BuildL4Config(l4Proxies)
-			if err != nil {
-				s.logger.Warn("Failed to build L4 config", zap.Error(err))
+			layer4App, l4BuildErr := s.l4Builder.BuildL4Config(l4Proxies)
+			if l4BuildErr != nil {
+				s.logger.Warn("Failed to build L4 config", zap.Error(l4BuildErr))
 			} else if layer4App != nil && len(layer4App.Servers) > 0 {
 				s.jsonBuilder.SetLayer4App(layer4App)
 				l4ProxyCount = len(l4Proxies)
@@ -410,6 +418,88 @@ func (s *SyncService) performFullSyncJSON() error {
 
 	// 6. Build the JSON configuration
 	configBytes, err := s.jsonBuilder.BuildJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build JSON config: %w", err)
+	}
+
+	return configBytes, nil
+}
+
+// GenerateConfigJSON gathers current state and returns the generated Caddy JSON
+// config WITHOUT writing or reloading. It reuses the shared builder, so it locks
+// s.mu to avoid racing the periodic sync.
+func (s *SyncService) GenerateConfigJSON() (json.RawMessage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buildConfigBytes()
+}
+
+// newConfiguredBuilder constructs a fresh config.Builder configured identically
+// to the shared s.jsonBuilder (same Settings, ACL builder, logger). Used by
+// GenerateProxyConfigJSON to build single-proxy configs without mutating shared state.
+func (s *SyncService) newConfiguredBuilder() *config.Builder {
+	aclBuilder := config.NewACLBuilder(s.logger)
+	if s.builderSettings != nil {
+		aclBuilder.SetWaygatesURLs(s.builderSettings.WaygatesVerifyURL, s.builderSettings.WaygatesLoginURL)
+	}
+
+	b := config.NewBuilder(
+		config.WithLogger(s.logger),
+		config.WithACLBuilder(aclBuilder),
+	)
+	b.SetSettings(s.builderSettings)
+	return b
+}
+
+// GenerateProxyConfigJSON returns the generated Caddy config for a single proxy
+// (with its ACL handlers), without writing or reloading. Uses a fresh builder, so
+// no shared state is mutated and no lock is needed.
+func (s *SyncService) GenerateProxyConfigJSON(proxyID int) (json.RawMessage, error) {
+	proxy, err := s.proxyRepo.GetByID(proxyID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to get proxy: %w", err)
+	}
+
+	var assignments []models.ProxyACLAssignment
+	var groups []models.ACLGroup
+	if s.aclRepo != nil {
+		assignments, err = s.aclRepo.GetProxyACLAssignments(proxyID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get proxy ACL assignments: %w", err)
+		}
+		seen := map[int]bool{}
+		for i := range assignments {
+			g := assignments[i].ACLGroup // preloaded by GetProxyACLAssignments
+			if g != nil && g.ID != 0 && !seen[g.ID] {
+				seen[g.ID] = true
+				groups = append(groups, *g)
+			}
+		}
+	}
+
+	b := s.newConfiguredBuilder()
+	b.SetACLGroups(groups)
+	// Flatten to []models.ProxyACLAssignment for SetACLAssignments
+	b.SetACLAssignments(assignments)
+	cfg, buildErr := b.BuildSingleProxy(proxy)
+	if buildErr != nil {
+		return nil, fmt.Errorf("failed to build proxy config: %w", buildErr)
+	}
+	return json.MarshalIndent(cfg, "", "  ")
+}
+
+// performFullSyncJSON executes sync using JSON configuration builder
+func (s *SyncService) performFullSyncJSON() error {
+	ctx := context.Background()
+
+	s.logger.Debug("Starting JSON config sync")
+
+	s.mu.Lock()
+	configBytes, err := s.buildConfigBytes()
+	s.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to build JSON config: %w", err)
 	}
@@ -471,9 +561,6 @@ func (s *SyncService) performFullSyncJSON() error {
 	s.mu.Unlock()
 
 	s.logger.Info("Caddy JSON configuration reloaded",
-		zap.Int("http_proxy_count", len(proxies)),
-		zap.Int("l4_proxy_count", l4ProxyCount),
-		zap.Int("acl_group_count", len(aclGroups)),
 		zap.Duration("reload_duration", result.Duration))
 
 	return nil
