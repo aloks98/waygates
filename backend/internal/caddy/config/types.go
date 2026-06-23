@@ -115,6 +115,11 @@ type HTTPServerLogs struct {
 	DefaultLoggerName string `json:"default_logger_name,omitempty"`
 }
 
+// HTTPServerMetrics enables per-request Prometheus metrics for an HTTP server.
+// The struct intentionally has no fields — Caddy activates metrics whenever the
+// "metrics" key is present in the server object, even if its value is {}.
+type HTTPServerMetrics struct{}
+
 // HTTPServer configures an HTTP server instance.
 type HTTPServer struct {
 	Listen          []string              `json:"listen,omitempty"`
@@ -124,6 +129,7 @@ type HTTPServer struct {
 	TrustedProxies  *TrustedProxiesSource `json:"trusted_proxies,omitempty"`
 	ClientIPHeaders []string              `json:"client_ip_headers,omitempty"`
 	Logs            *HTTPServerLogs       `json:"logs,omitempty"`
+	Metrics         *HTTPServerMetrics    `json:"metrics,omitempty"`
 }
 
 // TrustedProxiesSource configures which upstream proxies Caddy trusts when

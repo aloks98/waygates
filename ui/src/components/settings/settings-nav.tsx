@@ -1,6 +1,6 @@
 import { cn } from '@e412/rnui-react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { FileQuestion, Palette, ScrollText } from 'lucide-react';
+import { Activity, FileQuestion, Palette, ScrollText } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SettingsNavItem {
@@ -28,6 +28,12 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     label: 'Audit Logs',
     description: 'Configure event logging',
     icon: <ScrollText className="size-4" />,
+  },
+  {
+    to: '/settings/metrics',
+    label: 'Metrics',
+    description: 'Expose Prometheus metrics externally',
+    icon: <Activity className="size-4" />,
   },
 ];
 

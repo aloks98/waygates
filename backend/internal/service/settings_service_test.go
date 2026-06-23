@@ -94,6 +94,16 @@ func (s *TestableSettingsService) SetNotFoundSettings(settings *models.NotFoundS
 	return nil
 }
 
+// GetMetricsPublishSettings retrieves the metrics publish endpoint configuration.
+func (s *TestableSettingsService) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	return s.repo.GetMetricsPublishSettings()
+}
+
+// SetMetricsPublishSettings updates the metrics publish endpoint configuration.
+func (s *TestableSettingsService) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error {
+	return s.repo.SetMetricsPublishSettings(settings)
+}
+
 // mockSettingsRepoInterface implements SettingsRepositoryInterface for testing
 type mockSettingsRepoInterface struct {
 	settings         map[string]*models.Setting
@@ -172,6 +182,14 @@ func (m *mockSettingsRepoInterface) SetNotFoundSettings(settings *models.NotFoun
 		return m.notFoundSetErr
 	}
 	m.notFoundSettings = settings
+	return nil
+}
+
+func (m *mockSettingsRepoInterface) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	return &models.MetricsPublishSettings{Enabled: false}, nil
+}
+
+func (m *mockSettingsRepoInterface) SetMetricsPublishSettings(_ *models.MetricsPublishSettings) error {
 	return nil
 }
 

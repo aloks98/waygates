@@ -16,13 +16,15 @@ import (
 
 // MockSettingsRepository implements SettingsRepositoryInterface for testing
 type MockSettingsRepository struct {
-	GetFunc                 func(key string) (*models.Setting, error)
-	GetValueFunc            func(key, defaultValue string) string
-	SetFunc                 func(key, value string) error
-	GetAllFunc              func() (map[string]string, error)
-	DeleteFunc              func(key string) error
-	GetNotFoundSettingsFunc func() (*models.NotFoundSettings, error)
-	SetNotFoundSettingsFunc func(settings *models.NotFoundSettings) error
+	GetFunc                       func(key string) (*models.Setting, error)
+	GetValueFunc                  func(key, defaultValue string) string
+	SetFunc                       func(key, value string) error
+	GetAllFunc                    func() (map[string]string, error)
+	DeleteFunc                    func(key string) error
+	GetNotFoundSettingsFunc       func() (*models.NotFoundSettings, error)
+	SetNotFoundSettingsFunc       func(settings *models.NotFoundSettings) error
+	GetMetricsPublishSettingsFunc func() (*models.MetricsPublishSettings, error)
+	SetMetricsPublishSettingsFunc func(settings *models.MetricsPublishSettings) error
 }
 
 func (m *MockSettingsRepository) Get(key string) (*models.Setting, error) {
@@ -70,6 +72,20 @@ func (m *MockSettingsRepository) GetNotFoundSettings() (*models.NotFoundSettings
 func (m *MockSettingsRepository) SetNotFoundSettings(settings *models.NotFoundSettings) error {
 	if m.SetNotFoundSettingsFunc != nil {
 		return m.SetNotFoundSettingsFunc(settings)
+	}
+	return nil
+}
+
+func (m *MockSettingsRepository) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	if m.GetMetricsPublishSettingsFunc != nil {
+		return m.GetMetricsPublishSettingsFunc()
+	}
+	return &models.MetricsPublishSettings{Enabled: false}, nil
+}
+
+func (m *MockSettingsRepository) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error {
+	if m.SetMetricsPublishSettingsFunc != nil {
+		return m.SetMetricsPublishSettingsFunc(settings)
 	}
 	return nil
 }

@@ -87,3 +87,30 @@ func (s *SettingsService) SetNotFoundSettings(settings *models.NotFoundSettings)
 
 	return nil
 }
+
+// GetMetricsPublishSettings retrieves the metrics publish endpoint configuration.
+func (s *SettingsService) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	return s.repo.GetMetricsPublishSettings()
+}
+
+// SetMetricsPublishSettings updates the metrics publish endpoint configuration and
+// triggers a full Caddy config rebuild (same pattern as SetNotFoundSettings).
+func (s *SettingsService) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error {
+	s.logger.Info("Updating metrics publish settings",
+		zap.Bool("enabled", settings.Enabled),
+		zap.String("host", settings.Host))
+
+	if err := s.repo.SetMetricsPublishSettings(settings); err != nil {
+		return err
+	}
+
+	// Trigger a full config rebuild so the Caddy metrics route is applied immediately.
+	if s.syncService != nil {
+		if err := s.syncService.UpdateCatchAll(); err != nil {
+			s.logger.Error("Failed to rebuild Caddy config after metrics settings update", zap.Error(err))
+			return err
+		}
+	}
+
+	return nil
+}

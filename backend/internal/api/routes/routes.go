@@ -27,9 +27,9 @@ import (
 )
 
 // SetupRoutes configures all application routes. It also starts the background
-// sync service and returns it so the caller can stop it during graceful
-// shutdown.
-func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInstance *goauth.Auth[*auth.CustomClaims]) (*chi.Mux, *service.SyncService) {
+// sync and metrics-scraper services and returns them so the caller can stop
+// them during graceful shutdown.
+func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInstance *goauth.Auth[*auth.CustomClaims]) (*chi.Mux, *service.SyncService, *service.MetricsScraperService) {
 	r := chi.NewRouter()
 
 	// CORS configuration. A wildcard origin cannot be combined with credentials
@@ -75,6 +75,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	auditLogRepo := repository.NewAuditLogRepository(db)
 	aclRepo := repository.NewACLRepository(db)
 	l4ProxyRepo := repository.NewL4ProxyRepository(db)
+	trafficSampleRepo := repository.NewTrafficSampleRepository(db)
 
 	// OAuth Provider Manager
 	oauthProviderManager := auth.NewOAuthProviderManager()
@@ -124,6 +125,13 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	// Start sync service (periodic sync every 1 minute)
 	syncService.Start(60 * time.Second)
 
+	// Start metrics scraper (scrapes Caddy Prometheus metrics every 30 s)
+	metricsScraper := service.NewMetricsScraperService(service.MetricsScraperConfig{
+		Repo:   trafficSampleRepo,
+		Logger: logger,
+	})
+	metricsScraper.Start(30 * time.Second)
+
 	// Create auth adapter for middleware
 	authAdapter := &auth.Adapter{}
 	authAdapter.SetAuth(goauthInstance)
@@ -162,6 +170,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	caddyLogsService := service.NewCaddyLogsService(cfg.Caddy.LogPath)
 	caddyLogsHandler := handlers.NewCaddyLogsHandler(caddyLogsService, logger)
 	configPreviewHandler := handlers.NewConfigPreviewHandler(syncService, logger)
+	trafficMetricsService := service.NewTrafficMetricsService(trafficSampleRepo, logger)
+	metricsHandler := handlers.NewMetricsHandler(trafficMetricsService, logger)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -236,8 +246,10 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Route("/api/settings", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/", settingsHandler.GetAll)
 			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/404", settingsHandler.GetNotFound)
+			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/metrics-publish", settingsHandler.GetMetricsPublish)
 			r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/{key}", settingsHandler.Get)
 			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/404", settingsHandler.UpdateNotFound)
+			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/metrics-publish", settingsHandler.UpdateMetricsPublish)
 			r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/{key}", settingsHandler.Update)
 		})
 
@@ -331,6 +343,11 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Get("/", configPreviewHandler.GetForProxy)
 		})
 
+		// Traffic metrics routes - require metrics:read
+		r.Route("/api/metrics", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "metrics:read", mwConfig)).Get("/traffic", metricsHandler.GetTraffic)
+		})
+
 		// L4 Proxy routes with permission checks
 		r.Route("/api/l4-proxies", func(r chi.Router) {
 			// Read operations - require l4proxies:read.
@@ -361,7 +378,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		setupStaticFileServer(r, cfg.UI.Path, logger)
 	}
 
-	return r, syncService
+	return r, syncService, metricsScraper
 }
 
 // resolveCORSOptions derives the allowed-origins list and credentials flag for

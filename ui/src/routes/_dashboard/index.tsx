@@ -4,6 +4,7 @@ import { DashboardQuickActions } from '@/components/dashboard/dashboard-quick-ac
 import { DashboardStatCards } from '@/components/dashboard/dashboard-stat-cards';
 import { FleetComposition } from '@/components/dashboard/fleet-composition';
 import { SystemStatusBar } from '@/components/dashboard/system-status-bar';
+import { TrafficCharts } from '@/components/dashboard/traffic-charts';
 import { useAppStatus, useDashboardData } from '@/hooks';
 import { useAuthStore } from '@/stores/auth';
 
@@ -33,6 +34,7 @@ export function DashboardIndex() {
             l4ProxyStats={l4ProxyStats}
             isLoading={isLoading}
           />
+          <TrafficCharts />
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <FleetComposition

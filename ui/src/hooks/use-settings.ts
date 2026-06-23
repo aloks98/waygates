@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { api } from '../lib/api';
 import type { ApiResponse } from '../types/api';
+import type { MetricsPublishSettings, UpdateMetricsPublishRequest } from '../types/metrics-publish';
 
 const QUERY_KEY = ['settings', '404'] as const;
 
@@ -42,6 +43,47 @@ export function useNotFoundSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       toast.success('404 settings updated successfully');
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to update settings', { description: message });
+    },
+  });
+
+  return {
+    settings: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    update: mutation.mutateAsync,
+    isUpdating: mutation.isPending,
+  };
+}
+
+const METRICS_PUBLISH_QUERY_KEY = ['settings', 'metrics-publish'] as const;
+
+export function useMetricsPublishSettings() {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: METRICS_PUBLISH_QUERY_KEY,
+    queryFn: async () => {
+      const response = await api
+        .get('settings/metrics-publish')
+        .json<ApiResponse<MetricsPublishSettings>>();
+      return response.data;
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (data: UpdateMetricsPublishRequest) => {
+      return await api
+        .put('settings/metrics-publish', { json: data })
+        .json<ApiResponse<MetricsPublishSettings>>();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: METRICS_PUBLISH_QUERY_KEY });
+      toast.success('Metrics publish settings updated successfully');
     },
     onError: async (error) => {
       const message = await handleApiError(error);

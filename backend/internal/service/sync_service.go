@@ -409,14 +409,22 @@ func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 		}
 	}
 
-	// 5. Configure the JSON builder with all data
+	// 5. Get metrics publish settings from DB
+	metricsPublishSettings, err := s.settingsRepo.GetMetricsPublishSettings()
+	if err != nil {
+		s.logger.Warn("Failed to get metrics publish settings, disabling metrics route", zap.Error(err))
+		metricsPublishSettings = nil
+	}
+
+	// 6. Configure the JSON builder with all data
 	// Note: Layer4App is set in step 4 if L4 proxies exist, otherwise it remains nil
 	s.jsonBuilder.SetHTTPProxies(proxies)
 	s.jsonBuilder.SetACLGroups(aclGroups)
 	s.jsonBuilder.SetACLAssignments(aclAssignments)
 	s.jsonBuilder.SetNotFoundSettings(notFoundSettings)
+	s.jsonBuilder.SetMetricsPublishSettings(metricsPublishSettings)
 
-	// 6. Build the JSON configuration
+	// 7. Build the JSON configuration
 	configBytes, err := s.jsonBuilder.BuildJSON()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build JSON config: %w", err)

@@ -2078,3 +2078,252 @@ func TestBuilder_Build_Logging_ValidJSON(t *testing.T) {
 	// Spot-check logging key is present in JSON output.
 	assert.Contains(t, result, "logging")
 }
+
+func TestBuilder_Build_Metrics_EnabledWithProxies(t *testing.T) {
+	proxy := createReverseProxy(1, "test", "example.com",
+		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{proxy})
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	// The HTTP server must have Metrics set so Caddy emits "metrics": {} in the
+	// generated JSON, which enables per-request Prometheus metrics.
+	server := cfg.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+	require.NotNil(t, server.Metrics, "server metrics must be enabled when routes are present")
+
+	// Verify the full config still marshals to valid JSON and "metrics" key is present.
+	jsonBytes, err := json.Marshal(cfg)
+	require.NoError(t, err, "config must marshal to valid JSON")
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &raw))
+
+	apps, _ := raw["apps"].(map[string]interface{})
+	http, _ := apps["http"].(map[string]interface{})
+	servers, _ := http["servers"].(map[string]interface{})
+	srv, _ := servers[DefaultServerName].(map[string]interface{})
+	assert.Contains(t, srv, "metrics", "JSON output must contain a \"metrics\" key on the server object")
+}
+
+// =============================================================================
+// MetricsPublish Builder Tests
+// =============================================================================
+
+// TestBuilder_MetricsPublish_Disabled verifies that when the setting is disabled,
+// no metrics route appears in the generated routes (only the server metrics option).
+func TestBuilder_MetricsPublish_Disabled(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{
+		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	})
+	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
+		Enabled:       false,
+		Host:          "metrics.example.com",
+		Path:          "/metrics",
+		BasicAuthUser: "admin",
+		BasicAuthHash: "$2a$14$somehash",
+	})
+
+	data, err := b.BuildJSON()
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	// Walk the routes and assert no handler is "metrics"
+	apps := raw["apps"].(map[string]interface{})
+	httpApp := apps["http"].(map[string]interface{})
+	servers := httpApp["servers"].(map[string]interface{})
+	srv := servers[DefaultServerName].(map[string]interface{})
+	routes := srv["routes"].([]interface{})
+
+	for _, r := range routes {
+		routeMap := r.(map[string]interface{})
+		if handles, ok := routeMap["handle"].([]interface{}); ok {
+			for _, h := range handles {
+				hm := h.(map[string]interface{})
+				assert.NotEqual(t, "metrics", hm["handler"], "disabled setting must not emit a metrics handler in routes")
+			}
+		}
+	}
+
+	// Server-level metrics option MUST still be present (from Task 1).
+	assert.Contains(t, srv, "metrics", "server metrics option must remain even when publish is disabled")
+}
+
+// TestBuilder_MetricsPublish_Enabled verifies that an enabled, fully configured
+// setting emits exactly one route whose MatcherSet contains the expected host+path,
+// whose Handle is [authentication, metrics] in that order, and which is Terminal.
+func TestBuilder_MetricsPublish_Enabled(t *testing.T) {
+	const (
+		metricsHost = "metrics.example.com"
+		metricsPath = "/prom"
+		metricsUser = "scraper"
+		metricsHash = "$2a$14$testhashvalue"
+		cidr        = "10.0.0.0/8"
+	)
+
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{
+		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	})
+	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
+		Enabled:       true,
+		Host:          metricsHost,
+		Path:          metricsPath,
+		BasicAuthUser: metricsUser,
+		BasicAuthHash: metricsHash,
+		AllowedCIDRs:  []string{cidr},
+	})
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+
+	server := cfg.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+	require.NotEmpty(t, server.Routes)
+
+	// The metrics route must be first (prepended before the catch-all).
+	metricsRoute := server.Routes[0]
+	assert.True(t, metricsRoute.Terminal, "metrics route must be Terminal")
+
+	// Verify MatcherSet: host + path + remote_ip.
+	require.NotEmpty(t, metricsRoute.Match)
+	ms := metricsRoute.Match[0]
+
+	hostVal, hasHost := ms["host"]
+	require.True(t, hasHost, "matcher must have host key")
+	assert.Contains(t, hostVal, metricsHost)
+
+	pathVal, hasPath := ms["path"]
+	require.True(t, hasPath, "matcher must have path key")
+	assert.Contains(t, pathVal, metricsPath)
+
+	ipVal, hasIP := ms["remote_ip"]
+	require.True(t, hasIP, "matcher must have remote_ip key when CIDRs are given")
+	ipMatcher, ok := ipVal.(*MatchRemoteIP)
+	require.True(t, ok)
+	assert.Contains(t, ipMatcher.Ranges, cidr)
+
+	// Verify Handle: [authentication, metrics] in that order.
+	require.Len(t, metricsRoute.Handle, 2, "metrics route must have exactly 2 handlers")
+	authHandler := metricsRoute.Handle[0]
+	metricsHandler := metricsRoute.Handle[1]
+
+	assert.Equal(t, HandlerAuthentication, authHandler["handler"], "first handler must be authentication")
+	assert.Equal(t, "metrics", metricsHandler["handler"], "second handler must be metrics")
+
+	// Verify bcrypt hash is present in the authentication handler.
+	providers, _ := authHandler["providers"].(*AuthenticationProviders)
+	require.NotNil(t, providers)
+	require.NotNil(t, providers.HTTPBasic)
+	require.Len(t, providers.HTTPBasic.Accounts, 1)
+	assert.Equal(t, metricsUser, providers.HTTPBasic.Accounts[0].Username)
+	assert.Equal(t, metricsHash, providers.HTTPBasic.Accounts[0].Password)
+
+	// Full config must still marshal to valid JSON.
+	jsonBytes, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	var rawCheck map[string]interface{}
+	require.NoError(t, json.Unmarshal(jsonBytes, &rawCheck))
+}
+
+// TestBuilder_MetricsPublish_FailClosed verifies that an enabled setting missing
+// a user or hash produces NO metrics route (fail-closed security posture).
+func TestBuilder_MetricsPublish_FailClosed(t *testing.T) {
+	cases := []struct {
+		name     string
+		settings *models.MetricsPublishSettings
+	}{
+		{
+			name: "missing user",
+			settings: &models.MetricsPublishSettings{
+				Enabled:       true,
+				Host:          "metrics.example.com",
+				Path:          "/metrics",
+				BasicAuthUser: "",
+				BasicAuthHash: "$2a$14$somehash",
+			},
+		},
+		{
+			name: "missing hash",
+			settings: &models.MetricsPublishSettings{
+				Enabled:       true,
+				Host:          "metrics.example.com",
+				Path:          "/metrics",
+				BasicAuthUser: "admin",
+				BasicAuthHash: "",
+			},
+		},
+		{
+			name:     "nil settings",
+			settings: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewBuilder(WithLogger(newTestLogger()))
+			b.SetHTTPProxies([]models.Proxy{
+				createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+			})
+			b.SetMetricsPublishSettings(tc.settings)
+
+			data, err := b.BuildJSON()
+			require.NoError(t, err)
+
+			var raw map[string]interface{}
+			require.NoError(t, json.Unmarshal(data, &raw))
+
+			apps := raw["apps"].(map[string]interface{})
+			httpApp := apps["http"].(map[string]interface{})
+			servers := httpApp["servers"].(map[string]interface{})
+			srv := servers[DefaultServerName].(map[string]interface{})
+			routes := srv["routes"].([]interface{})
+
+			for _, r := range routes {
+				routeMap := r.(map[string]interface{})
+				if handles, ok := routeMap["handle"].([]interface{}); ok {
+					for _, h := range handles {
+						hm := h.(map[string]interface{})
+						assert.NotEqual(t, "metrics", hm["handler"],
+							"fail-closed: must not emit metrics handler when auth is incomplete")
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestBuilder_MetricsPublish_DefaultPath verifies that when Path is empty the
+// default "/metrics" is substituted.
+func TestBuilder_MetricsPublish_DefaultPath(t *testing.T) {
+	b := NewBuilder(WithLogger(newTestLogger()))
+	b.SetHTTPProxies([]models.Proxy{
+		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	})
+	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
+		Enabled:       true,
+		Host:          "metrics.example.com",
+		Path:          "", // empty → should default to /metrics
+		BasicAuthUser: "admin",
+		BasicAuthHash: "$2a$14$testhash",
+	})
+
+	cfg, err := b.Build()
+	require.NoError(t, err)
+
+	server := cfg.Apps.HTTP.Servers[DefaultServerName]
+	require.NotEmpty(t, server.Routes)
+	metricsRoute := server.Routes[0]
+
+	ms := metricsRoute.Match[0]
+	pathVal, hasPath := ms["path"]
+	require.True(t, hasPath)
+	assert.Contains(t, pathVal, "/metrics")
+}

@@ -211,6 +211,14 @@ func (m *mockSettingsService) SetNotFoundSettings(_ *models.NotFoundSettings) er
 	return nil
 }
 
+func (m *mockSettingsService) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	return &models.MetricsPublishSettings{Enabled: false}, nil
+}
+
+func (m *mockSettingsService) SetMetricsPublishSettings(_ *models.MetricsPublishSettings) error {
+	return nil
+}
+
 // TestAuditService_GetConfigCachesAfterFirstLoad ensures the audit config is
 // loaded from settings only once and then served from the cache. The read path
 // previously never populated the cache, so every audit event re-fetched and

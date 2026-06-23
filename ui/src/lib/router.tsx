@@ -187,6 +187,15 @@ const settingsAuditRoute = createRoute({
   ),
 });
 
+const settingsMetricsRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/metrics',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/metrics'),
+    'SettingsMetricsPage',
+  ),
+});
+
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/activity',
@@ -274,6 +283,7 @@ const routeTree = rootRoute.addChildren([
       settingsDefaultPageRoute,
       settingsBrandingRoute,
       settingsAuditRoute,
+      settingsMetricsRoute,
     ]),
     auditLogsRoute,
     caddyLogsRoute,

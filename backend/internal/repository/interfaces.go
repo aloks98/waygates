@@ -41,6 +41,8 @@ type SettingsRepositoryInterface interface {
 	Delete(key string) error
 	GetNotFoundSettings() (*models.NotFoundSettings, error)
 	SetNotFoundSettings(settings *models.NotFoundSettings) error
+	GetMetricsPublishSettings() (*models.MetricsPublishSettings, error)
+	SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error
 }
 
 // AuditLogRepositoryInterface defines the interface for audit log database operations
@@ -65,6 +67,13 @@ type L4ProxyRepositoryInterface interface {
 	GetByPort(port int, protocol string) (*models.L4Proxy, error)
 }
 
+// TrafficSampleRepositoryInterface defines the interface for traffic sample operations.
+type TrafficSampleRepositoryInterface interface {
+	Create(sample *models.TrafficSample) error
+	ListSince(t time.Time) ([]models.TrafficSample, error)
+	DeleteOlderThan(t time.Time) (int64, error)
+}
+
 // L4ProxyListParams holds parameters for listing L4 proxies
 type L4ProxyListParams struct {
 	Page     int
@@ -78,10 +87,11 @@ type L4ProxyListParams struct {
 
 // Ensure repositories implement interfaces
 var (
-	_ ProxyRepositoryInterface    = (*ProxyRepository)(nil)
-	_ UserRepositoryInterface     = (*UserRepository)(nil)
-	_ SettingsRepositoryInterface = (*SettingsRepository)(nil)
-	_ AuditLogRepositoryInterface = (*AuditLogRepository)(nil)
-	_ ACLRepositoryInterface      = (*ACLRepository)(nil)
-	_ L4ProxyRepositoryInterface  = (*L4ProxyRepository)(nil)
+	_ ProxyRepositoryInterface         = (*ProxyRepository)(nil)
+	_ UserRepositoryInterface          = (*UserRepository)(nil)
+	_ SettingsRepositoryInterface      = (*SettingsRepository)(nil)
+	_ AuditLogRepositoryInterface      = (*AuditLogRepository)(nil)
+	_ ACLRepositoryInterface           = (*ACLRepository)(nil)
+	_ L4ProxyRepositoryInterface       = (*L4ProxyRepository)(nil)
+	_ TrafficSampleRepositoryInterface = (*TrafficSampleRepository)(nil)
 )

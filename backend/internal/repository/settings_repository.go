@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
@@ -81,4 +83,68 @@ func (r *SettingsRepository) SetNotFoundSettings(settings *models.NotFoundSettin
 		return err
 	}
 	return r.Set(models.SettingNotFoundRedirectURL, settings.RedirectURL)
+}
+
+// GetMetricsPublishSettings retrieves the metrics publish endpoint configuration.
+func (r *SettingsRepository) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	enabledStr := r.GetValue(models.SettingMetricsPublishEnabled, "false")
+	enabled := enabledStr == "true"
+
+	cidrsStr := r.GetValue(models.SettingMetricsAllowedCIDRs, "")
+	var cidrs []string
+	if cidrsStr != "" {
+		cidrs = splitCIDRs(cidrsStr)
+	}
+
+	settings := &models.MetricsPublishSettings{
+		Enabled:       enabled,
+		Host:          r.GetValue(models.SettingMetricsPublishHost, ""),
+		Path:          r.GetValue(models.SettingMetricsPublishPath, "/metrics"),
+		BasicAuthUser: r.GetValue(models.SettingMetricsBasicAuthUser, ""),
+		BasicAuthHash: r.GetValue(models.SettingMetricsBasicAuthHash, ""),
+		AllowedCIDRs:  cidrs,
+	}
+	return settings, nil
+}
+
+// SetMetricsPublishSettings updates the metrics publish endpoint configuration.
+func (r *SettingsRepository) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error {
+	enabledStr := "false"
+	if settings.Enabled {
+		enabledStr = "true"
+	}
+	if err := r.Set(models.SettingMetricsPublishEnabled, enabledStr); err != nil {
+		return err
+	}
+	if err := r.Set(models.SettingMetricsPublishHost, settings.Host); err != nil {
+		return err
+	}
+	if err := r.Set(models.SettingMetricsPublishPath, settings.Path); err != nil {
+		return err
+	}
+	if err := r.Set(models.SettingMetricsBasicAuthUser, settings.BasicAuthUser); err != nil {
+		return err
+	}
+	if err := r.Set(models.SettingMetricsBasicAuthHash, settings.BasicAuthHash); err != nil {
+		return err
+	}
+	return r.Set(models.SettingMetricsAllowedCIDRs, joinCIDRs(settings.AllowedCIDRs))
+}
+
+// splitCIDRs splits a comma-separated CIDR string into a slice, trimming blanks
+// and skipping empty elements.
+func splitCIDRs(s string) []string {
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// joinCIDRs joins a CIDR slice into a comma-separated string.
+func joinCIDRs(cidrs []string) string {
+	return strings.Join(cidrs, ",")
 }

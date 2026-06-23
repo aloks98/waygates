@@ -39,6 +39,9 @@ type Builder struct {
 	// upstream proxy/tunnel (empty = Caddy treated as the edge).
 	trustedProxies  []string
 	clientIPHeaders []string
+
+	// metricsPublish holds the optional protected external metrics route config.
+	metricsPublish *models.MetricsPublishSettings
 }
 
 // Settings holds the application settings for building the config.
@@ -147,6 +150,12 @@ func (b *Builder) SetNotFoundSettings(settings *models.NotFoundSettings) *Builde
 	return b
 }
 
+// SetMetricsPublishSettings sets the optional protected external metrics endpoint config.
+func (b *Builder) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) *Builder {
+	b.metricsPublish = settings
+	return b
+}
+
 // SetLayer4App sets the Layer4 application configuration for TCP/UDP proxying.
 func (b *Builder) SetLayer4App(layer4App *Layer4App) *Builder {
 	b.layer4App = layer4App
@@ -210,6 +219,31 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 		routes = append(routes, catchAllRoute)
 	}
 
+	// Prepend protected metrics route when fully configured with auth (fail closed).
+	mp := b.metricsPublish
+	if mp != nil && mp.Enabled && mp.Host != "" && mp.BasicAuthUser != "" && mp.BasicAuthHash != "" {
+		path := mp.Path
+		if path == "" {
+			path = "/metrics"
+		}
+		match := NewHostPathMatcher(mp.Host, path)
+		if len(mp.AllowedCIDRs) > 0 {
+			match = AddRemoteIPToMatcher(match, mp.AllowedCIDRs...)
+		}
+		authH := NewAuthenticationHandler(
+			[]*BasicAuthAccount{NewBasicAuthAccount(mp.BasicAuthUser, mp.BasicAuthHash)}, "Metrics")
+		metricsRoute := &HTTPRoute{
+			Match:    []MatcherSet{match},
+			Handle:   []HTTPHandler{ToHTTPHandler(authH), {"handler": "metrics"}},
+			Terminal: true,
+		}
+		// Prepend before the catch-all (avoid gocritic appendAssign: build a fresh slice).
+		newRoutes := make([]*HTTPRoute, 0, len(routes)+1)
+		newRoutes = append(newRoutes, metricsRoute)
+		newRoutes = append(newRoutes, routes...)
+		routes = newRoutes
+	}
+
 	// Build HTTP app if we have routes
 	if len(routes) > 0 {
 		httpApp := NewHTTPApp()
@@ -217,6 +251,7 @@ func (b *Builder) Build() (*CaddyConfig, error) {
 		server.AddRoutes(routes...)
 		b.applyTrustedProxies(server)
 		server.Logs = &HTTPServerLogs{}
+		server.Metrics = &HTTPServerMetrics{}
 		httpApp.AddServer(DefaultServerName, server)
 		config.Apps.HTTP = httpApp
 

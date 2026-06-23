@@ -491,6 +491,62 @@ func TestSettingsRepository_NotFoundSettings_Struct(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// MetricsPublishSettings Unit Tests (no DB required)
+// =============================================================================
+
+// TestMetricsPublish_CIDRRoundTrip verifies that CIDR values survive a
+// join→split round-trip, which is the key property of the CSV storage encoding.
+func TestMetricsPublish_CIDRRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		cidrs  []string
+		joined string
+	}{
+		{
+			name:   "empty slice",
+			cidrs:  nil,
+			joined: "",
+		},
+		{
+			name:   "single CIDR",
+			cidrs:  []string{"10.0.0.0/8"},
+			joined: "10.0.0.0/8",
+		},
+		{
+			name:   "multiple CIDRs",
+			cidrs:  []string{"10.0.0.0/8", "192.168.1.0/24", "172.16.0.0/12"},
+			joined: "10.0.0.0/8,192.168.1.0/24,172.16.0.0/12",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			joined := joinCIDRs(tc.cidrs)
+			assert.Equal(t, tc.joined, joined)
+			if tc.cidrs == nil {
+				assert.Empty(t, splitCIDRs(joined))
+			} else {
+				assert.Equal(t, tc.cidrs, splitCIDRs(joined))
+			}
+		})
+	}
+}
+
+// TestMetricsPublish_SettingsKeys verifies the constant values match the spec.
+func TestMetricsPublish_SettingsKeys(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "metrics.publish_enabled", models.SettingMetricsPublishEnabled)
+	assert.Equal(t, "metrics.publish_host", models.SettingMetricsPublishHost)
+	assert.Equal(t, "metrics.publish_path", models.SettingMetricsPublishPath)
+	assert.Equal(t, "metrics.basic_auth_user", models.SettingMetricsBasicAuthUser)
+	assert.Equal(t, "metrics.basic_auth_hash", models.SettingMetricsBasicAuthHash)
+	assert.Equal(t, "metrics.allowed_cidrs", models.SettingMetricsAllowedCIDRs)
+}
+
 func TestSettingsRepository_EdgeCases(t *testing.T) {
 	tdb := SetupTestDB(t)
 	defer tdb.Cleanup(t)

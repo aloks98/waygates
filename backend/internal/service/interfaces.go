@@ -32,6 +32,8 @@ type SettingsServiceInterface interface {
 	Delete(key string) error
 	GetNotFoundSettings() (*models.NotFoundSettings, error)
 	SetNotFoundSettings(settings *models.NotFoundSettings) error
+	GetMetricsPublishSettings() (*models.MetricsPublishSettings, error)
+	SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error
 }
 
 // SyncServiceInterface defines the interface for sync operations

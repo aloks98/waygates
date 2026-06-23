@@ -125,13 +125,15 @@ func (m *MockProxyService) ImportProxies(inputs []service.ImportInput, dryRun bo
 
 // MockSettingsService is a mock implementation of SettingsServiceInterface
 type MockSettingsService struct {
-	GetFunc                 func(key string) (string, error)
-	GetWithDefaultFunc      func(key, defaultValue string) string
-	SetFunc                 func(key, value string) error
-	GetAllFunc              func() (map[string]string, error)
-	DeleteFunc              func(key string) error
-	GetNotFoundSettingsFunc func() (*models.NotFoundSettings, error)
-	SetNotFoundSettingsFunc func(settings *models.NotFoundSettings) error
+	GetFunc                       func(key string) (string, error)
+	GetWithDefaultFunc            func(key, defaultValue string) string
+	SetFunc                       func(key, value string) error
+	GetAllFunc                    func() (map[string]string, error)
+	DeleteFunc                    func(key string) error
+	GetNotFoundSettingsFunc       func() (*models.NotFoundSettings, error)
+	SetNotFoundSettingsFunc       func(settings *models.NotFoundSettings) error
+	GetMetricsPublishSettingsFunc func() (*models.MetricsPublishSettings, error)
+	SetMetricsPublishSettingsFunc func(settings *models.MetricsPublishSettings) error
 }
 
 // Get implements SettingsServiceInterface.
@@ -186,6 +188,22 @@ func (m *MockSettingsService) GetNotFoundSettings() (*models.NotFoundSettings, e
 func (m *MockSettingsService) SetNotFoundSettings(settings *models.NotFoundSettings) error {
 	if m.SetNotFoundSettingsFunc != nil {
 		return m.SetNotFoundSettingsFunc(settings)
+	}
+	return nil
+}
+
+// GetMetricsPublishSettings implements SettingsServiceInterface.
+func (m *MockSettingsService) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	if m.GetMetricsPublishSettingsFunc != nil {
+		return m.GetMetricsPublishSettingsFunc()
+	}
+	return &models.MetricsPublishSettings{Enabled: false}, nil
+}
+
+// SetMetricsPublishSettings implements SettingsServiceInterface.
+func (m *MockSettingsService) SetMetricsPublishSettings(settings *models.MetricsPublishSettings) error {
+	if m.SetMetricsPublishSettingsFunc != nil {
+		return m.SetMetricsPublishSettingsFunc(settings)
 	}
 	return nil
 }

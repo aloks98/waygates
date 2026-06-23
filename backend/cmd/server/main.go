@@ -89,8 +89,8 @@ func main() {
 	userRepo := repository.NewUserRepository(gormDB)
 	createDefaultUserIfNeeded(cfg, userRepo, goauthInstance, logger)
 
-	// Setup routes (also starts the background sync service)
-	router, syncService := routes.SetupRoutes(cfg, gormDB, logger, goauthInstance.Auth)
+	// Setup routes (also starts the background sync and metrics-scraper services)
+	router, syncService, metricsScraper := routes.SetupRoutes(cfg, gormDB, logger, goauthInstance.Auth)
 
 	// Create HTTP server
 	srv := &http.Server{
@@ -126,6 +126,8 @@ func main() {
 
 	// Stop the background sync loop and wait for any in-flight sync to finish.
 	syncService.Stop()
+	// Stop the metrics scraper.
+	metricsScraper.Stop()
 
 	logger.Info("Server stopped")
 }

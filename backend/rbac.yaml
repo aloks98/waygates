@@ -82,6 +82,12 @@ permission_groups:
         name: "View Caddy Config"
         description: "View the generated Caddy configuration"
 
+  - name: "Traffic Metrics"
+    permissions:
+      - key: "metrics:read"
+        name: "View Traffic Metrics"
+        description: "View traffic metrics time-series data"
+
   - name: "L4 Proxies"
     permissions:
       - key: "l4proxies:read"
@@ -117,6 +123,7 @@ role_templates:
       - "sync:trigger"
       - "system:status"
       - "audit_logs:read"
+      - "metrics:read"
 
   - key: "viewer"
     name: "Viewer"
@@ -128,3 +135,4 @@ role_templates:
       - "settings:read"
       - "sync:read"
       - "system:status"
+      - "metrics:read"

@@ -29,6 +29,40 @@ const (
 	SettingOAuthProviders      = "oauth_providers" // JSON map of provider_id -> enabled
 )
 
+// MetricsPublishSettings represents the opt-in protected external metrics endpoint config.
+type MetricsPublishSettings struct {
+	Enabled       bool     `json:"enabled"`
+	Host          string   `json:"host"`
+	Path          string   `json:"path"`
+	BasicAuthUser string   `json:"basic_auth_user"`
+	BasicAuthHash string   `json:"-"`             // bcrypt hash — NEVER serialized; persistence is key-value only
+	AllowedCIDRs  []string `json:"allowed_cidrs"` // stored as comma-separated string
+}
+
+// Metrics publish settings keys.
+const (
+	SettingMetricsPublishEnabled = "metrics.publish_enabled"
+	SettingMetricsPublishHost    = "metrics.publish_host"
+	SettingMetricsPublishPath    = "metrics.publish_path"
+	SettingMetricsBasicAuthUser  = "metrics.basic_auth_user"
+	SettingMetricsBasicAuthHash  = "metrics.basic_auth_hash"
+	SettingMetricsAllowedCIDRs   = "metrics.allowed_cidrs"
+)
+
+// sensitiveSettingKeys is the set of setting keys whose values must never be
+// returned through the generic GET /settings or GET /settings/{key} endpoints.
+// Add future secret keys here.
+var sensitiveSettingKeys = map[string]struct{}{
+	SettingMetricsBasicAuthHash: {},
+}
+
+// IsSensitiveSettingKey reports whether key holds a secret value (e.g. a bcrypt
+// hash) that must not be exposed via the generic settings endpoints.
+func IsSensitiveSettingKey(key string) bool {
+	_, ok := sensitiveSettingKeys[key]
+	return ok
+}
+
 // OAuthProviderSettings represents the enabled state of OAuth providers
 type OAuthProviderSettings map[string]bool
 
