@@ -247,8 +247,8 @@ function ProfileDialog({
         </DialogHeader>
         <div className="grid gap-4 py-2 space-y-4">
           <div className="flex items-center gap-4">
-            <Avatar className="size-16">
-              <div className="flex size-full items-center justify-center bg-primary text-primary-foreground text-xl font-medium">
+            <Avatar className="size-16 rounded-none">
+              <div className="flex size-full items-center justify-center rounded-none bg-primary text-primary-foreground text-xl font-medium">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
             </Avatar>
@@ -308,13 +308,11 @@ export function AppSidebar({ children }: { children: ReactNode }) {
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-2">
-            <div className="flex size-8 items-center justify-center rounded bg-primary text-primary-foreground">
-              <WaygateLogo className="size-5" />
-            </div>
+          <div className="flex items-center gap-2.5 px-2 py-2">
+            <WaygateLogo className="size-8" />
             <span
-              className="text-lg font-semibold tracking-tight"
-              style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+              className="text-3xl leading-none tracking-wide"
+              style={{ fontFamily: 'var(--font-display)' }}
             >
               Waygates
             </span>
@@ -351,8 +349,8 @@ export function AppSidebar({ children }: { children: ReactNode }) {
               render={<Button variant="ghost" className="w-full justify-start h-auto py-2 px-2" />}
             >
               <div className="flex items-center gap-3 flex-1">
-                <Avatar className="size-8">
-                  <div className="flex size-full items-center justify-center bg-primary text-primary-foreground text-sm font-medium">
+                <Avatar className="size-8 rounded-none">
+                  <div className="flex size-full items-center justify-center rounded-none bg-primary text-primary-foreground text-sm font-medium">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 </Avatar>

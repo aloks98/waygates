@@ -66,17 +66,15 @@ export function LoginPage() {
       {/* Brand panel — left side on desktop, hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] bg-primary/[0.06] items-end justify-start p-12 relative overflow-hidden">
         {/* Decorative circles */}
-        <div className="absolute -top-24 -right-24 size-96 rounded-full border border-primary/10" />
-        <div className="absolute -top-12 -right-12 size-72 rounded-full border border-primary/[0.06]" />
-        <div className="absolute bottom-32 right-24 size-40 rounded-full bg-primary/[0.04]" />
+        <div className="absolute -top-24 -right-24 size-96 rounded-none border border-primary/10" />
+        <div className="absolute -top-12 -right-12 size-72 rounded-none border border-primary/[0.06]" />
+        <div className="absolute bottom-32 right-24 size-40 rounded-none bg-primary/[0.04]" />
 
         <div className="relative z-10 max-w-lg animate-fade-up">
-          <div className="flex size-14 items-center justify-center rounded bg-primary text-primary-foreground">
-            <WaygateLogo className="size-8" />
-          </div>
+          <WaygateLogo className="size-16" />
           <h1
-            className="mt-6 text-5xl font-bold tracking-tight leading-[1.1]"
-            style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+            className="mt-6 text-6xl tracking-wide leading-[1.1]"
+            style={{ fontFamily: 'var(--font-display)' }}
           >
             Waygates
           </h1>
@@ -91,13 +89,8 @@ export function LoginPage() {
         <div className="w-full max-w-sm animate-fade-up" style={{ animationDelay: '100ms' }}>
           {/* Mobile-only brand header */}
           <div className="flex flex-col items-center gap-2 mb-8 lg:hidden">
-            <div className="flex size-12 items-center justify-center rounded bg-primary text-primary-foreground">
-              <WaygateLogo className="size-7" />
-            </div>
-            <h2
-              className="text-2xl font-bold tracking-tight"
-              style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
-            >
+            <WaygateLogo className="size-12" />
+            <h2 className="text-4xl tracking-wide" style={{ fontFamily: 'var(--font-display)' }}>
               Waygates
             </h2>
           </div>
@@ -168,7 +161,7 @@ export function LoginPage() {
                   )}
                 />
 
-                <Button type="submit" disabled={isSubmitting} className="w-full">
+                <Button type="submit" disabled={isSubmitting} className="w-full glow-primary">
                   {isSubmitting ? 'Signing in...' : 'Sign in'}
                 </Button>
 

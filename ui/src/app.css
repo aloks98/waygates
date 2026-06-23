@@ -1,60 +1,67 @@
 /* Font imports must come first */
-@import url('https://api.fontshare.com/v2/css?f[]=clash-grotesk@200,300,400,500,600,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=VT323&display=swap');
 
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@e412/rnui-themes';
 @source "../node_modules/@e412/rnui-react/dist";
 
-/** Waygates Copper Theme — overrides rnui-themes defaults **/
-
-/*
- * Copper palette: warm amber-orange primary, cream neutrals.
- * Tight radius (0.25rem), crisp minimal shadows.
- * Inviting, workshop-like warmth for a homelab tool.
- */
+/** Waygates Synthwave Theme — light (:root) / dark (.dark) **/
 :root {
-  --text-sans: 'Clash Grotesk', system-ui, sans-serif;
-  --font-sans: 'Clash Grotesk', system-ui, sans-serif;
-  --font-heading: 'Bricolage Grotesque', 'Clash Grotesk', sans-serif;
+  --text-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'VT323', ui-monospace, monospace;
 
-  --primary: oklch(0.65 0.15 55);
-  --primary-foreground: oklch(0.99 0.005 55);
-  --ring: oklch(0.65 0.15 55);
+  --primary: #5862e0;
+  --primary-foreground: #ffffff;
+  --ring: #0e7b82;
 
-  --background: oklch(0.97 0.005 70);
-  --foreground: oklch(0.16 0.012 50);
+  --background: #f7f7fa;
+  --foreground: #16171d;
 
-  --card: oklch(0.993 0.003 70);
-  --card-foreground: oklch(0.16 0.012 50);
+  --card: #ffffff;
+  --card-foreground: #16171d;
 
-  --popover: oklch(0.993 0.003 70);
-  --popover-foreground: oklch(0.16 0.012 50);
+  --popover: #ffffff;
+  --popover-foreground: #16171d;
 
-  --muted: oklch(0.955 0.008 70);
-  --muted-foreground: oklch(0.5 0.015 50);
+  --muted: #f1f2f6;
+  --muted-foreground: #5c6072;
 
-  --secondary: oklch(0.955 0.008 70);
-  --secondary-foreground: oklch(0.24 0.012 50);
+  --secondary: #f1f2f6;
+  --secondary-foreground: #16171d;
 
-  --accent: oklch(0.94 0.02 55);
-  --accent-foreground: oklch(0.24 0.012 50);
+  --accent: #ecedf3;
+  --accent-foreground: #16171d;
 
-  --border: oklch(0.905 0.008 70);
-  --input: oklch(0.905 0.008 70);
+  --border: #e3e4ec;
+  --input: #e3e4ec;
 
-  --destructive: oklch(0.55 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive: #d14a42;
+  --destructive-foreground: #ffffff;
 
-  --radius: 0.25rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16171d;
+  --sidebar-primary: #5862e0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f2f6;
+  --sidebar-accent-foreground: #16171d;
+  --sidebar-border: #e3e4ec;
+  --sidebar-ring: #0e7b82;
 
-  --chart-1: oklch(0.65 0.15 55);
-  --chart-2: oklch(0.6 0.13 35);
-  --chart-3: oklch(0.7 0.1 90);
-  --chart-4: oklch(0.55 0.12 155);
-  --chart-5: oklch(0.58 0.1 245);
+  --radius: 0;
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+
+  --chart-1: #5862e0;
+  --chart-2: #18a6ae;
+  --chart-3: #8b5cf6;
+  --chart-4: #e0408f;
+  --chart-5: #6e72f0;
 
   --shadow-2xs: 0 1px 2px 0 oklch(0 0 0 / 0.04);
   --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.04);
@@ -67,47 +74,75 @@
 }
 
 .dark {
-  --primary: oklch(0.72 0.14 55);
-  --primary-foreground: oklch(0.15 0.01 55);
-  --ring: oklch(0.52 0.1 55);
+  --primary: #6e72f0;
+  --primary-foreground: #ffffff;
+  --ring: #34e1e0;
 
-  --background: oklch(0.13 0.006 50);
-  --foreground: oklch(0.92 0.006 70);
+  --background: #000000;
+  --foreground: #ededf4;
 
-  --card: oklch(0.17 0.006 50);
-  --card-foreground: oklch(0.92 0.006 70);
+  --card: #0b0b12;
+  --card-foreground: #ededf4;
 
-  --popover: oklch(0.17 0.006 50);
-  --popover-foreground: oklch(0.92 0.006 70);
+  --popover: #0b0b12;
+  --popover-foreground: #ededf4;
 
-  --muted: oklch(0.21 0.006 50);
-  --muted-foreground: oklch(0.58 0.012 70);
+  --muted: #15151f;
+  --muted-foreground: #8a8a99;
 
-  --secondary: oklch(0.21 0.006 50);
-  --secondary-foreground: oklch(0.92 0.006 70);
+  --secondary: #15151f;
+  --secondary-foreground: #ededf4;
 
-  --accent: oklch(0.21 0.012 55);
-  --accent-foreground: oklch(0.92 0.006 70);
+  --accent: #15151f;
+  --accent-foreground: #ededf4;
 
-  --border: oklch(0.24 0.006 50);
-  --input: oklch(0.24 0.006 50);
+  --border: #22222f;
+  --input: #22222f;
 
-  --destructive: oklch(0.6 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
+  --destructive: #e5675f;
+  --destructive-foreground: #ffffff;
 
-  --chart-1: oklch(0.72 0.14 55);
-  --chart-2: oklch(0.67 0.13 35);
-  --chart-3: oklch(0.75 0.1 90);
-  --chart-4: oklch(0.62 0.12 155);
-  --chart-5: oklch(0.65 0.1 245);
+  --sidebar: #0b0b12;
+  --sidebar-foreground: #ededf4;
+  --sidebar-primary: #6e72f0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #15151f;
+  --sidebar-accent-foreground: #ededf4;
+  --sidebar-border: #22222f;
+  --sidebar-ring: #34e1e0;
+
+  --chart-1: #6e72f0;
+  --chart-2: #34e1e0;
+  --chart-3: #a246e8;
+  --chart-4: #ff3d9a;
+  --chart-5: #6e8af0;
 }
 
 @custom-variant dark (&:is(.dark *));
 
+/* Subtle primary glow — dark mode only (apply via class on primary CTAs) */
+.dark .glow-primary {
+  box-shadow: 0 0 18px -8px var(--primary);
+}
+
+/* Tailwind v4's bare `rounded`/directional utilities hardcode 0.25rem and ignore
+   --radius:0. Square them to match the identity. Unlayered = wins over utilities. */
+.rounded,
+.rounded-t,
+.rounded-b,
+.rounded-l,
+.rounded-r,
+.rounded-tl,
+.rounded-tr,
+.rounded-bl,
+.rounded-br {
+  border-radius: 0;
+}
+
 @theme inline {
-  --font-sans: 'Clash Grotesk', system-ui, sans-serif;
-  --font-serif: 'Bricolage Grotesque', ui-serif, serif;
-  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-serif: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
 
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;

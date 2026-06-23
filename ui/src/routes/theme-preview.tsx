@@ -246,7 +246,7 @@ function LogoContext({
           </div>
           <span
             className="text-lg font-semibold tracking-tight"
-            style={{ fontFamily: '"Bricolage Grotesque", system-ui, sans-serif' }}
+            style={{ fontFamily: 'var(--font-display)' }}
           >
             Waygates
           </span>

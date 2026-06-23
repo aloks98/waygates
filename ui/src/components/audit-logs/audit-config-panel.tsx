@@ -325,7 +325,7 @@ export function AuditConfigPanel() {
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium">{group.label}</span>
                             {isSecurity && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                              <span className="inline-flex items-center gap-1 rounded-none bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
                                 <ShieldAlert className="size-3" />
                                 Security
                               </span>

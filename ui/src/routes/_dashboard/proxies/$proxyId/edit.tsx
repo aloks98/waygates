@@ -36,7 +36,7 @@ import { useProxies, useProxy } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
 export function ProxyEditPage() {
-  const params = useParams({ from: '/proxies/$proxyId/edit' });
+  const params = useParams({ strict: false });
   const proxyId = parseInt(params.proxyId, 10);
   const navigate = useNavigate();
 

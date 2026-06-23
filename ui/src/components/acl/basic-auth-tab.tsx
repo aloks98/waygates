@@ -235,7 +235,7 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex items-center gap-4">
-                  <Skeleton className="size-8 rounded-full" />
+                  <Skeleton className="size-8 rounded-none" />
                   <Skeleton className="h-5 w-32" />
                   <Skeleton className="h-5 w-24 flex-1" />
                   <Skeleton className="h-8 w-16" />
@@ -263,7 +263,7 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center justify-center size-8 rounded-full bg-muted">
+                        <div className="flex items-center justify-center size-8 rounded-none bg-muted">
                           <User className="size-4 text-muted-foreground" />
                         </div>
                         <span className="font-medium">{user.username}</span>

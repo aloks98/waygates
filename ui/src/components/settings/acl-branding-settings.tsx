@@ -50,7 +50,7 @@ type BrandingFormValues = z.infer<typeof brandingSchema>;
 
 const DEFAULT_BRANDING: BrandingFormValues = {
   logo_url: '',
-  primary_color: '#b5841a',
+  primary_color: '#6E72F0',
   background_color: '',
   title: 'Waygates',
   subtitle: 'Sign in to continue',
@@ -135,7 +135,7 @@ function ColorInput({
         </div>
       </div>
       {!isValidHex && inputValue.length > 0 && (
-        <p className="text-sm text-destructive">Please enter a valid hex color (e.g., #b5841a)</p>
+        <p className="text-sm text-destructive">Please enter a valid hex color (e.g., #6E72F0)</p>
       )}
     </div>
   );

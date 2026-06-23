@@ -251,7 +251,7 @@ function OverviewTab({
 }
 
 export function ACLGroupDetailPage() {
-  const params = useParams({ from: '/access/$groupId' });
+  const params = useParams({ strict: false });
   const groupId = parseInt(params.groupId, 10);
   const navigate = useNavigate();
 

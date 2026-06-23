@@ -15,7 +15,7 @@ const defaultBranding: ACLBranding = {
   id: 0,
   title: 'Waygates',
   subtitle: 'Sign in to continue',
-  primary_color: '#b5841a',
+  primary_color: '#6E72F0',
   background_color: '', // Empty to use default theme background
   updated_at: '',
 };

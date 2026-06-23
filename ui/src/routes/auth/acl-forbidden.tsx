@@ -56,7 +56,7 @@ export function ACLForbiddenPage() {
         <CardContent className="pt-8 pb-6">
           <div className="text-center space-y-6">
             {/* Icon */}
-            <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+            <div className="mx-auto w-16 h-16 rounded-none bg-destructive/10 flex items-center justify-center">
               {isOAuthDenied ? (
                 <ShieldX className="size-8 text-destructive" />
               ) : (
@@ -79,7 +79,7 @@ export function ACLForbiddenPage() {
             {/* User info badge (for OAuth users) */}
             {isOAuthDenied && (
               <div className="flex items-center justify-center gap-3 rounded-lg border bg-muted/50 px-4 py-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background border">
+                <div className="flex items-center justify-center w-10 h-10 rounded-none bg-background border">
                   <Mail className="size-5 text-muted-foreground" />
                 </div>
                 <div className="text-left">

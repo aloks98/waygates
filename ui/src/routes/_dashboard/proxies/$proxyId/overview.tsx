@@ -30,7 +30,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
 
 export function ProxyOverviewPage() {
-  const params = useParams({ from: '/proxies/$proxyId' });
+  const params = useParams({ strict: false });
   const proxyId = parseInt(params.proxyId, 10);
   const navigate = useNavigate();
   const { proxy, isLoading } = useProxy(proxyId);

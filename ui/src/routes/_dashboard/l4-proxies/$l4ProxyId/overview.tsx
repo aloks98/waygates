@@ -30,7 +30,7 @@ import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
 
 export function L4ProxyOverviewPage() {
-  const params = useParams({ from: '/proxies/tcp-udp/$l4ProxyId' });
+  const params = useParams({ strict: false });
   const l4ProxyId = parseInt(params.l4ProxyId, 10);
   const navigate = useNavigate();
 

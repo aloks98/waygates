@@ -28,7 +28,7 @@ function getProtocolLabel(protocol: string): string {
 }
 
 export function L4ProxyEditPage() {
-  const params = useParams({ from: '/proxies/tcp-udp/$l4ProxyId/edit' });
+  const params = useParams({ strict: false });
   const l4ProxyId = parseInt(params.l4ProxyId, 10);
   const navigate = useNavigate();
 
