@@ -8,6 +8,7 @@ This guide covers deploying Waygates in various environments.
 - [Docker Compose (Recommended)](#docker-compose-recommended)
 - [TLS Configuration](#tls-configuration)
 - [Configuration Reference](#configuration-reference)
+- [Skipping Upstream TLS Verification](#skipping-upstream-tls-verification)
 - [Production Considerations](#production-considerations)
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
@@ -169,25 +170,96 @@ See `.env.example` for full list: Hetzner, Porkbun, Vultr, Namecheap, OVH, Azure
 
 ### Environment Variables
 
+#### Database
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DB_HOST` | Yes | - | PostgreSQL host |
+| `DB_HOST` | Yes | `postgres` | PostgreSQL host |
 | `DB_PORT` | No | `5432` | PostgreSQL port |
 | `DB_USER` | No | `waygates` | Database user |
 | `DB_PASSWORD` | Yes | - | Database password |
 | `DB_NAME` | No | `waygates` | Database name |
-| `JWT_SECRET` | Yes | - | JWT signing key (min 32 chars) |
-| `JWT_ACCESS_EXPIRY` | No | `15m` | Access token expiry |
-| `JWT_REFRESH_EXPIRY` | No | `168h` | Refresh token expiry |
-| `CADDY_ACME_PROVIDER` | No | `off` | ACME provider |
-| `CADDY_EMAIL` | No | - | Email for ACME certs |
+
+#### Server
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
 | `SERVER_HOST` | No | `0.0.0.0` | Backend bind address |
 | `SERVER_PORT` | No | `8080` | Backend port |
-| `DEFAULT_USER_EMAIL` | No | - | Auto-create admin email |
-| `DEFAULT_USER_PASSWORD` | No | - | Auto-create admin password |
-| `BCRYPT_COST` | No | `12` | Password hashing cost |
-| `LOG_LEVEL` | No | `info` | Log level |
-| `LOG_FORMAT` | No | `json` | Log format (json/console) |
+
+#### JWT
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | Yes | - | JWT signing key (min 32 chars) |
+| `JWT_ACCESS_EXPIRY` | No | `15m` | Access token lifetime |
+| `JWT_REFRESH_EXPIRY` | No | `168h` | Refresh token lifetime |
+
+#### Security
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `BCRYPT_COST` | No | `12` | bcrypt password hashing cost (higher = slower + safer) |
+| `CORS_ORIGINS` | No | _(empty)_ | Comma-separated allowed CORS origins (e.g. `http://localhost:3000`) |
+| `RBAC_PATH` | No | `./backend/rbac.yaml` | Path to RBAC configuration file |
+
+#### Logging
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `LOG_LEVEL` | No | `info` | Log verbosity: `debug`, `info`, `warn`, `error` |
+| `LOG_FORMAT` | No | `json` | Log output format: `json` or `console` |
+
+#### Default Admin User
+
+All four variables must be set together. If no users exist at startup, Waygates creates this account automatically.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DEFAULT_USER_NAME` | No | - | Display name of the auto-created admin |
+| `DEFAULT_USER_USERNAME` | No | - | Username (login handle) of the auto-created admin |
+| `DEFAULT_USER_EMAIL` | No | - | Email of the auto-created admin |
+| `DEFAULT_USER_PASSWORD` | No | - | Password of the auto-created admin |
+
+#### Caddy / TLS
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CADDY_ACME_PROVIDER` | No | `off` | ACME challenge provider; `off`, `http`, or a DNS provider name |
+| `CADDY_EMAIL` | No | - | Contact email for ACME certificate registration |
+| `CADDY_STORAGE_PATH` | No | `/data` | Directory where Caddy stores TLS certificates and state |
+| `CADDY_LOG_PATH` | No | `/var/log/caddy` | Directory for Caddy runtime and access logs |
+| `WAYGATES_CADDY_CONFIG_RETENTION_DAYS` | No | `7` | Days to retain Caddy config backups |
+
+#### Trusted Proxies (real client IP behind a tunnel or upstream proxy)
+
+Leave both empty when Caddy is the direct edge. Set these only when Waygates sits behind an upstream proxy or tunnel (e.g. Cloudflare Tunnel, Pangolin) so that IP-based ACL rules and audit logs see the real client IP instead of the tunnel connector's address.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `CADDY_TRUSTED_PROXIES` | No | _(empty)_ | Comma-separated CIDRs of trusted upstream connectors |
+| `CADDY_CLIENT_IP_HEADERS` | No | _(empty)_ | Comma-separated headers carrying the real client IP (e.g. `Cf-Connecting-Ip`); empty defaults to Caddy's built-in `X-Forwarded-For` handling |
+
+**Security note:** Trust only the connector's subnet, not broad private ranges. Caddy only honours the client-IP header for connections from a trusted-proxy range, preventing spoofing.
+
+#### UI
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `UI_ENABLED` | No | `true` | Serve the embedded React UI from the backend |
+| `UI_PATH` | No | `./ui` | Path to the built UI `dist` folder (overrides the embedded copy) |
+
+#### ACL (Access Control for protected proxies)
+
+These settings control the ACL feature that lets Waygates protect upstream services with its own authentication.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ACL_WAYGATES_VERIFY_URL` | No | `http://waygates:8080` | Internal URL Caddy uses to reach the Waygates auth-verify endpoint; must be reachable from inside the container |
+| `ACL_WAYGATES_LOGIN_URL` | No | _(empty)_ | External URL of the Waygates login page shown to unauthenticated users (e.g. `https://waygates.company.com/auth/login`) |
+| `ACL_COOKIE_SECURE` | No | `true` | Set the `Secure` flag on ACL session cookies; disable only in HTTP-only development environments |
+| `ACL_SESSION_TTL` | No | `24h` | Lifetime of an ACL session cookie |
+| `ACL_OAUTH_CALLBACK_BASE_URL` | No | _(empty)_ | Base URL for OAuth callback redirects when using OAuth-backed ACL (e.g. `https://waygates.company.com`) |
 
 ### Ports
 
@@ -226,6 +298,52 @@ waygates:
 | `/data` | Caddy data (certificates, etc.) |
 | `/config` | Caddy config |
 | `/etc/caddy` | Caddyfile and site configs |
+
+---
+
+## Skipping Upstream TLS Verification
+
+The `tls_insecure_skip_verify` field on a proxy allows Caddy to connect to HTTPS backends that use self-signed certificates or certificates from a non-public CA (e.g. an internal corporate CA).
+
+**When to use it:**
+- Internal services with self-signed certificates
+- Internal corporate services with an internal CA not trusted by Caddy
+- Development or migration environments where certificate validation is not yet practical
+
+**Enable it via the API:**
+
+```json
+{
+  "type": "reverse_proxy",
+  "name": "Internal HTTPS Service",
+  "hostname": "internal.example.com",
+  "upstreams": [
+    { "host": "192.168.1.100", "port": 8443, "scheme": "https" }
+  ],
+  "tls_insecure_skip_verify": true
+}
+```
+
+When set, Waygates injects the following into the Caddy JSON transport:
+
+```json
+{
+  "handler": "reverse_proxy",
+  "transport": {
+    "protocol": "http",
+    "tls": { "insecure_skip_verify": true }
+  }
+}
+```
+
+**Security warning:** Disabling certificate verification makes the connection to the upstream vulnerable to man-in-the-middle attacks. Never use this for public-facing services, untrusted networks, or production environments with sensitive data.
+
+Prefer a proper alternative when possible:
+1. Install the upstream's CA certificate on the Caddy server.
+2. Use Let's Encrypt or a public CA for the backend service.
+3. Use `mkcert` to provision a locally-trusted certificate in development.
+
+The field defaults to `false` — certificate verification is always on unless you explicitly opt out.
 
 ---
 

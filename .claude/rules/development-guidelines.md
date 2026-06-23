@@ -9,7 +9,12 @@ Waygates is a single Docker container application that combines:
 - **Caddy** (Ports 80, 443): Reverse proxy with automatic HTTPS
 - **React Frontend**: Management interface
 
-The application manages Caddy reverse proxy configurations through a web interface with authentication, RBAC, and audit logging.
+The application manages Caddy reverse proxy configurations through a web interface with authentication, RBAC, and audit logging. Key feature areas include:
+- **HTTP reverse proxies** (L7) and **L4 TCP/UDP proxies**
+- **ACL / access groups**: basic-auth, OAuth/SSO, branding, and forward-auth middleware
+- **Audit logs / activity feed** and **Caddy logs viewer**
+- **Caddy config preview** (generated Caddyfile/JSON) and **traffic metrics** dashboards
+- **User management** with role-based access control
 
 ## Technology Stack
 
@@ -28,7 +33,7 @@ The application manages Caddy reverse proxy configurations through a web interfa
 - **Vite** - Build tool
 - **TanStack React Router** - Routing
 - **TanStack React Query** - Server state
-- **TanStack React Form** + **Zod** - Form handling/validation
+- **React Hook Form** + **Zod** - Form handling/validation (`react-hook-form` + `@hookform/resolvers`)
 - **Zustand** - Client state (auth)
 - **ky** - HTTP client
 - **Tailwind CSS 4** - Styling
@@ -199,8 +204,8 @@ export function useProxies() {
 }
 ```
 
-#### Form Validation
-Use Zod schemas in `lib/form-validation.ts`:
+#### Form Handling
+Use **React Hook Form** with Zod schemas. Define schemas in `lib/form-validation.ts` and bind via RHF `Form`/`FormField` (not the shadcn Field primitives — those are structural wrappers only):
 ```tsx
 export const proxySchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -209,7 +214,7 @@ export const proxySchema = z.object({
 ```
 
 #### Data Tables
-**Always use `DataGrid` from `@e412/titanium` for displaying tabular data.** Do not use the basic `Table` component directly. DataGrid provides consistent styling, skeleton loading states, sorting, pagination, and row click handling.
+**Always use `DataGrid` from `@e412/rnui-react` for displaying tabular data.** Do not use the basic `Table` component directly. DataGrid provides consistent styling, skeleton loading states, sorting, pagination, and row click handling.
 
 ```tsx
 import {
@@ -218,7 +223,7 @@ import {
   DataGridContainer,
   DataGridPagination,
   DataGridTable,
-} from '@e412/titanium';
+} from '@e412/rnui-react';
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 
 const columns = useMemo<ColumnDef<MyData>[]>(() => [
@@ -329,9 +334,15 @@ ALTER TABLE proxies DROP COLUMN new_field;
 ### RBAC Permissions
 Defined in `backend/rbac.yaml`:
 - `proxies:read`, `proxies:create`, `proxies:update`, `proxies:delete`
+- `l4proxies:read`, `l4proxies:create`, `l4proxies:update`, `l4proxies:delete`
 - `acl:read`, `acl:create`, `acl:update`, `acl:delete`
 - `settings:read`, `settings:write`
-- `audit:read`
+- `audit_logs:read`
+- `caddy_logs:read`
+- `caddy_config:read`
+- `metrics:read`
+- `users:read`, `users:manage`
+- `system:status`
 - `sync:read`, `sync:trigger`
 
 ## Configuration
