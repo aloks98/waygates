@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 
 import type { TrafficPoint } from '@/types/metrics';
 
-import { pointsToCategories, seriesFor } from './traffic-format';
+import { formatBytes, pointsToCategories, seriesFor } from './traffic-format';
 
 const makePoint = (t: string, overrides: Partial<TrafficPoint> = {}): TrafficPoint => ({
   t,
@@ -50,4 +50,17 @@ test('seriesFor extracts a numeric field from all points', () => {
 
 test('seriesFor handles empty points', () => {
   expect(seriesFor([], 'p50_ms')).toEqual([]);
+});
+
+test('formatBytes renders human-readable units', () => {
+  expect(formatBytes(0)).toBe('0 B');
+  expect(formatBytes(512)).toBe('512 B');
+  expect(formatBytes(1024)).toBe('1.0 KB');
+  expect(formatBytes(123456789)).toBe('117.7 MB');
+  expect(formatBytes(5 * 1024 ** 3)).toBe('5.0 GB');
+});
+
+test('formatBytes guards against invalid input', () => {
+  expect(formatBytes(-1)).toBe('0 B');
+  expect(formatBytes(Number.NaN)).toBe('0 B');
 });
