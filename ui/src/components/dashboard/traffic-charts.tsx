@@ -12,6 +12,7 @@ import {
 } from '@e412/rnui-react';
 import { useState } from 'react';
 
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { useTrafficMetrics } from '@/hooks/use-traffic-metrics';
 import { pointsToCategories, seriesFor } from '@/lib/traffic-format';
 import type { TrafficRange } from '@/types/metrics';
@@ -25,6 +26,7 @@ function EmptyState() {
 export function TrafficCharts() {
   const [range, setRange] = useState<TrafficRange>('1h');
   const { series, isLoading } = useTrafficMetrics(range);
+  const colors = useChartColors();
 
   const points = series?.points ?? [];
   const categories = pointsToCategories(points, range);
@@ -58,11 +60,19 @@ export function TrafficCharts() {
               <AreaChart
                 categories={categories}
                 series={[
-                  { name: '2xx', data: seriesFor(points, 'req_2xx'), color: 'var(--chart-2)' },
-                  { name: '3xx', data: seriesFor(points, 'req_3xx'), color: 'var(--chart-3)' },
+                  { name: '2xx', data: seriesFor(points, 'req_2xx'), color: colors['--chart-2'] },
+                  { name: '3xx', data: seriesFor(points, 'req_3xx'), color: colors['--chart-3'] },
                   { name: '4xx', data: seriesFor(points, 'req_4xx'), color: '#f59e0b' },
-                  { name: '5xx', data: seriesFor(points, 'req_5xx'), color: 'var(--destructive)' },
-                  { name: 'other', data: seriesFor(points, 'req_other'), color: 'var(--chart-5)' },
+                  {
+                    name: '5xx',
+                    data: seriesFor(points, 'req_5xx'),
+                    color: colors['--destructive'],
+                  },
+                  {
+                    name: 'other',
+                    data: seriesFor(points, 'req_other'),
+                    color: colors['--chart-5'],
+                  },
                 ]}
                 stacked
                 smooth
@@ -87,8 +97,8 @@ export function TrafficCharts() {
               <AreaChart
                 categories={categories}
                 series={[
-                  { name: 'In', data: seriesFor(points, 'bytes_in'), color: 'var(--chart-1)' },
-                  { name: 'Out', data: seriesFor(points, 'bytes_out'), color: 'var(--chart-4)' },
+                  { name: 'In', data: seriesFor(points, 'bytes_in'), color: colors['--chart-1'] },
+                  { name: 'Out', data: seriesFor(points, 'bytes_out'), color: colors['--chart-4'] },
                 ]}
                 smooth
                 showLegend
