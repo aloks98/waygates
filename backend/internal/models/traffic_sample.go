@@ -59,10 +59,10 @@ func (d *DurationBucketsField) Scan(value interface{}) error {
 type TrafficSample struct {
 	ID          int       `json:"id"           gorm:"primaryKey;autoIncrement"`
 	CollectedAt time.Time `json:"collected_at" gorm:"not null;index"`
-	Req2xx      int64     `json:"req_2xx"      gorm:"not null;default:0"`
-	Req3xx      int64     `json:"req_3xx"      gorm:"not null;default:0"`
-	Req4xx      int64     `json:"req_4xx"      gorm:"not null;default:0"`
-	Req5xx      int64     `json:"req_5xx"      gorm:"not null;default:0"`
+	Req2xx      int64     `json:"req_2xx"      gorm:"column:req_2xx;not null;default:0"`
+	Req3xx      int64     `json:"req_3xx"      gorm:"column:req_3xx;not null;default:0"`
+	Req4xx      int64     `json:"req_4xx"      gorm:"column:req_4xx;not null;default:0"`
+	Req5xx      int64     `json:"req_5xx"      gorm:"column:req_5xx;not null;default:0"`
 	ReqOther    int64     `json:"req_other"    gorm:"not null;default:0"`
 	BytesIn     int64     `json:"bytes_in"     gorm:"not null;default:0"`
 	BytesOut    int64     `json:"bytes_out"    gorm:"not null;default:0"`
