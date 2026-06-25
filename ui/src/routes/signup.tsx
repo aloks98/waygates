@@ -12,8 +12,9 @@ import {
   Input,
 } from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { XCircle } from 'lucide-react';
+import { Info, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -42,6 +43,14 @@ export function SignupPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
+  // Gate the form on registration status
+  const { data: regStatus, isLoading: regLoading } = useQuery({
+    queryKey: ['auth', 'registration-status'],
+    queryFn: () => publicApi.get('auth/registration-status').json<ApiResponse<{ open: boolean }>>(),
+    staleTime: 60 * 1000,
+  });
+  const registrationOpen = regStatus?.data?.open ?? false;
+
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     mode: 'onTouched',
@@ -55,6 +64,9 @@ export function SignupPage() {
   });
 
   const onSubmit = async (value: SignupValues) => {
+    // Extra guard: don't submit if registration is closed
+    if (!registrationOpen) return;
+
     setError(null);
     try {
       const response = await publicApi
@@ -122,123 +134,148 @@ export function SignupPage() {
             Create a new account
           </p>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                {error && (
-                  <Alert variant="destructive">
-                    <XCircle className="size-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+          {/* Registration closed notice */}
+          {!regLoading && !registrationOpen && (
+            <div className="space-y-4">
+              <Alert variant="default">
+                <Info className="size-4" />
+                <AlertDescription>
+                  Registration is disabled — contact your administrator.
+                </AlertDescription>
+              </Alert>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link to="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </div>
+          )}
 
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter your full name"
-                          autoComplete="name"
-                          autoFocus
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+          {/* Registration open: show form */}
+          {!regLoading && registrationOpen && (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <FieldGroup>
+                  {error && (
+                    <Alert variant="destructive">
+                      <XCircle className="size-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                   )}
-                />
 
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Choose a username" autoComplete="username" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter your full name"
+                            autoComplete="name"
+                            autoFocus
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          placeholder="Enter your email"
-                          autoComplete="email"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Choose a username"
+                            autoComplete="username"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Create a password"
-                          autoComplete="new-password"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="email"
+                            placeholder="Enter your email"
+                            autoComplete="email"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="confirmPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Confirm your password"
-                          autoComplete="new-password"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Create a password"
+                            autoComplete="new-password"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <Button
-                  type="submit"
-                  disabled={form.formState.isSubmitting}
-                  className="w-full glow-primary"
-                >
-                  {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
-                </Button>
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Confirm your password"
+                            autoComplete="new-password"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <p className="text-center text-sm text-muted-foreground">
-                  Already have an account?{' '}
-                  <Link to="/login" className="text-primary hover:underline">
-                    Sign in
-                  </Link>
-                </p>
-              </FieldGroup>
-            </form>
-          </Form>
+                  <Button
+                    type="submit"
+                    disabled={form.formState.isSubmitting}
+                    className="w-full glow-primary"
+                  >
+                    {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
+                  </Button>
+
+                  <p className="text-center text-sm text-muted-foreground">
+                    Already have an account?{' '}
+                    <Link to="/login" className="text-primary hover:underline">
+                      Sign in
+                    </Link>
+                  </p>
+                </FieldGroup>
+              </form>
+            </Form>
+          )}
         </div>
       </div>
     </div>

@@ -27,6 +27,7 @@ const (
 	SettingNotFoundMode        = "not_found.mode"
 	SettingNotFoundRedirectURL = "not_found.redirect_url"
 	SettingOAuthProviders      = "oauth_providers" // JSON map of provider_id -> enabled
+	SettingOpenRegistration    = "auth.open_registration"
 )
 
 // MetricsPublishSettings represents the opt-in protected external metrics endpoint config.

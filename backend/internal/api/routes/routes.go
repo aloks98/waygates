@@ -116,6 +116,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		OAuthChecker: auth.NewOAuthCheckerAdapter(oauthProviderManager),
 		Logger:       logger,
 	})
+	userService := service.NewUserService(userRepo, goauthInstance, auditService, cfg.Security.BcryptCost, logger)
 
 	// Ensure Caddy directories exist
 	if err := caddyFileManager.EnsureDirectories(); err != nil {
@@ -142,7 +143,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	// Handlers
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
-	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, auditService, cfg.Security.BcryptCost, logger)
+	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, settingsRepo, auditService, cfg.Security.BcryptCost, logger)
 	proxyHandler := handlers.NewProxyHandler(proxyService, auditService, logger)
 	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService, logger)
@@ -160,13 +161,13 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	oauthHandler := handlers.NewOAuthHandler(handlers.OAuthHandlerConfig{
 		ProviderManager: oauthProviderManager,
 		ACLService:      aclService,
-		UserRepo:        userRepo,
 		ProxyRepo:       proxyRepo,
 		AuditService:    auditService,
 		Config:          cfg,
 		Logger:          logger,
 	})
 	l4ProxyHandler := handlers.NewL4ProxyHandler(l4ProxyService, logger)
+	usersHandler := handlers.NewUsersHandler(userService, logger)
 	caddyLogsService := service.NewCaddyLogsService(cfg.Caddy.LogPath)
 	caddyLogsHandler := handlers.NewCaddyLogsHandler(caddyLogsService, logger)
 	configPreviewHandler := handlers.NewConfigPreviewHandler(syncService, logger)
@@ -188,6 +189,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		})
 
 		r.Post("/api/auth/refresh", authHandler.RefreshToken)
+		r.Get("/api/auth/registration-status", authHandler.RegistrationStatus)
 
 		// ACL forward auth routes (called by Caddy, must be public)
 		r.Get("/api/auth/acl/verify", aclVerifyHandler.Verify)
@@ -346,6 +348,16 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		// Traffic metrics routes - require metrics:read
 		r.Route("/api/metrics", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "metrics:read", mwConfig)).Get("/traffic", metricsHandler.GetTraffic)
+		})
+
+		// User management routes
+		r.Route("/api/users", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "users:read", mwConfig)).Get("/", usersHandler.List)
+			r.With(chimw.RequirePermission(authAdapter, "users:read", mwConfig)).Get("/{id}", usersHandler.Get)
+			r.With(chimw.RequirePermission(authAdapter, "users:manage", mwConfig)).Post("/", usersHandler.Create)
+			r.With(chimw.RequirePermission(authAdapter, "users:manage", mwConfig)).Put("/{id}", usersHandler.Update)
+			r.With(chimw.RequirePermission(authAdapter, "users:manage", mwConfig)).Post("/{id}/password", usersHandler.ResetPassword)
+			r.With(chimw.RequirePermission(authAdapter, "users:manage", mwConfig)).Delete("/{id}", usersHandler.Delete)
 		})
 
 		// L4 Proxy routes with permission checks

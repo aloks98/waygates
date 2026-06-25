@@ -254,6 +254,9 @@ type MockUserRepository struct {
 	CountFunc                func() (int64, error)
 	DeleteFunc               func(id int) error
 	UpdatePasswordFunc       func(id int, passwordHash string) error
+	ListFunc                 func() ([]models.User, error)
+	UpdateFunc               func(user *models.User) error
+	UpdateLastLoginFunc      func(id int, t time.Time) error
 }
 
 // Create implements UserRepositoryInterface.
@@ -308,6 +311,30 @@ func (m *MockUserRepository) Delete(id int) error {
 func (m *MockUserRepository) UpdatePassword(id int, passwordHash string) error {
 	if m.UpdatePasswordFunc != nil {
 		return m.UpdatePasswordFunc(id, passwordHash)
+	}
+	return nil
+}
+
+// List implements UserRepositoryInterface.
+func (m *MockUserRepository) List() ([]models.User, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc()
+	}
+	return []models.User{}, nil
+}
+
+// Update implements UserRepositoryInterface.
+func (m *MockUserRepository) Update(user *models.User) error {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(user)
+	}
+	return nil
+}
+
+// UpdateLastLogin implements UserRepositoryInterface.
+func (m *MockUserRepository) UpdateLastLogin(id int, t time.Time) error {
+	if m.UpdateLastLoginFunc != nil {
+		return m.UpdateLastLoginFunc(id, t)
 	}
 	return nil
 }
@@ -913,6 +940,64 @@ func (m *MockL4ProxyService) GetStats() (*models.L4ProxyStats, error) {
 	return &models.L4ProxyStats{}, nil
 }
 
+// MockUserService is a mock implementation of service.UserService.
+type MockUserService struct {
+	ListFunc          func(ctx context.Context) ([]service.UserWithRole, error)
+	GetFunc           func(ctx context.Context, id int) (*service.UserWithRole, error)
+	CreateFunc        func(ctx context.Context, in service.CreateUserInput, actorID int, ip, ua string) (*service.UserWithRole, error)
+	UpdateFunc        func(ctx context.Context, id int, in service.UpdateUserInput, actorID int, ip, ua string) (*service.UserWithRole, error)
+	ResetPasswordFunc func(ctx context.Context, id int, password string, mustChange bool, actorID int, ip, ua string) error
+	DeleteFunc        func(ctx context.Context, id, actorID int, ip, ua string) error
+}
+
+// List implements service.UserService.
+func (m *MockUserService) List(ctx context.Context) ([]service.UserWithRole, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc(ctx)
+	}
+	return []service.UserWithRole{}, nil
+}
+
+// Get implements service.UserService.
+func (m *MockUserService) Get(ctx context.Context, id int) (*service.UserWithRole, error) {
+	if m.GetFunc != nil {
+		return m.GetFunc(ctx, id)
+	}
+	return nil, service.ErrUserNotFound
+}
+
+// Create implements service.UserService.
+func (m *MockUserService) Create(ctx context.Context, in service.CreateUserInput, actorID int, ip, ua string) (*service.UserWithRole, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, in, actorID, ip, ua)
+	}
+	return &service.UserWithRole{Role: in.Role}, nil
+}
+
+// Update implements service.UserService.
+func (m *MockUserService) Update(ctx context.Context, id int, in service.UpdateUserInput, actorID int, ip, ua string) (*service.UserWithRole, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, id, in, actorID, ip, ua)
+	}
+	return &service.UserWithRole{Role: in.Role}, nil
+}
+
+// ResetPassword implements service.UserService.
+func (m *MockUserService) ResetPassword(ctx context.Context, id int, password string, mustChange bool, actorID int, ip, ua string) error {
+	if m.ResetPasswordFunc != nil {
+		return m.ResetPasswordFunc(ctx, id, password, mustChange, actorID, ip, ua)
+	}
+	return nil
+}
+
+// Delete implements service.UserService.
+func (m *MockUserService) Delete(ctx context.Context, id, actorID int, ip, ua string) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, id, actorID, ip, ua)
+	}
+	return nil
+}
+
 // Ensure mocks implement interfaces
 var (
 	_ service.ProxyServiceInterface         = (*MockProxyService)(nil)
@@ -923,4 +1008,5 @@ var (
 	_ repository.UserRepositoryInterface    = (*MockUserRepository)(nil)
 	_ repository.L4ProxyRepositoryInterface = (*MockL4ProxyRepository)(nil)
 	_ caddy.ReloaderInterface               = (*MockReloader)(nil)
+	_ service.UserService                   = (*MockUserService)(nil)
 )

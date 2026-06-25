@@ -24,6 +24,7 @@ export interface ProxyStats {
 export interface TokenPair {
   access_token: string;
   refresh_token: string;
+  must_change_password?: boolean;
 }
 
 export interface SyncStatus {

@@ -40,6 +40,7 @@ import {
 import type { DurationUnit } from '@/components/acl/session-duration';
 import { TagsInput } from '@/components/ui/tags-input';
 import { useConfigureWaygatesAuth, useWaygatesAuth } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 
 // Email pattern validation - allows wildcards like *@domain.com or specific emails
 const EMAIL_PATTERN_REGEX = /^(\*|[^\s@]+)@[^\s@]+\.[^\s@]+$/;
@@ -72,6 +73,7 @@ type WaygatesAccountFormValues = z.infer<typeof waygatesAccountSchema>;
 export function WaygatesAccountTab({ groupId }: { groupId: number }) {
   const { config, isLoading } = useWaygatesAuth(groupId);
   const { configureAuth, isConfiguring } = useConfigureWaygatesAuth();
+  const { canUpdateAccess } = usePermissions();
 
   // Duration picker unit state — initialised from config once loaded
   const [durationUnit, setDurationUnit] = useState<DurationUnit>('hours');
@@ -331,12 +333,14 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isConfiguring}>
-            <Save className="size-4" />
-            {isConfiguring ? 'Saving...' : 'Save Configuration'}
-          </Button>
-        </div>
+        {canUpdateAccess && (
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isConfiguring}>
+              <Save className="size-4" />
+              {isConfiguring ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          </div>
+        )}
       </form>
     </Form>
   );

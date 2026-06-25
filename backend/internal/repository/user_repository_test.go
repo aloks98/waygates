@@ -583,3 +583,143 @@ func TestNewUserRepository_Integration(t *testing.T) {
 		assert.Nil(t, repo.db)
 	})
 }
+
+func TestUserRepository_List(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	repo := NewUserRepository(tdb.DB)
+
+	t.Run("Success_ListReturnsCreatedUser", func(t *testing.T) {
+		tdb.CleanTables(t)
+
+		user := CreateTestUser(t, tdb.DB)
+
+		users, err := repo.List()
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		assert.Equal(t, user.ID, users[0].ID)
+		assert.Equal(t, user.Username, users[0].Username)
+		assert.Equal(t, user.Email, users[0].Email)
+	})
+
+	t.Run("Success_EmptyList", func(t *testing.T) {
+		tdb.CleanTables(t)
+
+		users, err := repo.List()
+		require.NoError(t, err)
+		assert.Empty(t, users)
+	})
+
+	t.Run("Success_OrderedByID", func(t *testing.T) {
+		tdb.CleanTables(t)
+
+		u1 := CreateTestUser(t, tdb.DB)
+		u2 := CreateTestUser(t, tdb.DB)
+		u3 := CreateTestUser(t, tdb.DB)
+
+		users, err := repo.List()
+		require.NoError(t, err)
+		require.Len(t, users, 3)
+		assert.Equal(t, u1.ID, users[0].ID)
+		assert.Equal(t, u2.ID, users[1].ID)
+		assert.Equal(t, u3.ID, users[2].ID)
+	})
+}
+
+func TestUserRepository_Update(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	repo := NewUserRepository(tdb.DB)
+
+	t.Run("Success_FlipsActiveToFalseAndChangesNameEmail", func(t *testing.T) {
+		user := CreateTestUser(t, tdb.DB)
+
+		// Verify defaults
+		assert.True(t, user.Active)
+
+		// Flip Active to false and change Name/Email
+		user.Active = false
+		user.Name = "Updated Name"
+		user.Email = fmt.Sprintf("updated_%d@example.com", time.Now().UnixNano())
+
+		err := repo.Update(user)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByID(user.ID)
+		require.NoError(t, err)
+		assert.False(t, fetched.Active, "Active should be persisted as false")
+		assert.Equal(t, "Updated Name", fetched.Name)
+		assert.Equal(t, user.Email, fetched.Email)
+	})
+
+	t.Run("Success_SetMustChangePassword", func(t *testing.T) {
+		user := CreateTestUser(t, tdb.DB)
+		assert.False(t, user.MustChangePassword)
+
+		user.MustChangePassword = true
+		err := repo.Update(user)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByID(user.ID)
+		require.NoError(t, err)
+		assert.True(t, fetched.MustChangePassword)
+	})
+
+	t.Run("Success_UsernameNotChanged", func(t *testing.T) {
+		user := CreateTestUser(t, tdb.DB)
+		originalUsername := user.Username
+
+		// Attempt to change username via Update (should be ignored)
+		user.Username = "should_not_change"
+		err := repo.Update(user)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByID(user.ID)
+		require.NoError(t, err)
+		assert.Equal(t, originalUsername, fetched.Username, "Username must not be modified by Update")
+	})
+}
+
+func TestUserRepository_UpdateLastLogin(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	repo := NewUserRepository(tdb.DB)
+
+	t.Run("Success_SetsTimestamp", func(t *testing.T) {
+		user := CreateTestUser(t, tdb.DB)
+
+		// Confirm LastLoginAt is nil initially
+		fetched, err := repo.GetByID(user.ID)
+		require.NoError(t, err)
+		assert.Nil(t, fetched.LastLoginAt)
+
+		loginTime := time.Now().UTC().Truncate(time.Millisecond)
+		err = repo.UpdateLastLogin(user.ID, loginTime)
+		require.NoError(t, err)
+
+		fetched, err = repo.GetByID(user.ID)
+		require.NoError(t, err)
+		require.NotNil(t, fetched.LastLoginAt)
+		assert.WithinDuration(t, loginTime, *fetched.LastLoginAt, time.Second)
+	})
+
+	t.Run("Success_CanUpdateTwice", func(t *testing.T) {
+		user := CreateTestUser(t, tdb.DB)
+
+		first := time.Now().UTC().Add(-1 * time.Hour).Truncate(time.Millisecond)
+		err := repo.UpdateLastLogin(user.ID, first)
+		require.NoError(t, err)
+
+		second := time.Now().UTC().Truncate(time.Millisecond)
+		err = repo.UpdateLastLogin(user.ID, second)
+		require.NoError(t, err)
+
+		fetched, err := repo.GetByID(user.ID)
+		require.NoError(t, err)
+		require.NotNil(t, fetched.LastLoginAt)
+		assert.WithinDuration(t, second, *fetched.LastLoginAt, time.Second)
+	})
+}

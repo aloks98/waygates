@@ -197,6 +197,16 @@ type L4ProxyServiceInterface interface {
 	GetStats() (*models.L4ProxyStats, error)
 }
 
+// UserService defines the interface for user management operations.
+type UserService interface {
+	List(ctx context.Context) ([]UserWithRole, error)
+	Get(ctx context.Context, id int) (*UserWithRole, error)
+	Create(ctx context.Context, in CreateUserInput, actorID int, ip, ua string) (*UserWithRole, error)
+	Update(ctx context.Context, id int, in UpdateUserInput, actorID int, ip, ua string) (*UserWithRole, error)
+	ResetPassword(ctx context.Context, id int, password string, mustChange bool, actorID int, ip, ua string) error
+	Delete(ctx context.Context, id, actorID int, ip, ua string) error
+}
+
 // Ensure concrete types implement interfaces
 var (
 	_ ProxyServiceInterface    = (*ProxyService)(nil)
@@ -206,4 +216,5 @@ var (
 	_ AuditServiceInterface    = (*AuditService)(nil)
 	_ ACLServiceInterface      = (*ACLService)(nil)
 	_ L4ProxyServiceInterface  = (*L4ProxyService)(nil)
+	_ UserService              = (*userService)(nil)
 )

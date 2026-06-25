@@ -25,6 +25,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useACLBranding, useUpdateACLBranding } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
 import type { ACLBranding } from '@/types/acl';
 
@@ -279,6 +280,7 @@ function LoginPreview({
 export function ACLBrandingSettings() {
   const { branding, isLoading } = useACLBranding();
   const { updateBranding, isUpdating } = useUpdateACLBranding();
+  const { canUpdateAccess } = usePermissions();
 
   const form = useForm<BrandingFormValues>({
     resolver: zodResolver(brandingSchema),
@@ -519,7 +521,7 @@ export function ACLBrandingSettings() {
               type="button"
               variant="ghost"
               onClick={handleResetToDefaults}
-              disabled={isUpdating}
+              disabled={!canUpdateAccess || isUpdating}
             >
               <RotateCcw className="size-4" />
               Reset to Defaults
@@ -533,7 +535,10 @@ export function ACLBrandingSettings() {
               >
                 Discard Changes
               </Button>
-              <Button type="submit" disabled={isUpdating || !isDirty || !isValid}>
+              <Button
+                type="submit"
+                disabled={!canUpdateAccess || isUpdating || !isDirty || !isValid}
+              >
                 {isUpdating ? (
                   <>
                     <Spinner variant="circle" />

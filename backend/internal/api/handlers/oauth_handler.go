@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 	"golang.org/x/oauth2"
-	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/auth"
 	"github.com/aloks98/waygates/backend/internal/config"
@@ -31,7 +29,6 @@ import (
 type OAuthHandler struct {
 	providerManager *auth.OAuthProviderManager
 	aclService      service.ACLServiceInterface
-	userRepo        repository.UserRepositoryInterface
 	proxyRepo       repository.ProxyRepositoryInterface
 	auditService    service.AuditServiceInterface
 	config          *config.Config
@@ -42,7 +39,6 @@ type OAuthHandler struct {
 type OAuthHandlerConfig struct {
 	ProviderManager *auth.OAuthProviderManager
 	ACLService      service.ACLServiceInterface
-	UserRepo        repository.UserRepositoryInterface
 	ProxyRepo       repository.ProxyRepositoryInterface
 	AuditService    service.AuditServiceInterface
 	Config          *config.Config
@@ -59,7 +55,6 @@ func NewOAuthHandler(cfg OAuthHandlerConfig) *OAuthHandler {
 	return &OAuthHandler{
 		providerManager: cfg.ProviderManager,
 		aclService:      cfg.ACLService,
-		userRepo:        cfg.UserRepo,
 		proxyRepo:       cfg.ProxyRepo,
 		auditService:    cfg.AuditService,
 		config:          cfg.Config,
@@ -301,17 +296,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find or create user
-	user, err := h.findOrCreateUser(ctx, provider.ID, userInfo)
-	if err != nil {
-		h.logger.Error("Failed to find or create user",
-			zap.String("provider", providerID),
-			zap.Error(err))
-		h.handleOAuthError(w, r, "Failed to process user account", redirectURL)
-		return
-	}
-
-	// Create ACL session with OAuth info for proper restriction checks
+	// Create ACL session with OAuth identity — no Waygates user row is needed.
+	// The session carries Email+Provider which is all forward-auth authorisation requires.
 	clientIP := getClientIP(r)
 	userAgent := r.UserAgent()
 	sessionTTL := int(h.config.ACL.SessionTTL.Seconds())
@@ -319,10 +305,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		sessionTTL = 86400 // Default 24 hours
 	}
 
-	// Store both user ID and OAuth info in session
-	// This allows OAuth restrictions to be checked even for users with Waygates accounts
 	session, err := h.aclService.CreateSessionWithParams(service.CreateSessionParams{
-		UserID:    &user.ID,
+		UserID:    nil,
 		ProxyID:   nil,
 		IP:        clientIP,
 		UserAgent: userAgent,
@@ -331,16 +315,25 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 		Provider:  providerID,
 	})
 	if err != nil {
-		h.logger.Error("Failed to create session",
-			zap.Int("user_id", user.ID),
+		h.logger.Error("Failed to create ACL OAuth session",
+			zap.String("email", userInfo.Email),
+			zap.String("provider", providerID),
 			zap.Error(err))
 		h.handleOAuthError(w, r, "Failed to create session", redirectURL)
 		return
 	}
 
-	// Log successful OAuth login
+	// Log successful OAuth ACL login (no Waygates user ID available)
 	if h.auditService != nil {
-		_ = h.auditService.LogLogin(r.Context(), user.ID, user.Username+" (OAuth:"+providerID+")", clientIP, userAgent)
+		_ = h.auditService.LogEvent(r.Context(), models.AuditEvent{
+			UserID:       nil,
+			Action:       models.AuditActionACLOAuthLogin,
+			ResourceType: "acl_session",
+			ResourceName: userInfo.Email + " (OAuth:" + providerID + ")",
+			IPAddress:    clientIP,
+			UserAgent:    userAgent,
+			Status:       models.AuditStatusSuccess,
+		})
 	}
 
 	// Extract cookie domain dynamically from the redirect URL
@@ -361,10 +354,8 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, cookie)
 
-	h.logger.Info("OAuth login successful",
+	h.logger.Info("OAuth ACL login successful",
 		zap.String("provider", providerID),
-		zap.Int("user_id", user.ID),
-		zap.String("username", user.Username),
 		zap.String("email", userInfo.Email),
 		zap.String("cookie_domain", cookieDomain),
 		zap.String("redirect_url", redirectURL),
@@ -691,100 +682,6 @@ func getString(data map[string]interface{}, key string) string {
 		}
 	}
 	return ""
-}
-
-// findOrCreateUser finds an existing user by email or creates a new one
-func (h *OAuthHandler) findOrCreateUser(_ context.Context, providerID auth.OAuthProviderID, userInfo *OAuthUserInfo) (*models.User, error) {
-	// Try to find user by email
-	user, err := h.userRepo.GetByUsernameOrEmail(userInfo.Email)
-	if err == nil {
-		// User exists
-		return user, nil
-	}
-
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("looking up user: %w", err)
-	}
-
-	// User doesn't exist - create new user
-	// Generate unique username if needed
-	username := h.generateUniqueUsername(userInfo.Username)
-
-	user = &models.User{
-		Name:     userInfo.Name,
-		Username: username,
-		Email:    userInfo.Email,
-	}
-
-	// Set a random password (user will use OAuth to login)
-	randomPassword, err := generateRandomPassword(32)
-	if err != nil {
-		return nil, fmt.Errorf("generating random password: %w", err)
-	}
-
-	if err := user.SetPassword(randomPassword, 12); err != nil {
-		return nil, fmt.Errorf("setting password: %w", err)
-	}
-
-	// Create user
-	if err := h.userRepo.Create(user); err != nil {
-		return nil, fmt.Errorf("creating user: %w", err)
-	}
-
-	h.logger.Info("Created new user from OAuth",
-		zap.String("provider", string(providerID)),
-		zap.Int("user_id", user.ID),
-		zap.String("username", user.Username),
-		zap.String("email", user.Email))
-
-	return user, nil
-}
-
-// generateUniqueUsername generates a unique username
-func (h *OAuthHandler) generateUniqueUsername(baseUsername string) string {
-	username := baseUsername
-
-	// Check if username exists
-	_, err := h.userRepo.GetByUsernameOrEmail(username)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return username
-	}
-
-	// Add random suffix
-	for i := 0; i < 10; i++ {
-		suffix := generateRandomSuffix(4)
-		candidateUsername := username + "_" + suffix
-
-		_, err := h.userRepo.GetByUsernameOrEmail(candidateUsername)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return candidateUsername
-		}
-	}
-
-	// Last resort: use timestamp
-	return fmt.Sprintf("%s_%d", username, time.Now().UnixNano())
-}
-
-// generateRandomPassword generates a secure random password
-func generateRandomPassword(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
-}
-
-// generateRandomSuffix generates a random alphanumeric suffix
-func generateRandomSuffix(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano()%10000)
-	}
-	for i := range bytes {
-		bytes[i] = charset[bytes[i]%byte(len(charset))]
-	}
-	return string(bytes)
 }
 
 // handleOAuthError handles OAuth errors by redirecting to an error page or the original redirect URL

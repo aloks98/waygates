@@ -8,13 +8,16 @@ import (
 
 // User represents a user of the system
 type User struct {
-	ID           int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name         string    `json:"name" gorm:"type:varchar(255);not null"`
-	Username     string    `json:"username" gorm:"type:varchar(255);uniqueIndex;not null"`
-	Email        string    `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
-	PasswordHash string    `json:"-" gorm:"type:varchar(255);not null"`
-	CreatedAt    time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                 int        `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name               string     `json:"name" gorm:"type:varchar(255);not null"`
+	Username           string     `json:"username" gorm:"type:varchar(255);uniqueIndex;not null"`
+	Email              string     `json:"email" gorm:"type:varchar(255);uniqueIndex;not null"`
+	PasswordHash       string     `json:"-" gorm:"type:varchar(255);not null"`
+	Active             bool       `json:"active" gorm:"not null;default:true"`
+	MustChangePassword bool       `json:"must_change_password" gorm:"not null;default:false"`
+	LastLoginAt        *time.Time `json:"last_login_at"`
+	CreatedAt          time.Time  `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt          time.Time  `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
 // TableName specifies the table name for GORM

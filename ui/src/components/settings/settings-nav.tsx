@@ -1,13 +1,16 @@
 import { cn } from '@e412/rnui-react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { Activity, FileQuestion, Palette, ScrollText } from 'lucide-react';
+import { Activity, FileQuestion, Palette, ScrollText, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface SettingsNavItem {
   to: string;
   label: string;
   description: string;
   icon: ReactNode;
+  requiresPermission?: string;
 }
 
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
@@ -16,32 +19,50 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     label: 'Default Page',
     description: 'Behavior for unmatched hostnames',
     icon: <FileQuestion className="size-4" />,
+    requiresPermission: 'canReadSettings',
   },
   {
     to: '/settings/login-branding',
     label: 'Login Branding',
     description: 'Customize the login page',
     icon: <Palette className="size-4" />,
+    requiresPermission: 'canReadSettings',
   },
   {
     to: '/settings/audit-logs',
     label: 'Audit Logs',
     description: 'Configure event logging',
     icon: <ScrollText className="size-4" />,
+    requiresPermission: 'canReadAuditLogs',
   },
   {
     to: '/settings/metrics',
     label: 'Metrics',
     description: 'Expose Prometheus metrics externally',
     icon: <Activity className="size-4" />,
+    requiresPermission: 'canReadSettings',
+  },
+  {
+    to: '/settings/users',
+    label: 'Users',
+    description: 'Manage user accounts & access',
+    icon: <Users className="size-4" />,
+    requiresPermission: 'canManageUsers',
   },
 ];
 
 export function SettingsNav() {
   const location = useLocation();
+  const permissions = usePermissions();
+
+  const visibleItems = SETTINGS_NAV_ITEMS.filter((item) => {
+    if (!item.requiresPermission) return true;
+    return permissions[item.requiresPermission as keyof typeof permissions] === true;
+  });
+
   return (
     <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-56 md:flex-col md:overflow-visible">
-      {SETTINGS_NAV_ITEMS.map((item) => {
+      {visibleItems.map((item) => {
         const isActive =
           location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
         return (

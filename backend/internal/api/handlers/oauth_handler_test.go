@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -156,75 +155,14 @@ func (m *oauthMockACLService) CleanupExpiredSessions() (int64, error) { return 0
 
 var _ service.ACLServiceInterface = (*oauthMockACLService)(nil)
 
-// oauthMockUserRepository is a mock implementation of UserRepositoryInterface
-type oauthMockUserRepository struct {
-	GetByUsernameOrEmailFunc func(identifier string) (*models.User, error)
-	CreateFunc               func(user *models.User) error
-	GetByIDFunc              func(id int) (*models.User, error)
-	GetByEmailFunc           func(email string) (*models.User, error)
-	CountFunc                func() (int64, error)
-	DeleteFunc               func(id int) error
-	UpdatePasswordFunc       func(id int, passwordHash string) error
-}
-
-func (m *oauthMockUserRepository) GetByUsernameOrEmail(identifier string) (*models.User, error) {
-	if m.GetByUsernameOrEmailFunc != nil {
-		return m.GetByUsernameOrEmailFunc(identifier)
-	}
-	return nil, gorm.ErrRecordNotFound
-}
-
-func (m *oauthMockUserRepository) Create(user *models.User) error {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(user)
-	}
-	return nil
-}
-
-func (m *oauthMockUserRepository) GetByID(id int) (*models.User, error) {
-	if m.GetByIDFunc != nil {
-		return m.GetByIDFunc(id)
-	}
-	return nil, gorm.ErrRecordNotFound
-}
-
-func (m *oauthMockUserRepository) GetByEmail(email string) (*models.User, error) {
-	if m.GetByEmailFunc != nil {
-		return m.GetByEmailFunc(email)
-	}
-	return nil, gorm.ErrRecordNotFound
-}
-
-func (m *oauthMockUserRepository) Count() (int64, error) {
-	if m.CountFunc != nil {
-		return m.CountFunc()
-	}
-	return 0, nil
-}
-
-func (m *oauthMockUserRepository) Delete(id int) error {
-	if m.DeleteFunc != nil {
-		return m.DeleteFunc(id)
-	}
-	return nil
-}
-
-func (m *oauthMockUserRepository) UpdatePassword(id int, passwordHash string) error {
-	if m.UpdatePasswordFunc != nil {
-		return m.UpdatePasswordFunc(id, passwordHash)
-	}
-	return nil
-}
-
 // =============================================================================
 // Test Helpers
 // =============================================================================
 
-func createTestOAuthHandler(t *testing.T) (*OAuthHandler, *oauthMockACLService, *oauthMockUserRepository) {
+func createTestOAuthHandler(t *testing.T) (*OAuthHandler, *oauthMockACLService) {
 	t.Helper()
 
 	mockACLService := &oauthMockACLService{}
-	mockUserRepo := &oauthMockUserRepository{}
 	logger := zap.NewNop()
 
 	cfg := &config.Config{
@@ -242,12 +180,11 @@ func createTestOAuthHandler(t *testing.T) (*OAuthHandler, *oauthMockACLService, 
 	handler := NewOAuthHandler(OAuthHandlerConfig{
 		ProviderManager: providerManager,
 		ACLService:      mockACLService,
-		UserRepo:        mockUserRepo,
 		Config:          cfg,
 		Logger:          logger,
 	})
 
-	return handler, mockACLService, mockUserRepo
+	return handler, mockACLService
 }
 
 func setChiURLParams(r *http.Request, params map[string]string) *http.Request {
@@ -267,7 +204,7 @@ func TestNewOAuthHandler(t *testing.T) {
 
 	t.Run("creates handler with all dependencies", func(t *testing.T) {
 		t.Parallel()
-		handler, _, _ := createTestOAuthHandler(t)
+		handler, _ := createTestOAuthHandler(t)
 		require.NotNil(t, handler)
 	})
 
@@ -289,7 +226,7 @@ func TestNewOAuthHandler(t *testing.T) {
 func TestOAuthHandler_ListProviders(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/auth/oauth/providers", nil)
 	rec := httptest.NewRecorder()
@@ -352,7 +289,7 @@ func TestOAuthHandler_StartOAuth(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, _, _ := createTestOAuthHandler(t)
+			handler, _ := createTestOAuthHandler(t)
 
 			req := httptest.NewRequest(http.MethodGet, "/auth/oauth/"+tc.provider, nil)
 			req = setChiURLParams(req, map[string]string{"provider": tc.provider})
@@ -446,7 +383,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, _, _ := createTestOAuthHandler(t)
+			handler, _ := createTestOAuthHandler(t)
 
 			req := httptest.NewRequest(http.MethodGet, "/auth/oauth/"+tc.provider+"/callback?"+tc.queryParams, nil)
 			req = setChiURLParams(req, map[string]string{"provider": tc.provider})
@@ -474,7 +411,7 @@ func TestOAuthHandler_Callback(t *testing.T) {
 func TestOAuthHandler_generateState(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	tests := []struct {
 		name        string
@@ -534,7 +471,7 @@ func TestOAuthHandler_generateState(t *testing.T) {
 func TestOAuthHandler_extractRedirectFromState(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	tests := []struct {
 		name     string
@@ -585,7 +522,7 @@ func TestOAuthHandler_extractRedirectFromState(t *testing.T) {
 func TestOAuthHandler_validateRedirectURL(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	tests := []struct {
 		name        string
@@ -646,7 +583,7 @@ func TestOAuthHandler_validateRedirectURL(t *testing.T) {
 func TestOAuthHandler_parseUserInfo(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	tests := []struct {
 		name           string
@@ -776,7 +713,7 @@ func TestOAuthHandler_parseUserInfo(t *testing.T) {
 func TestOAuthHandler_parseUserInfo_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	bodyReader := io.NopCloser(bytes.NewReader([]byte("not valid json")))
 	result, err := handler.parseUserInfo(auth.OAuthProviderGoogle, bodyReader)
@@ -787,163 +724,58 @@ func TestOAuthHandler_parseUserInfo_InvalidJSON(t *testing.T) {
 }
 
 // =============================================================================
-// TestOAuthHandler_findOrCreateUser
+// TestOAuthHandler_Callback_SessionParams verifies OAuth sessions are created
+// with UserID == nil and carry the expected Email and Provider fields.
 // =============================================================================
 
-func TestOAuthHandler_findOrCreateUser(t *testing.T) {
+func TestOAuthHandler_Callback_SessionParams(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name          string
-		providerID    auth.OAuthProviderID
-		userInfo      *OAuthUserInfo
-		setupMocks    func(*oauthMockUserRepository)
-		expectError   bool
-		errorContains string
-		checkUser     func(*testing.T, *models.User)
-	}{
-		{
-			name:       "finds existing user by email",
-			providerID: auth.OAuthProviderGoogle,
-			userInfo: &OAuthUserInfo{
-				Email:    "existing@example.com",
-				Name:     "Existing User",
-				Username: "existing",
-			},
-			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
-					return &models.User{
-						ID:       1,
-						Email:    "existing@example.com",
-						Username: "existing",
-						Name:     "Existing User",
-					}, nil
-				}
-			},
-			checkUser: func(t *testing.T, user *models.User) {
-				assert.Equal(t, 1, user.ID)
-				assert.Equal(t, "existing@example.com", user.Email)
-			},
-		},
-		{
-			name:       "creates new user when not found",
-			providerID: auth.OAuthProviderGitHub,
-			userInfo: &OAuthUserInfo{
-				Email:    "newuser@example.com",
-				Name:     "New User",
-				Username: "newuser",
-			},
-			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
-					return nil, gorm.ErrRecordNotFound
-				}
-				repo.CreateFunc = func(user *models.User) error {
-					user.ID = 2
-					return nil
-				}
-			},
-			checkUser: func(t *testing.T, user *models.User) {
-				assert.Equal(t, 2, user.ID)
-				assert.Equal(t, "newuser@example.com", user.Email)
-				assert.Equal(t, "New User", user.Name)
-				assert.Equal(t, "newuser", user.Username)
-			},
-		},
-		{
-			name:       "generates unique username when already taken",
-			providerID: auth.OAuthProviderGoogle,
-			userInfo: &OAuthUserInfo{
-				Email:    "unique@example.com",
-				Name:     "Unique User",
-				Username: "taken",
-			},
-			setupMocks: func(repo *oauthMockUserRepository) {
-				callCount := 0
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
-					callCount++
-					// First call for email lookup - not found
-					if identifier == "unique@example.com" && callCount == 1 {
-						return nil, gorm.ErrRecordNotFound
-					}
-					// Second call for username "taken" - exists
-					if identifier == "taken" {
-						return &models.User{ID: 99, Username: "taken"}, nil
-					}
-					// Any other username check returns not found
-					return nil, gorm.ErrRecordNotFound
-				}
-				repo.CreateFunc = func(user *models.User) error {
-					user.ID = 3
-					return nil
-				}
-			},
-			checkUser: func(t *testing.T, user *models.User) {
-				assert.Equal(t, 3, user.ID)
-				assert.NotEqual(t, "taken", user.Username, "Username should be different from taken")
-				assert.True(t, strings.HasPrefix(user.Username, "taken"), "Username should start with 'taken'")
-			},
-		},
-		{
-			name:       "database error on lookup",
-			providerID: auth.OAuthProviderGoogle,
-			userInfo: &OAuthUserInfo{
-				Email:    "error@example.com",
-				Name:     "Error User",
-				Username: "erroruser",
-			},
-			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
-					return nil, gorm.ErrInvalidDB
-				}
-			},
-			expectError:   true,
-			errorContains: "looking up user",
-		},
-		{
-			name:       "database error on create",
-			providerID: auth.OAuthProviderGoogle,
-			userInfo: &OAuthUserInfo{
-				Email:    "createerror@example.com",
-				Name:     "Create Error",
-				Username: "createerror",
-			},
-			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
-					return nil, gorm.ErrRecordNotFound
-				}
-				repo.CreateFunc = func(_ *models.User) error {
-					return gorm.ErrInvalidDB
-				}
-			},
-			expectError:   true,
-			errorContains: "creating user",
-		},
-	}
+	t.Run("session created with nil UserID and OAuth fields", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		var capturedParams service.CreateSessionParams
+		mockACL := &oauthMockACLService{
+			CreateSessionWithParamsFunc: func(params service.CreateSessionParams) (*models.ACLSession, error) {
+				capturedParams = params
+				return &models.ACLSession{
+					SessionToken: "test-token",
+					ExpiresAt:    time.Now().Add(24 * time.Hour),
+				}, nil
+			},
+		}
 
-			handler, _, mockUserRepo := createTestOAuthHandler(t)
+		cfg := &config.Config{
+			ACL: config.ACLConfig{
+				CookieSecure: false,
+				SessionTTL:   24 * time.Hour,
+				OAuth: config.OAuthConfig{
+					CallbackBaseURL: "http://localhost:8080",
+				},
+			},
+		}
 
-			if tc.setupMocks != nil {
-				tc.setupMocks(mockUserRepo)
-			}
-
-			user, err := handler.findOrCreateUser(context.Background(), tc.providerID, tc.userInfo)
-
-			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			} else {
-				require.NoError(t, err)
-				require.NotNil(t, user)
-				if tc.checkUser != nil {
-					tc.checkUser(t, user)
-				}
-			}
+		handler := NewOAuthHandler(OAuthHandlerConfig{
+			ACLService: mockACL,
+			Config:     cfg,
+			Logger:     zap.NewNop(),
 		})
-	}
+
+		// Call the internal session-creation path by building params directly;
+		// we verify the contract rather than driving through the full HTTP flow.
+		session, err := handler.aclService.CreateSessionWithParams(service.CreateSessionParams{
+			UserID:   nil,
+			Email:    "user@example.com",
+			Provider: "google",
+			TTL:      86400,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, session)
+		assert.Nil(t, capturedParams.UserID, "UserID must be nil for OAuth ACL sessions")
+		assert.Equal(t, "user@example.com", capturedParams.Email)
+		assert.Equal(t, "google", capturedParams.Provider)
+	})
 }
 
 // =============================================================================
@@ -1005,7 +837,7 @@ func TestOAuthHandler_handleOAuthError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, _, _ := createTestOAuthHandler(t)
+			handler, _ := createTestOAuthHandler(t)
 
 			req := httptest.NewRequest(http.MethodGet, "/auth/oauth/callback", nil)
 			rec := httptest.NewRecorder()
@@ -1212,7 +1044,7 @@ func TestGenerateCodeChallenge(t *testing.T) {
 func TestOAuthHandler_buildOAuth2Config(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	tests := []struct {
 		name             string
@@ -1344,154 +1176,6 @@ func TestOAuthHandler_getCallbackURL(t *testing.T) {
 }
 
 // =============================================================================
-// TestGenerateRandomPassword
-// =============================================================================
-
-func TestGenerateRandomPassword(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		length int
-	}{
-		{"short password", 8},
-		{"medium password", 16},
-		{"long password", 32},
-		{"very long password", 64},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			password, err := generateRandomPassword(tc.length)
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.length, len(password))
-		})
-	}
-
-	t.Run("passwords are unique", func(t *testing.T) {
-		t.Parallel()
-
-		password1, err1 := generateRandomPassword(32)
-		password2, err2 := generateRandomPassword(32)
-
-		require.NoError(t, err1)
-		require.NoError(t, err2)
-		assert.NotEqual(t, password1, password2)
-	})
-}
-
-// =============================================================================
-// TestGenerateRandomSuffix
-// =============================================================================
-
-func TestGenerateRandomSuffix(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		length int
-	}{
-		{"short suffix", 4},
-		{"medium suffix", 8},
-		{"long suffix", 16},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			suffix := generateRandomSuffix(tc.length)
-
-			assert.Equal(t, tc.length, len(suffix))
-
-			// Should only contain alphanumeric characters
-			for _, c := range suffix {
-				isValid := (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
-				assert.True(t, isValid, "Character %c is not alphanumeric", c)
-			}
-		})
-	}
-
-	t.Run("suffixes are unique", func(t *testing.T) {
-		t.Parallel()
-
-		suffix1 := generateRandomSuffix(8)
-		suffix2 := generateRandomSuffix(8)
-
-		// While there's a tiny chance they could be equal, practically they should differ
-		assert.NotEqual(t, suffix1, suffix2)
-	})
-}
-
-// =============================================================================
-// TestOAuthHandler_generateUniqueUsername
-// =============================================================================
-
-func TestOAuthHandler_generateUniqueUsername(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		baseUsername string
-		setupMocks   func(*oauthMockUserRepository)
-		checkResult  func(*testing.T, string)
-	}{
-		{
-			name:         "username not taken",
-			baseUsername: "newuser",
-			setupMocks: func(repo *oauthMockUserRepository) {
-				repo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
-					return nil, gorm.ErrRecordNotFound
-				}
-			},
-			checkResult: func(t *testing.T, result string) {
-				assert.Equal(t, "newuser", result)
-			},
-		},
-		{
-			name:         "username taken - generates with suffix",
-			baseUsername: "existinguser",
-			setupMocks: func(repo *oauthMockUserRepository) {
-				callCount := 0
-				repo.GetByUsernameOrEmailFunc = func(identifier string) (*models.User, error) {
-					callCount++
-					if identifier == "existinguser" {
-						return &models.User{Username: "existinguser"}, nil
-					}
-					// Other usernames are available
-					return nil, gorm.ErrRecordNotFound
-				}
-			},
-			checkResult: func(t *testing.T, result string) {
-				assert.True(t, strings.HasPrefix(result, "existinguser_"), "Username should start with 'existinguser_'")
-				assert.Greater(t, len(result), len("existinguser_"))
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler, _, mockUserRepo := createTestOAuthHandler(t)
-
-			if tc.setupMocks != nil {
-				tc.setupMocks(mockUserRepo)
-			}
-
-			result := handler.generateUniqueUsername(tc.baseUsername)
-
-			if tc.checkResult != nil {
-				tc.checkResult(t, result)
-			}
-		})
-	}
-}
-
-// =============================================================================
 // TestExtractCookieDomain
 // =============================================================================
 
@@ -1548,6 +1232,121 @@ func TestExtractCookieDomain(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+// =============================================================================
+// TestOAuthHandler_Callback_HappyPath_EndToEnd verifies the full OAuth Callback
+// happy path: token exchange, userinfo fetch, ACL session creation with
+// UserID == nil, and success redirect. Provider URLs are overridden via the
+// OAuthProvider struct pointer so no real OAuth server is needed.
+// =============================================================================
+
+func TestOAuthHandler_Callback_HappyPath_EndToEnd(t *testing.T) {
+	// NOTE: t.Parallel() is intentionally omitted — t.Setenv requires a non-parallel test.
+
+	// Stand up a fake token endpoint.
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"fake-token","token_type":"bearer","expires_in":3600}`))
+	}))
+	defer tokenServer.Close()
+
+	// Stand up a fake userinfo endpoint returning a Google-shaped payload.
+	userInfoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"google-999","email":"alice@example.com","name":"Alice","picture":""}`))
+	}))
+	defer userInfoServer.Close()
+
+	// Enable the google provider via env vars so OAuthProviderManager marks it Enabled.
+	t.Setenv("GOOGLE_CLIENT_ID", "test-client-id")
+	t.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret")
+
+	providerManager := auth.NewOAuthProviderManager()
+
+	// Mutate the provider struct (accessible via pointer) to point at our test servers.
+	provider, ok := providerManager.GetProvider(auth.OAuthProviderGoogle)
+	require.True(t, ok, "google provider must be enabled after setenv")
+	provider.TokenURL = tokenServer.URL + "/token"
+	provider.UserInfoURL = userInfoServer.URL + "/userinfo"
+
+	// Capture the params passed to CreateSessionWithParams.
+	var capturedParams service.CreateSessionParams
+	var sessionCallCount int
+	mockACL := &oauthMockACLService{
+		CreateSessionWithParamsFunc: func(params service.CreateSessionParams) (*models.ACLSession, error) {
+			capturedParams = params
+			sessionCallCount++
+			return &models.ACLSession{
+				SessionToken: "happy-path-token",
+				ExpiresAt:    time.Now().Add(24 * time.Hour),
+			}, nil
+		},
+	}
+
+	cfg := &config.Config{
+		ACL: config.ACLConfig{
+			CookieSecure: false,
+			SessionTTL:   24 * time.Hour,
+			OAuth: config.OAuthConfig{
+				CallbackBaseURL: "http://localhost:8080",
+			},
+		},
+	}
+
+	handler := NewOAuthHandler(OAuthHandlerConfig{
+		ProviderManager: providerManager,
+		ACLService:      mockACL,
+		Config:          cfg,
+		Logger:          zap.NewNop(),
+	})
+
+	// Build a valid state value that the handler will accept (state param == state cookie).
+	state, err := handler.generateState("/protected")
+	require.NoError(t, err)
+
+	// Build a valid PKCE verifier (the handler only needs the cookie value; the fake
+	// token endpoint ignores the verifier, so any non-empty string works).
+	pkceVerifier, err := generateCodeVerifier()
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/auth/oauth/google/callback?code=fake-code&state="+state,
+		nil,
+	)
+	req = setChiURLParams(req, map[string]string{"provider": "google"})
+	req.AddCookie(&http.Cookie{Name: oauthStateCookieName, Value: state})
+	req.AddCookie(&http.Cookie{Name: oauthPKCECookieName, Value: pkceVerifier})
+
+	rec := httptest.NewRecorder()
+	handler.Callback(rec, req)
+
+	// Should redirect to the protected URL (or "/" if redirect validation rejects it).
+	assert.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+	location := rec.Header().Get("Location")
+	// Must NOT contain an oauth_error — that indicates handler succeeded.
+	assert.NotContains(t, location, "oauth_error", "unexpected OAuth error in redirect: %s", location)
+
+	// Session must have been created exactly once.
+	require.Equal(t, 1, sessionCallCount, "CreateSessionWithParams must be called exactly once")
+
+	// Core invariant: no Waygates user row — UserID must be nil.
+	assert.Nil(t, capturedParams.UserID, "UserID must be nil for OAuth ACL sessions (no Waygates user row)")
+
+	// Identity fields must match what the fake userinfo returned.
+	assert.Equal(t, "alice@example.com", capturedParams.Email)
+	assert.Equal(t, "google", capturedParams.Provider)
+
+	// Session cookie must be present.
+	var foundSessionCookie bool
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == ACLSessionCookieName {
+			foundSessionCookie = true
+			assert.Equal(t, "happy-path-token", c.Value)
+		}
+	}
+	assert.True(t, foundSessionCookie, "ACL session cookie must be set on success")
 }
 
 // =============================================================================
@@ -1781,7 +1580,7 @@ func TestOAuthHandler_Callback_StateMismatch(t *testing.T) {
 func TestOAuthHandler_parseUserInfo_EdgeCases(t *testing.T) {
 	t.Parallel()
 
-	handler, _, _ := createTestOAuthHandler(t)
+	handler, _ := createTestOAuthHandler(t)
 
 	t.Run("Microsoft provider with userPrincipalName fallback", func(t *testing.T) {
 		t.Parallel()

@@ -22,6 +22,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { usePermissions } from '@/hooks/use-permissions';
 import { useNotFoundSettings } from '@/hooks/use-settings';
 
 const settingsSchema = z
@@ -51,6 +52,7 @@ type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 export function CatchallSettings() {
   const { settings, isLoading, update, isUpdating } = useNotFoundSettings();
+  const { canWriteSettings } = usePermissions();
 
   const form = useForm<SettingsFormValues>({
     resolver: zodResolver(settingsSchema),
@@ -172,7 +174,7 @@ export function CatchallSettings() {
             )}
 
             <div className="flex justify-end">
-              <Button type="submit" disabled={isUpdating}>
+              <Button type="submit" disabled={!canWriteSettings || isUpdating}>
                 {isUpdating ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>

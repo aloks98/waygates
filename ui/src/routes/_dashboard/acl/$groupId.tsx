@@ -46,6 +46,7 @@ import { IPRulesTab } from '@/components/acl/ip-rules-tab';
 import { OAuthSSOTab } from '@/components/acl/oauth-sso-tab';
 import { WaygatesAccountTab } from '@/components/acl/waygates-account-tab';
 import { useACLGroup, useDeleteACLGroup } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { CombinationMode } from '@/types/acl';
 
 function getCombinationModeDescription(mode: CombinationMode): string {
@@ -257,6 +258,7 @@ export function ACLGroupDetailPage() {
 
   const { group, isLoading } = useACLGroup(groupId);
   const { deleteGroup, isDeleting } = useDeleteACLGroup();
+  const { canUpdateAccess, canDeleteAccess } = usePermissions();
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -319,20 +321,26 @@ export function ACLGroupDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setEditModalOpen(true)}>
-            <Pencil className="size-4" />
-            Edit
-          </Button>
-          <Button
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <Trash2 className="size-4" />
-            Delete
-          </Button>
-        </div>
+        {(canUpdateAccess || canDeleteAccess) && (
+          <div className="flex items-center gap-2">
+            {canUpdateAccess && (
+              <Button variant="outline" onClick={() => setEditModalOpen(true)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
+            )}
+            {canDeleteAccess && (
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="size-4" />
+                Delete
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

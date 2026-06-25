@@ -24,6 +24,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { TagsInput } from '@/components/ui/tags-input';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useMetricsPublishSettings } from '@/hooks/use-settings';
 import type { MetricsPublishSettings } from '@/types/metrics-publish';
 
@@ -97,6 +98,7 @@ function settingsToFormValues(s: MetricsPublishSettings): MetricsPublishFormValu
 
 export function MetricsPublishSettings() {
   const { settings, isLoading, update, isUpdating } = useMetricsPublishSettings();
+  const { canWriteSettings } = usePermissions();
 
   const form = useForm<MetricsPublishFormValues>({
     resolver: zodResolver(metricsPublishSchema),
@@ -350,7 +352,10 @@ export function MetricsPublishSettings() {
             >
               Discard Changes
             </Button>
-            <Button type="submit" disabled={isUpdating || !isDirty || !isValid}>
+            <Button
+              type="submit"
+              disabled={!canWriteSettings || isUpdating || !isDirty || !isValid}
+            >
               {isUpdating ? (
                 <>
                   <Spinner variant="circle" />

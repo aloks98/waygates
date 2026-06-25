@@ -66,6 +66,7 @@ import {
   useExternalProviders,
   useUpdateExternalProvider,
 } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLExternalProvider, ProviderType } from '@/types/acl';
 
 const externalProviderSchema = z.object({
@@ -325,6 +326,7 @@ interface ExternalProvidersTabProps {
 export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
   const { providers, isLoading } = useExternalProviders(groupId);
   const { deleteProvider, isDeleting } = useDeleteExternalProvider();
+  const { canUpdateAccess, canDeleteAccess } = usePermissions();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<ACLExternalProvider | null>(null);
@@ -348,12 +350,14 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
             Integrate with forward authentication services like Authelia, Authentik, or custom
             forward auth providers.
           </CardDescription>
-          <CardAction>
-            <Button onClick={() => setCreateModalOpen(true)}>
-              <Plus className="size-4" />
-              Add Provider
-            </Button>
-          </CardAction>
+          {canUpdateAccess && (
+            <CardAction>
+              <Button onClick={() => setCreateModalOpen(true)}>
+                <Plus className="size-4" />
+                Add Provider
+              </Button>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -384,7 +388,9 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
                   <TableHead className="w-28">Type</TableHead>
                   <TableHead>Verify URL</TableHead>
                   <TableHead className="w-32">Created</TableHead>
-                  <TableHead className="w-20 text-right">Actions</TableHead>
+                  {(canUpdateAccess || canDeleteAccess) && (
+                    <TableHead className="w-20 text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -437,42 +443,48 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
                         </TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="size-8 p-0"
-                                onClick={() => setEditingProvider(provider)}
-                              />
-                            }
-                          >
-                            <Pencil className="size-4" />
-                            <span className="sr-only">Edit</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit provider</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="size-8 p-0 text-destructive hover:text-destructive"
-                                onClick={() => setDeletingProvider(provider)}
-                              />
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                            <span className="sr-only">Delete</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete provider</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
+                    {(canUpdateAccess || canDeleteAccess) && (
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          {canUpdateAccess && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="size-8 p-0"
+                                    onClick={() => setEditingProvider(provider)}
+                                  />
+                                }
+                              >
+                                <Pencil className="size-4" />
+                                <span className="sr-only">Edit</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit provider</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {canDeleteAccess && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="size-8 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => setDeletingProvider(provider)}
+                                  />
+                                }
+                              >
+                                <Trash2 className="size-4" />
+                                <span className="sr-only">Delete</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete provider</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

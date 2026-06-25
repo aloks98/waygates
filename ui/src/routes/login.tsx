@@ -12,7 +12,9 @@ import {
   Input,
 } from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { HTTPError } from 'ky';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -37,6 +39,14 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const justRegistered = searchParams.registered === 'true';
 
+  // Gate signup link on registration status
+  const { data: regStatus } = useQuery({
+    queryKey: ['auth', 'registration-status'],
+    queryFn: () => publicApi.get('auth/registration-status').json<ApiResponse<{ open: boolean }>>(),
+    staleTime: 60 * 1000,
+  });
+  const registrationOpen = regStatus?.data?.open ?? false;
+
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     mode: 'onTouched',
@@ -56,7 +66,22 @@ export function LoginPage() {
       } else {
         setError(response.message || 'Login failed');
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof HTTPError) {
+        try {
+          const body = (await err.response.json()) as {
+            error?: { message?: string };
+            message?: string;
+          };
+          const msg = body?.error?.message || body?.message || '';
+          if (err.response.status === 403 && msg.toLowerCase().includes('disabled')) {
+            setError('Your account has been disabled. Contact your administrator.');
+            return;
+          }
+        } catch {
+          // fall through to generic message
+        }
+      }
       setError('Wrong username or password. Check your details and try again.');
     }
   };
@@ -165,12 +190,14 @@ export function LoginPage() {
                   {isSubmitting ? 'Signing in...' : 'Sign in'}
                 </Button>
 
-                <p className="text-center text-sm text-muted-foreground">
-                  Don&apos;t have an account?{' '}
-                  <Link to="/signup" className="text-primary hover:underline">
-                    Sign up
-                  </Link>
-                </p>
+                {registrationOpen && (
+                  <p className="text-center text-sm text-muted-foreground">
+                    Don&apos;t have an account?{' '}
+                    <Link to="/signup" className="text-primary hover:underline">
+                      Sign up
+                    </Link>
+                  </p>
+                )}
               </FieldGroup>
             </form>
           </Form>

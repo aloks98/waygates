@@ -2107,6 +2107,7 @@ func (s *ACLService) evaluateUnionAccess(groups []*models.ACLGroup, request *ACL
 				response.Headers["X-Auth-User-Email"] = result.User.Email
 			} else if result.OAuthEmail != "" {
 				// OAuth user (no Waygates user account)
+				response.Headers["X-Auth-User"] = result.OAuthEmail
 				response.Headers["X-Auth-User-Email"] = result.OAuthEmail
 				response.Headers["X-Auth-Provider"] = result.OAuthProvider
 			}

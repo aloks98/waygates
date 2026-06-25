@@ -39,6 +39,7 @@ import {
   useSetOAuthProviderRestriction,
   useWaygatesAuth,
 } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLOAuthProviderRestriction } from '@/types/acl';
 
 // Available OAuth providers that can be configured
@@ -247,6 +248,7 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
   const { restrictions, isLoading: isLoadingRestrictions } = useOAuthProviderRestrictions(groupId);
   const { setRestriction, isSetting } = useSetOAuthProviderRestriction();
   const { providers: backendProviders, isLoading: isLoadingProviders } = useOAuthProviders();
+  const { canUpdateAccess } = usePermissions();
 
   // Modal state for provider restriction configuration
   const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
@@ -460,7 +462,7 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {provider.description}
                                 </p>
-                                {isSelected && (
+                                {isSelected && canUpdateAccess && (
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -489,12 +491,14 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isConfiguring}>
-            <Save className="size-4" />
-            {isConfiguring ? 'Saving...' : 'Save Configuration'}
-          </Button>
-        </div>
+        {canUpdateAccess && (
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isConfiguring}>
+              <Save className="size-4" />
+              {isConfiguring ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          </div>
+        )}
 
         {/* Provider Restriction Modal */}
         {selectedProvider && (

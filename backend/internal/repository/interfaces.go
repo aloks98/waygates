@@ -30,6 +30,9 @@ type UserRepositoryInterface interface {
 	Count() (int64, error)
 	Delete(id int) error
 	UpdatePassword(id int, passwordHash string) error
+	List() ([]models.User, error)
+	Update(user *models.User) error
+	UpdateLastLogin(id int, t time.Time) error
 }
 
 // SettingsRepositoryInterface defines the interface for settings database operations

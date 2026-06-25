@@ -46,6 +46,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { useAddBasicAuthUser, useBasicAuthUsers, useDeleteBasicAuthUser } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLBasicAuthUser } from '@/types/acl';
 
 const basicAuthUserSchema = z.object({
@@ -201,6 +202,7 @@ interface BasicAuthTabProps {
 export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
   const { users, isLoading } = useBasicAuthUsers(groupId);
   const { deleteUser, isDeleting } = useDeleteBasicAuthUser();
+  const { canUpdateAccess, canDeleteAccess } = usePermissions();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<ACLBasicAuthUser | null>(null);
@@ -223,12 +225,14 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
             Manage users who can access protected resources using HTTP Basic Auth. Passwords are
             securely hashed and cannot be retrieved.
           </CardDescription>
-          <CardAction>
-            <Button onClick={() => setAddModalOpen(true)}>
-              <Plus className="size-4" />
-              Add User
-            </Button>
-          </CardAction>
+          {canUpdateAccess && (
+            <CardAction>
+              <Button onClick={() => setAddModalOpen(true)}>
+                <Plus className="size-4" />
+                Add User
+              </Button>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -255,7 +259,7 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
                   <TableHead>Username</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Last Updated</TableHead>
-                  <TableHead className="w-20 text-right">Actions</TableHead>
+                  {canDeleteAccess && <TableHead className="w-20 text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -289,26 +293,28 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
                         <TooltipContent>{format(new Date(user.updated_at), 'PPpp')}</TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="size-8 p-0 text-destructive hover:text-destructive"
-                                onClick={() => setDeletingUser(user)}
-                              />
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                            <span className="sr-only">Delete</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete user</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
+                    {canDeleteAccess && (
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="size-8 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => setDeletingUser(user)}
+                                />
+                              }
+                            >
+                              <Trash2 className="size-4" />
+                              <span className="sr-only">Delete</span>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete user</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

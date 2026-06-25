@@ -196,6 +196,15 @@ const settingsMetricsRoute = createRoute({
   ),
 });
 
+const settingsUsersRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/users',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/users'),
+    'SettingsUsersPage',
+  ),
+});
+
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/activity',
@@ -284,6 +293,7 @@ const routeTree = rootRoute.addChildren([
       settingsBrandingRoute,
       settingsAuditRoute,
       settingsMetricsRoute,
+      settingsUsersRoute,
     ]),
     auditLogsRoute,
     caddyLogsRoute,

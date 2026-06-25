@@ -27,6 +27,7 @@ import { ChevronRight, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuditConfig, useAuditEventGroups } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { AuditConfig, AuditEventDefinition, AuditEventGroup } from '@/types/audit';
 
 // Event groups that contain security-critical audit events
@@ -81,6 +82,7 @@ function getTotalEventCount(groups: AuditEventGroup[]): number {
 export function AuditConfigPanel() {
   const { config, isLoading, isError, updateConfig, isUpdating } = useAuditConfig();
   const { eventGroups, isLoading: isLoadingEventGroups } = useAuditEventGroups();
+  const { canWriteSettings } = usePermissions();
   const [localConfig, setLocalConfig] = useState<AuditConfig | null>(null);
   const [savedConfig, setSavedConfig] = useState<AuditConfig | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -380,7 +382,7 @@ export function AuditConfigPanel() {
             <Button variant="outline" onClick={handleReset} disabled={isUpdating || !hasChanges}>
               Discard Changes
             </Button>
-            <Button onClick={handleSave} disabled={isUpdating || !hasChanges}>
+            <Button onClick={handleSave} disabled={!canWriteSettings || isUpdating || !hasChanges}>
               {isUpdating ? (
                 <>
                   <Spinner variant="circle" />

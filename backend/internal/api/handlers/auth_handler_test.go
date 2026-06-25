@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aloks98/goauth/middleware"
 	"github.com/aloks98/goauth/store"
@@ -24,6 +25,62 @@ import (
 	"github.com/aloks98/waygates/backend/internal/validation"
 )
 
+// MockSettingsRepository is a mock implementation of SettingsRepositoryInterface
+type MockSettingsRepository struct {
+	GetValueFunc func(key, defaultValue string) string
+}
+
+func (m *MockSettingsRepository) GetValue(key, defaultValue string) string {
+	if m.GetValueFunc != nil {
+		return m.GetValueFunc(key, defaultValue)
+	}
+	return defaultValue
+}
+
+func (m *MockSettingsRepository) Get(_ string) (*models.Setting, error) {
+	return nil, nil
+}
+
+func (m *MockSettingsRepository) Set(_, _ string) error {
+	return nil
+}
+
+func (m *MockSettingsRepository) GetAll() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (m *MockSettingsRepository) Delete(_ string) error {
+	return nil
+}
+
+func (m *MockSettingsRepository) GetNotFoundSettings() (*models.NotFoundSettings, error) {
+	return &models.NotFoundSettings{}, nil
+}
+
+func (m *MockSettingsRepository) SetNotFoundSettings(_ *models.NotFoundSettings) error {
+	return nil
+}
+
+func (m *MockSettingsRepository) GetMetricsPublishSettings() (*models.MetricsPublishSettings, error) {
+	return &models.MetricsPublishSettings{}, nil
+}
+
+func (m *MockSettingsRepository) SetMetricsPublishSettings(_ *models.MetricsPublishSettings) error {
+	return nil
+}
+
+// defaultClosedSettings returns a MockSettingsRepository with registration closed (the default).
+func defaultClosedSettings() *MockSettingsRepository {
+	return &MockSettingsRepository{}
+}
+
+// openSettings returns a MockSettingsRepository with registration open.
+func openSettings() *MockSettingsRepository {
+	return &MockSettingsRepository{
+		GetValueFunc: func(_, _ string) string { return "true" },
+	}
+}
+
 // MockUserRepository is a mock implementation of UserRepositoryInterface
 type MockUserRepository struct {
 	CreateFunc               func(user *models.User) error
@@ -33,6 +90,9 @@ type MockUserRepository struct {
 	CountFunc                func() (int64, error)
 	DeleteFunc               func(id int) error
 	UpdatePasswordFunc       func(id int, passwordHash string) error
+	ListFunc                 func() ([]models.User, error)
+	UpdateFunc               func(user *models.User) error
+	UpdateLastLoginFunc      func(id int, t time.Time) error
 }
 
 func (m *MockUserRepository) Create(user *models.User) error {
@@ -80,6 +140,27 @@ func (m *MockUserRepository) Delete(id int) error {
 func (m *MockUserRepository) UpdatePassword(id int, passwordHash string) error {
 	if m.UpdatePasswordFunc != nil {
 		return m.UpdatePasswordFunc(id, passwordHash)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) List() ([]models.User, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc()
+	}
+	return []models.User{}, nil
+}
+
+func (m *MockUserRepository) Update(user *models.User) error {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(user)
+	}
+	return nil
+}
+
+func (m *MockUserRepository) UpdateLastLogin(id int, t time.Time) error {
+	if m.UpdateLastLoginFunc != nil {
+		return m.UpdateLastLoginFunc(id, t)
 	}
 	return nil
 }
@@ -145,13 +226,17 @@ func (m *MockAuthProvider) GetUserPermissions(ctx context.Context, userID string
 	}, nil
 }
 
-// Helper to create a test user with hashed password
+// Helper to create a test user with hashed password.
+// Active is set to true so existing login tests are not blocked by the
+// inactive-account check introduced in Task 4.
 func createTestUser(t *testing.T, password string) *models.User {
+	t.Helper()
 	user := &models.User{
 		ID:       1,
 		Name:     "Test User",
 		Username: "testuser",
 		Email:    "test@example.com",
+		Active:   true,
 	}
 	if err := user.SetPassword(password, 4); err != nil { // Use low cost for tests
 		t.Fatalf("Failed to set password: %v", err)
@@ -164,7 +249,7 @@ func TestNewAuthHandler(t *testing.T) {
 	userRepo := &MockUserRepository{}
 	authProvider := &MockAuthProvider{}
 
-	handler := NewAuthHandler(authProvider, userRepo, nil, 10, nil)
+	handler := NewAuthHandler(authProvider, userRepo, defaultClosedSettings(), nil, 10, nil)
 
 	if handler == nil {
 		t.Fatal("Expected non-nil handler")
@@ -178,6 +263,7 @@ func TestRegister(t *testing.T) {
 	tests := []struct {
 		name           string
 		requestBody    interface{}
+		settingsRepo   *MockSettingsRepository
 		setupMocks     func(*MockUserRepository, *MockAuthProvider)
 		expectedStatus int
 		checkResponse  func(*testing.T, *httptest.ResponseRecorder)
@@ -286,6 +372,7 @@ func TestRegister(t *testing.T) {
 				Email:    "test@example.com",
 				Password: "password123",
 			},
+			settingsRepo: defaultClosedSettings(),
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
 				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
@@ -295,7 +382,7 @@ func TestRegister(t *testing.T) {
 					return nil
 				}
 				userRepo.CountFunc = func() (int64, error) {
-					return 1, nil
+					return 0, nil // Empty table: bootstrap path reaches AssignRole
 				}
 				authProvider.AssignRoleFunc = func(_ context.Context, _, _ string) error {
 					return errors.New("rbac error")
@@ -304,13 +391,14 @@ func TestRegister(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 		},
 		{
-			name: "success - first user gets admin role",
+			name: "success - first user gets admin role (bootstrap, even when closed)",
 			requestBody: validation.RegisterRequest{
 				Name:     "Test User",
 				Username: "testuser",
 				Email:    "test@example.com",
 				Password: "password123",
 			},
+			settingsRepo: defaultClosedSettings(), // registration closed
 			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
 				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
@@ -320,7 +408,7 @@ func TestRegister(t *testing.T) {
 					return nil
 				}
 				userRepo.CountFunc = func() (int64, error) {
-					return 1, nil // First user
+					return 0, nil // Empty table — bootstrap path
 				}
 				authProvider.AssignRoleFunc = func(_ context.Context, _, role string) error {
 					if role != "admin" {
@@ -332,14 +420,15 @@ func TestRegister(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name: "success - second user gets operator role",
+			name: "success - second user gets viewer role when open",
 			requestBody: validation.RegisterRequest{
 				Name:     "Test User",
 				Username: "testuser",
 				Email:    "test@example.com",
 				Password: "password123",
 			},
-			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+			settingsRepo: openSettings(),
+			setupMocks: func(userRepo *MockUserRepository, authProvider *MockAuthProvider) {
 				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
 					return nil, gorm.ErrRecordNotFound
 				}
@@ -348,10 +437,35 @@ func TestRegister(t *testing.T) {
 					return nil
 				}
 				userRepo.CountFunc = func() (int64, error) {
-					return 2, nil // Second user
+					return 1, nil // Existing user, table non-empty
+				}
+				authProvider.AssignRoleFunc = func(_ context.Context, _, role string) error {
+					if role != "viewer" {
+						return errors.New("expected viewer role when open")
+					}
+					return nil
 				}
 			},
 			expectedStatus: http.StatusCreated,
+		},
+		{
+			name: "registration closed - non-empty table returns 403",
+			requestBody: validation.RegisterRequest{
+				Name:     "Test User",
+				Username: "testuser",
+				Email:    "test@example.com",
+				Password: "password123",
+			},
+			settingsRepo: defaultClosedSettings(),
+			setupMocks: func(userRepo *MockUserRepository, _ *MockAuthProvider) {
+				userRepo.GetByUsernameOrEmailFunc = func(_ string) (*models.User, error) {
+					return nil, gorm.ErrRecordNotFound
+				}
+				userRepo.CountFunc = func() (int64, error) {
+					return 3, nil // Non-empty table, registration closed
+				}
+			},
+			expectedStatus: http.StatusForbidden,
 		},
 	}
 
@@ -364,7 +478,12 @@ func TestRegister(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil) // Low cost for tests
+			settingsRepo := tc.settingsRepo
+			if settingsRepo == nil {
+				settingsRepo = defaultClosedSettings()
+			}
+
+			handler := NewAuthHandler(authProvider, userRepo, settingsRepo, nil, 4, nil) // Low cost for tests
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -392,9 +511,11 @@ func TestRegister(t *testing.T) {
 }
 
 // TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin ensures concurrent
-// registrations produce exactly one admin. The first-user-becomes-admin
-// decision reads the user count right after creating the user, so without
-// serialization a race gives zero admins (or more than one).
+// registrations produce exactly one admin. The gate (count check + role
+// decision) is serialized by firstUserRegistrationMu, so only the goroutine
+// that sees count==0 gets the admin role; all others are rejected when
+// registration is closed (the default), or get viewer when it is open.
+// We drive concurrent requests through Register to exercise the full path.
 func TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin(t *testing.T) {
 	const n = 50
 
@@ -403,6 +524,9 @@ func TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin(t *testing.T) {
 	var roles []string
 
 	userRepo := &MockUserRepository{
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
+			return nil, gorm.ErrRecordNotFound
+		},
 		CreateFunc: func(u *models.User) error {
 			mu.Lock()
 			created++
@@ -426,14 +550,24 @@ func TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
+	// registration closed: only the bootstrap (count==0) path assigns a role
+	handler := NewAuthHandler(authProvider, userRepo, defaultClosedSettings(), nil, 4, nil)
 
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = handler.createUserAndAssignRole(context.Background(), &models.User{Username: "u"})
+			body, _ := json.Marshal(validation.RegisterRequest{
+				Name:     "User",
+				Username: "user",
+				Email:    "user@example.com",
+				Password: "password123",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			handler.Register(rec, req)
 		}()
 	}
 	wg.Wait()
@@ -444,8 +578,10 @@ func TestCreateUserAndAssignRole_ConcurrentExactlyOneAdmin(t *testing.T) {
 			adminCount++
 		}
 	}
-	assert.Len(t, roles, n, "every registration should assign a role")
+	// Exactly one request must have succeeded with the admin bootstrap role;
+	// all others were blocked by the closed-registration gate.
 	assert.Equal(t, 1, adminCount, "exactly one registrant should become admin")
+	assert.Len(t, roles, 1, "only the bootstrap registration should assign a role when closed")
 }
 
 // TestLogin tests user login
@@ -558,8 +694,6 @@ func TestLogin(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
-
 			var body []byte
 			switch v := tc.requestBody.(type) {
 			case string:
@@ -572,6 +706,8 @@ func TestLogin(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 
+			handler := NewAuthHandler(authProvider, userRepo, defaultClosedSettings(), nil, 4, nil)
+
 			handler.Login(rec, req)
 
 			if rec.Code != tc.expectedStatus {
@@ -579,6 +715,148 @@ func TestLogin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestLogin_InactiveUser verifies that a disabled account is rejected even when
+// the password is correct, and that the response is 403 Forbidden.
+func TestLogin_InactiveUser(t *testing.T) {
+	t.Parallel()
+
+	testUser := createTestUser(t, "password123")
+	testUser.Active = false // account is disabled
+
+	logLoginFailedCalled := false
+	mockAudit := &mocks.MockAuditService{
+		LogLoginFailedFunc: func(_ context.Context, _ string, _, _, reason string) error {
+			logLoginFailedCalled = true
+			assert.Equal(t, "disabled", reason)
+			return nil
+		},
+	}
+
+	userRepo := &MockUserRepository{
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
+			return testUser, nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), mockAudit, 4, nil)
+
+	body, _ := json.Marshal(LoginRequest{Identifier: "testuser", Password: "password123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Login(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code, "disabled account must be rejected with 403")
+	assert.True(t, logLoginFailedCalled, "LogLoginFailed must be called with reason 'disabled'")
+
+	var resp utils.ErrorResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, "account is disabled", resp.Error.Message)
+}
+
+// TestLogin_UpdatesLastLoginAndReturnsMustChangePassword verifies that a
+// successful login records the last-login timestamp and echoes
+// must_change_password from the user record.
+func TestLogin_UpdatesLastLoginAndReturnsMustChangePassword(t *testing.T) {
+	t.Parallel()
+
+	testUser := createTestUser(t, "password123")
+	testUser.Active = true
+	testUser.MustChangePassword = true
+
+	updateLastLoginCalled := false
+	var updateLastLoginID int
+
+	userRepo := &MockUserRepository{
+		GetByUsernameOrEmailFunc: func(_ string) (*models.User, error) {
+			return testUser, nil
+		},
+		UpdateLastLoginFunc: func(id int, _ time.Time) error {
+			updateLastLoginCalled = true
+			updateLastLoginID = id
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), nil, 4, nil)
+
+	body, _ := json.Marshal(LoginRequest{Identifier: "testuser", Password: "password123"})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.Login(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, updateLastLoginCalled, "UpdateLastLogin must be called on successful login")
+	assert.Equal(t, testUser.ID, updateLastLoginID, "UpdateLastLogin must be called with the correct user ID")
+
+	var resp utils.SuccessResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+
+	// Unmarshal data as a map to inspect must_change_password
+	dataBytes, err := json.Marshal(resp.Data)
+	require.NoError(t, err)
+	var loginResp map[string]any
+	require.NoError(t, json.Unmarshal(dataBytes, &loginResp))
+	mustChange, ok := loginResp["must_change_password"].(bool)
+	require.True(t, ok, "must_change_password must be present in login response")
+	assert.True(t, mustChange, "must_change_password should match the user's flag (true)")
+}
+
+// TestChangePassword_ClearsMustChangePasswordFlag verifies that after a
+// successful password change the Update repo method is called with
+// MustChangePassword set to false.
+func TestChangePassword_ClearsMustChangePasswordFlag(t *testing.T) {
+	t.Parallel()
+
+	testUser := &models.User{
+		ID:                 1,
+		Name:               "Test User",
+		Username:           "testuser",
+		Email:              "test@example.com",
+		MustChangePassword: true,
+	}
+	if err := testUser.SetPassword("oldpassword123", 4); err != nil {
+		t.Fatalf("Failed to set password: %v", err)
+	}
+
+	var updateCalledWith *models.User
+
+	userRepo := &MockUserRepository{
+		GetByIDFunc: func(_ int) (*models.User, error) {
+			return testUser, nil
+		},
+		UpdatePasswordFunc: func(_ int, _ string) error {
+			return nil
+		},
+		UpdateFunc: func(user *models.User) error {
+			updateCalledWith = user
+			return nil
+		},
+	}
+
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), nil, 4, nil)
+
+	body, _ := json.Marshal(ChangePasswordRequest{
+		CurrentPassword: "oldpassword123",
+		NewPassword:     "newpassword123",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(req.Context(), middleware.UserIDKey, "1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handler.ChangePassword(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, updateCalledWith, "Update must be called to clear the must_change_password flag")
+	assert.False(t, updateCalledWith.MustChangePassword, "MustChangePassword must be false after a successful password change")
 }
 
 // TestRefreshToken tests token refresh
@@ -630,7 +908,7 @@ func TestRefreshToken(t *testing.T) {
 				tc.setupMocks(authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, &MockUserRepository{}, nil, 4, nil)
+			handler := NewAuthHandler(authProvider, &MockUserRepository{}, defaultClosedSettings(), nil, 4, nil)
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -686,7 +964,7 @@ func TestLogout(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, nil, 4, nil)
+			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, defaultClosedSettings(), nil, 4, nil)
 
 			var body []byte
 			if tc.requestBody != nil {
@@ -792,7 +1070,7 @@ func TestGetMe(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil)
+			handler := NewAuthHandler(authProvider, userRepo, defaultClosedSettings(), nil, 4, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
 			if tc.setupContext != nil {
@@ -1416,7 +1694,7 @@ func TestChangePassword(t *testing.T) {
 				tc.setupMocks(userRepo, authProvider)
 			}
 
-			handler := NewAuthHandler(authProvider, userRepo, nil, 4, nil) // Low bcrypt cost for tests
+			handler := NewAuthHandler(authProvider, userRepo, defaultClosedSettings(), nil, 4, nil) // Low bcrypt cost for tests
 
 			var body []byte
 			switch v := tc.requestBody.(type) {
@@ -1479,7 +1757,7 @@ func TestChangePassword_WithAuditLogging(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4, nil)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), mockAuditService, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",
@@ -1527,7 +1805,7 @@ func TestChangePassword_AuditLoggingNotCalledOnFailure(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, mockAuditService, 4, nil)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), mockAuditService, 4, nil)
 
 	// Try with wrong password
 	reqBody := ChangePasswordRequest{
@@ -1573,7 +1851,7 @@ func TestChangePassword_PasswordHashActuallyUpdated(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4, nil)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), nil, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",
@@ -1621,7 +1899,7 @@ func TestChangePassword_CorrectUserIDUsed(t *testing.T) {
 		},
 	}
 
-	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, nil, 4, nil)
+	handler := NewAuthHandler(&MockAuthProvider{}, userRepo, defaultClosedSettings(), nil, 4, nil)
 
 	reqBody := ChangePasswordRequest{
 		CurrentPassword: "oldpassword123",
@@ -1639,4 +1917,51 @@ func TestChangePassword_CorrectUserIDUsed(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, 42, getByIDCalledWith, "GetByID should be called with user ID 42")
 	assert.Equal(t, 42, updatePasswordCalledWith, "UpdatePassword should be called with user ID 42")
+}
+
+// TestRegistrationStatus tests the public registration status endpoint.
+func TestRegistrationStatus(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		settingsRepo *MockSettingsRepository
+		wantOpen     bool
+	}{
+		{
+			name:         "registration closed (default)",
+			settingsRepo: defaultClosedSettings(),
+			wantOpen:     false,
+		},
+		{
+			name:         "registration open",
+			settingsRepo: openSettings(),
+			wantOpen:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := NewAuthHandler(&MockAuthProvider{}, &MockUserRepository{}, tc.settingsRepo, nil, 4, nil)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/auth/registration-status", nil)
+			rec := httptest.NewRecorder()
+
+			handler.RegistrationStatus(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var resp utils.SuccessResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+			assert.True(t, resp.Success)
+
+			dataBytes, err := json.Marshal(resp.Data)
+			require.NoError(t, err)
+			var data map[string]bool
+			require.NoError(t, json.Unmarshal(dataBytes, &data))
+			assert.Equal(t, tc.wantOpen, data["open"])
+		})
+	}
 }

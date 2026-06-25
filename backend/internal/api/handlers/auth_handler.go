@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -23,16 +24,18 @@ import (
 type AuthHandler struct {
 	auth         AuthProvider
 	userRepo     repository.UserRepositoryInterface
+	settings     repository.SettingsRepositoryInterface
 	auditService service.AuditServiceInterface
 	bcryptCost   int
 	logger       *zap.Logger
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, auditService service.AuditServiceInterface, bcryptCost int, logger *zap.Logger) *AuthHandler {
+func NewAuthHandler(authInstance AuthProvider, userRepo repository.UserRepositoryInterface, settings repository.SettingsRepositoryInterface, auditService service.AuditServiceInterface, bcryptCost int, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
 		auth:         authInstance,
 		userRepo:     userRepo,
+		settings:     settings,
 		auditService: auditService,
 		bcryptCost:   bcryptCost,
 		logger:       logger,
@@ -110,9 +113,27 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Determine the registration role under the mutex so the empty-table
+	// bootstrap check and the open-registration gate are race-free.
+	firstUserRegistrationMu.Lock()
+	open := h.settings.GetValue(models.SettingOpenRegistration, "false") == "true"
+	count, _ := h.userRepo.Count()
+	var role string
+	switch {
+	case count == 0:
+		role = "admin" // first-ever user bootstraps as admin (prevents lockout)
+	case open:
+		role = "viewer"
+	default:
+		firstUserRegistrationMu.Unlock()
+		utils.Forbidden(w, "registration is disabled")
+		return
+	}
+	firstUserRegistrationMu.Unlock()
+
 	// Create the user and assign its role. This is serialized so the
 	// "first user becomes admin" decision is race-free (see the method).
-	if err := h.createUserAndAssignRole(r.Context(), user); err != nil {
+	if err := h.createUserAndAssignRole(r.Context(), user, role); err != nil {
 		if h.logger != nil {
 			h.logger.Error("Failed to register user",
 				zap.String("username", req.Username),
@@ -131,27 +152,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	utils.Created(w, user, "User registered successfully")
 }
 
-// firstUserRegistrationMu serializes user creation + role assignment during
-// registration so the "first user becomes admin" decision (which depends on the
-// user count) is not subject to a race between concurrent registrations.
-// Waygates runs as a single backend instance, so a process-level mutex suffices.
+// firstUserRegistrationMu serializes the registration gate (count check + role
+// decision) so the "first user becomes admin" bootstrap and the
+// open-registration guard are not subject to a race between concurrent
+// registrations. Waygates runs as a single backend instance, so a
+// process-level mutex suffices.
 var firstUserRegistrationMu sync.Mutex
 
-// createUserAndAssignRole persists the user and assigns its role atomically. The
-// first registered user (count == 1) becomes admin; subsequent users become
-// operator. On role-assignment failure the user creation is rolled back.
-func (h *AuthHandler) createUserAndAssignRole(ctx context.Context, user *models.User) error {
-	firstUserRegistrationMu.Lock()
-	defer firstUserRegistrationMu.Unlock()
-
+// createUserAndAssignRole persists the user and assigns the supplied role
+// atomically. On role-assignment failure the user creation is rolled back.
+func (h *AuthHandler) createUserAndAssignRole(ctx context.Context, user *models.User, role string) error {
 	if err := h.userRepo.Create(user); err != nil {
 		return fmt.Errorf("create user: %w", err)
-	}
-
-	count, _ := h.userRepo.Count()
-	role := "operator"
-	if count == 1 {
-		role = "admin"
 	}
 
 	if err := h.auth.AssignRole(ctx, fmt.Sprintf("%d", user.ID), role); err != nil {
@@ -163,6 +175,13 @@ func (h *AuthHandler) createUserAndAssignRole(ctx context.Context, user *models.
 	return nil
 }
 
+// RegistrationStatus returns whether open self-registration is enabled.
+// This is a public endpoint — no authentication required.
+func (h *AuthHandler) RegistrationStatus(w http.ResponseWriter, _ *http.Request) {
+	open := h.settings.GetValue(models.SettingOpenRegistration, "false") == "true"
+	utils.Success(w, map[string]bool{"open": open}, "")
+}
+
 // LoginRequest is the request body for user login
 type LoginRequest struct {
 	Identifier string `json:"identifier"`
@@ -171,8 +190,9 @@ type LoginRequest struct {
 
 // LoginResponse is the response body for successful login
 type LoginResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken        string `json:"access_token"`
+	RefreshToken       string `json:"refresh_token"`
+	MustChangePassword bool   `json:"must_change_password"`
 }
 
 // Login handles user login
@@ -229,6 +249,22 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject disabled accounts after password verification so the response
+	// does not leak whether the account exists (same generic failure path for
+	// wrong password vs disabled account from a timing perspective).
+	if !user.Active {
+		if h.auditService != nil {
+			_ = h.auditService.LogLoginFailed(ctx, req.Identifier, getClientIP(r), r.UserAgent(), "disabled")
+		}
+		if h.logger != nil {
+			h.logger.Info("Login failed: account disabled",
+				zap.String("identifier", req.Identifier),
+				zap.String("client_ip", getClientIP(r)))
+		}
+		utils.Forbidden(w, "account is disabled")
+		return
+	}
+
 	// Generate tokens using goauth
 	userIDStr := fmt.Sprintf("%d", user.ID)
 
@@ -246,14 +282,25 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record last login time; log and continue on error so a DB hiccup
+	// does not block a successful authentication.
+	if err := h.userRepo.UpdateLastLogin(user.ID, time.Now()); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to update last login",
+				zap.Int("user_id", user.ID),
+				zap.Error(err))
+		}
+	}
+
 	// Log successful login
 	if h.auditService != nil {
 		_ = h.auditService.LogLogin(ctx, user.ID, user.Username, getClientIP(r), r.UserAgent())
 	}
 
 	utils.Success(w, LoginResponse{
-		AccessToken:  tokenPair.AccessToken,
-		RefreshToken: tokenPair.RefreshToken,
+		AccessToken:        tokenPair.AccessToken,
+		RefreshToken:       tokenPair.RefreshToken,
+		MustChangePassword: user.MustChangePassword,
 	}, "Login successful")
 }
 
@@ -421,6 +468,18 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Clear the must-change-password flag now that the user has set a new
+	// password. The password hash update already succeeded; log and continue
+	// on error so the user is not blocked from the session.
+	user.MustChangePassword = false
+	if err := h.userRepo.Update(user); err != nil {
+		if h.logger != nil {
+			h.logger.Error("Failed to clear must_change_password flag",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+		}
+	}
+
 	// Log audit event
 	if h.auditService != nil {
 		// nolint:gosec // G115: userID from JWT claims will never exceed int max in practice
@@ -456,10 +515,11 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	perms, permErr := h.auth.GetUserPermissions(ctx, userIDStr)
 
 	response := map[string]any{
-		"id":       user.ID,
-		"name":     user.Name,
-		"username": user.Username,
-		"email":    user.Email,
+		"id":                   user.ID,
+		"name":                 user.Name,
+		"username":             user.Username,
+		"email":                user.Email,
+		"must_change_password": user.MustChangePassword,
 	}
 
 	switch {

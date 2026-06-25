@@ -106,6 +106,9 @@ type AuditConfig struct {
 	// ACL OAuth Provider Restriction Events
 	ACLOAuthRestrictionSet    bool `json:"acl_oauth_restriction_set"`
 	ACLOAuthRestrictionDelete bool `json:"acl_oauth_restriction_delete"`
+
+	// ACL OAuth login (forward-auth; no Waygates user account involved)
+	ACLOAuthLogin bool `json:"acl_oauth_login"`
 }
 
 // DefaultAuditConfig returns the default audit configuration with all events enabled
@@ -147,6 +150,9 @@ func DefaultAuditConfig() *AuditConfig {
 		// ACL OAuth Provider Restriction Events
 		ACLOAuthRestrictionSet:    true,
 		ACLOAuthRestrictionDelete: true,
+
+		// ACL OAuth login
+		ACLOAuthLogin: true,
 	}
 }
 
@@ -224,6 +230,18 @@ const (
 	// ACL OAuth Provider Restriction Events
 	AuditActionACLOAuthRestrictionSet    = "acl_oauth_restriction.set"
 	AuditActionACLOAuthRestrictionDelete = "acl_oauth_restriction.delete"
+
+	// ACL OAuth login (forward-auth; no Waygates user account involved)
+	AuditActionACLOAuthLogin = "acl.oauth_login"
+
+	// User-management actions
+	AuditActionUserCreate        = "user.create"
+	AuditActionUserUpdate        = "user.update"
+	AuditActionUserDelete        = "user.delete"
+	AuditActionUserRoleChange    = "user.role_change"
+	AuditActionUserPasswordReset = "user.password_reset"
+	AuditActionUserActivate      = "user.activate"
+	AuditActionUserDeactivate    = "user.deactivate"
 )
 
 // Audit status constants
@@ -334,6 +352,7 @@ func GetAuditEventGroups() []AuditEventGroup {
 				{Key: "acl_session_revoke", Label: "Session Revoked"},
 				{Key: "acl_oauth_restriction_set", Label: "OAuth Provider Configured"},
 				{Key: "acl_oauth_restriction_delete", Label: "OAuth Provider Removed"},
+				{Key: "acl_oauth_login", Label: "OAuth ACL Login"},
 			},
 		},
 	}

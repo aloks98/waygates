@@ -54,6 +54,7 @@ import { z } from 'zod';
 
 import { getRuleTypeLabel } from '@/components/acl/access-labels';
 import { useAddIPRule, useDeleteIPRule, useIPRules, useUpdateIPRule } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLIPRule, IPRuleType } from '@/types/acl';
 
 const ipRuleSchema = z.object({
@@ -286,6 +287,7 @@ interface IPRulesTabProps {
 export function IPRulesTab({ groupId }: IPRulesTabProps) {
   const { rules, isLoading } = useIPRules(groupId);
   const { deleteRule, isDeleting } = useDeleteIPRule();
+  const { canUpdateAccess, canDeleteAccess } = usePermissions();
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<ACLIPRule | null>(null);
@@ -311,12 +313,14 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
           <CardDescription>
             Control access based on client IP addresses. Rules are evaluated in priority order.
           </CardDescription>
-          <CardAction>
-            <Button onClick={() => setCreateModalOpen(true)}>
-              <Plus className="size-4" />
-              Add Rule
-            </Button>
-          </CardAction>
+          {canUpdateAccess && (
+            <CardAction>
+              <Button onClick={() => setCreateModalOpen(true)}>
+                <Plus className="size-4" />
+                Add Rule
+              </Button>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -347,7 +351,9 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
                   <TableHead className="w-24">Type</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead className="w-32">Created</TableHead>
-                  <TableHead className="w-20 text-right">Actions</TableHead>
+                  {(canUpdateAccess || canDeleteAccess) && (
+                    <TableHead className="w-20 text-right">Actions</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -383,42 +389,48 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
                         <TooltipContent>{format(new Date(rule.created_at), 'PPpp')}</TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="size-8 p-0"
-                                onClick={() => setEditingRule(rule)}
-                              />
-                            }
-                          >
-                            <Pencil className="size-4" />
-                            <span className="sr-only">Edit</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Edit rule</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="size-8 p-0 text-destructive hover:text-destructive"
-                                onClick={() => setDeletingRule(rule)}
-                              />
-                            }
-                          >
-                            <Trash2 className="size-4" />
-                            <span className="sr-only">Delete</span>
-                          </TooltipTrigger>
-                          <TooltipContent>Delete rule</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
+                    {(canUpdateAccess || canDeleteAccess) && (
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          {canUpdateAccess && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="size-8 p-0"
+                                    onClick={() => setEditingRule(rule)}
+                                  />
+                                }
+                              >
+                                <Pencil className="size-4" />
+                                <span className="sr-only">Edit</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit rule</TooltipContent>
+                            </Tooltip>
+                          )}
+                          {canDeleteAccess && (
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="size-8 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => setDeletingRule(rule)}
+                                  />
+                                }
+                              >
+                                <Trash2 className="size-4" />
+                                <span className="sr-only">Delete</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete rule</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>

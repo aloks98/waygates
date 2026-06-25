@@ -36,10 +36,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getModeLabel, groupAuthMethods } from '@/components/acl/access-labels';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
 import { useACLGroups, useDeleteACLGroup } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLGroup } from '@/types/acl';
 
 export function ACLGroupsPage() {
   const navigate = useNavigate();
+  const { canCreateAccess, canDeleteAccess } = usePermissions();
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -89,7 +91,7 @@ export function ACLGroupsPage() {
     setDeletingGroup(null);
   };
 
-  const columns = useMemo<ColumnDef<ACLGroup>[]>(
+  const baseColumns = useMemo<ColumnDef<ACLGroup>[]>(
     () => [
       {
         accessorKey: 'name',
@@ -186,45 +188,54 @@ export function ACLGroupsPage() {
           skeleton: <Skeleton className="h-5 w-24" />,
         },
       },
-      {
-        id: 'actions',
-        header: '',
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-1">
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="size-8 p-0 text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingGroup(row.original);
-                    }}
-                  />
-                }
-              >
-                <Trash2 className="size-4" />
-                <span className="sr-only">Delete</span>
-              </TooltipTrigger>
-              <TooltipContent>Delete group</TooltipContent>
-            </Tooltip>
-          </div>
-        ),
-        enableSorting: false,
-        minSize: 60,
-        maxSize: 80,
-        meta: {
-          skeleton: (
-            <div className="flex justify-end gap-1">
-              <Skeleton className="size-8" />
-            </div>
-          ),
-        },
-      },
     ],
     [],
+  );
+
+  const actionsColumn = useMemo<ColumnDef<ACLGroup>>(
+    () => ({
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0 text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeletingGroup(row.original);
+                  }}
+                />
+              }
+            >
+              <Trash2 className="size-4" />
+              <span className="sr-only">Delete</span>
+            </TooltipTrigger>
+            <TooltipContent>Delete group</TooltipContent>
+          </Tooltip>
+        </div>
+      ),
+      enableSorting: false,
+      minSize: 60,
+      maxSize: 80,
+      meta: {
+        skeleton: (
+          <div className="flex justify-end gap-1">
+            <Skeleton className="size-8" />
+          </div>
+        ),
+      },
+    }),
+    [],
+  );
+
+  const columns = useMemo<ColumnDef<ACLGroup>[]>(
+    () => (canDeleteAccess ? [...baseColumns, actionsColumn] : baseColumns),
+    [canDeleteAccess, baseColumns, actionsColumn],
   );
 
   const table = useReactTable({
@@ -248,10 +259,12 @@ export function ACLGroupsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Access Groups</h1>
-        <Button onClick={() => setCreateModalOpen(true)}>
-          <Plus className="size-4" />
-          New Group
-        </Button>
+        {canCreateAccess && (
+          <Button onClick={() => setCreateModalOpen(true)}>
+            <Plus className="size-4" />
+            New Group
+          </Button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -279,10 +292,12 @@ export function ACLGroupsPage() {
             <p className="mt-1.5 text-sm text-muted-foreground max-w-[280px]">
               Create a group to protect your proxies with IP rules, passwords, or OAuth.
             </p>
-            <Button size="sm" className="mt-4" onClick={() => setCreateModalOpen(true)}>
-              <Plus className="size-4" />
-              New Group
-            </Button>
+            {canCreateAccess && (
+              <Button size="sm" className="mt-4" onClick={() => setCreateModalOpen(true)}>
+                <Plus className="size-4" />
+                New Group
+              </Button>
+            )}
           </div>
         }
         onRowClick={handleRowClick}

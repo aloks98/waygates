@@ -1,12 +1,9 @@
 import {
-  Alert,
-  AlertDescription,
   Avatar,
   Badge,
   Button,
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -17,14 +14,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  FieldGroup,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -37,11 +26,8 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from '@e412/rnui-react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
 import { Link, useLocation } from '@tanstack/react-router';
 import {
-  CheckCircle2,
   ChevronUp,
   ClipboardList,
   FileCode2,
@@ -53,182 +39,63 @@ import {
   Settings,
   Shield,
   User,
-  XCircle,
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 
+import { ChangePasswordDialog } from '@/components/layout/change-password-dialog';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { TopBar } from '@/components/layout/top-bar';
 import { WaygateLogo } from '@/components/layout/waygate-logo';
 import { useLogout } from '@/hooks/use-logout';
-import { api } from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useAuthStore } from '@/stores/auth';
 
 interface NavItem {
   label: string;
   path: string;
   icon: ReactNode;
+  permission?: string;
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <Home className="size-4" /> },
-  { label: 'Proxies', path: '/proxies', icon: <Globe className="size-4" /> },
-  { label: 'Access', path: '/access', icon: <Shield className="size-4" /> },
-  { label: 'Activity', path: '/activity', icon: <ClipboardList className="size-4" /> },
-  { label: 'Caddy Logs', path: '/caddy-logs', icon: <ScrollText className="size-4" /> },
+  {
+    label: 'Proxies',
+    path: '/proxies',
+    icon: <Globe className="size-4" />,
+    permission: 'canReadProxies',
+  },
+  {
+    label: 'Access',
+    path: '/access',
+    icon: <Shield className="size-4" />,
+    permission: 'canReadAccess',
+  },
+  {
+    label: 'Activity',
+    path: '/activity',
+    icon: <ClipboardList className="size-4" />,
+    permission: 'canReadAuditLogs',
+  },
+  {
+    label: 'Caddy Logs',
+    path: '/caddy-logs',
+    icon: <ScrollText className="size-4" />,
+    permission: 'canReadCaddyLogs',
+  },
   {
     label: 'Caddy Config',
     path: '/caddy-config',
     icon: <FileCode2 className="size-4" />,
+    permission: 'canReadCaddyConfig',
   },
-  { label: 'Settings', path: '/settings', icon: <Settings className="size-4" /> },
+  {
+    label: 'Settings',
+    path: '/settings',
+    icon: <Settings className="size-4" />,
+    permission: 'canReadSettings',
+  },
 ];
-
-const passwordSchema = z
-  .object({
-    current_password: z.string().min(1, 'Current password is required'),
-    new_password: z.string().min(8, 'Password must be at least 8 characters'),
-    confirm_password: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.new_password === data.confirm_password, {
-    message: "Passwords don't match",
-    path: ['confirm_password'],
-  });
-type PasswordValues = z.infer<typeof passwordSchema>;
-
-function ChangePasswordDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  const form = useForm<PasswordValues>({
-    resolver: zodResolver(passwordSchema),
-    mode: 'onTouched',
-    defaultValues: {
-      current_password: '',
-      new_password: '',
-      confirm_password: '',
-    },
-  });
-
-  const mutation = useMutation({
-    mutationFn: async (data: { current_password: string; new_password: string }) => {
-      return await api.post('auth/change-password', { json: data }).json();
-    },
-    onSuccess: () => {
-      setStatus({ type: 'success', message: 'Password changed successfully!' });
-      form.reset();
-      setTimeout(() => {
-        onOpenChange(false);
-        setStatus(null);
-      }, 1500);
-    },
-    onError: (error: Error) => {
-      setStatus({ type: 'error', message: error.message || 'Failed to change password' });
-    },
-  });
-
-  const onSubmit = (value: PasswordValues) => {
-    setStatus(null);
-    mutation.mutate({
-      current_password: value.current_password,
-      new_password: value.new_password,
-    });
-  };
-
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setStatus(null);
-      form.reset();
-    }
-    onOpenChange(isOpen);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Change Password</DialogTitle>
-          <DialogDescription>Enter your current password and choose a new one.</DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-2">
-              <FieldGroup>
-                {status && (
-                  <Alert variant={status.type === 'error' ? 'destructive' : 'success'}>
-                    {status.type === 'success' ? (
-                      <CheckCircle2 className="size-4" />
-                    ) : (
-                      <XCircle className="size-4" />
-                    )}
-                    <AlertDescription>{status.message}</AlertDescription>
-                  </Alert>
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="current_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Current Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="current-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="new_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="confirm_password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirm New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" autoComplete="new-password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </FieldGroup>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={mutation.isPending || status?.type === 'success'}>
-                {mutation.isPending ? 'Changing...' : 'Change Password'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function ProfileDialog({
   open,
@@ -301,8 +168,14 @@ export function AppSidebar({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { user } = useAuthStore();
   const handleLogout = useLogout();
+  const permissions = usePermissions();
   const [profileOpen, setProfileOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (!item.permission) return true;
+    return permissions[item.permission as keyof typeof permissions] === true;
+  });
 
   return (
     <SidebarProvider>
@@ -323,7 +196,7 @@ export function AppSidebar({ children }: { children: ReactNode }) {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {navItems.map((item) => {
+                {visibleNavItems.map((item) => {
                   const isActive =
                     item.path === '/'
                       ? location.pathname === '/'

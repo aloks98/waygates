@@ -527,6 +527,6 @@ func TestGetAuditEventGroups_TotalEvents(t *testing.T) {
 		totalEvents += len(group.Events)
 	}
 
-	// 5 proxy + 5 auth + 1 settings + 3 sync + 2 system + 17 acl = 33 events
-	assert.Equal(t, 33, totalEvents)
+	// 5 proxy + 5 auth + 1 settings + 3 sync + 2 system + 18 acl = 34 events
+	assert.Equal(t, 34, totalEvents)
 }
