@@ -14,7 +14,7 @@ import { useState } from 'react';
 
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { useTrafficMetrics } from '@/hooks/use-traffic-metrics';
-import { formatBytes, pointsToCategories, seriesFor } from '@/lib/traffic-format';
+import { formatBytes, formatMs, pointsToCategories, seriesFor } from '@/lib/traffic-format';
 import type { TrafficRange } from '@/types/metrics';
 
 const CHART_HEIGHT = 220;
@@ -140,6 +140,19 @@ export function TrafficCharts() {
                 ]}
                 showLegend
                 height={CHART_HEIGHT}
+                option={{
+                  yAxis: {
+                    type: 'value',
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    splitLine: { lineStyle: { type: 'dashed', opacity: 0.5 } },
+                    axisLabel: { formatter: (value: number) => formatMs(value) },
+                  },
+                  tooltip: {
+                    trigger: 'axis',
+                    valueFormatter: (value) => formatMs(Number(value)),
+                  },
+                }}
               />
             )}
           </CardContent>
