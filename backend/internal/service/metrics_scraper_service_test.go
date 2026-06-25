@@ -37,12 +37,17 @@ func (f *fakeTrafficSampleRepo) DeleteOlderThan(t time.Time) (int64, error) {
 // Compile-time assertion that the fake implements the interface.
 var _ repository.TrafficSampleRepositoryInterface = (*fakeTrafficSampleRepo)(nil)
 
-// minimalPrometheusFixture is a small valid Prometheus exposition body with
-// a couple of caddy_http_requests_total counter series and an in_flight gauge.
-const minimalPrometheusFixture = `# HELP caddy_http_requests_total Counter of HTTP(S) requests made.
-# TYPE caddy_http_requests_total counter
-caddy_http_requests_total{code="200",handler="static",method="GET",server="srv0"} 42
-caddy_http_requests_total{code="404",handler="static",method="GET",server="srv0"} 7
+// minimalPrometheusFixture is a small valid Prometheus exposition body shaped
+// like real Caddy output: the status-class counts come from the duration
+// histogram's per-series _count (keyed by `code`), plus an in_flight gauge.
+const minimalPrometheusFixture = `# HELP caddy_http_request_duration_seconds Histogram of round-trip request durations.
+# TYPE caddy_http_request_duration_seconds histogram
+caddy_http_request_duration_seconds_bucket{code="200",handler="static",method="GET",server="srv0",le="+Inf"} 42
+caddy_http_request_duration_seconds_sum{code="200",handler="static",method="GET",server="srv0"} 4.2
+caddy_http_request_duration_seconds_count{code="200",handler="static",method="GET",server="srv0"} 42
+caddy_http_request_duration_seconds_bucket{code="404",handler="static",method="GET",server="srv0",le="+Inf"} 7
+caddy_http_request_duration_seconds_sum{code="404",handler="static",method="GET",server="srv0"} 0.7
+caddy_http_request_duration_seconds_count{code="404",handler="static",method="GET",server="srv0"} 7
 # HELP caddy_http_requests_in_flight Current number of active connections.
 # TYPE caddy_http_requests_in_flight gauge
 caddy_http_requests_in_flight{handler="static",server="srv0"} 3
