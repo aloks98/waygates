@@ -37,3 +37,14 @@ export function formatBytes(bytes: number): string {
   const value = bytes / 1024 ** exp;
   return `${exp === 0 ? value : value.toFixed(1)} ${BYTE_UNITS[exp]}`;
 }
+
+/**
+ * Formats a millisecond duration with a "ms" unit (e.g. 12.34 -> "12.3 ms",
+ * 123.4 -> "123 ms"). One decimal under 100ms, whole numbers above. Used for
+ * the latency chart axis and tooltip.
+ */
+export function formatMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '0 ms';
+  const rounded = ms >= 100 ? Math.round(ms) : Math.round(ms * 10) / 10;
+  return `${rounded} ms`;
+}

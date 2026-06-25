@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 
 import type { TrafficPoint } from '@/types/metrics';
 
-import { formatBytes, pointsToCategories, seriesFor } from './traffic-format';
+import { formatBytes, formatMs, pointsToCategories, seriesFor } from './traffic-format';
 
 const makePoint = (t: string, overrides: Partial<TrafficPoint> = {}): TrafficPoint => ({
   t,
@@ -63,4 +63,16 @@ test('formatBytes renders human-readable units', () => {
 test('formatBytes guards against invalid input', () => {
   expect(formatBytes(-1)).toBe('0 B');
   expect(formatBytes(Number.NaN)).toBe('0 B');
+});
+
+test('formatMs renders durations with a unit', () => {
+  expect(formatMs(0)).toBe('0 ms');
+  expect(formatMs(5)).toBe('5 ms');
+  expect(formatMs(12.34)).toBe('12.3 ms');
+  expect(formatMs(123.4)).toBe('123 ms');
+});
+
+test('formatMs guards against invalid input', () => {
+  expect(formatMs(-1)).toBe('0 ms');
+  expect(formatMs(Number.NaN)).toBe('0 ms');
 });
