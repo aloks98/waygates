@@ -23,3 +23,17 @@ export function pointsToCategories(points: TrafficPoint[], range: TrafficRange):
 export function seriesFor<K extends keyof TrafficPoint>(points: TrafficPoint[], key: K): number[] {
   return points.map((p) => p[key] as number);
 }
+
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+
+/**
+ * Formats a byte count into a human-readable string with a unit (e.g.
+ * 123456789 -> "117.7 MB"). Uses 1024-based steps. Bytes show no decimals;
+ * larger units show one. Used for the bandwidth chart axis and tooltip.
+ */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const exp = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), BYTE_UNITS.length - 1);
+  const value = bytes / 1024 ** exp;
+  return `${exp === 0 ? value : value.toFixed(1)} ${BYTE_UNITS[exp]}`;
+}
