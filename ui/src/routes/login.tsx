@@ -15,12 +15,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { HTTPError } from 'ky';
-import { CheckCircle2, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, KeyRound, XCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { WaygateLogo } from '@/components/layout/waygate-logo';
+import { ssoErrorMessage } from '@/lib/sso';
 
 import { publicApi } from '../lib/api';
 import { useAuthStore } from '../stores/auth';
@@ -34,10 +35,10 @@ type LoginValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const searchParams = useSearch({ strict: false }) as { registered?: string };
+  const search = useSearch({ strict: false }) as { registered?: string; sso_error?: string };
   const { setTokens } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
-  const justRegistered = searchParams.registered === 'true';
+  const justRegistered = search.registered === 'true';
 
   // Gate signup link on registration status
   const { data: regStatus } = useQuery({
@@ -47,12 +48,56 @@ export function LoginPage() {
   });
   const registrationOpen = regStatus?.data?.open ?? false;
 
+  const { data: ssoStatus } = useQuery({
+    queryKey: ['auth', 'sso-status'],
+    queryFn: () =>
+      publicApi.get('auth/sso/status').json<ApiResponse<{ enabled: boolean; label: string }>>(),
+    staleTime: 60 * 1000,
+  });
+  const ssoEnabled = ssoStatus?.data?.enabled ?? false;
+  const ssoLabel = ssoStatus?.data?.label?.trim() || 'Sign in with SSO';
+
+  const [step, setStep] = useState<'identifier' | 'password'>('identifier');
+  const [checking, setChecking] = useState(false);
+
+  // surface sso_error from the callback redirect
+  useEffect(() => {
+    if (search.sso_error) setError(ssoErrorMessage(search.sso_error));
+  }, [search.sso_error]);
+
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     mode: 'onTouched',
     defaultValues: { identifier: '', password: '' },
   });
   const isSubmitting = form.formState.isSubmitting;
+
+  const onContinue = async () => {
+    setError(null);
+    const identifier = form.getValues('identifier').trim();
+    if (!identifier) {
+      form.setError('identifier', { message: 'Username or email is required' });
+      return;
+    }
+    // Only an email can route to SSO; usernames fall through to password.
+    if (ssoEnabled && identifier.includes('@')) {
+      setChecking(true);
+      try {
+        const res = await publicApi
+          .post('auth/sso/lookup', { json: { email: identifier } })
+          .json<ApiResponse<{ method: string }>>();
+        if (res.data?.method === 'sso') {
+          window.location.href = `/api/auth/sso/login?login_hint=${encodeURIComponent(identifier)}`;
+          return;
+        }
+      } catch {
+        // fall through to password step on lookup failure
+      } finally {
+        setChecking(false);
+      }
+    }
+    setStep('password');
+  };
 
   const onSubmit = async (value: LoginValues) => {
     setError(null);
@@ -132,74 +177,201 @@ export function LoginPage() {
           </p>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              <FieldGroup>
-                {justRegistered && !error && (
-                  <Alert variant="success">
-                    <CheckCircle2 className="size-4" />
-                    <AlertDescription>Account created! Sign in to get started.</AlertDescription>
-                  </Alert>
-                )}
-
-                {error && (
-                  <Alert variant="destructive">
-                    <XCircle className="size-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-
-                <FormField
-                  control={form.control}
-                  name="identifier"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username or Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter your username or email"
-                          autoComplete="username"
-                          autoFocus
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+            {ssoEnabled ? (
+              /* Two-step SSO flow */
+              <form
+                onSubmit={
+                  step === 'password'
+                    ? form.handleSubmit(onSubmit)
+                    : (e) => {
+                        e.preventDefault();
+                        void onContinue();
+                      }
+                }
+              >
+                <FieldGroup>
+                  {justRegistered && !error && (
+                    <Alert variant="success">
+                      <CheckCircle2 className="size-4" />
+                      <AlertDescription>Account created! Sign in to get started.</AlertDescription>
+                    </Alert>
                   )}
-                />
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="Enter your password"
-                          autoComplete="current-password"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                  {error && (
+                    <Alert variant="destructive">
+                      <XCircle className="size-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
                   )}
-                />
 
-                <Button type="submit" disabled={isSubmitting} className="w-full glow-primary">
-                  {isSubmitting ? 'Signing in...' : 'Sign in'}
-                </Button>
+                  <FormField
+                    control={form.control}
+                    name="identifier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username or Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter your username or email"
+                            autoComplete="username"
+                            autoFocus={step === 'identifier'}
+                            readOnly={step === 'password'}
+                            className={
+                              step === 'password' ? 'bg-muted/50 text-muted-foreground' : undefined
+                            }
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                {registrationOpen && (
-                  <p className="text-center text-sm text-muted-foreground">
-                    Don&apos;t have an account?{' '}
-                    <Link to="/signup" className="text-primary hover:underline">
-                      Sign up
-                    </Link>
-                  </p>
-                )}
-              </FieldGroup>
-            </form>
+                  {step === 'password' && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="Enter your password"
+                                autoComplete="current-password"
+                                autoFocus
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <button
+                        type="button"
+                        className="self-start text-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setStep('identifier');
+                          setError(null);
+                          form.setValue('password', '');
+                          form.clearErrors();
+                        }}
+                      >
+                        ← Use a different account
+                      </button>
+                    </>
+                  )}
+
+                  {step === 'identifier' ? (
+                    <Button
+                      type="button"
+                      disabled={checking}
+                      className="w-full glow-primary"
+                      onClick={onContinue}
+                    >
+                      {checking ? 'Checking...' : 'Continue'}
+                    </Button>
+                  ) : (
+                    <Button type="submit" disabled={isSubmitting} className="w-full glow-primary">
+                      {isSubmitting ? 'Signing in...' : 'Sign in'}
+                    </Button>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      window.location.href = '/api/auth/sso/login';
+                    }}
+                  >
+                    <KeyRound className="size-4" />
+                    {ssoLabel}
+                  </Button>
+
+                  {registrationOpen && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Don&apos;t have an account?{' '}
+                      <Link to="/signup" className="text-primary hover:underline">
+                        Sign up
+                      </Link>
+                    </p>
+                  )}
+                </FieldGroup>
+              </form>
+            ) : (
+              /* Single-step form — original behavior when SSO disabled */
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <FieldGroup>
+                  {justRegistered && !error && (
+                    <Alert variant="success">
+                      <CheckCircle2 className="size-4" />
+                      <AlertDescription>Account created! Sign in to get started.</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <XCircle className="size-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <FormField
+                    control={form.control}
+                    name="identifier"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username or Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Enter your username or email"
+                            autoComplete="username"
+                            autoFocus
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="password"
+                            placeholder="Enter your password"
+                            autoComplete="current-password"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button type="submit" disabled={isSubmitting} className="w-full glow-primary">
+                    {isSubmitting ? 'Signing in...' : 'Sign in'}
+                  </Button>
+
+                  {registrationOpen && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Don&apos;t have an account?{' '}
+                      <Link to="/signup" className="text-primary hover:underline">
+                        Sign up
+                      </Link>
+                    </p>
+                  )}
+                </FieldGroup>
+              </form>
+            )}
           </Form>
         </div>
       </div>

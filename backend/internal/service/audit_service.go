@@ -108,6 +108,8 @@ func (s *AuditService) isEventEnabled(action string) bool {
 		return config.AuthPasswordChange
 	case models.AuditActionAuthLoginFailed:
 		return config.AuthLoginFailed
+	case models.AuditActionAuthSSOLogin:
+		return config.AuthSSOLogin
 	// Settings events
 	case models.AuditActionSettingsUpdate:
 		return config.SettingsUpdate

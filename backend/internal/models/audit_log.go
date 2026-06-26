@@ -61,6 +61,7 @@ type AuditConfig struct {
 	AuthRegister       bool `json:"auth_register"`
 	AuthPasswordChange bool `json:"auth_password_change"`
 	AuthLoginFailed    bool `json:"auth_login_failed"`
+	AuthSSOLogin       bool `json:"auth_sso_login"`
 
 	// Settings events
 	SettingsUpdate bool `json:"settings_update"`
@@ -124,6 +125,7 @@ func DefaultAuditConfig() *AuditConfig {
 		AuthRegister:       true,
 		AuthPasswordChange: true,
 		AuthLoginFailed:    true,
+		AuthSSOLogin:       true,
 		SettingsUpdate:     true,
 		SyncStarted:        true,
 		SyncCompleted:      true,
@@ -234,6 +236,9 @@ const (
 	// ACL OAuth login (forward-auth; no Waygates user account involved)
 	AuditActionACLOAuthLogin = "acl.oauth_login"
 
+	// SSO actions
+	AuditActionAuthSSOLogin = "auth.sso_login"
+
 	// User-management actions
 	AuditActionUserCreate        = "user.create"
 	AuditActionUserUpdate        = "user.update"
@@ -301,6 +306,7 @@ func GetAuditEventGroups() []AuditEventGroup {
 				{Key: "auth_register", Label: "Register"},
 				{Key: "auth_password_change", Label: "Password Change"},
 				{Key: "auth_login_failed", Label: "Failed Login"},
+				{Key: "auth_sso_login", Label: "SSO Login"},
 			},
 		},
 		{

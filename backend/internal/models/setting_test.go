@@ -2,6 +2,8 @@ package models
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestSetting_TableName verifies the table name
@@ -124,4 +126,9 @@ func TestSetting_StructFields(t *testing.T) {
 	if setting.Value != "test.value" {
 		t.Errorf("Expected value 'test.value', got '%s'", setting.Value)
 	}
+}
+
+func TestIsSensitiveSettingKey_SSOClientSecret(t *testing.T) {
+	assert.True(t, IsSensitiveSettingKey(SettingSSOOIDCClientSecret))
+	assert.False(t, IsSensitiveSettingKey(SettingSSOOIDCClientID))
 }

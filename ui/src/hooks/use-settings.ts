@@ -6,6 +6,18 @@ import { api } from '../lib/api';
 import type { ApiResponse } from '../types/api';
 import type { MetricsPublishSettings, UpdateMetricsPublishRequest } from '../types/metrics-publish';
 
+export interface SsoConfig {
+  enabled: boolean;
+  issuer: string;
+  client_id: string;
+  has_client_secret: boolean;
+  auto_provision: boolean;
+  default_role: string;
+  button_label: string;
+  base_url: string;
+  redirect_uri: string;
+}
+
 const QUERY_KEY = ['settings', '404'] as const;
 
 export interface NotFoundSettings {
@@ -88,6 +100,45 @@ export function useMetricsPublishSettings() {
     onError: async (error) => {
       const message = await handleApiError(error);
       toast.error('Failed to update settings', { description: message });
+    },
+  });
+
+  return {
+    settings: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    update: mutation.mutateAsync,
+    isUpdating: mutation.isPending,
+  };
+}
+
+const SSO_QUERY_KEY = ['settings', 'sso'] as const;
+
+export function useSsoSettings() {
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: SSO_QUERY_KEY,
+    queryFn: async () => {
+      const response = await api.get('auth/sso/config').json<ApiResponse<SsoConfig>>();
+      return response.data;
+    },
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (
+      data: Omit<SsoConfig, 'has_client_secret' | 'redirect_uri'> & { client_secret: string },
+    ) => {
+      return await api.put('auth/sso/config', { json: data }).json<ApiResponse<SsoConfig>>();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SSO_QUERY_KEY });
+      toast.success('SSO settings updated successfully');
+    },
+    onError: async (error) => {
+      const message = await handleApiError(error);
+      toast.error('Failed to update SSO settings', { description: message });
     },
   });
 

@@ -121,7 +121,7 @@ func TestGetAuditEventGroups_AuthGroup(t *testing.T) {
 	assert.Equal(t, "Authentication Events", authGroup.Label)
 	assert.Equal(t, "User authentication activities", authGroup.Description)
 
-	require.Len(t, authGroup.Events, 5)
+	require.Len(t, authGroup.Events, 6)
 
 	expectedEvents := []struct {
 		key   string
@@ -132,6 +132,7 @@ func TestGetAuditEventGroups_AuthGroup(t *testing.T) {
 		{"auth_register", "Register"},
 		{"auth_password_change", "Password Change"},
 		{"auth_login_failed", "Failed Login"},
+		{"auth_sso_login", "SSO Login"},
 	}
 
 	for i, expected := range expectedEvents {
@@ -527,6 +528,6 @@ func TestGetAuditEventGroups_TotalEvents(t *testing.T) {
 		totalEvents += len(group.Events)
 	}
 
-	// 5 proxy + 5 auth + 1 settings + 3 sync + 2 system + 18 acl = 34 events
-	assert.Equal(t, 34, totalEvents)
+	// 5 proxy + 6 auth + 1 settings + 3 sync + 2 system + 18 acl = 35 events
+	assert.Equal(t, 35, totalEvents)
 }

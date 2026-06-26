@@ -30,6 +30,18 @@ const (
 	SettingOpenRegistration    = "auth.open_registration"
 )
 
+// SSO settings keys.
+const (
+	SettingSSOEnabled          = "sso.enabled"
+	SettingSSOOIDCIssuer       = "sso.oidc_issuer"
+	SettingSSOOIDCClientID     = "sso.oidc_client_id"
+	SettingSSOOIDCClientSecret = "sso.oidc_client_secret"
+	SettingSSOAutoProvision    = "sso.auto_provision"
+	SettingSSODefaultRole      = "sso.default_role"
+	SettingSSOButtonLabel      = "sso.button_label"
+	SettingSSOBaseURL          = "sso.base_url"
+)
+
 // MetricsPublishSettings represents the opt-in protected external metrics endpoint config.
 type MetricsPublishSettings struct {
 	Enabled       bool     `json:"enabled"`
@@ -55,6 +67,7 @@ const (
 // Add future secret keys here.
 var sensitiveSettingKeys = map[string]struct{}{
 	SettingMetricsBasicAuthHash: {},
+	SettingSSOOIDCClientSecret:  {},
 }
 
 // IsSensitiveSettingKey reports whether key holds a secret value (e.g. a bcrypt

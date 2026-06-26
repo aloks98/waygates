@@ -63,8 +63,14 @@ export const api: KyInstance = ky.create({
     ],
     afterResponse: [
       async (request, _options, response) => {
-        // Skip refresh logic for auth endpoints to prevent loops
-        if (response.status === 401 && !request.url.includes('/auth/')) {
+        // Refresh-and-retry on 401, EXCEPT for the credential/refresh endpoints
+        // themselves (those must not loop). Authenticated /auth/* calls such as
+        // /auth/me DO refresh-and-retry on an expired access token — otherwise the
+        // user (and their permissions) never load on a stale-token page load.
+        const skipRefresh = ['/auth/login', '/auth/register', '/auth/refresh'].some((p) =>
+          request.url.includes(p),
+        );
+        if (response.status === 401 && !skipRefresh) {
           const tokens = await handleTokenRefresh();
 
           if (tokens) {

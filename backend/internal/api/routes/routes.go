@@ -173,6 +173,8 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	configPreviewHandler := handlers.NewConfigPreviewHandler(syncService, logger)
 	trafficMetricsService := service.NewTrafficMetricsService(trafficSampleRepo, logger)
 	metricsHandler := handlers.NewMetricsHandler(trafficMetricsService, logger)
+	ssoService := service.NewSSOService(service.SSODeps{Settings: settingsRepo, Users: userRepo, Issuer: goauthInstance, Audit: auditService, Logger: logger})
+	ssoHandler := handlers.NewSSOHandler(ssoService, settingsRepo, cfg, logger)
 
 	// Public routes
 	r.Group(func(r chi.Router) {
@@ -186,6 +188,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			r.Post("/api/auth/register", authHandler.Register)
 			r.Post("/api/auth/login", authHandler.Login)
 			r.Post("/api/auth/acl/login", aclVerifyHandler.Login)
+			r.Post("/api/auth/sso/lookup", ssoHandler.Lookup)
 		})
 
 		r.Post("/api/auth/refresh", authHandler.RefreshToken)
@@ -200,6 +203,12 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Get("/api/auth/oauth/providers", oauthHandler.ListProviders)
 		r.Get("/auth/oauth/{provider}", oauthHandler.StartOAuth)
 		r.Get("/auth/oauth/{provider}/callback", oauthHandler.Callback)
+
+		// SSO routes (public - admin OIDC login flow)
+		r.Get("/api/auth/sso/status", ssoHandler.Status)
+		r.Get("/api/auth/sso/login", ssoHandler.Login)
+		r.Get("/api/auth/sso/callback", ssoHandler.Callback)
+		r.Post("/api/auth/sso/exchange", ssoHandler.Exchange)
 
 		// ACL branding (public - needed for login page styling)
 		r.Get("/api/acl/branding", aclHandler.GetBranding)
@@ -217,6 +226,11 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		r.Post("/api/auth/logout", authHandler.Logout)
 		r.Get("/api/auth/me", authHandler.GetMe)
 		r.Post("/api/auth/change-password", authHandler.ChangePassword)
+
+		// SSO config routes (protected)
+		r.With(chimw.RequirePermission(authAdapter, "settings:read", mwConfig)).Get("/api/auth/sso/config", ssoHandler.GetConfig)
+		r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Put("/api/auth/sso/config", ssoHandler.UpdateConfig)
+		r.With(chimw.RequirePermission(authAdapter, "settings:write", mwConfig)).Post("/api/auth/sso/test", ssoHandler.Test)
 
 		// Proxy routes with permission checks
 		r.Route("/api/proxies", func(r chi.Router) {

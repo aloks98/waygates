@@ -1,6 +1,6 @@
 import { cn } from '@e412/rnui-react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { Activity, FileQuestion, Palette, ScrollText, Users } from 'lucide-react';
+import { Activity, FileQuestion, KeyRound, Palette, ScrollText, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { usePermissions } from '@/hooks/use-permissions';
@@ -48,6 +48,13 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     description: 'Manage user accounts & access',
     icon: <Users className="size-4" />,
     requiresPermission: 'canManageUsers',
+  },
+  {
+    to: '/settings/sso',
+    label: 'Single Sign-On',
+    description: 'OIDC admin login',
+    icon: <KeyRound className="size-4" />,
+    requiresPermission: 'canWriteSettings',
   },
 ];
 

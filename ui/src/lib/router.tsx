@@ -55,6 +55,13 @@ const aclForbiddenRoute = createRoute({
   component: lazyRouteComponent(() => import('@/routes/auth/acl-forbidden'), 'ACLForbiddenPage'),
 });
 
+// SSO callback route - handles the redirect from SSO provider and exchanges the one-time code for tokens
+const ssoCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/sso/callback',
+  component: lazyRouteComponent(() => import('@/routes/auth/sso-callback'), 'SSOCallbackPage'),
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: 'dashboard',
@@ -205,6 +212,15 @@ const settingsUsersRoute = createRoute({
   ),
 });
 
+const settingsSSORoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/sso',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/sso'),
+    'SettingsSSOPage',
+  ),
+});
+
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/activity',
@@ -277,6 +293,7 @@ const routeTree = rootRoute.addChildren([
   themePreviewRoute,
   aclLoginRoute,
   aclForbiddenRoute,
+  ssoCallbackRoute,
   dashboardRoute.addChildren([
     dashboardIndexRoute,
     proxiesRoute,
@@ -294,6 +311,7 @@ const routeTree = rootRoute.addChildren([
       settingsAuditRoute,
       settingsMetricsRoute,
       settingsUsersRoute,
+      settingsSSORoute,
     ]),
     auditLogsRoute,
     caddyLogsRoute,
