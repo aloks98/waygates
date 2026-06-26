@@ -40,6 +40,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Stamped into the binary; `make build` exports VERSION from git describe.
+        VERSION: ${VERSION:-dev}
     container_name: waygates
     restart: unless-stopped
     ports:

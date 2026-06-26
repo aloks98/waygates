@@ -75,6 +75,12 @@ const ipRuleSchema = z.object({
 
 type IPRuleFormValues = z.infer<typeof ipRuleSchema>;
 
+const RULE_TYPES = [
+  { value: 'allow', label: 'Allow', description: 'grant access to this IP' },
+  { value: 'deny', label: 'Block', description: 'deny access from this IP' },
+  { value: 'bypass', label: 'Trusted', description: 'skips other auth for matching IPs' },
+] as const;
+
 function getRuleTypeBadgeVariant(
   type: IPRuleType,
 ): 'primary' | 'secondary' | 'outline' | 'destructive' {
@@ -203,18 +209,18 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Action</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select items={RULE_TYPES} value={field.value} onValueChange={field.onChange}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="allow">Allow — grant access to this IP</SelectItem>
-                          <SelectItem value="deny">Block — deny access from this IP</SelectItem>
-                          <SelectItem value="bypass">
-                            Trusted — skips other auth for matching IPs
-                          </SelectItem>
+                          {RULE_TYPES.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {`${option.label} — ${option.description}`}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription>

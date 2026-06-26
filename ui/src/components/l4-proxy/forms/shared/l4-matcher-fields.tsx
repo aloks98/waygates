@@ -40,6 +40,12 @@ export function L4MatcherFields({ routeIndex }: L4MatcherFieldsProps) {
     name: `routes.${routeIndex}.allowed_ip_ranges` as never,
   });
 
+  // single source of truth (built from L4_MATCHER_TYPES/L4_MATCHER_CONFIG) for trigger + options
+  const matcherItems = L4_MATCHER_TYPES.map((m) => ({
+    value: m,
+    label: L4_MATCHER_CONFIG[m].label,
+  }));
+
   return (
     <div className="space-y-4">
       <FormField
@@ -49,14 +55,14 @@ export function L4MatcherFields({ routeIndex }: L4MatcherFieldsProps) {
           <FormItem>
             <FormLabel>Connection Matcher</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select items={matcherItems} value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {L4_MATCHER_TYPES.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {L4_MATCHER_CONFIG[m].label}
+                  {matcherItems.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

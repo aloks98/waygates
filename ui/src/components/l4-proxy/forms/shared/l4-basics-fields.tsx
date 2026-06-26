@@ -25,6 +25,12 @@ interface L4BasicsFieldsProps {
 export function L4BasicsFields({ autoFocusName = false }: L4BasicsFieldsProps) {
   const form = useFormContext<L4ProxyFormValues>();
 
+  // single source of truth (built from L4_PROTOCOLS) driving the trigger label and options
+  const protocolItems = L4_PROTOCOLS.map((protocol) => ({
+    value: protocol,
+    label: protocol.toUpperCase(),
+  }));
+
   return (
     <div className="space-y-4">
       {/* items-start: FormItem is display:grid; without it the shorter cell stretches
@@ -90,14 +96,14 @@ export function L4BasicsFields({ autoFocusName = false }: L4BasicsFieldsProps) {
             <FormItem>
               <FormLabel>Protocol</FormLabel>
               <FormControl>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select items={protocolItems} value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {L4_PROTOCOLS.map((protocol) => (
-                      <SelectItem key={protocol} value={protocol}>
-                        {protocol.toUpperCase()}
+                    {protocolItems.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -16,6 +16,14 @@ import { useFormContext } from 'react-hook-form';
 
 import type { L4ProxyFormValues } from '@/lib/form-validation';
 
+// single source of truth driving both the trigger label and the dropdown options;
+// "none" is the sentinel that maps to/from undefined (see onValueChange below)
+const PROXY_PROTOCOLS = [
+  { value: 'none', label: 'None' },
+  { value: 'v1', label: 'Version 1' },
+  { value: 'v2', label: 'Version 2' },
+] as const;
+
 interface L4TlsFieldsProps {
   routeIndex: number;
 }
@@ -95,6 +103,7 @@ export function L4TlsFields({ routeIndex }: L4TlsFieldsProps) {
                * we follow that established pattern for consistency.
                */}
               <Select
+                items={PROXY_PROTOCOLS}
                 value={field.value ?? 'none'}
                 onValueChange={(v) => field.onChange(v === 'none' ? undefined : v)}
               >
@@ -102,9 +111,11 @@ export function L4TlsFields({ routeIndex }: L4TlsFieldsProps) {
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="v1">Version 1</SelectItem>
-                  <SelectItem value="v2">Version 2</SelectItem>
+                  {PROXY_PROTOCOLS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </FormControl>

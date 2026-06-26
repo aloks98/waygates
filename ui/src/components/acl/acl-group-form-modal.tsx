@@ -201,7 +201,11 @@ export function ACLGroupFormModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>How methods combine</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        items={combinationModeOptions}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select mode...">

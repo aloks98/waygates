@@ -16,6 +16,12 @@ import { useFieldArray, useFormContext } from 'react-hook-form';
 
 import type { ReverseProxyFormValues } from '@/lib/form-validation';
 
+// single source of truth driving both the trigger label and the dropdown options
+const SCHEMES = [
+  { value: 'http', label: 'http' },
+  { value: 'https', label: 'https' },
+] as const;
+
 export function BackendFields() {
   const form = useFormContext<ReverseProxyFormValues>();
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'upstreams' });
@@ -30,13 +36,16 @@ export function BackendFields() {
             render={({ field }) => (
               <FormItem className="w-28">
                 <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select items={SCHEMES} value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="http">http</SelectItem>
-                      <SelectItem value="https">https</SelectItem>
+                      {SCHEMES.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </FormControl>

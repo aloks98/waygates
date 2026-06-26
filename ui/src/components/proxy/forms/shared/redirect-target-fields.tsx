@@ -16,6 +16,14 @@ import { useFormContext } from 'react-hook-form';
 
 import type { RedirectFormValues } from '@/lib/form-validation';
 
+// single source of truth (string values to match value={String(field.value)})
+const REDIRECT_STATUSES = [
+  { value: '301', label: '301 - Permanent' },
+  { value: '302', label: '302 - Temporary' },
+  { value: '307', label: '307 - Temporary (preserve method)' },
+  { value: '308', label: '308 - Permanent (preserve method)' },
+] as const;
+
 export function RedirectTargetFields() {
   const form = useFormContext<RedirectFormValues>();
 
@@ -42,17 +50,22 @@ export function RedirectTargetFields() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Redirect Type</FormLabel>
-            <Select value={String(field.value)} onValueChange={(v) => field.onChange(Number(v))}>
+            <Select
+              items={REDIRECT_STATUSES}
+              value={String(field.value)}
+              onValueChange={(v) => field.onChange(Number(v))}
+            >
               <FormControl>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                <SelectItem value="301">301 - Permanent</SelectItem>
-                <SelectItem value="302">302 - Temporary</SelectItem>
-                <SelectItem value="307">307 - Temporary (preserve method)</SelectItem>
-                <SelectItem value="308">308 - Permanent (preserve method)</SelectItem>
+                {REDIRECT_STATUSES.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <FormDescription>301/308 are cached by browsers, 302/307 are temporary</FormDescription>

@@ -11,8 +11,21 @@ import { Pause, Play, Search, Trash2 } from 'lucide-react';
 
 import type { CaddyLogSource } from '@/types/caddy-logs';
 
-const RUNTIME_LEVELS = ['all', 'debug', 'info', 'warn', 'error'];
-const ACCESS_STATUSES = ['all', '2xx', '3xx', '4xx', '5xx'];
+const RUNTIME_LEVELS = [
+  { value: 'all', label: 'All Levels' },
+  { value: 'debug', label: 'Debug' },
+  { value: 'info', label: 'Info' },
+  { value: 'warn', label: 'Warn' },
+  { value: 'error', label: 'Error' },
+] as const;
+
+const ACCESS_STATUSES = [
+  { value: 'all', label: 'All Statuses' },
+  { value: '2xx', label: '2xx' },
+  { value: '3xx', label: '3xx' },
+  { value: '4xx', label: '4xx' },
+  { value: '5xx', label: '5xx' },
+] as const;
 
 interface LogToolbarProps {
   source: CaddyLogSource;
@@ -55,14 +68,14 @@ export function LogToolbar({
       </div>
 
       {source === 'runtime' && (
-        <Select value={levelFilter} onValueChange={onLevelFilterChange}>
+        <Select items={RUNTIME_LEVELS} value={levelFilter} onValueChange={onLevelFilterChange}>
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Level" />
           </SelectTrigger>
           <SelectContent>
             {RUNTIME_LEVELS.map((level) => (
-              <SelectItem key={level} value={level}>
-                {level === 'all' ? 'All Levels' : level.charAt(0).toUpperCase() + level.slice(1)}
+              <SelectItem key={level.value} value={level.value}>
+                {level.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -70,14 +83,14 @@ export function LogToolbar({
       )}
 
       {source === 'access' && (
-        <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+        <Select items={ACCESS_STATUSES} value={statusFilter} onValueChange={onStatusFilterChange}>
           <SelectTrigger className="w-[130px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             {ACCESS_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status === 'all' ? 'All Statuses' : status}
+              <SelectItem key={status.value} value={status.value}>
+                {status.label}
               </SelectItem>
             ))}
           </SelectContent>

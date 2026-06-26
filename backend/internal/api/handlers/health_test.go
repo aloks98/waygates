@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/aloks98/waygates/backend/internal/version"
 )
 
 // =============================================================================
@@ -73,8 +75,9 @@ func TestHealthHandler_HealthCheck_ResponseFormat(t *testing.T) {
 	// Check service name
 	assert.Equal(t, "caddy-manager-backend", response.Data.Service)
 
-	// Check version
-	assert.Equal(t, "1.0.0", response.Data.Version)
+	// Check version reflects the resolved build version (stamped value, or
+	// "dev-<commit>" when unstamped)
+	assert.Equal(t, version.String(), response.Data.Version)
 
 	// Check components structure
 	_, hasDatabase := response.Data.Components["database"]

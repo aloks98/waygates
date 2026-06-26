@@ -2,6 +2,12 @@
 .PHONY: backend-run backend-build backend-test backend-test-coverage test-traffic migrate-create
 .PHONY: lint lint-backend lint-ui format format-backend check setup-tools
 
+# Version stamped into the binary/image via -ldflags. Strip the leading "v" so
+# the UI's "v{version}" display doesn't render a double "v". Falls back to "dev"
+# outside a git checkout.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
+LDFLAGS := -X github.com/aloks98/waygates/backend/internal/version.Version=$(VERSION)
+
 # Default target
 help:
 	@echo "Available commands:"
@@ -54,8 +60,8 @@ env-check:
 
 # Build the Docker image
 build:
-	@echo "Building Waygates Docker image..."
-	docker compose build
+	@echo "Building Waygates Docker image (version $(VERSION))..."
+	VERSION=$(VERSION) docker compose build
 
 # Start containers
 up:
@@ -126,13 +132,13 @@ deploy: env-check build up
 
 # Run the Go backend server locally
 backend-run: env-check
-	@echo "Starting Go backend server..."
-	@go run backend/cmd/server/main.go
+	@echo "Starting Go backend server (version $(VERSION))..."
+	@go run -ldflags "$(LDFLAGS)" backend/cmd/server/main.go
 
 # Build the Go backend binary
 backend-build:
-	@echo "Building Go backend..."
-	@go build -o bin/waygates backend/cmd/server/main.go
+	@echo "Building Go backend (version $(VERSION))..."
+	@go build -ldflags "$(LDFLAGS)" -o bin/waygates backend/cmd/server/main.go
 	@echo "✓ Binary created at: bin/waygates"
 
 # Run backend tests

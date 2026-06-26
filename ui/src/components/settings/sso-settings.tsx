@@ -77,6 +77,12 @@ const ssoSchema = z
 
 type SsoFormValues = z.infer<typeof ssoSchema>;
 
+const ROLE_OPTIONS = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'operator', label: 'Operator' },
+  { value: 'admin', label: 'Admin' },
+] as const;
+
 function settingsToFormValues(s: SsoConfig): SsoFormValues {
   return {
     enabled: s.enabled,
@@ -388,16 +394,23 @@ export function SSOSettings() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Default Role</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange} disabled={!enabled}>
+                    <Select
+                      items={ROLE_OPTIONS}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={!enabled}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {ROLE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormDescription>

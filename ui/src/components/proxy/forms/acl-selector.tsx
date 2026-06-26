@@ -90,6 +90,13 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
   // Get groups that haven't been assigned yet (or show all if path patterns differ)
   const availableGroups = groups;
 
+  // value -> label list (sourced from availableGroups) so the collapsed Select
+  // trigger shows the group name; the dropdown rows below render their own richer markup
+  const groupItems = availableGroups.map((group) => ({
+    value: String(group.id),
+    label: group.name,
+  }));
+
   const handleAddAssignment = (formValues: AddAssignmentFormValues) => {
     const newAssignment: ACLAssignment = {
       acl_group_id: parseInt(formValues.group_id, 10),
@@ -252,7 +259,11 @@ export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>ACL Group</FormLabel>
-                        <Select value={field.value} onValueChange={field.onChange}>
+                        <Select
+                          items={groupItems}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select an ACL group..." />

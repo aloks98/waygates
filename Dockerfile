@@ -118,10 +118,16 @@ COPY backend/ ./backend/
 
 # Build the application (cross-compile for target platform). Cache mounts reuse
 # the Go build and module caches across builds for faster recompiles.
+# VERSION is injected into the binary via -ldflags; .git is excluded from the
+# build context, so it must be passed in as a build arg (see Makefile / release
+# workflow). Defaults to "dev" for unstamped builds.
 ARG TARGETARCH
+ARG VERSION=dev
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOTOOLCHAIN=auto go build -o /app/server ./backend/cmd/server
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOTOOLCHAIN=auto go build \
+    -ldflags "-X github.com/aloks98/waygates/backend/internal/version.Version=${VERSION}" \
+    -o /app/server ./backend/cmd/server
 
 # =============================================================================
 # Stage 4: Runtime (Combined Backend + Caddy)

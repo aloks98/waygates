@@ -17,17 +17,16 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 
 import type { L4ProxyFormValues } from '@/lib/form-validation';
-import { L4_LOAD_BALANCING_POLICIES } from '@/types/l4-proxy';
-import type { L4LoadBalancingPolicy } from '@/types/l4-proxy';
 
-// Load balancing policy display labels (ported from l4-proxy-form.tsx)
-const LB_POLICY_LABELS: Record<L4LoadBalancingPolicy, string> = {
-  round_robin: 'Round Robin — each server takes turns',
-  least_conn: 'Least Connections — prefer less busy servers',
-  random: 'Random',
-  first: 'First Available — use the first server that responds',
-  ip_hash: 'Sticky — same client always reaches same server',
-};
+// single source of truth (ported from l4-proxy-form.tsx): concise `label` drives the
+// collapsed trigger, the longer `description` is appended in the dropdown rows
+const LB_POLICIES = [
+  { value: 'round_robin', label: 'Round Robin', description: 'each server takes turns' },
+  { value: 'least_conn', label: 'Least Connections', description: 'prefer less busy servers' },
+  { value: 'random', label: 'Random' },
+  { value: 'first', label: 'First Available', description: 'use the first server that responds' },
+  { value: 'ip_hash', label: 'Sticky', description: 'same client always reaches same server' },
+] as const;
 
 interface L4UpstreamFieldsProps {
   routeIndex: number;
@@ -144,14 +143,16 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
             <FormItem>
               <FormLabel>Load Balancing Strategy</FormLabel>
               <FormControl>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select items={LB_POLICIES} value={field.value} onValueChange={field.onChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {L4_LOAD_BALANCING_POLICIES.map((policy) => (
-                      <SelectItem key={policy} value={policy}>
-                        {LB_POLICY_LABELS[policy]}
+                    {LB_POLICIES.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {'description' in o && o.description
+                          ? `${o.label} — ${o.description}`
+                          : o.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

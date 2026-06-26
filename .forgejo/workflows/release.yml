@@ -66,6 +66,7 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             $TAGS \
+            --build-arg "VERSION=$VERSION" \
             --label "org.opencontainers.image.source=https://git.nexus.e412.in/aloks98/waygates" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --label "org.opencontainers.image.version=$VERSION" \

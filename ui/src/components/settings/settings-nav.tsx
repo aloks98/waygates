@@ -1,6 +1,6 @@
 import { cn } from '@e412/rnui-react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { Activity, FileQuestion, KeyRound, Palette, ScrollText, Users } from 'lucide-react';
+import { Activity, FileQuestion, KeyRound, Palette, ScrollText, Server, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { usePermissions } from '@/hooks/use-permissions';
@@ -55,6 +55,12 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     description: 'OIDC admin login',
     icon: <KeyRound className="size-4" />,
     requiresPermission: 'canWriteSettings',
+  },
+  {
+    to: '/settings/system',
+    label: 'System',
+    description: 'Service health & version',
+    icon: <Server className="size-4" />,
   },
 ];
 

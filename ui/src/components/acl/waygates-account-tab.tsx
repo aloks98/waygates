@@ -56,6 +56,12 @@ const emailPatternTagsValidation = {
   pattern: EMAIL_PATTERN_REGEX,
 };
 
+const DURATION_UNIT_OPTIONS = [
+  { value: 'minutes', label: 'Minutes' },
+  { value: 'hours', label: 'Hours' },
+  { value: 'days', label: 'Days' },
+] as const;
+
 const waygatesAccountSchema = z.object({
   enabled: z.boolean(),
   allowed_users: z.array(z.string()).optional(),
@@ -309,14 +315,20 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
                             onBlur={field.onBlur}
                             className="w-24"
                           />
-                          <Select value={durationUnit} onValueChange={handleUnitChange}>
+                          <Select
+                            items={DURATION_UNIT_OPTIONS}
+                            value={durationUnit}
+                            onValueChange={handleUnitChange}
+                          >
                             <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="minutes">Minutes</SelectItem>
-                              <SelectItem value="hours">Hours</SelectItem>
-                              <SelectItem value="days">Days</SelectItem>
+                              {DURATION_UNIT_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>

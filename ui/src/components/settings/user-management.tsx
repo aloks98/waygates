@@ -66,11 +66,16 @@ import type { ManagedUser, Role } from '@/types/user';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Admin',
-  operator: 'Operator',
-  viewer: 'Viewer',
-};
+const ROLE_OPTIONS: { value: Role; label: string }[] = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'operator', label: 'Operator' },
+  { value: 'admin', label: 'Admin' },
+];
+
+const ROLE_LABELS = Object.fromEntries(ROLE_OPTIONS.map((o) => [o.value, o.label])) as Record<
+  Role,
+  string
+>;
 
 const ROLE_VARIANTS: Record<Role, 'default' | 'secondary' | 'outline'> = {
   admin: 'default',
@@ -244,16 +249,18 @@ function AddUserModal({ open, onOpenChange }: AddUserModalProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select items={ROLE_OPTIONS} value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {ROLE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -440,16 +447,18 @@ function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                    <Select items={ROLE_OPTIONS} value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="operator">Operator</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {ROLE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

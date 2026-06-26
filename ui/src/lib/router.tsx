@@ -221,6 +221,15 @@ const settingsSSORoute = createRoute({
   ),
 });
 
+const settingsSystemRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/system',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/settings/system'),
+    'SettingsSystemPage',
+  ),
+});
+
 const auditLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/activity',
@@ -312,6 +321,7 @@ const routeTree = rootRoute.addChildren([
       settingsMetricsRoute,
       settingsUsersRoute,
       settingsSSORoute,
+      settingsSystemRoute,
     ]),
     auditLogsRoute,
     caddyLogsRoute,

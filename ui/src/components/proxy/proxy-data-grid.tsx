@@ -78,19 +78,25 @@ export function ProxyDataGrid({
       {
         id: 'select',
         header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllPageRowsSelected()}
-            indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
-            onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
-            aria-label="Select all"
-          />
+          // Stop propagation so toggling selection doesn't trigger the row's
+          // onRowClick (which navigates to the proxy detail page).
+          <span className="flex" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={table.getIsAllPageRowsSelected()}
+              indeterminate={table.getIsSomePageRowsSelected() && !table.getIsAllPageRowsSelected()}
+              onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+              aria-label="Select all"
+            />
+          </span>
         ),
         cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(v) => row.toggleSelected(!!v)}
-            aria-label="Select row"
-          />
+          <span className="flex" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(v) => row.toggleSelected(!!v)}
+              aria-label="Select row"
+            />
+          </span>
         ),
         enableSorting: false,
         size: 40,

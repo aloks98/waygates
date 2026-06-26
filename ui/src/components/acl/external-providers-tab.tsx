@@ -79,6 +79,12 @@ const externalProviderSchema = z.object({
 
 type ExternalProviderFormValues = z.infer<typeof externalProviderSchema>;
 
+const PROVIDER_TYPE_OPTIONS = [
+  { value: 'authelia', label: 'Authelia' },
+  { value: 'authentik', label: 'Authentik' },
+  { value: 'custom', label: 'Custom Provider' },
+] as const;
+
 function getProviderTypeLabel(type: ProviderType): string {
   switch (type) {
     case 'authelia':
@@ -210,16 +216,22 @@ function ProviderFormModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Provider Type</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                      <Select
+                        items={PROVIDER_TYPE_OPTIONS}
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="authelia">Authelia</SelectItem>
-                          <SelectItem value="authentik">Authentik</SelectItem>
-                          <SelectItem value="custom">Custom Provider</SelectItem>
+                          {PROVIDER_TYPE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription>Select the type of authentication provider</FormDescription>

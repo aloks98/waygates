@@ -17,6 +17,14 @@ import { useFormContext, useWatch } from 'react-hook-form';
 
 import type { ReverseProxyFormValues } from '@/lib/form-validation';
 
+// single source of truth: concise `label` drives the trigger, `description` the dropdown hint
+const LB_STRATEGIES = [
+  { value: 'round_robin', label: 'Round Robin', description: 'each server takes turns' },
+  { value: 'least_conn', label: 'Least Connections', description: 'prefer less busy servers' },
+  { value: 'ip_hash', label: 'Sticky', description: 'same visitor always reaches same server' },
+  { value: 'random', label: 'Random' },
+] as const;
+
 export function LoadBalancingFields() {
   const form = useFormContext<ReverseProxyFormValues>();
 
@@ -34,19 +42,18 @@ export function LoadBalancingFields() {
           <FormItem>
             <FormLabel>Strategy</FormLabel>
             <FormControl>
-              <Select value={field.value} onValueChange={field.onChange}>
+              <Select items={LB_STRATEGIES} value={field.value} onValueChange={field.onChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="round_robin">Round Robin — each server takes turns</SelectItem>
-                  <SelectItem value="least_conn">
-                    Least Connections — prefer less busy servers
-                  </SelectItem>
-                  <SelectItem value="ip_hash">
-                    Sticky — same visitor always reaches same server
-                  </SelectItem>
-                  <SelectItem value="random">Random</SelectItem>
+                  {LB_STRATEGIES.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {'description' in o && o.description
+                        ? `${o.label} — ${o.description}`
+                        : o.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </FormControl>

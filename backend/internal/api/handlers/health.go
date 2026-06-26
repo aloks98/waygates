@@ -8,6 +8,7 @@ import (
 
 	"github.com/aloks98/waygates/backend/internal/database"
 	"github.com/aloks98/waygates/backend/internal/utils"
+	"github.com/aloks98/waygates/backend/internal/version"
 )
 
 // HealthHandler handles health check requests
@@ -56,7 +57,7 @@ func (h *HealthHandler) HealthCheck(w http.ResponseWriter, _ *http.Request) {
 	response := map[string]interface{}{
 		"status":  overallStatus,
 		"service": "caddy-manager-backend",
-		"version": "1.0.0",
+		"version": version.String(),
 		"uptime":  uptime.String(),
 		"time":    time.Now().UTC().Format(time.RFC3339),
 		"components": map[string]string{

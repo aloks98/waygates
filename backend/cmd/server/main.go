@@ -22,6 +22,7 @@ import (
 	"github.com/aloks98/waygates/backend/internal/database"
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
+	"github.com/aloks98/waygates/backend/internal/version"
 )
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting Caddy Manager Backend",
-		zap.String("version", "1.0.0"),
+		zap.String("version", version.String()),
 		zap.String("host", cfg.Server.Host),
 		zap.Int("port", cfg.Server.Port),
 	)
