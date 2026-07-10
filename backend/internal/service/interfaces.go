@@ -213,6 +213,7 @@ var (
 	_ SettingsServiceInterface = (*SettingsService)(nil)
 	_ SyncServiceInterface     = (*SyncService)(nil)
 	_ ProxySyncer              = (*SyncService)(nil)
+	_ GroupSyncer              = (*SyncService)(nil)
 	_ AuditServiceInterface    = (*AuditService)(nil)
 	_ ACLServiceInterface      = (*ACLService)(nil)
 	_ L4ProxyServiceInterface  = (*L4ProxyService)(nil)

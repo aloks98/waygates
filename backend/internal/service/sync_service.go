@@ -321,6 +321,9 @@ func (s *SyncService) performFullSync() error {
 	return s.performFullSyncJSON()
 }
 
+// RebuildAll regenerates the entire Caddy config from current database state.
+func (s *SyncService) RebuildAll() error { return s.performFullSyncJSON() }
+
 // buildConfigBytes gathers current state from the database, configures the
 // shared JSON builder, and returns the generated Caddy config as JSON bytes.
 //
@@ -537,16 +540,11 @@ func (s *SyncService) GenerateProxyConfigJSON(proxyID int) (json.RawMessage, err
 	var group *models.ProxyGroup
 	var groupACL []models.ProxyGroupACLAssignment
 	if proxy.GroupID != nil && s.proxyGroupRepo != nil {
-		allGroups, listErr := s.proxyGroupRepo.ListAll()
-		if listErr != nil {
-			return nil, fmt.Errorf("failed to list proxy groups: %w", listErr)
+		g, getErr := s.proxyGroupRepo.GetByID(*proxy.GroupID)
+		if getErr != nil {
+			return nil, fmt.Errorf("failed to get proxy group: %w", getErr)
 		}
-		for i := range allGroups {
-			if allGroups[i].ID == *proxy.GroupID {
-				group = &allGroups[i]
-				break
-			}
-		}
+		group = g
 
 		allGroupACL, aclErr := s.proxyGroupRepo.ListAllACLAssignments()
 		if aclErr != nil {

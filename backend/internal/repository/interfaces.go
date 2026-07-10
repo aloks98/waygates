@@ -78,14 +78,21 @@ type TrafficSampleRepositoryInterface interface {
 }
 
 // ProxyGroupRepositoryInterface defines proxy group database operations.
-//
-// This is a partial declaration: Task 4 creates the concrete ProxyGroupRepository
-// and extends this interface with CRUD methods. Until then, no compile-time
-// assertion binds a concrete type to it (there is none yet) — SyncService's
-// proxyGroupRepo field defaults to nil and buildConfigBytes guards every use.
 type ProxyGroupRepositoryInterface interface {
 	ListAll() ([]models.ProxyGroup, error)
 	ListAllACLAssignments() ([]models.ProxyGroupACLAssignment, error)
+	List(params ProxyGroupListParams) ([]models.ProxyGroup, int64, error)
+	GetByID(id int) (*models.ProxyGroup, error)
+	Create(g *models.ProxyGroup) error
+	Update(g *models.ProxyGroup) error
+	Delete(id int) error
+	MemberCount(id int) (int64, error)
+	ListMembers(id int) ([]models.Proxy, error)
+	UpdateBaseDomainTx(groupID int, newBase *string) error
+	ListACLAssignments(groupID int) ([]models.ProxyGroupACLAssignment, error)
+	CreateACLAssignment(a *models.ProxyGroupACLAssignment) error
+	UpdateACLAssignment(a *models.ProxyGroupACLAssignment) error
+	DeleteACLAssignment(groupID, aclGroupID int) error
 }
 
 // L4ProxyListParams holds parameters for listing L4 proxies
@@ -108,4 +115,5 @@ var (
 	_ ACLRepositoryInterface           = (*ACLRepository)(nil)
 	_ L4ProxyRepositoryInterface       = (*L4ProxyRepository)(nil)
 	_ TrafficSampleRepositoryInterface = (*TrafficSampleRepository)(nil)
+	_ ProxyGroupRepositoryInterface    = (*ProxyGroupRepository)(nil)
 )
