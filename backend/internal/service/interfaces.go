@@ -23,6 +23,22 @@ type ProxyServiceInterface interface {
 	ImportProxies(inputs []ImportInput, dryRun bool, userID int) ImportReport
 }
 
+// ProxyGroupServiceInterface defines the interface for proxy group operations,
+// including the nested ACL assignment routes.
+type ProxyGroupServiceInterface interface {
+	ListGroups(params repository.ProxyGroupListParams) (*models.ProxyGroupListResponse, error)
+	GetGroupByID(id int) (*models.ProxyGroup, error)
+	ListMembers(id int) ([]models.Proxy, error)
+	CreateGroup(g *models.ProxyGroup, userID int) error
+	UpdateGroup(g *models.ProxyGroup) error
+	DeleteGroup(id int) error
+
+	ListACLAssignments(groupID int) ([]models.ProxyGroupACLAssignment, error)
+	AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int) error
+	UpdateGroupACLAssignment(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error
+	RemoveACLFromGroup(groupID, aclGroupID int) error
+}
+
 // SettingsServiceInterface defines the interface for settings operations
 type SettingsServiceInterface interface {
 	Get(key string) (string, error)
@@ -72,6 +88,15 @@ type AuditServiceInterface interface {
 	LogProxyDelete(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error
 	LogProxyEnable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
 	LogProxyDisable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+
+	// Proxy Group events
+	LogProxyGroupCreate(ctx context.Context, userID int, group *models.ProxyGroup, ip, userAgent string) error
+	LogProxyGroupUpdate(ctx context.Context, userID int, old, updated *models.ProxyGroup, ip, userAgent string) error
+	LogProxyGroupDelete(ctx context.Context, userID, groupID int, ip, userAgent string) error
+	// LogProxyGroupRehome logs a base_domain rewrite. A rewrite re-homes every
+	// label-addressed member's materialized hostname; without the affected IDs,
+	// a mass re-homing would leave no trace of what moved.
+	LogProxyGroupRehome(ctx context.Context, userID, groupID int, oldBase, newBase string, proxyIDs []int, ip, userAgent string) error
 
 	// Auth events
 	LogLogin(ctx context.Context, userID int, username string, ip, userAgent string) error
@@ -209,13 +234,14 @@ type UserService interface {
 
 // Ensure concrete types implement interfaces
 var (
-	_ ProxyServiceInterface    = (*ProxyService)(nil)
-	_ SettingsServiceInterface = (*SettingsService)(nil)
-	_ SyncServiceInterface     = (*SyncService)(nil)
-	_ ProxySyncer              = (*SyncService)(nil)
-	_ GroupSyncer              = (*SyncService)(nil)
-	_ AuditServiceInterface    = (*AuditService)(nil)
-	_ ACLServiceInterface      = (*ACLService)(nil)
-	_ L4ProxyServiceInterface  = (*L4ProxyService)(nil)
-	_ UserService              = (*userService)(nil)
+	_ ProxyServiceInterface      = (*ProxyService)(nil)
+	_ ProxyGroupServiceInterface = (*ProxyGroupService)(nil)
+	_ SettingsServiceInterface   = (*SettingsService)(nil)
+	_ SyncServiceInterface       = (*SyncService)(nil)
+	_ ProxySyncer                = (*SyncService)(nil)
+	_ GroupSyncer                = (*SyncService)(nil)
+	_ AuditServiceInterface      = (*AuditService)(nil)
+	_ ACLServiceInterface        = (*ACLService)(nil)
+	_ L4ProxyServiceInterface    = (*L4ProxyService)(nil)
+	_ UserService                = (*userService)(nil)
 )

@@ -55,6 +55,15 @@ type AuditConfig struct {
 	ProxyEnable  bool `json:"proxy_enable"`
 	ProxyDisable bool `json:"proxy_disable"`
 
+	// Proxy Group events
+	ProxyGroupCreate    bool `json:"proxy_group_create"`
+	ProxyGroupUpdate    bool `json:"proxy_group_update"`
+	ProxyGroupDelete    bool `json:"proxy_group_delete"`
+	ProxyGroupRehome    bool `json:"proxy_group_rehome"`
+	ProxyGroupACLAssign bool `json:"proxy_group_acl_assign"`
+	ProxyGroupACLUpdate bool `json:"proxy_group_acl_update"`
+	ProxyGroupACLRemove bool `json:"proxy_group_acl_remove"`
+
 	// Auth events
 	AuthLogin          bool `json:"auth_login"`
 	AuthLogout         bool `json:"auth_logout"`
@@ -115,23 +124,30 @@ type AuditConfig struct {
 // DefaultAuditConfig returns the default audit configuration with all events enabled
 func DefaultAuditConfig() *AuditConfig {
 	return &AuditConfig{
-		ProxyCreate:        true,
-		ProxyUpdate:        true,
-		ProxyDelete:        true,
-		ProxyEnable:        true,
-		ProxyDisable:       true,
-		AuthLogin:          true,
-		AuthLogout:         true,
-		AuthRegister:       true,
-		AuthPasswordChange: true,
-		AuthLoginFailed:    true,
-		AuthSSOLogin:       true,
-		SettingsUpdate:     true,
-		SyncStarted:        true,
-		SyncCompleted:      true,
-		SyncFailed:         true,
-		SystemStartup:      true,
-		CaddyReload:        true,
+		ProxyCreate:         true,
+		ProxyUpdate:         true,
+		ProxyDelete:         true,
+		ProxyEnable:         true,
+		ProxyDisable:        true,
+		ProxyGroupCreate:    true,
+		ProxyGroupUpdate:    true,
+		ProxyGroupDelete:    true,
+		ProxyGroupRehome:    true,
+		ProxyGroupACLAssign: true,
+		ProxyGroupACLUpdate: true,
+		ProxyGroupACLRemove: true,
+		AuthLogin:           true,
+		AuthLogout:          true,
+		AuthRegister:        true,
+		AuthPasswordChange:  true,
+		AuthLoginFailed:     true,
+		AuthSSOLogin:        true,
+		SettingsUpdate:      true,
+		SyncStarted:         true,
+		SyncCompleted:       true,
+		SyncFailed:          true,
+		SystemStartup:       true,
+		CaddyReload:         true,
 		// ACL events
 		ACLGroupCreate:        true,
 		ACLGroupUpdate:        true,
@@ -180,6 +196,15 @@ const (
 	AuditActionProxyDelete  = "proxy.delete"
 	AuditActionProxyEnable  = "proxy.enable"
 	AuditActionProxyDisable = "proxy.disable"
+
+	// Proxy Group actions
+	AuditActionProxyGroupCreate    = "proxy_group.create"
+	AuditActionProxyGroupUpdate    = "proxy_group.update"
+	AuditActionProxyGroupDelete    = "proxy_group.delete"
+	AuditActionProxyGroupRehome    = "proxy_group.rehome"
+	AuditActionProxyGroupACLAssign = "proxy_group_acl.assign"
+	AuditActionProxyGroupACLUpdate = "proxy_group_acl.update"
+	AuditActionProxyGroupACLRemove = "proxy_group_acl.remove"
 
 	// Auth actions
 	AuditActionAuthLogin          = "auth.login"
@@ -257,11 +282,12 @@ const (
 
 // Resource type constants
 const (
-	AuditResourceTypeProxy    = "proxy"
-	AuditResourceTypeUser     = "user"
-	AuditResourceTypeSettings = "settings"
-	AuditResourceTypeSystem   = "system"
-	AuditResourceTypeACL      = "acl"
+	AuditResourceTypeProxy      = "proxy"
+	AuditResourceTypeProxyGroup = "proxy_group"
+	AuditResourceTypeUser       = "user"
+	AuditResourceTypeSettings   = "settings"
+	AuditResourceTypeSystem     = "system"
+	AuditResourceTypeACL        = "acl"
 )
 
 // SettingAuditConfig is the settings key for audit configuration
@@ -359,6 +385,20 @@ func GetAuditEventGroups() []AuditEventGroup {
 				{Key: "acl_oauth_restriction_set", Label: "OAuth Provider Configured"},
 				{Key: "acl_oauth_restriction_delete", Label: "OAuth Provider Removed"},
 				{Key: "acl_oauth_login", Label: "OAuth ACL Login"},
+			},
+		},
+		{
+			Key:         "proxy_group",
+			Label:       "Proxy Group Events",
+			Description: "Proxy group (config inheritance) configuration changes",
+			Events: []AuditEventDefinition{
+				{Key: "proxy_group_create", Label: "Create"},
+				{Key: "proxy_group_update", Label: "Update"},
+				{Key: "proxy_group_delete", Label: "Delete"},
+				{Key: "proxy_group_rehome", Label: "Base Domain Rehome"},
+				{Key: "proxy_group_acl_assign", Label: "ACL Assigned to Group"},
+				{Key: "proxy_group_acl_update", Label: "ACL Assignment Updated"},
+				{Key: "proxy_group_acl_remove", Label: "ACL Removed from Group"},
 			},
 		},
 	}

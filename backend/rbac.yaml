@@ -103,6 +103,21 @@ permission_groups:
         name: "Delete L4 Proxies"
         description: "Remove L4 proxy configurations"
 
+  - name: "Proxy Groups"
+    permissions:
+      - key: "proxygroups:read"
+        name: "View Proxy Groups"
+        description: "View proxy group configurations"
+      - key: "proxygroups:create"
+        name: "Create Proxy Groups"
+        description: "Create new proxy groups"
+      - key: "proxygroups:update"
+        name: "Update Proxy Groups"
+        description: "Modify existing proxy groups"
+      - key: "proxygroups:delete"
+        name: "Delete Proxy Groups"
+        description: "Remove proxy groups"
+
 role_templates:
   - key: "admin"
     name: "Administrator"
@@ -116,6 +131,7 @@ role_templates:
     permissions:
       - "proxies:*"
       - "l4proxies:*"
+      - "proxygroups:*"
       - "acl:*"
       - "settings:read"
       - "settings:write"
@@ -131,6 +147,7 @@ role_templates:
     permissions:
       - "proxies:read"
       - "l4proxies:read"
+      - "proxygroups:read"
       - "acl:read"
       - "settings:read"
       - "sync:read"

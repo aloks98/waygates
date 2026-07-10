@@ -97,6 +97,21 @@ func (s *AuditService) isEventEnabled(action string) bool {
 		return config.ProxyEnable
 	case models.AuditActionProxyDisable:
 		return config.ProxyDisable
+	// Proxy Group events
+	case models.AuditActionProxyGroupCreate:
+		return config.ProxyGroupCreate
+	case models.AuditActionProxyGroupUpdate:
+		return config.ProxyGroupUpdate
+	case models.AuditActionProxyGroupDelete:
+		return config.ProxyGroupDelete
+	case models.AuditActionProxyGroupRehome:
+		return config.ProxyGroupRehome
+	case models.AuditActionProxyGroupACLAssign:
+		return config.ProxyGroupACLAssign
+	case models.AuditActionProxyGroupACLUpdate:
+		return config.ProxyGroupACLUpdate
+	case models.AuditActionProxyGroupACLRemove:
+		return config.ProxyGroupACLRemove
 	// Auth events
 	case models.AuditActionAuthLogin:
 		return config.AuthLogin
@@ -370,6 +385,136 @@ func (s *AuditService) LogProxyDisable(ctx context.Context, userID int, proxy *m
 		UserAgent: userAgent,
 		Status:    models.AuditStatusSuccess,
 	})
+}
+
+// Proxy Group Audit Logging Methods
+
+// LogProxyGroupCreate logs a proxy group creation event
+func (s *AuditService) LogProxyGroupCreate(ctx context.Context, userID int, group *models.ProxyGroup, ip, userAgent string) error {
+	resourceID := group.ID
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionProxyGroupCreate,
+		ResourceType: models.AuditResourceTypeProxyGroup,
+		ResourceID:   &resourceID,
+		ResourceName: group.Name,
+		Details: map[string]interface{}{
+			"name":        group.Name,
+			"base_domain": group.BaseDomain,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogProxyGroupUpdate logs a proxy group settings update, diffing old vs
+// updated itself — unlike LogProxyUpdate, callers don't pre-compute a changes
+// map for this one.
+func (s *AuditService) LogProxyGroupUpdate(ctx context.Context, userID int, old, updated *models.ProxyGroup, ip, userAgent string) error {
+	resourceID := updated.ID
+	details := map[string]interface{}{
+		"name": updated.Name,
+	}
+	if changes := buildProxyGroupChanges(old, updated); changes != nil {
+		details["changes"] = changes
+	}
+
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionProxyGroupUpdate,
+		ResourceType: models.AuditResourceTypeProxyGroup,
+		ResourceID:   &resourceID,
+		ResourceName: updated.Name,
+		Details:      details,
+		IPAddress:    ip,
+		UserAgent:    userAgent,
+		Status:       models.AuditStatusSuccess,
+	})
+}
+
+// LogProxyGroupDelete logs a proxy group deletion event
+func (s *AuditService) LogProxyGroupDelete(ctx context.Context, userID, groupID int, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionProxyGroupDelete,
+		ResourceType: models.AuditResourceTypeProxyGroup,
+		ResourceID:   &groupID,
+		Details: map[string]interface{}{
+			"group_id": groupID,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// LogProxyGroupRehome logs a base_domain rewrite that re-homed member
+// proxies' materialized hostnames. It records the affected proxy IDs — a mass
+// re-homing must not be traceless.
+func (s *AuditService) LogProxyGroupRehome(ctx context.Context, userID, groupID int, oldBase, newBase string, proxyIDs []int, ip, userAgent string) error {
+	return s.LogEvent(ctx, models.AuditEvent{
+		UserID:       &userID,
+		Action:       models.AuditActionProxyGroupRehome,
+		ResourceType: models.AuditResourceTypeProxyGroup,
+		ResourceID:   &groupID,
+		Details: map[string]interface{}{
+			"old_base_domain": oldBase,
+			"new_base_domain": newBase,
+			"proxy_ids":       proxyIDs,
+		},
+		IPAddress: ip,
+		UserAgent: userAgent,
+		Status:    models.AuditStatusSuccess,
+	})
+}
+
+// buildProxyGroupChanges compares old and updated proxy group values,
+// mirroring handlers.buildProxyChanges. It lives here rather than in the
+// handler because LogProxyGroupUpdate's signature takes old+updated directly
+// instead of a pre-computed changes map.
+func buildProxyGroupChanges(old, updated *models.ProxyGroup) map[string]interface{} {
+	if old == nil || updated == nil {
+		return nil
+	}
+	changes := make(map[string]interface{})
+
+	if old.Name != updated.Name {
+		changes["name"] = map[string]interface{}{"old": old.Name, "new": updated.Name}
+	}
+	if stringPtrValue(old.Description) != stringPtrValue(updated.Description) {
+		changes["description"] = map[string]interface{}{"old": old.Description, "new": updated.Description}
+	}
+	if stringPtrValue(old.BaseDomain) != stringPtrValue(updated.BaseDomain) {
+		changes["base_domain"] = map[string]interface{}{"old": old.BaseDomain, "new": updated.BaseDomain}
+	}
+	if derefBool(old.SSLEnabled) != derefBool(updated.SSLEnabled) {
+		changes["ssl_enabled"] = map[string]interface{}{"old": old.SSLEnabled, "new": updated.SSLEnabled}
+	}
+	if derefBool(old.SSLForced) != derefBool(updated.SSLForced) {
+		changes["ssl_forced"] = map[string]interface{}{"old": old.SSLForced, "new": updated.SSLForced}
+	}
+	if derefBool(old.TLSInsecureSkipVerify) != derefBool(updated.TLSInsecureSkipVerify) {
+		changes["tls_insecure_skip_verify"] = map[string]interface{}{"old": old.TLSInsecureSkipVerify, "new": updated.TLSInsecureSkipVerify}
+	}
+	if derefBool(old.BlockExploits) != derefBool(updated.BlockExploits) {
+		changes["block_exploits"] = map[string]interface{}{"old": old.BlockExploits, "new": updated.BlockExploits}
+	}
+
+	if len(changes) == 0 {
+		return nil
+	}
+	return changes
+}
+
+// stringPtrValue returns the pointed-to string, or "" for nil. Used only for
+// change-comparison, where nil and "" are treated as equivalent — matching
+// derefBool's equivalent simplification for *bool fields.
+func stringPtrValue(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // LogLogin logs a successful login event

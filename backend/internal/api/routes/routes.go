@@ -76,6 +76,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	aclRepo := repository.NewACLRepository(db)
 	l4ProxyRepo := repository.NewL4ProxyRepository(db)
 	trafficSampleRepo := repository.NewTrafficSampleRepository(db)
+	proxyGroupRepo := repository.NewProxyGroupRepository(db)
 
 	// OAuth Provider Manager
 	oauthProviderManager := auth.NewOAuthProviderManager()
@@ -86,6 +87,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		SettingsRepo:        settingsRepo,
 		ACLRepo:             aclRepo,
 		L4ProxyRepo:         l4ProxyRepo,
+		ProxyGroupRepo:      proxyGroupRepo,
 		FileManager:         caddyFileManager,
 		Reloader:            caddyReloader,
 		Logger:              logger,
@@ -117,6 +119,11 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		Logger:       logger,
 	})
 	userService := service.NewUserService(userRepo, goauthInstance, auditService, cfg.Security.BcryptCost, logger)
+	proxyGroupService := service.NewProxyGroupService(service.ProxyGroupServiceConfig{
+		Repo:   proxyGroupRepo,
+		Syncer: syncService,
+		Logger: logger,
+	})
 
 	// Ensure Caddy directories exist
 	if err := caddyFileManager.EnsureDirectories(); err != nil {
@@ -145,6 +152,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
 	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, settingsRepo, auditService, cfg.Security.BcryptCost, logger)
 	proxyHandler := handlers.NewProxyHandler(proxyService, auditService, logger)
+	proxyGroupHandler := handlers.NewProxyGroupHandler(proxyGroupService, auditService, logger)
 	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService, logger)
 	syncHandler := handlers.NewSyncHandler(syncService, logger)
@@ -256,6 +264,24 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 			// Delete operations - require proxies:delete
 			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Delete("/{id}", proxyHandler.DeleteProxy)
 			r.With(chimw.RequirePermission(authAdapter, "proxies:delete", mwConfig)).Post("/bulk/delete", proxyHandler.BulkDeleteProxies)
+		})
+
+		// Proxy group routes (config inheritance parent — NOT ACL groups)
+		r.Route("/api/proxy-groups", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "proxygroups:read", mwConfig)).Get("/", proxyGroupHandler.ListGroups)
+			r.With(chimw.RequirePermission(authAdapter, "proxygroups:read", mwConfig)).Get("/{id}", proxyGroupHandler.GetGroup)
+			r.With(chimw.RequirePermission(authAdapter, "proxygroups:create", mwConfig)).Post("/", proxyGroupHandler.CreateGroup)
+			r.With(chimw.RequirePermission(authAdapter, "proxygroups:update", mwConfig)).Put("/{id}", proxyGroupHandler.UpdateGroup)
+			r.With(chimw.RequirePermission(authAdapter, "proxygroups:delete", mwConfig)).Delete("/{id}", proxyGroupHandler.DeleteGroup)
+		})
+
+		// Proxy group ACL assignment routes — same acl:* permissions as the
+		// per-proxy ACL routes; the same capability, a different subject.
+		r.Route("/api/proxy-groups/{id}/acl", func(r chi.Router) {
+			r.With(chimw.RequirePermission(authAdapter, "acl:read", mwConfig)).Get("/", proxyGroupHandler.GetGroupACL)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Post("/", proxyGroupHandler.AssignACLToGroup)
+			r.With(chimw.RequirePermission(authAdapter, "acl:update", mwConfig)).Put("/{assignmentId}", proxyGroupHandler.UpdateGroupACLAssignment)
+			r.With(chimw.RequirePermission(authAdapter, "acl:delete", mwConfig)).Delete("/{aclGroupId}", proxyGroupHandler.RemoveACLFromGroup)
 		})
 
 		// Settings routes - require settings:read or settings:write

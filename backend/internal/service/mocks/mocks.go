@@ -123,6 +123,100 @@ func (m *MockProxyService) ImportProxies(inputs []service.ImportInput, dryRun bo
 	return service.ImportReport{}
 }
 
+// MockProxyGroupService is a mock implementation of ProxyGroupServiceInterface
+type MockProxyGroupService struct {
+	ListGroupsFunc               func(params repository.ProxyGroupListParams) (*models.ProxyGroupListResponse, error)
+	GetGroupByIDFunc             func(id int) (*models.ProxyGroup, error)
+	ListMembersFunc              func(id int) ([]models.Proxy, error)
+	CreateGroupFunc              func(g *models.ProxyGroup, userID int) error
+	UpdateGroupFunc              func(g *models.ProxyGroup) error
+	DeleteGroupFunc              func(id int) error
+	ListACLAssignmentsFunc       func(groupID int) ([]models.ProxyGroupACLAssignment, error)
+	AssignACLToGroupFunc         func(groupID, aclGroupID int, pathPattern string, priority int) error
+	UpdateGroupACLAssignmentFunc func(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error
+	RemoveACLFromGroupFunc       func(groupID, aclGroupID int) error
+}
+
+// ListGroups implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) ListGroups(params repository.ProxyGroupListParams) (*models.ProxyGroupListResponse, error) {
+	if m.ListGroupsFunc != nil {
+		return m.ListGroupsFunc(params)
+	}
+	return &models.ProxyGroupListResponse{Items: []models.ProxyGroup{}, Total: 0}, nil
+}
+
+// GetGroupByID implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) GetGroupByID(id int) (*models.ProxyGroup, error) {
+	if m.GetGroupByIDFunc != nil {
+		return m.GetGroupByIDFunc(id)
+	}
+	return nil, service.ErrGroupNotFound
+}
+
+// ListMembers implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) ListMembers(id int) ([]models.Proxy, error) {
+	if m.ListMembersFunc != nil {
+		return m.ListMembersFunc(id)
+	}
+	return []models.Proxy{}, nil
+}
+
+// CreateGroup implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) CreateGroup(g *models.ProxyGroup, userID int) error {
+	if m.CreateGroupFunc != nil {
+		return m.CreateGroupFunc(g, userID)
+	}
+	return nil
+}
+
+// UpdateGroup implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) UpdateGroup(g *models.ProxyGroup) error {
+	if m.UpdateGroupFunc != nil {
+		return m.UpdateGroupFunc(g)
+	}
+	return nil
+}
+
+// DeleteGroup implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) DeleteGroup(id int) error {
+	if m.DeleteGroupFunc != nil {
+		return m.DeleteGroupFunc(id)
+	}
+	return nil
+}
+
+// ListACLAssignments implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) ListACLAssignments(groupID int) ([]models.ProxyGroupACLAssignment, error) {
+	if m.ListACLAssignmentsFunc != nil {
+		return m.ListACLAssignmentsFunc(groupID)
+	}
+	return []models.ProxyGroupACLAssignment{}, nil
+}
+
+// AssignACLToGroup implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int) error {
+	if m.AssignACLToGroupFunc != nil {
+		return m.AssignACLToGroupFunc(groupID, aclGroupID, pathPattern, priority)
+	}
+	return nil
+}
+
+// UpdateGroupACLAssignment implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) UpdateGroupACLAssignment(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error {
+	if m.UpdateGroupACLAssignmentFunc != nil {
+		return m.UpdateGroupACLAssignmentFunc(groupID, assignmentID, pathPattern, priority, enabled)
+	}
+	return nil
+}
+
+// RemoveACLFromGroup implements ProxyGroupServiceInterface.
+func (m *MockProxyGroupService) RemoveACLFromGroup(groupID, aclGroupID int) error {
+	if m.RemoveACLFromGroupFunc != nil {
+		return m.RemoveACLFromGroupFunc(groupID, aclGroupID)
+	}
+	return nil
+}
+
 // MockSettingsService is a mock implementation of SettingsServiceInterface
 type MockSettingsService struct {
 	GetFunc                       func(key string) (string, error)
@@ -420,6 +514,10 @@ type MockAuditService struct {
 	LogProxyDeleteFunc        func(ctx context.Context, userID int, proxyID int, proxyName, hostname string, ip, userAgent string) error
 	LogProxyEnableFunc        func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
 	LogProxyDisableFunc       func(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error
+	LogProxyGroupCreateFunc   func(ctx context.Context, userID int, group *models.ProxyGroup, ip, userAgent string) error
+	LogProxyGroupUpdateFunc   func(ctx context.Context, userID int, old, updated *models.ProxyGroup, ip, userAgent string) error
+	LogProxyGroupDeleteFunc   func(ctx context.Context, userID, groupID int, ip, userAgent string) error
+	LogProxyGroupRehomeFunc   func(ctx context.Context, userID, groupID int, oldBase, newBase string, proxyIDs []int, ip, userAgent string) error
 	LogLoginFunc              func(ctx context.Context, userID int, username string, ip, userAgent string) error
 	LogLoginFailedFunc        func(ctx context.Context, username, ip, userAgent, reason string) error
 	LogLogoutFunc             func(ctx context.Context, userID int, username string, ip, userAgent string) error
@@ -542,6 +640,38 @@ func (m *MockAuditService) LogProxyEnable(ctx context.Context, userID int, proxy
 func (m *MockAuditService) LogProxyDisable(ctx context.Context, userID int, proxy *models.Proxy, ip, userAgent string) error {
 	if m.LogProxyDisableFunc != nil {
 		return m.LogProxyDisableFunc(ctx, userID, proxy, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyGroupCreate implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyGroupCreate(ctx context.Context, userID int, group *models.ProxyGroup, ip, userAgent string) error {
+	if m.LogProxyGroupCreateFunc != nil {
+		return m.LogProxyGroupCreateFunc(ctx, userID, group, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyGroupUpdate implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyGroupUpdate(ctx context.Context, userID int, old, updated *models.ProxyGroup, ip, userAgent string) error {
+	if m.LogProxyGroupUpdateFunc != nil {
+		return m.LogProxyGroupUpdateFunc(ctx, userID, old, updated, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyGroupDelete implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyGroupDelete(ctx context.Context, userID, groupID int, ip, userAgent string) error {
+	if m.LogProxyGroupDeleteFunc != nil {
+		return m.LogProxyGroupDeleteFunc(ctx, userID, groupID, ip, userAgent)
+	}
+	return nil
+}
+
+// LogProxyGroupRehome implements AuditServiceInterface.
+func (m *MockAuditService) LogProxyGroupRehome(ctx context.Context, userID, groupID int, oldBase, newBase string, proxyIDs []int, ip, userAgent string) error {
+	if m.LogProxyGroupRehomeFunc != nil {
+		return m.LogProxyGroupRehomeFunc(ctx, userID, groupID, oldBase, newBase, proxyIDs, ip, userAgent)
 	}
 	return nil
 }
@@ -1001,6 +1131,7 @@ func (m *MockUserService) Delete(ctx context.Context, id, actorID int, ip, ua st
 // Ensure mocks implement interfaces
 var (
 	_ service.ProxyServiceInterface         = (*MockProxyService)(nil)
+	_ service.ProxyGroupServiceInterface    = (*MockProxyGroupService)(nil)
 	_ service.SettingsServiceInterface      = (*MockSettingsService)(nil)
 	_ service.SyncServiceInterface          = (*MockSyncService)(nil)
 	_ service.AuditServiceInterface         = (*MockAuditService)(nil)

@@ -30,6 +30,15 @@ type ProxyGroup struct {
 
 func (ProxyGroup) TableName() string { return "proxy_groups" }
 
+// ProxyGroupListResponse is the response for listing proxy groups.
+type ProxyGroupListResponse struct {
+	Items      []ProxyGroup `json:"items"`
+	Total      int64        `json:"total"`
+	Page       int          `json:"page"`
+	Limit      int          `json:"limit"`
+	TotalPages int          `json:"total_pages"`
+}
+
 // ProxyGroupACLAssignment mirrors ProxyACLAssignment column-for-column so the
 // resolver can merge the two sets without translating between shapes.
 type ProxyGroupACLAssignment struct {

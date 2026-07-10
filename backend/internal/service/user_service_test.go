@@ -158,6 +158,18 @@ func (m *mockAuditSvc) LogProxyEnable(_ context.Context, _ int, _ *models.Proxy,
 func (m *mockAuditSvc) LogProxyDisable(_ context.Context, _ int, _ *models.Proxy, _, _ string) error {
 	return nil
 }
+func (m *mockAuditSvc) LogProxyGroupCreate(_ context.Context, _ int, _ *models.ProxyGroup, _, _ string) error {
+	return nil
+}
+func (m *mockAuditSvc) LogProxyGroupUpdate(_ context.Context, _ int, _, _ *models.ProxyGroup, _, _ string) error {
+	return nil
+}
+func (m *mockAuditSvc) LogProxyGroupDelete(_ context.Context, _, _ int, _, _ string) error {
+	return nil
+}
+func (m *mockAuditSvc) LogProxyGroupRehome(_ context.Context, _, _ int, _, _ string, _ []int, _, _ string) error {
+	return nil
+}
 func (m *mockAuditSvc) LogLogin(_ context.Context, _ int, _, _, _ string) error    { return nil }
 func (m *mockAuditSvc) LogLoginFailed(_ context.Context, _, _, _, _ string) error  { return nil }
 func (m *mockAuditSvc) LogLogout(_ context.Context, _ int, _, _, _ string) error   { return nil }

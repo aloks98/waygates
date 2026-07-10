@@ -10,6 +10,25 @@ import (
 	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
+// proxiesHostnameConstraint is the Postgres-assigned name of the unnamed
+// `hostname VARCHAR(255) UNIQUE NOT NULL` constraint from
+// migrations/000001_create_proxies_table.up.sql. Postgres auto-names an
+// inline UNIQUE constraint "<table>_<column>_key" when no CONSTRAINT clause
+// gives it one.
+const proxiesHostnameConstraint = "proxies_hostname_key"
+
+// HostnameConflictError is returned by UpdateGroupTx when re-homing a
+// label-addressed member during a base_domain change collides with an
+// existing proxy's hostname. It carries the specific hostname so the caller
+// can report it without a second query.
+type HostnameConflictError struct {
+	Hostname string
+}
+
+func (e *HostnameConflictError) Error() string {
+	return fmt.Sprintf("hostname conflict: %s already exists", e.Hostname)
+}
+
 // ProxyGroupRepository is the data access layer for ProxyGroup.
 type ProxyGroupRepository struct {
 	db *gorm.DB
@@ -171,6 +190,9 @@ func (r *ProxyGroupRepository) UpdateGroupTx(g *models.ProxyGroup, baseDomainCha
 				if err := tx.Model(&models.Proxy{}).
 					Where("id = ?", members[i].ID).
 					Update("hostname", host).Error; err != nil {
+					if IsUniqueViolation(err, proxiesHostnameConstraint) {
+						return &HostnameConflictError{Hostname: host}
+					}
 					return fmt.Errorf("re-homing proxy %d to %q: %w", members[i].ID, host, err)
 				}
 			}

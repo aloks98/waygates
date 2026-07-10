@@ -169,6 +169,18 @@ func (m *ssoCapturingAudit) LogProxyEnable(_ context.Context, _ int, _ *models.P
 func (m *ssoCapturingAudit) LogProxyDisable(_ context.Context, _ int, _ *models.Proxy, _, _ string) error {
 	return nil
 }
+func (m *ssoCapturingAudit) LogProxyGroupCreate(_ context.Context, _ int, _ *models.ProxyGroup, _, _ string) error {
+	return nil
+}
+func (m *ssoCapturingAudit) LogProxyGroupUpdate(_ context.Context, _ int, _, _ *models.ProxyGroup, _, _ string) error {
+	return nil
+}
+func (m *ssoCapturingAudit) LogProxyGroupDelete(_ context.Context, _, _ int, _, _ string) error {
+	return nil
+}
+func (m *ssoCapturingAudit) LogProxyGroupRehome(_ context.Context, _, _ int, _, _ string, _ []int, _, _ string) error {
+	return nil
+}
 func (m *ssoCapturingAudit) LogLogin(_ context.Context, _ int, _, _, _ string) error    { return nil }
 func (m *ssoCapturingAudit) LogLoginFailed(_ context.Context, _, _, _, _ string) error  { return nil }
 func (m *ssoCapturingAudit) LogLogout(_ context.Context, _ int, _, _, _ string) error   { return nil }
