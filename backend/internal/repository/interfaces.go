@@ -84,11 +84,10 @@ type ProxyGroupRepositoryInterface interface {
 	List(params ProxyGroupListParams) ([]models.ProxyGroup, int64, error)
 	GetByID(id int) (*models.ProxyGroup, error)
 	Create(g *models.ProxyGroup) error
-	Update(g *models.ProxyGroup) error
 	Delete(id int) error
 	MemberCount(id int) (int64, error)
 	ListMembers(id int) ([]models.Proxy, error)
-	UpdateBaseDomainTx(groupID int, newBase *string) error
+	UpdateGroupTx(g *models.ProxyGroup, baseDomainChanged bool) error
 	ListACLAssignments(groupID int) ([]models.ProxyGroupACLAssignment, error)
 	CreateACLAssignment(a *models.ProxyGroupACLAssignment) error
 	UpdateACLAssignment(a *models.ProxyGroupACLAssignment) error

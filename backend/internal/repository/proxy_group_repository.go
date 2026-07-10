@@ -120,17 +120,6 @@ func (r *ProxyGroupRepository) GetByID(id int) (*models.ProxyGroup, error) {
 
 func (r *ProxyGroupRepository) Create(g *models.ProxyGroup) error { return r.db.Create(g).Error }
 
-// Update uses Select to write the nullable settings columns explicitly. A plain
-// Save would skip nil pointers, making it impossible to clear an inherited
-// value back to "the group says nothing".
-func (r *ProxyGroupRepository) Update(g *models.ProxyGroup) error {
-	return r.db.Model(&models.ProxyGroup{ID: g.ID}).
-		Select("name", "description", "base_domain",
-			"ssl_enabled", "ssl_forced", "tls_insecure_skip_verify",
-			"block_exploits", "custom_headers", "updated_at").
-		Updates(g).Error
-}
-
 func (r *ProxyGroupRepository) Delete(id int) error {
 	return r.db.Delete(&models.ProxyGroup{}, id).Error
 }
@@ -147,34 +136,43 @@ func (r *ProxyGroupRepository) ListMembers(id int) ([]models.Proxy, error) {
 	return out, err
 }
 
-// UpdateBaseDomainTx sets the group's base_domain and recomputes every
-// label-addressed member's materialized hostname, in one transaction. A
-// collision trips the unique index on proxies.hostname and rolls the whole
-// thing back, so a failed rename writes nothing.
-func (r *ProxyGroupRepository) UpdateBaseDomainTx(groupID int, newBase *string) error {
+// UpdateGroupTx writes the group's settings and, when baseDomainChanged is
+// true, re-homes every label-addressed member's materialized hostname — all in
+// one transaction. A collision on proxies.hostname or uq_proxy_groups_name
+// rolls back everything, so a failed update writes nothing.
+func (r *ProxyGroupRepository) UpdateGroupTx(g *models.ProxyGroup, baseDomainChanged bool) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var members []models.Proxy
-		if err := tx.Where("group_id = ? AND hostname_label IS NOT NULL", groupID).
-			Find(&members).Error; err != nil {
-			return fmt.Errorf("loading members: %w", err)
+		if baseDomainChanged {
+			if err := tx.Where("group_id = ? AND hostname_label IS NOT NULL", g.ID).
+				Find(&members).Error; err != nil {
+				return fmt.Errorf("loading members: %w", err)
+			}
+
+			if g.BaseDomain == nil && len(members) > 0 {
+				return ErrBaseDomainRequiredByMembers
+			}
 		}
 
-		if newBase == nil && len(members) > 0 {
-			return ErrBaseDomainRequiredByMembers
+		// Select over every nullable settings column so a nil pointer actually
+		// writes NULL — a plain Save/Updates skips nil pointers and would make
+		// an inherited value un-clearable.
+		if err := tx.Model(&models.ProxyGroup{ID: g.ID}).
+			Select("name", "description", "base_domain",
+				"ssl_enabled", "ssl_forced", "tls_insecure_skip_verify",
+				"block_exploits", "custom_headers", "updated_at").
+			Updates(g).Error; err != nil {
+			return fmt.Errorf("updating proxy group: %w", err)
 		}
 
-		if err := tx.Model(&models.ProxyGroup{ID: groupID}).
-			Select("base_domain", "updated_at").
-			Updates(&models.ProxyGroup{BaseDomain: newBase}).Error; err != nil {
-			return fmt.Errorf("updating base_domain: %w", err)
-		}
-
-		for i := range members {
-			host := proxygroup.EffectiveHostname(*members[i].HostnameLabel, *newBase)
-			if err := tx.Model(&models.Proxy{}).
-				Where("id = ?", members[i].ID).
-				Update("hostname", host).Error; err != nil {
-				return fmt.Errorf("re-homing proxy %d to %q: %w", members[i].ID, host, err)
+		if baseDomainChanged {
+			for i := range members {
+				host := proxygroup.EffectiveHostname(*members[i].HostnameLabel, *g.BaseDomain)
+				if err := tx.Model(&models.Proxy{}).
+					Where("id = ?", members[i].ID).
+					Update("hostname", host).Error; err != nil {
+					return fmt.Errorf("re-homing proxy %d to %q: %w", members[i].ID, host, err)
+				}
 			}
 		}
 		return nil

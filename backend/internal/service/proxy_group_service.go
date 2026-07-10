@@ -76,28 +76,29 @@ func (s *ProxyGroupService) CreateGroup(g *models.ProxyGroup, userID int) error 
 	return nil
 }
 
-// UpdateGroup writes the group's settings, routing a base_domain change through
-// the transactional re-home path. The config is rebuilt only after a successful
-// write — a failed rename must leave the served config alone.
+// UpdateGroup writes the group's settings and, when base_domain changes,
+// re-homes its label-addressed members' materialized hostnames — both in one
+// transaction (see ProxyGroupRepository.UpdateGroupTx). The config is rebuilt
+// only after a successful write — a failed update must leave the served
+// config, and the database, exactly as it was.
 func (s *ProxyGroupService) UpdateGroup(g *models.ProxyGroup) error {
 	existing, err := s.repo.GetByID(g.ID)
 	if err != nil {
 		return ErrGroupNotFound
 	}
 
-	if baseDomainChanged(existing.BaseDomain, g.BaseDomain) {
-		if err := s.repo.UpdateBaseDomainTx(g.ID, g.BaseDomain); err != nil {
-			return err
-		}
+	changed := baseDomainChanged(existing.BaseDomain, g.BaseDomain)
+	if err := s.repo.UpdateGroupTx(g, changed); err != nil {
+		return fmt.Errorf("failed to update proxy group: %w", err)
+	}
+
+	if changed {
 		s.logger.Info("proxy group base domain changed",
 			zap.Int("group_id", g.ID),
 			zap.Stringp("old", existing.BaseDomain),
 			zap.Stringp("new", g.BaseDomain))
 	}
 
-	if err := s.repo.Update(g); err != nil {
-		return fmt.Errorf("failed to update proxy group: %w", err)
-	}
 	return s.syncer.RebuildAll()
 }
 
