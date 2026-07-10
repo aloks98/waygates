@@ -154,7 +154,20 @@ type EffectiveACLAssignment struct {
 
 `EffectiveProxy` mirrors `Proxy` but with plain `bool` fields and an `ACL []EffectiveACLAssignment` — every value decided, nothing left to interpret. The two ACL row types are distinct Go types over identical columns, which is why the resolver normalizes both into `EffectiveACLAssignment` rather than merging one into the other.
 
-**Scalars** (`ssl_enabled`, `ssl_forced`, `tls_insecure_skip_verify`, `block_exploits`) resolve in three steps: proxy value if non-nil → group value if non-nil → system default. System defaults preserve today's behavior: `ssl_forced` is `true`, the other three are `false`.
+**Scalars** (`ssl_enabled`, `ssl_forced`, `tls_insecure_skip_verify`, `block_exploits`) resolve in three steps: proxy value if non-nil → group value if non-nil → system default.
+
+The system defaults are lifted verbatim from the defaults `ProxyHandler.CreateProxy` applies today (`handlers/proxy.go:235-248`), so an ungrouped proxy behaves exactly as it does now:
+
+| Field | System default |
+|---|---|
+| `ssl_enabled` | `true` |
+| `ssl_forced` | `true` |
+| `block_exploits` | `true` |
+| `tls_insecure_skip_verify` | `false` |
+
+These are **not** all-false, and getting them wrong is a security regression: an omitted `ssl_enabled` currently yields `true`, and defaulting it to `false` would silently serve new proxies over plaintext. The equivalence test cannot catch this — it compares a grouped proxy against an ungrouped one, and both would be wrong identically. A dedicated `TestResolve_SystemDefaultsMatchCreateHandler` pins the table above.
+
+**Consequently, the create/import handlers must stop applying these defaults themselves.** Today they convert `nil → true` before the row is written; under inheritance that would destroy the "inherit" signal at the door, and no proxy would ever inherit from its group. The handlers pass `*bool` straight through to the model, and `Resolve` becomes the only place a default is applied. The wire format is unchanged — `CreateProxyRequest.SSLEnabled` and `.BlockExploits` are already `*bool`.
 
 **Headers** merge per key — `Request` and `Response` maps independently — with the proxy's value winning on collision.
 
