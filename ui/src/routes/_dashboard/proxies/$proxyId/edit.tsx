@@ -31,8 +31,9 @@ import {
   mapReverseValuesToRequest,
   mapStaticValuesToRequest,
 } from '@/components/proxy/forms/shared/proxy-form-mappers';
-import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
+import { useAssignACL, useProxyACL, useRemoveACL, useUpdateProxyACLAssignment } from '@/hooks';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
+import { diffAclAssignments } from '@/lib/diff-acl-assignments';
 import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
 export function ProxyEditPage() {
@@ -44,6 +45,7 @@ export function ProxyEditPage() {
   const { update, remove, isUpdating, isDeleting } = useProxies();
   const { assignACL } = useAssignACL();
   const { removeACL } = useRemoveACL();
+  const { updateAssignment } = useUpdateProxyACLAssignment();
   const { assignments: proxyACL } = useProxyACL(proxyId);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -83,28 +85,38 @@ export function ProxyEditPage() {
       await update({ id: proxy.id, data });
     }
 
-    const assignments = newACLAssignments ?? [];
-    const oldGroupIds = proxyACL.map((a) => a.acl_group_id);
-    const newGroupIds = assignments.map((a) => a.acl_group_id);
+    // added / updated / removed: see diffAclAssignments — the `updated`
+    // branch is what makes toggling `enabled` on an existing assignment
+    // persist (a same-id, changed-value assignment previously fell through
+    // an add/remove-only diff untouched).
+    const { added, updated, removed } = diffAclAssignments(proxyACL, newACLAssignments ?? []);
 
-    for (const oldAssignment of proxyACL) {
-      if (!newGroupIds.includes(oldAssignment.acl_group_id)) {
-        await removeACL({ proxyId: proxy.id, groupId: oldAssignment.acl_group_id });
-      }
+    for (const groupId of removed) {
+      await removeACL({ proxyId: proxy.id, groupId });
     }
 
-    for (const newAssignment of assignments) {
-      if (!oldGroupIds.includes(newAssignment.acl_group_id)) {
-        await assignACL({
-          proxyId: proxy.id,
-          data: {
-            acl_group_id: newAssignment.acl_group_id,
-            path_pattern: newAssignment.path_pattern,
-            priority: newAssignment.priority,
-            enabled: newAssignment.enabled,
-          },
-        });
-      }
+    for (const assignment of added) {
+      await assignACL({
+        proxyId: proxy.id,
+        data: {
+          acl_group_id: assignment.acl_group_id,
+          path_pattern: assignment.path_pattern,
+          priority: assignment.priority,
+          enabled: assignment.enabled,
+        },
+      });
+    }
+
+    for (const changed of updated) {
+      await updateAssignment({
+        proxyId: proxy.id,
+        assignmentId: changed.assignmentId,
+        data: {
+          path_pattern: changed.path_pattern,
+          priority: changed.priority,
+          enabled: changed.enabled,
+        },
+      });
     }
   };
 

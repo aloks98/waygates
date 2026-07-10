@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
 import { type FieldErrors, useForm, useFormContext } from 'react-hook-form';
 
+import { useProxyGroups } from '@/hooks/use-proxy-groups';
 import { type ReverseProxyFormValues, reverseProxySchema } from '@/lib/form-validation';
 import type { CreateReverseProxyRequest, ProxyConfig } from '@/types/proxy';
 
@@ -17,7 +18,13 @@ import {
   mapProxyToReverseDefaults,
   mapReverseValuesToRequest,
 } from './shared/proxy-form-mappers';
-import { ReviewRow, ReviewSection, WizardActions, WizardStepNav } from './shared/proxy-wizard';
+import {
+  ReviewRow,
+  ReviewSection,
+  triStateReviewValue,
+  WizardActions,
+  WizardStepNav,
+} from './shared/proxy-wizard';
 import { SecurityFields } from './shared/security-fields';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +64,7 @@ const STEP_FIELDS: Record<number, (keyof ReverseProxyFormValues)[]> = {
   2: ['upstreams'],
   3: [
     'ssl_enabled',
+    'ssl_forced',
     'block_exploits',
     'tls_insecure_skip_verify',
     'lb_strategy',
@@ -76,6 +84,8 @@ const STEP_FIELDS: Record<number, (keyof ReverseProxyFormValues)[]> = {
 function ReverseReview({ acl }: { acl: ACLAssignment[] }) {
   const form = useFormContext<ReverseProxyFormValues>();
   const values = form.getValues();
+  const { data } = useProxyGroups();
+  const group = data?.items.find((g) => g.id === values.group_id);
 
   return (
     <div className="space-y-4">
@@ -83,6 +93,7 @@ function ReverseReview({ acl }: { acl: ACLAssignment[] }) {
         <ReviewRow label="Name" value={values.name || '—'} />
         <ReviewRow label="Hostname" value={values.hostname || '—'} />
         {values.description && <ReviewRow label="Description" value={values.description} />}
+        <ReviewRow label="Proxy Group" value={group?.name ?? 'None'} />
       </ReviewSection>
 
       <ReviewSection title="Backend Servers">
@@ -100,11 +111,12 @@ function ReverseReview({ acl }: { acl: ACLAssignment[] }) {
       </ReviewSection>
 
       <ReviewSection title="Security">
-        <ReviewRow label="HTTPS" value={values.ssl_enabled ? 'Yes' : 'No'} />
-        <ReviewRow label="Block Exploits" value={values.block_exploits ? 'Yes' : 'No'} />
+        <ReviewRow label="HTTPS" value={triStateReviewValue(values.ssl_enabled)} />
+        <ReviewRow label="Force HTTPS" value={triStateReviewValue(values.ssl_forced)} />
+        <ReviewRow label="Block Exploits" value={triStateReviewValue(values.block_exploits)} />
         <ReviewRow
           label="Allow Self-Signed Certs"
-          value={values.tls_insecure_skip_verify ? 'Yes' : 'No'}
+          value={triStateReviewValue(values.tls_insecure_skip_verify)}
         />
       </ReviewSection>
 
@@ -249,6 +261,7 @@ function ReverseEdit({
 
   const securityHasError = !!(
     errors.ssl_enabled ||
+    errors.ssl_forced ||
     errors.block_exploits ||
     errors.tls_insecure_skip_verify ||
     errors.lb_strategy ||
@@ -368,6 +381,7 @@ export function ReverseProxyForm({
         prev.security ||
         !!(
           errors.ssl_enabled ||
+          errors.ssl_forced ||
           errors.block_exploits ||
           errors.tls_insecure_skip_verify ||
           errors.lb_strategy ||

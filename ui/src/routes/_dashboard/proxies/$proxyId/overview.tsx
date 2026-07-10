@@ -96,7 +96,9 @@ export function ProxyOverviewPage() {
                 <Badge variant={proxy.is_active ? 'default' : 'secondary'}>
                   {proxy.is_active ? 'Active' : 'Inactive'}
                 </Badge>
-                {proxy.ssl_enabled && <Badge variant="outline">HTTPS</Badge>}
+                {/* raw ssl_enabled is nullable (inherit) and would silently hide this
+                    badge for an inherited-on proxy — effective is the resolved value. */}
+                {proxy.effective?.ssl_enabled && <Badge variant="outline">HTTPS</Badge>}
               </div>
               <p className="text-sm text-muted-foreground">
                 {getProxyTypeLabel(proxy.type)} &middot; {proxy.hostname}

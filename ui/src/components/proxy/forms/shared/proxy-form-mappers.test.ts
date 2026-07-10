@@ -19,6 +19,8 @@ const baseProxy = (over: Partial<ProxyConfig>): ProxyConfig => ({
   hostname: 'svc.example.com',
   ssl_enabled: true,
   ssl_forced: false,
+  block_exploits: null,
+  tls_insecure_skip_verify: null,
   is_active: true,
   created_at: '',
   updated_at: '',
@@ -26,9 +28,13 @@ const baseProxy = (over: Partial<ProxyConfig>): ProxyConfig => ({
 });
 
 describe('reverse proxy mappers', () => {
-  it('defaults seed one empty upstream and HTTPS on', () => {
+  it('defaults seed one empty upstream and leave settings at inherit', () => {
     expect(REVERSE_PROXY_DEFAULTS.upstreams).toHaveLength(1);
-    expect(REVERSE_PROXY_DEFAULTS.ssl_enabled).toBe(true);
+    // null = inherit (system default when ungrouped) — a brand-new proxy
+    // shouldn't hard-code `true` where "inherit" is equally correct and
+    // keeps working if the proxy is later added to a group.
+    expect(REVERSE_PROXY_DEFAULTS.ssl_enabled).toBeNull();
+    expect(REVERSE_PROXY_DEFAULTS.group_id).toBeNull();
     expect(REVERSE_PROXY_DEFAULTS.request_headers).toEqual([]);
   });
 

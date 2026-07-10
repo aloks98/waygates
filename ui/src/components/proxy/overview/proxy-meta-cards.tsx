@@ -8,14 +8,17 @@ function yesNo(v: boolean | undefined) {
 }
 
 export function ProxyHttpsCard({ proxy }: { proxy: ProxyConfig }) {
+  // proxy.ssl_enabled / proxy.ssl_forced are the raw nullable columns — null
+  // means "inherit" and would silently render "No" here. `effective` is the
+  // already-resolved (proxygroup.Resolve) value actually served, so use it.
   return (
     <Card>
       <CardHeader>
         <CardTitle>HTTPS / TLS</CardTitle>
       </CardHeader>
       <CardContent className="divide-y">
-        <DetailRow label="HTTPS enabled">{yesNo(proxy.ssl_enabled)}</DetailRow>
-        <DetailRow label="Force HTTPS">{yesNo(proxy.ssl_forced)}</DetailRow>
+        <DetailRow label="HTTPS enabled">{yesNo(proxy.effective?.ssl_enabled)}</DetailRow>
+        <DetailRow label="Force HTTPS">{yesNo(proxy.effective?.ssl_forced)}</DetailRow>
       </CardContent>
     </Card>
   );

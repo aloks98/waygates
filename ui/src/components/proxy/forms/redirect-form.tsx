@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
 import { type FieldErrors, useForm, useFormContext } from 'react-hook-form';
 
+import { useProxyGroups } from '@/hooks/use-proxy-groups';
 import { type RedirectFormValues, redirectSchema } from '@/lib/form-validation';
 import type { CreateRedirectRequest, ProxyConfig } from '@/types/proxy';
 
@@ -14,7 +15,13 @@ import {
   mapProxyToRedirectDefaults,
   mapRedirectValuesToRequest,
 } from './shared/proxy-form-mappers';
-import { ReviewRow, ReviewSection, WizardActions, WizardStepNav } from './shared/proxy-wizard';
+import {
+  ReviewRow,
+  ReviewSection,
+  triStateReviewValue,
+  WizardActions,
+  WizardStepNav,
+} from './shared/proxy-wizard';
 import { RedirectOptionsFields } from './shared/redirect-options-fields';
 import { RedirectTargetFields } from './shared/redirect-target-fields';
 
@@ -51,7 +58,7 @@ const WIZARD_STEPS = [
 const STEP_FIELDS: Record<number, (keyof RedirectFormValues)[]> = {
   1: ['name', 'hostname', 'description'],
   2: ['target', 'status_code'],
-  3: ['ssl_enabled', 'preserve_path', 'preserve_query'],
+  3: ['ssl_enabled', 'ssl_forced', 'block_exploits', 'preserve_path', 'preserve_query'],
   4: [],
 };
 
@@ -73,6 +80,8 @@ const STATUS_CODE_LABELS: Record<number, string> = {
 function RedirectReview({ acl }: { acl: ACLAssignment[] }) {
   const form = useFormContext<RedirectFormValues>();
   const values = form.getValues();
+  const { data } = useProxyGroups();
+  const group = data?.items.find((g) => g.id === values.group_id);
 
   return (
     <div className="space-y-4">
@@ -80,6 +89,7 @@ function RedirectReview({ acl }: { acl: ACLAssignment[] }) {
         <ReviewRow label="Name" value={values.name || '—'} />
         <ReviewRow label="Hostname" value={values.hostname || '—'} />
         {values.description && <ReviewRow label="Description" value={values.description} />}
+        <ReviewRow label="Proxy Group" value={group?.name ?? 'None'} />
       </ReviewSection>
 
       <ReviewSection title="Target">
@@ -91,7 +101,9 @@ function RedirectReview({ acl }: { acl: ACLAssignment[] }) {
       </ReviewSection>
 
       <ReviewSection title="Options">
-        <ReviewRow label="HTTPS" value={values.ssl_enabled ? 'Yes' : 'No'} />
+        <ReviewRow label="HTTPS" value={triStateReviewValue(values.ssl_enabled)} />
+        <ReviewRow label="Force HTTPS" value={triStateReviewValue(values.ssl_forced)} />
+        <ReviewRow label="Block Exploits" value={triStateReviewValue(values.block_exploits)} />
         <ReviewRow label="Preserve Path" value={values.preserve_path ? 'Yes' : 'No'} />
         <ReviewRow label="Preserve Query" value={values.preserve_query ? 'Yes' : 'No'} />
       </ReviewSection>
@@ -223,7 +235,15 @@ function RedirectEdit({
         title="Options"
         open={openSections.options}
         onOpenChange={(v) => setOpenSections((s) => ({ ...s, options: v }))}
-        hasError={!!(errors.ssl_enabled || errors.preserve_path || errors.preserve_query)}
+        hasError={
+          !!(
+            errors.ssl_enabled ||
+            errors.ssl_forced ||
+            errors.block_exploits ||
+            errors.preserve_path ||
+            errors.preserve_query
+          )
+        }
       >
         <RedirectOptionsFields />
       </FormSection>
@@ -293,7 +313,14 @@ export function RedirectForm({
     setOpenSections((prev) => ({
       target: prev.target || !!(errors.target || errors.status_code),
       options:
-        prev.options || !!(errors.ssl_enabled || errors.preserve_path || errors.preserve_query),
+        prev.options ||
+        !!(
+          errors.ssl_enabled ||
+          errors.ssl_forced ||
+          errors.block_exploits ||
+          errors.preserve_path ||
+          errors.preserve_query
+        ),
     }));
   };
 

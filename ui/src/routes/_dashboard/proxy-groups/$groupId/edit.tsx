@@ -20,6 +20,7 @@ import { useMemo, useState } from 'react';
 import { ProxyGroupForm } from '@/components/proxy-group';
 import { type ACLAssignment, ACLSelector } from '@/components/proxy/forms/acl-selector';
 import { useProxyGroup, useProxyGroupAcl, useProxyGroups } from '@/hooks/use-proxy-groups';
+import { diffAclAssignments } from '@/lib/diff-acl-assignments';
 import type { CreateProxyGroupRequest } from '@/types/proxy-group';
 
 export function ProxyGroupEditPage() {
@@ -58,34 +59,22 @@ export function ProxyGroupEditPage() {
   // but had its enabled/priority/path_pattern edited — without that last
   // case, toggling an existing assignment would silently not persist.
   const handleAclChange = async (next: ACLAssignment[]) => {
-    const nextIds = next.map((a) => a.acl_group_id);
+    const { added, updated, removed } = diffAclAssignments(groupAcl, next);
 
-    for (const prev of groupAcl) {
-      if (!nextIds.includes(prev.acl_group_id)) {
-        await removeAcl.mutateAsync(prev.acl_group_id);
-      }
+    for (const aclGroupId of removed) {
+      await removeAcl.mutateAsync(aclGroupId);
     }
 
-    for (const assignment of next) {
-      const prev = groupAcl.find((a) => a.acl_group_id === assignment.acl_group_id);
-      if (!prev) {
-        await assign.mutateAsync({
-          acl_group_id: assignment.acl_group_id,
-          path_pattern: assignment.path_pattern,
-          priority: assignment.priority,
-        });
-      } else if (
-        prev.enabled !== assignment.enabled ||
-        prev.priority !== assignment.priority ||
-        prev.path_pattern !== assignment.path_pattern
-      ) {
-        await updateAcl.mutateAsync({
-          assignmentId: prev.id,
-          path_pattern: assignment.path_pattern,
-          priority: assignment.priority,
-          enabled: assignment.enabled,
-        });
-      }
+    for (const assignment of added) {
+      await assign.mutateAsync({
+        acl_group_id: assignment.acl_group_id,
+        path_pattern: assignment.path_pattern,
+        priority: assignment.priority,
+      });
+    }
+
+    for (const changed of updated) {
+      await updateAcl.mutateAsync(changed);
     }
   };
 

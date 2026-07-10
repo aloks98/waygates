@@ -25,6 +25,7 @@ import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
 import { ProxyImportDialog } from '@/components/proxy/proxy-import-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
+import { useProxyGroups } from '@/hooks/use-proxy-groups';
 import { api } from '@/lib/api';
 import { downloadJson, type ProxyExport } from '@/lib/proxy-export';
 import type { ApiResponse } from '@/types/api';
@@ -46,36 +47,55 @@ const sslOptions = [
   { value: 'false', label: 'Disabled' },
 ];
 
-const filterFields: FilterFieldsConfig<string> = [
-  {
-    key: 'type',
-    label: 'Type',
-    type: 'select',
-    options: typeOptions,
-    operators: [
-      { value: 'is', label: 'is' },
-      { value: 'is_not', label: 'is not' },
-    ],
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select',
-    options: statusOptions,
-    operators: [{ value: 'is', label: 'is' }],
-  },
-  {
-    key: 'ssl_enabled',
-    label: 'SSL',
-    type: 'select',
-    options: sslOptions,
-    operators: [{ value: 'is', label: 'is' }],
-  },
-];
+const NONE_GROUP_VALUE = 'none';
 
 export function ProxiesListPage() {
   const navigate = useNavigate();
   const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
+
+  const { data: proxyGroupsData } = useProxyGroups();
+  const filterFields: FilterFieldsConfig<string> = useMemo(
+    () => [
+      {
+        key: 'type',
+        label: 'Type',
+        type: 'select',
+        options: typeOptions,
+        operators: [
+          { value: 'is', label: 'is' },
+          { value: 'is_not', label: 'is not' },
+        ],
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: statusOptions,
+        operators: [{ value: 'is', label: 'is' }],
+      },
+      {
+        key: 'ssl_enabled',
+        label: 'SSL',
+        type: 'select',
+        options: sslOptions,
+        operators: [{ value: 'is', label: 'is' }],
+      },
+      {
+        key: 'group',
+        label: 'Proxy Group',
+        type: 'select',
+        options: [
+          { value: NONE_GROUP_VALUE, label: 'Ungrouped' },
+          ...(proxyGroupsData?.items ?? []).map((g) => ({ value: String(g.id), label: g.name })),
+        ],
+        operators: [
+          { value: 'is', label: 'is' },
+          { value: 'is_not', label: 'is not' },
+        ],
+      },
+    ],
+    [proxyGroupsData],
+  );
 
   // Pagination state
   const [pagination, setPagination] = useState<PaginationState>({
@@ -129,6 +149,7 @@ export function ProxiesListPage() {
       type?: string;
       status?: string;
       ssl_enabled?: string;
+      group?: string;
     } = {
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
@@ -148,6 +169,11 @@ export function ProxiesListPage() {
           break;
         case 'ssl_enabled':
           p.ssl_enabled = value;
+          break;
+        case 'group':
+          // The backend group filter uses eq:/not: (see ?group=eq:none for
+          // ungrouped); "is"/"is_not" map directly onto that.
+          p.group = `${filter.operator === 'is_not' ? 'not' : 'eq'}:${value}`;
           break;
       }
     }

@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useState } from 'react';
 import { type FieldErrors, useForm, useFormContext } from 'react-hook-form';
 
+import { useProxyGroups } from '@/hooks/use-proxy-groups';
 import { type StaticFormValues, staticSchema } from '@/lib/form-validation';
 import type { CreateStaticRequest, ProxyConfig } from '@/types/proxy';
 
@@ -14,7 +15,13 @@ import {
   mapProxyToStaticDefaults,
   mapStaticValuesToRequest,
 } from './shared/proxy-form-mappers';
-import { ReviewRow, ReviewSection, WizardActions, WizardStepNav } from './shared/proxy-wizard';
+import {
+  ReviewRow,
+  ReviewSection,
+  triStateReviewValue,
+  WizardActions,
+  WizardStepNav,
+} from './shared/proxy-wizard';
 import { StaticFileFields } from './shared/static-file-fields';
 import { StaticOptionsFields } from './shared/static-options-fields';
 import { TryFilesFields } from './shared/try-files-fields';
@@ -52,7 +59,7 @@ const WIZARD_STEPS = [
 const STEP_FIELDS: Record<number, (keyof StaticFormValues)[]> = {
   1: ['name', 'hostname', 'description'],
   2: ['root_path', 'index_file', 'try_files'],
-  3: ['ssl_enabled', 'browse', 'template_rendering'],
+  3: ['ssl_enabled', 'ssl_forced', 'block_exploits', 'browse', 'template_rendering'],
   4: [],
 };
 
@@ -63,6 +70,8 @@ const STEP_FIELDS: Record<number, (keyof StaticFormValues)[]> = {
 function StaticReview({ acl }: { acl: ACLAssignment[] }) {
   const form = useFormContext<StaticFormValues>();
   const values = form.getValues();
+  const { data } = useProxyGroups();
+  const group = data?.items.find((g) => g.id === values.group_id);
 
   return (
     <div className="space-y-4">
@@ -70,6 +79,7 @@ function StaticReview({ acl }: { acl: ACLAssignment[] }) {
         <ReviewRow label="Name" value={values.name || '—'} />
         <ReviewRow label="Hostname" value={values.hostname || '—'} />
         {values.description && <ReviewRow label="Description" value={values.description} />}
+        <ReviewRow label="Proxy Group" value={group?.name ?? 'None'} />
       </ReviewSection>
 
       <ReviewSection title="File Server">
@@ -82,7 +92,9 @@ function StaticReview({ acl }: { acl: ACLAssignment[] }) {
       </ReviewSection>
 
       <ReviewSection title="Options">
-        <ReviewRow label="HTTPS" value={values.ssl_enabled ? 'Yes' : 'No'} />
+        <ReviewRow label="HTTPS" value={triStateReviewValue(values.ssl_enabled)} />
+        <ReviewRow label="Force HTTPS" value={triStateReviewValue(values.ssl_forced)} />
+        <ReviewRow label="Block Exploits" value={triStateReviewValue(values.block_exploits)} />
         <ReviewRow label="Directory Browsing" value={values.browse ? 'Yes' : 'No'} />
         <ReviewRow label="Template Rendering" value={values.template_rendering ? 'Yes' : 'No'} />
       </ReviewSection>
@@ -222,7 +234,15 @@ function StaticEdit({
         title="Options"
         open={openSections.options}
         onOpenChange={(v) => setOpenSections((s) => ({ ...s, options: v }))}
-        hasError={!!(errors.ssl_enabled || errors.browse || errors.template_rendering)}
+        hasError={
+          !!(
+            errors.ssl_enabled ||
+            errors.ssl_forced ||
+            errors.block_exploits ||
+            errors.browse ||
+            errors.template_rendering
+          )
+        }
       >
         <StaticOptionsFields />
       </FormSection>
@@ -288,7 +308,15 @@ export function StaticForm({
     if (mode !== 'edit') return;
     setOpenSections((prev) => ({
       fileServer: prev.fileServer || !!(errors.root_path || errors.index_file || errors.try_files),
-      options: prev.options || !!(errors.ssl_enabled || errors.browse || errors.template_rendering),
+      options:
+        prev.options ||
+        !!(
+          errors.ssl_enabled ||
+          errors.ssl_forced ||
+          errors.block_exploits ||
+          errors.browse ||
+          errors.template_rendering
+        ),
     }));
   };
 

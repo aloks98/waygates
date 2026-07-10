@@ -1,16 +1,12 @@
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-} from '@e412/rnui-react';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage, Input } from '@e412/rnui-react';
 import { useFormContext } from 'react-hook-form';
 
+import { GroupSelector } from '../group-selector';
+import { HostnameField } from './hostname-field';
+
 export function BasicsFields({ autoFocusName = false }: { autoFocusName?: boolean }) {
-  // BasicsFields only touches name/hostname/description, present on all 3 schemas.
+  // BasicsFields only touches name/hostname/description/group_id/hostname_label,
+  // present on all 3 schemas.
   const form = useFormContext();
   return (
     <div className="space-y-4">
@@ -30,20 +26,7 @@ export function BasicsFields({ autoFocusName = false }: { autoFocusName?: boolea
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="hostname"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Hostname</FormLabel>
-              <FormControl>
-                <Input placeholder="app.example.com" {...field} />
-              </FormControl>
-              <FormDescription>The domain visitors will use to reach this service.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <HostnameField />
       </div>
       <FormField
         control={form.control}
@@ -58,6 +41,7 @@ export function BasicsFields({ autoFocusName = false }: { autoFocusName?: boolea
           </FormItem>
         )}
       />
+      <GroupSelector />
     </div>
   );
 }

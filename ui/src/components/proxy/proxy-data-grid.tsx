@@ -28,6 +28,7 @@ import type { ProxyConfig } from '@/types/proxy';
 import {
   ProxyAclCell,
   ProxyActionsCell,
+  ProxyGroupCell,
   ProxySslCell,
   ProxyStatusBadge,
   ProxyTargetCell,
@@ -202,6 +203,18 @@ export function ProxyDataGrid({
         cell: ({ row }) => (
           <ProxyAclCell count={row.original.acl_group_count} names={row.original.acl_group_names} />
         ),
+        enableSorting: false,
+        minSize: 100,
+        maxSize: 160,
+        meta: {
+          skeleton: <Skeleton className="h-5 w-20" />,
+        },
+      },
+      {
+        id: 'group',
+        accessorKey: 'group_name',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Group" />,
+        cell: ({ row }) => <ProxyGroupCell groupName={row.original.group_name} />,
         enableSorting: false,
         minSize: 100,
         maxSize: 160,

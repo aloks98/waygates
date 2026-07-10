@@ -110,6 +110,12 @@ export function ReviewSection({ title, children }: { title: string; children: Re
   );
 }
 
+// For a tri-state settings boolean: null must read as "Inherit", never as
+// "No" — `value ? 'Yes' : 'No'` would silently coerce "inherit" to "off".
+export function triStateReviewValue(value: boolean | null): string {
+  return value === null ? 'Inherit' : value ? 'Yes' : 'No';
+}
+
 export function ReviewRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2 text-sm">

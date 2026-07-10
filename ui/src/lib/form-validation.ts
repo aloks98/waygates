@@ -162,6 +162,18 @@ export type HeaderPairFormValues = z.infer<typeof headerPairSchema>;
 // useFieldArray needs object items; try_files (string[]) is wrapped as { value }.
 export const tryFileSchema = z.object({ value: z.string() });
 
+// group_id / hostname_label / the four settings booleans are shared by all
+// three proxy types (a redirect or static proxy can belong to a ProxyGroup
+// just as a reverse proxy can). null on a settings boolean means "inherit
+// from the group, or the system default if ungrouped" — never coerce it to
+// false.
+const inheritableSettingsFields = {
+  group_id: z.number().nullable(),
+  hostname_label: z.string().nullable(),
+  ssl_enabled: z.boolean().nullable(),
+  ssl_forced: z.boolean().nullable(),
+};
+
 export const reverseProxySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be at most 255 characters'),
   hostname: z
@@ -170,9 +182,9 @@ export const reverseProxySchema = z.object({
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
   upstreams: z.array(upstreamSchema).min(1, 'Add at least one backend server'),
-  ssl_enabled: z.boolean(),
-  block_exploits: z.boolean(),
-  tls_insecure_skip_verify: z.boolean(),
+  ...inheritableSettingsFields,
+  block_exploits: z.boolean().nullable(),
+  tls_insecure_skip_verify: z.boolean().nullable(),
   lb_strategy: z.enum(['round_robin', 'least_conn', 'ip_hash', 'random']),
   health_check_enabled: z.boolean(),
   health_check_path: z.string(),
@@ -190,7 +202,8 @@ export const redirectSchema = z.object({
     .min(1, 'Hostname is required')
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
-  ssl_enabled: z.boolean(),
+  ...inheritableSettingsFields,
+  block_exploits: z.boolean().nullable(),
   target: z.string().min(1, 'Target URL is required').url('Target must be a valid URL'),
   status_code: z.number().refine((val) => [301, 302, 307, 308].includes(val), {
     message: 'Status code must be 301, 302, 307, or 308',
@@ -207,7 +220,8 @@ export const staticSchema = z.object({
     .min(1, 'Hostname is required')
     .max(253, 'Hostname must be at most 253 characters'),
   description: z.string().max(500, 'Description must be at most 500 characters').optional(),
-  ssl_enabled: z.boolean(),
+  ...inheritableSettingsFields,
+  block_exploits: z.boolean().nullable(),
   root_path: z.string().min(1, 'Root path is required'),
   index_file: z.string().min(1, 'Index file is required'),
   browse: z.boolean(),

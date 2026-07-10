@@ -46,14 +46,16 @@ interface UseProxiesOptions {
   status?: string;
   ssl_enabled?: string;
   target?: string;
+  /** Proxy group filter: `eq:3`, `in:1,2`, `not:3`, `eq:none` (ungrouped). */
+  group?: string;
 }
 
 export function useProxies(options: UseProxiesOptions = {}) {
-  const { page = 1, limit = 20, search, type, status, ssl_enabled, target } = options;
+  const { page = 1, limit = 20, search, type, status, ssl_enabled, target, group } = options;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: [...QUERY_KEY, { page, limit, search, type, status, ssl_enabled, target }],
+    queryKey: [...QUERY_KEY, { page, limit, search, type, status, ssl_enabled, target, group }],
     queryFn: async () => {
       const searchParams: Record<string, string> = {
         page: String(page),
@@ -73,6 +75,9 @@ export function useProxies(options: UseProxiesOptions = {}) {
       }
       if (target) {
         searchParams.target = target;
+      }
+      if (group) {
+        searchParams.group = group;
       }
       const response = await api
         .get('proxies', { searchParams })

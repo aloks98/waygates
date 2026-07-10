@@ -26,8 +26,12 @@ export function ProxyConfigCard({ proxy }: { proxy: ProxyConfig }) {
               </div>
             </DetailRow>
             <DetailRow label="Load balancing">{proxy.load_balancing?.strategy ?? '—'}</DetailRow>
-            <DetailRow label="Block exploits">{yesNo(proxy.block_exploits)}</DetailRow>
-            <DetailRow label="Skip TLS verify">{yesNo(proxy.tls_insecure_skip_verify)}</DetailRow>
+            {/* raw block_exploits/tls_insecure_skip_verify are nullable (inherit) —
+                effective is the already-resolved value actually served. */}
+            <DetailRow label="Block exploits">{yesNo(proxy.effective?.block_exploits)}</DetailRow>
+            <DetailRow label="Skip TLS verify">
+              {yesNo(proxy.effective?.tls_insecure_skip_verify)}
+            </DetailRow>
             {proxy.custom_headers?.request &&
               Object.keys(proxy.custom_headers.request).length > 0 && (
                 <DetailRow label="Request headers">
