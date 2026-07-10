@@ -150,6 +150,34 @@ const l4ProxyEditRoute = createRoute({
   ),
 });
 
+// Proxy Groups routes
+const proxyGroupsRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxy-groups',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxy-groups/index'),
+    'ProxyGroupsListPage',
+  ),
+});
+
+const proxyGroupCreateRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxy-groups/new',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxy-groups/new'),
+    'ProxyGroupCreatePage',
+  ),
+});
+
+const proxyGroupEditRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/proxy-groups/$groupId/edit',
+  component: lazyRouteComponent(
+    () => import('@/routes/_dashboard/proxy-groups/$groupId/edit'),
+    'ProxyGroupEditPage',
+  ),
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/settings',
@@ -313,6 +341,9 @@ const routeTree = rootRoute.addChildren([
     l4ProxyCreateRoute,
     l4ProxyDetailRoute,
     l4ProxyEditRoute,
+    proxyGroupsRoute,
+    proxyGroupCreateRoute,
+    proxyGroupEditRoute,
     settingsRoute.addChildren([
       settingsIndexRoute,
       settingsDefaultPageRoute,

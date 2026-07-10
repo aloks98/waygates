@@ -215,3 +215,24 @@ export const staticSchema = z.object({
   try_files: z.array(tryFileSchema),
 });
 export type StaticFormValues = z.infer<typeof staticSchema>;
+
+// ============================================================================
+// Proxy Group Validation Schema
+// ============================================================================
+
+export const proxyGroupSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  description: z.string().optional(),
+  base_domain: z
+    .string()
+    .regex(/^([a-z0-9-]+\.)+[a-z]{2,}$/i, 'Must be a valid domain, e.g. group.acme.in')
+    .optional()
+    .or(z.literal('')),
+  // null = inherit / "the group says nothing". Not the same as false.
+  ssl_enabled: z.boolean().nullable(),
+  ssl_forced: z.boolean().nullable(),
+  tls_insecure_skip_verify: z.boolean().nullable(),
+  block_exploits: z.boolean().nullable(),
+});
+
+export type ProxyGroupFormData = z.infer<typeof proxyGroupSchema>;

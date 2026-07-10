@@ -34,6 +34,7 @@ import {
   Globe,
   Home,
   KeyRound,
+  Layers,
   LogOut,
   ScrollText,
   Settings,
@@ -64,6 +65,12 @@ const navItems: NavItem[] = [
     path: '/proxies',
     icon: <Globe className="size-4" />,
     permission: 'canReadProxies',
+  },
+  {
+    label: 'Proxy Groups',
+    path: '/proxy-groups',
+    icon: <Layers className="size-4" />,
+    permission: 'canReadProxyGroups',
   },
   {
     label: 'Access',

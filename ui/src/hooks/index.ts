@@ -56,4 +56,5 @@ export { useAppStatus, useDashboardData, useHealthStatus, useSyncStatus } from '
 export { useLogout } from './use-logout';
 export { usePermissions } from './use-permissions';
 export { useProxies, useProxy } from './use-proxies';
+export { useProxyGroup, useProxyGroupAcl, useProxyGroups } from './use-proxy-groups';
 export { useNotFoundSettings } from './use-settings';
