@@ -45,11 +45,56 @@ func TestExportProxies_ByIDs_MapsFieldsAndDropsServerManaged(t *testing.T) {
 	assert.Equal(t, "one.example.com", e.Hostname)
 	require.NotNil(t, e.Description)
 	assert.Equal(t, "a description", *e.Description)
-	assert.True(t, e.SSLEnabled)
+	require.NotNil(t, e.SSLEnabled)
+	assert.True(t, *e.SSLEnabled)
+	require.NotNil(t, e.SSLForced)
+	assert.True(t, *e.SSLForced)
 	assert.False(t, e.IsActive, "is_active must be carried through for import round-trip")
-	assert.True(t, e.BlockExploits)
-	assert.True(t, e.TLSInsecureSkipVerify)
+	require.NotNil(t, e.BlockExploits)
+	assert.True(t, *e.BlockExploits)
+	require.NotNil(t, e.TLSInsecureSkipVerify)
+	assert.True(t, *e.TLSInsecureSkipVerify)
 	assert.Equal(t, []interface{}{"localhost:8080"}, e.Upstreams)
+}
+
+// TestExportProxies_ByIDs_PreservesNilAsInherit is the regression guard for
+// the export/import round-trip bug: a proxy that INHERITS a setting (raw nil
+// on the model) must export as null, never as false. Exporting nil as false
+// would flip an inherited ssl_enabled (effectively true) to an explicit false
+// on re-import — HTTPS silently becoming plaintext.
+func TestExportProxies_ByIDs_PreservesNilAsInherit(t *testing.T) {
+	groupID := 7
+	label := "abc"
+	repo := &MockProxyRepository{
+		GetByIDsFunc: func(ids []int) ([]models.Proxy, error) {
+			return []models.Proxy{{
+				ID:            ids[0],
+				Type:          models.ProxyTypeReverseProxy,
+				Name:          "grouped-proxy",
+				Hostname:      "abc.group.example.com",
+				GroupID:       &groupID,
+				HostnameLabel: &label,
+				// All four inheritable settings left nil (inherit).
+				IsActive:  true,
+				Upstreams: []interface{}{"localhost:8080"},
+			}}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{Repo: repo, SyncService: &MockProxySyncer{}})
+
+	exports, err := svc.ExportProxies([]int{1}, ListProxiesRequest{})
+	require.NoError(t, err)
+	require.Len(t, exports, 1)
+
+	e := exports[0]
+	assert.Nil(t, e.SSLEnabled, "inherited ssl_enabled must export as null, not false")
+	assert.Nil(t, e.SSLForced, "inherited ssl_forced must export as null, not false")
+	assert.Nil(t, e.BlockExploits, "inherited block_exploits must export as null, not false")
+	assert.Nil(t, e.TLSInsecureSkipVerify, "inherited tls_insecure_skip_verify must export as null, not false")
+	require.NotNil(t, e.GroupID)
+	assert.Equal(t, groupID, *e.GroupID)
+	require.NotNil(t, e.HostnameLabel)
+	assert.Equal(t, "abc", *e.HostnameLabel)
 }
 
 func TestExportProxies_ByIDs_SkipsMissing(t *testing.T) {

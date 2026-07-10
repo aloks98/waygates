@@ -643,6 +643,46 @@ func TestImportProxies_PreservesIsActive(t *testing.T) {
 	assert.True(t, capturedInputs[1].Proxy.IsActive, "omitted is_active defaults to active")
 }
 
+// TestImportProxies_GroupFieldsPassThrough confirms that group_id and
+// hostname_label decode straight through importProxyRequest's shared
+// createProxyRequest (the same struct CreateProxy uses): via the embedded
+// models.Proxy, a plain *int/*string has no "omitted vs explicit zero value"
+// ambiguity, so no wrapper field or extra plumbing is needed here — unlike
+// the tri-state *bool settings, which createProxyRequest wraps explicitly.
+func TestImportProxies_GroupFieldsPassThrough(t *testing.T) {
+	t.Parallel()
+	var capturedInputs []service.ImportInput
+	mockService := &mocks.MockProxyService{
+		ImportProxiesFunc: func(inputs []service.ImportInput, _ bool, _ int) service.ImportReport {
+			capturedInputs = inputs
+			return service.ImportReport{
+				Summary: service.ImportSummary{Total: len(inputs), Importable: len(inputs)},
+				Items:   make([]service.ImportItemResult, 0),
+			}
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil, nil)
+
+	body := []byte(`{"dry_run":true,"proxies":[` +
+		`{"name":"Grouped","type":"reverse_proxy","group_id":3,"hostname_label":"abc","ssl_forced":false}` +
+		`]}`)
+	req := requestWithUserID(http.MethodPost, "/api/proxies/import", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.ImportProxies(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, capturedInputs, 1)
+	require.NotNil(t, capturedInputs[0].Proxy)
+	require.NotNil(t, capturedInputs[0].Proxy.GroupID)
+	assert.Equal(t, 3, *capturedInputs[0].Proxy.GroupID)
+	require.NotNil(t, capturedInputs[0].Proxy.HostnameLabel)
+	assert.Equal(t, "abc", *capturedInputs[0].Proxy.HostnameLabel)
+	require.NotNil(t, capturedInputs[0].Proxy.SSLForced, "explicit ssl_forced:false must not be coerced to nil")
+	assert.False(t, *capturedInputs[0].Proxy.SSLForced)
+	assert.Nil(t, capturedInputs[0].Proxy.SSLEnabled, "omitted ssl_enabled must stay nil (inherit), not be defaulted")
+}
+
 func TestImportProxies_EmptyProxies(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
@@ -3091,7 +3131,7 @@ func TestExportProxies_WithIDs(t *testing.T) {
 			capturedIDs = ids
 			capturedFilters = filters
 			return []service.ProxyExport{
-				{Type: "reverse_proxy", Name: "p1", Hostname: "one.example.com", SSLEnabled: true, IsActive: true},
+				{Type: "reverse_proxy", Name: "p1", Hostname: "one.example.com", SSLEnabled: ptr(true), IsActive: true},
 				{Type: "redirect", Name: "p3", Hostname: "three.example.com"},
 			}, nil
 		},

@@ -510,7 +510,7 @@ Max 1 000 items per request. `dry_run: true` validates without persisting. Respo
 
 Returns an array of proxy export objects. Accepts the same filters as the list endpoint. Optional `ids` query param for selective export: `?ids=1,2,3`.
 
-> **Known limitation — proxy groups do not round-trip.** Export predates proxy groups and is not group-aware. A proxy that *inherits* a setting (stored as `null`) is exported as an explicit `false`, and `group_id` / `hostname_label` / `ssl_forced` are omitted entirely. Re-importing therefore materializes inherited settings as explicit `false` — notably, an inherited-HTTPS proxy re-imports with `ssl_enabled: false` (plaintext). Do not rely on export→import to faithfully reproduce grouped or inheriting proxies until export is made group-aware.
+Export is group-aware: `group_id`, `hostname_label`, `ssl_forced`, and the other tri-state settings (`ssl_enabled`, `block_exploits`, `tls_insecure_skip_verify`) are carried through as-is, including `null` when the proxy inherits from its group (or the system default if ungrouped). A grouped or inheriting proxy therefore round-trips faithfully through export → import: re-importing an inherited-HTTPS proxy still inherits (and stays on HTTPS), it does not materialize as an explicit `ssl_enabled: false`.
 
 ### POST /api/proxies/bulk/enable | /bulk/disable | /bulk/delete
 

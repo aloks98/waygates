@@ -469,6 +469,13 @@ func (s *AuditService) LogProxyGroupRehome(ctx context.Context, userID, groupID 
 	})
 }
 
+// derefBool reports the pointed-to value, treating a nil *bool as false. Used
+// only for change-comparison in buildProxyGroupChanges below, where nil and
+// false are equivalent for the purpose of detecting a change — it must NOT be
+// used anywhere a nil/non-nil distinction is load-bearing (e.g. export/import,
+// where nil means "inherit" and is never equivalent to false).
+func derefBool(b *bool) bool { return b != nil && *b }
+
 // buildProxyGroupChanges compares old and updated proxy group values,
 // mirroring handlers.buildProxyChanges. It lives here rather than in the
 // handler because LogProxyGroupUpdate's signature takes old+updated directly

@@ -14,45 +14,52 @@ const exportListLimit = 100
 
 // ProxyExport is the import/export representation of a proxy. It mirrors the
 // frontend export item: it drops server-managed fields (id, timestamps,
-// created_by, ssl_forced) while keeping everything needed to recreate the proxy,
+// created_by) while keeping everything needed to recreate the proxy,
 // including is_active so an exported inactive proxy imports inactive.
+//
+// SSLEnabled / SSLForced / BlockExploits / TLSInsecureSkipVerify are *bool,
+// mirroring models.Proxy's tri-state contract: nil means "inherit from the
+// proxy's group, or the system default if ungrouped". GroupID / HostnameLabel
+// are carried so a grouped or label-addressed proxy round-trips its group
+// membership, not just its resolved settings.
 type ProxyExport struct {
 	Type                  string                `json:"type"`
 	Name                  string                `json:"name"`
 	Hostname              string                `json:"hostname"`
 	Description           *string               `json:"description,omitempty"`
-	SSLEnabled            bool                  `json:"ssl_enabled"`
+	GroupID               *int                  `json:"group_id,omitempty"`
+	HostnameLabel         *string               `json:"hostname_label,omitempty"`
+	SSLEnabled            *bool                 `json:"ssl_enabled"`
+	SSLForced             *bool                 `json:"ssl_forced"`
 	IsActive              bool                  `json:"is_active"`
 	Upstreams             interface{}           `json:"upstreams,omitempty"`
 	LoadBalancing         models.JSONField      `json:"load_balancing,omitempty"`
-	BlockExploits         bool                  `json:"block_exploits"`
-	TLSInsecureSkipVerify bool                  `json:"tls_insecure_skip_verify"`
+	BlockExploits         *bool                 `json:"block_exploits"`
+	TLSInsecureSkipVerify *bool                 `json:"tls_insecure_skip_verify"`
 	CustomHeaders         *models.CustomHeaders `json:"custom_headers,omitempty"`
 	RedirectConfig        models.JSONField      `json:"redirect,omitempty"`
 	StaticConfig          models.JSONField      `json:"static,omitempty"`
 }
 
-// derefBool reports the pointed-to value, treating a nil *bool as false. This
-// is a TEMPORARY shim: models.Proxy's inheritable booleans are now *bool
-// (nil = inherit from group / system default), but the export contract still
-// carries plain bools. A group-inheriting proxy therefore currently exports
-// its inherited fields as false rather than resolving them; revisit once
-// import/export gains inheritance awareness.
-func derefBool(b *bool) bool { return b != nil && *b }
-
-// newProxyExport builds a ProxyExport from a Proxy model.
+// newProxyExport builds a ProxyExport from a Proxy model. The four
+// inheritable settings and group fields are copied straight from the model
+// with no coercion: a nil *bool (inherit) must export as null, not false —
+// proxygroup.Resolve is the only place a default is applied.
 func newProxyExport(p models.Proxy) ProxyExport {
 	export := ProxyExport{
 		Type:                  p.Type,
 		Name:                  p.Name,
 		Hostname:              p.Hostname,
 		Description:           p.Description,
-		SSLEnabled:            derefBool(p.SSLEnabled),
+		GroupID:               p.GroupID,
+		HostnameLabel:         p.HostnameLabel,
+		SSLEnabled:            p.SSLEnabled,
+		SSLForced:             p.SSLForced,
 		IsActive:              p.IsActive,
 		Upstreams:             p.Upstreams,
 		LoadBalancing:         p.LoadBalancing,
-		BlockExploits:         derefBool(p.BlockExploits),
-		TLSInsecureSkipVerify: derefBool(p.TLSInsecureSkipVerify),
+		BlockExploits:         p.BlockExploits,
+		TLSInsecureSkipVerify: p.TLSInsecureSkipVerify,
 		RedirectConfig:        p.RedirectConfig,
 		StaticConfig:          p.StaticConfig,
 	}
