@@ -20,6 +20,10 @@ import (
 	"github.com/aloks98/waygates/backend/internal/service/mocks"
 )
 
+// ptr returns a pointer to v. Handy for building *bool fixtures for the
+// tri-state SSLEnabled/SSLForced/BlockExploits/TLSInsecureSkipVerify fields.
+func ptr[T any](v T) *T { return &v }
+
 // Helper to create a request with user ID in context
 func requestWithUserID(method, url string, body []byte, userID string) *http.Request {
 	var req *http.Request
@@ -462,9 +466,9 @@ func TestImportProxies_DryRunMixedItems(t *testing.T) {
 	assert.True(t, capturedDryRun, "dry_run should be passed through")
 	require.Len(t, capturedInputs, 2)
 	assert.NotNil(t, capturedInputs[0].Proxy, "first item should decode")
-	assert.True(t, capturedInputs[0].Proxy.SSLEnabled, "ssl_enabled defaults to true")
-	assert.True(t, capturedInputs[0].Proxy.BlockExploits, "block_exploits defaults to true")
-	assert.True(t, capturedInputs[0].Proxy.SSLForced)
+	assert.Nil(t, capturedInputs[0].Proxy.SSLEnabled, "ssl_enabled is nil (inherit) when omitted")
+	assert.Nil(t, capturedInputs[0].Proxy.BlockExploits, "block_exploits is nil (inherit) when omitted")
+	assert.Nil(t, capturedInputs[0].Proxy.SSLForced, "ssl_forced is nil (inherit) when omitted")
 	assert.True(t, capturedInputs[0].Proxy.IsActive)
 	assert.Nil(t, capturedInputs[1].Proxy, "second item should fail to decode")
 	assert.NotEmpty(t, capturedInputs[1].DecodeError)
@@ -563,7 +567,7 @@ func TestUpdateProxy_Success(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
@@ -657,7 +661,7 @@ func TestUpdateProxy_HostnameConflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "old.example.com", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "old.example.com", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.ErrHostnameConflict
@@ -682,7 +686,7 @@ func TestUpdateProxy_CaddyError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.NewCaddyError("caddy reload failed")
@@ -707,7 +711,7 @@ func TestUpdateProxy_ValidationError(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return errors.New("validation: invalid hostname format")
@@ -1379,14 +1383,19 @@ func TestListProxies_TypeNotOperator(t *testing.T) {
 // UpdateProxy SSL Handling Tests
 // =============================================================================
 
-func TestUpdateProxy_WithoutSSLEnabled_FetchExisting(t *testing.T) {
+// TestUpdateProxy_WithoutSSLEnabled_ResolvesToNil documents the current update
+// semantics: SSLEnabled is tri-state, so an omitted field now resolves to nil
+// (inherit) rather than preserving the existing row's value. This is a
+// deliberate behavior change from before *bool (see handlers/proxy.go
+// UpdateProxy); Task 6 revisits whether update should keep-existing instead.
+func TestUpdateProxy_WithoutSSLEnabled_ResolvesToNil(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Existing", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Existing", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, proxy *models.Proxy) error {
-			assert.True(t, proxy.SSLEnabled, "SSLEnabled should be preserved from existing proxy")
+			assert.Nil(t, proxy.SSLEnabled, "SSLEnabled is nil (inherit) when omitted from the update body")
 			return nil
 		},
 	}
@@ -1486,10 +1495,15 @@ func TestCreateProxy_SSLEnabledExplicitlyFalse(t *testing.T) {
 	handler.CreateProxy(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.False(t, capturedProxy.SSLEnabled, "SSLEnabled should be false when explicitly set")
+	require.NotNil(t, capturedProxy.SSLEnabled)
+	assert.False(t, *capturedProxy.SSLEnabled, "SSLEnabled should be false when explicitly set")
 }
 
-func TestCreateProxy_SSLEnabledDefault(t *testing.T) {
+// TestCreateProxy_SSLEnabledOmitted_ResolvesToNil documents that CreateProxy
+// no longer defaults ssl_enabled to true when the field is omitted: nil now
+// means "inherit from the proxy's group, or the system default if ungrouped".
+// proxygroup.Resolve (a later task) is where that default is actually applied.
+func TestCreateProxy_SSLEnabledOmitted_ResolvesToNil(t *testing.T) {
 	t.Parallel()
 	var capturedProxy *models.Proxy
 	mockService := &mocks.MockProxyService{
@@ -1512,7 +1526,7 @@ func TestCreateProxy_SSLEnabledDefault(t *testing.T) {
 	handler.CreateProxy(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.True(t, capturedProxy.SSLEnabled, "SSLEnabled should default to true")
+	assert.Nil(t, capturedProxy.SSLEnabled, "SSLEnabled is nil (inherit) when omitted")
 }
 
 func TestCreateProxy_BlockExploitsExplicitlyFalse(t *testing.T) {
@@ -1539,10 +1553,15 @@ func TestCreateProxy_BlockExploitsExplicitlyFalse(t *testing.T) {
 	handler.CreateProxy(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.False(t, capturedProxy.BlockExploits, "BlockExploits should be false when explicitly set")
+	require.NotNil(t, capturedProxy.BlockExploits)
+	assert.False(t, *capturedProxy.BlockExploits, "BlockExploits should be false when explicitly set")
 }
 
-func TestCreateProxy_BlockExploitsDefault(t *testing.T) {
+// TestCreateProxy_BlockExploitsOmitted_ResolvesToNil documents that
+// CreateProxy no longer defaults block_exploits to true when the field is
+// omitted: nil now means "inherit from the proxy's group, or the system
+// default if ungrouped".
+func TestCreateProxy_BlockExploitsOmitted_ResolvesToNil(t *testing.T) {
 	t.Parallel()
 	var capturedProxy *models.Proxy
 	mockService := &mocks.MockProxyService{
@@ -1565,7 +1584,7 @@ func TestCreateProxy_BlockExploitsDefault(t *testing.T) {
 	handler.CreateProxy(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	assert.True(t, capturedProxy.BlockExploits, "BlockExploits should default to true")
+	assert.Nil(t, capturedProxy.BlockExploits, "BlockExploits is nil (inherit) when omitted")
 }
 
 // =============================================================================
@@ -1610,7 +1629,7 @@ func TestUpdateProxy_WithAuditService(t *testing.T) {
 	auditCalled := false
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: false}, nil
+			return &models.Proxy{ID: 1, Name: "Old Name", Hostname: "old.example.com", SSLEnabled: ptr(false)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
@@ -1822,7 +1841,7 @@ func TestUpdateProxy_WithoutUserID_NoAudit(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
-			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: true}, nil
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
@@ -1959,7 +1978,7 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 		Name:       "Test Proxy",
 		Hostname:   "test.example.com",
 		Type:       "reverse_proxy",
-		SSLEnabled: true,
+		SSLEnabled: ptr(true),
 		IsActive:   true,
 	}
 	updated := &models.Proxy{
@@ -1967,7 +1986,7 @@ func TestBuildProxyChanges_NoChanges(t *testing.T) {
 		Name:       "Test Proxy",
 		Hostname:   "test.example.com",
 		Type:       "reverse_proxy",
-		SSLEnabled: true,
+		SSLEnabled: ptr(true),
 		IsActive:   true,
 	}
 
@@ -1982,13 +2001,13 @@ func TestBuildProxyChanges_NewlyTrackedScalarFields(t *testing.T) {
 	descNew := "new desc"
 	old := &models.Proxy{
 		Description:           &descOld,
-		BlockExploits:         true,
-		TLSInsecureSkipVerify: false,
+		BlockExploits:         ptr(true),
+		TLSInsecureSkipVerify: ptr(false),
 	}
 	updated := &models.Proxy{
 		Description:           &descNew,
-		BlockExploits:         false,
-		TLSInsecureSkipVerify: true,
+		BlockExploits:         ptr(false),
+		TLSInsecureSkipVerify: ptr(true),
 	}
 
 	changes := buildProxyChanges(old, updated)
@@ -1998,8 +2017,8 @@ func TestBuildProxyChanges_NewlyTrackedScalarFields(t *testing.T) {
 	require.Contains(t, changes, "block_exploits")
 	require.Contains(t, changes, "tls_insecure_skip_verify")
 	be := changes["block_exploits"].(map[string]interface{})
-	assert.Equal(t, true, be["old"])
-	assert.Equal(t, false, be["new"])
+	assert.Equal(t, old.BlockExploits, be["old"])
+	assert.Equal(t, updated.BlockExploits, be["new"])
 }
 
 func TestBuildProxyChanges_CustomHeadersChange(t *testing.T) {
@@ -2061,16 +2080,16 @@ func TestBuildProxyChanges_TypeChange(t *testing.T) {
 
 func TestBuildProxyChanges_SSLEnabledChange(t *testing.T) {
 	t.Parallel()
-	old := &models.Proxy{SSLEnabled: true}
-	updated := &models.Proxy{SSLEnabled: false}
+	old := &models.Proxy{SSLEnabled: ptr(true)}
+	updated := &models.Proxy{SSLEnabled: ptr(false)}
 
 	changes := buildProxyChanges(old, updated)
 
 	require.NotNil(t, changes)
 	require.Contains(t, changes, "ssl_enabled")
 	sslChange := changes["ssl_enabled"].(map[string]interface{})
-	assert.Equal(t, true, sslChange["old"])
-	assert.Equal(t, false, sslChange["new"])
+	assert.Equal(t, old.SSLEnabled, sslChange["old"])
+	assert.Equal(t, updated.SSLEnabled, sslChange["new"])
 }
 
 func TestBuildProxyChanges_IsActiveChange(t *testing.T) {
@@ -2114,12 +2133,12 @@ func TestBuildProxyChanges_MultipleChanges(t *testing.T) {
 	old := &models.Proxy{
 		Name:       "Old Name",
 		Hostname:   "old.example.com",
-		SSLEnabled: true,
+		SSLEnabled: ptr(true),
 	}
 	updated := &models.Proxy{
 		Name:       "New Name",
 		Hostname:   "new.example.com",
-		SSLEnabled: false,
+		SSLEnabled: ptr(false),
 	}
 
 	changes := buildProxyChanges(old, updated)
@@ -2141,7 +2160,7 @@ func TestUpdateProxy_WithAuditService_ChangesTracked(t *testing.T) {
 				Name:       "Old Name",
 				Hostname:   "old.example.com",
 				Type:       "reverse_proxy",
-				SSLEnabled: false,
+				SSLEnabled: ptr(false),
 				IsActive:   true,
 			}, nil
 		},
@@ -2191,8 +2210,10 @@ func TestUpdateProxy_WithAuditService_ChangesTracked(t *testing.T) {
 
 	// Verify ssl_enabled change structure
 	sslChange := capturedChanges["ssl_enabled"].(map[string]interface{})
-	assert.Equal(t, false, sslChange["old"])
-	assert.Equal(t, true, sslChange["new"])
+	require.IsType(t, (*bool)(nil), sslChange["old"])
+	require.IsType(t, (*bool)(nil), sslChange["new"])
+	assert.False(t, *sslChange["old"].(*bool))
+	assert.True(t, *sslChange["new"].(*bool))
 }
 
 func TestUpdateProxy_WithAuditService_NoChanges(t *testing.T) {
@@ -2205,7 +2226,7 @@ func TestUpdateProxy_WithAuditService_NoChanges(t *testing.T) {
 				Name:       "Same Name",
 				Hostname:   "same.example.com",
 				Type:       "reverse_proxy",
-				SSLEnabled: true,
+				SSLEnabled: ptr(true),
 			}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {

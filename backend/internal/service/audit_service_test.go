@@ -407,7 +407,7 @@ func TestAuditService_LogProxyCreate(t *testing.T) {
 		Name:       "Test Proxy",
 		Hostname:   "test.example.com",
 		Type:       models.ProxyTypeReverseProxy,
-		SSLEnabled: true,
+		SSLEnabled: ptr(true),
 	}
 
 	err := svc.LogProxyCreate(context.Background(), 1, proxy, "192.168.1.1", "Mozilla/5.0")

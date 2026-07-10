@@ -2534,7 +2534,7 @@ func TestSyncService_PerformFullSyncJSON(t *testing.T) {
 
 		proxyRepo.ListFunc = func(_ repository.ProxyListParams) ([]models.Proxy, int64, error) {
 			return []models.Proxy{
-				{ID: 1, Hostname: "ssl.example.com", Name: "SSL Site", IsActive: true, SSLEnabled: true, Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:6000"}},
+				{ID: 1, Hostname: "ssl.example.com", Name: "SSL Site", IsActive: true, SSLEnabled: ptr(true), Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{"http://localhost:6000"}},
 			}, 1, nil
 		}
 

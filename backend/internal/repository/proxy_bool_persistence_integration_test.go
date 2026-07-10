@@ -36,10 +36,10 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 			Upstreams: []interface{}{
 				map[string]interface{}{"host": "backend", "port": 8080, "scheme": "http"},
 			},
-			SSLEnabled:            false, // wants HTTPS OFF
-			BlockExploits:         false, // wants exploit-blocking OFF
-			TLSInsecureSkipVerify: true,  // wants self-signed ON
-			IsActive:              false, // imported as inactive
+			SSLEnabled:            ptr(false), // wants HTTPS OFF
+			BlockExploits:         ptr(false), // wants exploit-blocking OFF
+			TLSInsecureSkipVerify: ptr(true),  // wants self-signed ON
+			IsActive:              false,      // imported as inactive
 			CreatedBy:             user.ID,
 		}
 		require.NoError(t, repo.Create(proxy))
@@ -47,9 +47,12 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 		fetched, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
 
-		assert.True(t, fetched.TLSInsecureSkipVerify, "tls_insecure_skip_verify=true should persist on create")
-		assert.False(t, fetched.SSLEnabled, "ssl_enabled=false should persist on create")
-		assert.False(t, fetched.BlockExploits, "block_exploits=false should persist on create")
+		require.NotNil(t, fetched.TLSInsecureSkipVerify)
+		assert.True(t, *fetched.TLSInsecureSkipVerify, "tls_insecure_skip_verify=true should persist on create")
+		require.NotNil(t, fetched.SSLEnabled)
+		assert.False(t, *fetched.SSLEnabled, "ssl_enabled=false should persist on create")
+		require.NotNil(t, fetched.BlockExploits)
+		assert.False(t, *fetched.BlockExploits, "block_exploits=false should persist on create")
 		assert.False(t, fetched.IsActive, "is_active=false should persist on create (import round-trip)")
 	})
 
@@ -63,23 +66,25 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 			Upstreams: []interface{}{
 				map[string]interface{}{"host": "backend", "port": 8080, "scheme": "http"},
 			},
-			SSLEnabled:            true,
-			TLSInsecureSkipVerify: true, // starts ON
+			SSLEnabled:            ptr(true),
+			TLSInsecureSkipVerify: ptr(true), // starts ON
 			CreatedBy:             user.ID,
 		}
 		require.NoError(t, repo.Create(proxy))
 
 		before, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
-		require.True(t, before.TLSInsecureSkipVerify, "precondition: should start ON")
+		require.NotNil(t, before.TLSInsecureSkipVerify)
+		require.True(t, *before.TLSInsecureSkipVerify, "precondition: should start ON")
 
 		// Now turn it OFF and Save (mirrors ProxyService.UpdateProxy -> repo.Update).
-		before.TLSInsecureSkipVerify = false
+		before.TLSInsecureSkipVerify = ptr(false)
 		require.NoError(t, repo.Update(before))
 
 		after, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
-		assert.False(t, after.TLSInsecureSkipVerify, "tls_insecure_skip_verify=false should persist after update")
+		require.NotNil(t, after.TLSInsecureSkipVerify)
+		assert.False(t, *after.TLSInsecureSkipVerify, "tls_insecure_skip_verify=false should persist after update")
 	})
 
 	// Scenario 2b: production-faithful update. The handler decodes a fresh
@@ -93,8 +98,8 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 			Upstreams: []interface{}{
 				map[string]interface{}{"host": "backend", "port": 8080, "scheme": "http"},
 			},
-			SSLEnabled:            true,
-			TLSInsecureSkipVerify: true, // starts ON
+			SSLEnabled:            ptr(true),
+			TLSInsecureSkipVerify: ptr(true), // starts ON
 			CreatedBy:             user.ID,
 		}
 		require.NoError(t, repo.Create(seed))
@@ -126,7 +131,8 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 
 		after, err := repo.GetByID(seed.ID)
 		require.NoError(t, err)
-		assert.False(t, after.TLSInsecureSkipVerify, "tls_insecure_skip_verify=false should persist via the fresh-struct Save path")
+		require.NotNil(t, after.TLSInsecureSkipVerify)
+		assert.False(t, *after.TLSInsecureSkipVerify, "tls_insecure_skip_verify=false should persist via the fresh-struct Save path")
 	})
 
 	// Scenario 3: ssl_enabled true->false via update (the field the handler
@@ -139,18 +145,19 @@ func TestProxyRepository_BoolDefaultPersistence(t *testing.T) {
 			Upstreams: []interface{}{
 				map[string]interface{}{"host": "backend", "port": 8080, "scheme": "http"},
 			},
-			SSLEnabled: true,
+			SSLEnabled: ptr(true),
 			CreatedBy:  user.ID,
 		}
 		require.NoError(t, repo.Create(proxy))
 
 		before, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
-		before.SSLEnabled = false
+		before.SSLEnabled = ptr(false)
 		require.NoError(t, repo.Update(before))
 
 		after, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
-		assert.False(t, after.SSLEnabled, "ssl_enabled=false should persist after update")
+		require.NotNil(t, after.SSLEnabled)
+		assert.False(t, *after.SSLEnabled, "ssl_enabled=false should persist after update")
 	})
 }

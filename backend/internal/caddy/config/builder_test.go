@@ -20,6 +20,10 @@ func newTestLogger() *zap.Logger {
 	return zap.NewNop()
 }
 
+// ptr returns a pointer to v. Handy for building *bool fixtures for the
+// tri-state SSLEnabled/SSLForced/BlockExploits/TLSInsecureSkipVerify fields.
+func ptr[T any](v T) *T { return &v }
+
 // createTestProxy creates a test proxy with the given parameters.
 func createTestProxy(id int, name, hostname, proxyType string, isActive, sslEnabled bool) models.Proxy {
 	return models.Proxy{
@@ -28,7 +32,7 @@ func createTestProxy(id int, name, hostname, proxyType string, isActive, sslEnab
 		Hostname:   hostname,
 		Type:       proxyType,
 		IsActive:   isActive,
-		SSLEnabled: sslEnabled,
+		SSLEnabled: &sslEnabled,
 	}
 }
 
@@ -617,7 +621,7 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithHTTPSUpstream(t *testing.T) {
 func TestHTTPBuilder_BuildReverseProxyRoutes_WithTLSInsecureSkipVerify(t *testing.T) {
 	proxy := createReverseProxy(1, "test", "example.com",
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
-	proxy.TLSInsecureSkipVerify = true
+	proxy.TLSInsecureSkipVerify = ptr(true)
 
 	b := NewHTTPBuilder(newTestLogger())
 	routes, err := b.BuildReverseProxyRoutes(&proxy)
@@ -1900,7 +1904,7 @@ func TestBuilder_FullIntegration_SecurityRoutes(t *testing.T) {
 	// Create a proxy with BlockExploits enabled
 	proxy := createReverseProxy(1, "secure-api", "secure.example.com",
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
-	proxy.BlockExploits = true
+	proxy.BlockExploits = ptr(true)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
 	b.SetHTTPProxies([]models.Proxy{proxy})
@@ -1938,7 +1942,7 @@ func TestBuilder_FullIntegration_NoSecurityRoutesWhenDisabled(t *testing.T) {
 	// Create a proxy with BlockExploits disabled
 	proxy := createReverseProxy(1, "api", "api.example.com",
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, true)
-	proxy.BlockExploits = false
+	proxy.BlockExploits = ptr(false)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
 	b.SetHTTPProxies([]models.Proxy{proxy})

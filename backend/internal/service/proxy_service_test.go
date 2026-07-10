@@ -10,6 +10,10 @@ import (
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
 
+// ptr returns a pointer to v. Handy for building *bool fixtures for the
+// tri-state SSLEnabled/SSLForced/BlockExploits/TLSInsecureSkipVerify fields.
+func ptr[T any](v T) *T { return &v }
+
 // MockProxyRepository is a mock implementation of ProxyRepositoryInterface
 type MockProxyRepository struct {
 	ListFunc              func(params repository.ProxyListParams) ([]models.Proxy, int64, error)

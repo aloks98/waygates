@@ -6846,8 +6846,3 @@ func TestACLService_SingleIPToNetwork(t *testing.T) {
 		})
 	}
 }
-
-// ptr is a helper function to create a pointer to a string
-func ptr(s string) *string {
-	return &s
-}

@@ -232,19 +232,12 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 
 	proxy := req.Proxy
 
-	// Set defaults - SSLEnabled and BlockExploits default to true unless the
-	// client explicitly sends false.
-	if req.SSLEnabled != nil {
-		proxy.SSLEnabled = *req.SSLEnabled
-	} else {
-		proxy.SSLEnabled = true
-	}
-	if req.BlockExploits != nil {
-		proxy.BlockExploits = *req.BlockExploits
-	} else {
-		proxy.BlockExploits = true
-	}
-	proxy.SSLForced = true
+	// SSLEnabled / BlockExploits are tri-state: nil means inherit (from group,
+	// or the system default if ungrouped), so pass the client's value straight
+	// through instead of defaulting it here.
+	proxy.SSLEnabled = req.SSLEnabled
+	proxy.BlockExploits = req.BlockExploits
+	proxy.SSLForced = nil
 	proxy.IsActive = true
 
 	// Create proxy via service
@@ -320,17 +313,12 @@ func (h *ProxyHandler) ImportProxies(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		proxy := cpr.Proxy
-		if cpr.SSLEnabled != nil {
-			proxy.SSLEnabled = *cpr.SSLEnabled
-		} else {
-			proxy.SSLEnabled = true
-		}
-		if cpr.BlockExploits != nil {
-			proxy.BlockExploits = *cpr.BlockExploits
-		} else {
-			proxy.BlockExploits = true
-		}
-		proxy.SSLForced = true
+		// SSLEnabled / BlockExploits are tri-state: nil means inherit (from
+		// group, or the system default if ungrouped), so pass the imported
+		// value straight through instead of defaulting it here.
+		proxy.SSLEnabled = cpr.SSLEnabled
+		proxy.BlockExploits = cpr.BlockExploits
+		proxy.SSLForced = nil
 		// Preserve is_active from the imported item (exports carry it) so an
 		// exported inactive proxy imports inactive; default to active when the
 		// field is absent, matching CreateProxy.
@@ -396,12 +384,10 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 
 	proxy := req.Proxy
 
-	// Handle ssl_enabled - if explicitly provided, use it; otherwise keep existing value
-	if req.SSLEnabled != nil {
-		proxy.SSLEnabled = *req.SSLEnabled
-	} else {
-		proxy.SSLEnabled = existing.SSLEnabled
-	}
+	// SSLEnabled is tri-state: nil now means inherit, not "keep existing".
+	// TODO(task-6): revisit update semantics — an omitted field previously
+	// preserved the existing value; it now means inherit-from-group.
+	proxy.SSLEnabled = req.SSLEnabled
 
 	// Update proxy via service
 	if err := h.service.UpdateProxy(id, &proxy); err != nil {
@@ -789,6 +775,13 @@ func (h *ProxyHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	utils.Success(w, stats, "")
 }
 
+// derefBool reports the pointed-to value, treating a nil *bool as false. This
+// is a transitional shim for audit diffing only — it does NOT resolve
+// inheritance (nil means "inherit", not "false"). Task 3 removes the
+// equivalent helper in caddy/config once the builder is retyped to accept
+// only resolved proxies.
+func derefBool(b *bool) bool { return b != nil && *b }
+
 // buildProxyChanges compares old and new proxy values and returns a map of changes.
 // Each changed field is represented as {"old": oldValue, "new": newValue}.
 // Returns nil if no tracked fields changed.
@@ -812,7 +805,7 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	}
 
 	// Track ssl_enabled changes
-	if old.SSLEnabled != updated.SSLEnabled {
+	if derefBool(old.SSLEnabled) != derefBool(updated.SSLEnabled) {
 		changes["ssl_enabled"] = map[string]interface{}{
 			"old": old.SSLEnabled,
 			"new": updated.SSLEnabled,
@@ -860,7 +853,7 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	}
 
 	// Track block_exploits changes
-	if old.BlockExploits != updated.BlockExploits {
+	if derefBool(old.BlockExploits) != derefBool(updated.BlockExploits) {
 		changes["block_exploits"] = map[string]interface{}{
 			"old": old.BlockExploits,
 			"new": updated.BlockExploits,
@@ -868,7 +861,7 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	}
 
 	// Track tls_insecure_skip_verify changes
-	if old.TLSInsecureSkipVerify != updated.TLSInsecureSkipVerify {
+	if derefBool(old.TLSInsecureSkipVerify) != derefBool(updated.TLSInsecureSkipVerify) {
 		changes["tls_insecure_skip_verify"] = map[string]interface{}{
 			"old": old.TLSInsecureSkipVerify,
 			"new": updated.TLSInsecureSkipVerify,

@@ -32,6 +32,14 @@ type ProxyExport struct {
 	StaticConfig          models.JSONField      `json:"static,omitempty"`
 }
 
+// derefBool reports the pointed-to value, treating a nil *bool as false. This
+// is a TEMPORARY shim: models.Proxy's inheritable booleans are now *bool
+// (nil = inherit from group / system default), but the export contract still
+// carries plain bools. A group-inheriting proxy therefore currently exports
+// its inherited fields as false rather than resolving them; revisit once
+// import/export gains inheritance awareness.
+func derefBool(b *bool) bool { return b != nil && *b }
+
 // newProxyExport builds a ProxyExport from a Proxy model.
 func newProxyExport(p models.Proxy) ProxyExport {
 	export := ProxyExport{
@@ -39,12 +47,12 @@ func newProxyExport(p models.Proxy) ProxyExport {
 		Name:                  p.Name,
 		Hostname:              p.Hostname,
 		Description:           p.Description,
-		SSLEnabled:            p.SSLEnabled,
+		SSLEnabled:            derefBool(p.SSLEnabled),
 		IsActive:              p.IsActive,
 		Upstreams:             p.Upstreams,
 		LoadBalancing:         p.LoadBalancing,
-		BlockExploits:         p.BlockExploits,
-		TLSInsecureSkipVerify: p.TLSInsecureSkipVerify,
+		BlockExploits:         derefBool(p.BlockExploits),
+		TLSInsecureSkipVerify: derefBool(p.TLSInsecureSkipVerify),
 		RedirectConfig:        p.RedirectConfig,
 		StaticConfig:          p.StaticConfig,
 	}

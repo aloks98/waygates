@@ -386,7 +386,7 @@ func TestProxyHandler_GetStats_Error(t *testing.T) {
 func TestProxyHandler_UpdateProxy_Success(t *testing.T) {
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
-			return &models.Proxy{ID: id, Name: "Old Name", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: true}, nil
+			return &models.Proxy{ID: id, Name: "Old Name", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return nil
@@ -437,7 +437,7 @@ func TestProxyHandler_UpdateProxy_NotFound(t *testing.T) {
 func TestProxyHandler_UpdateProxy_HostnameConflict(t *testing.T) {
 	mockService := &mocks.MockProxyService{
 		GetProxyByIDFunc: func(id int) (*models.Proxy, error) {
-			return &models.Proxy{ID: id, Name: "Existing", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: true}, nil
+			return &models.Proxy{ID: id, Name: "Existing", Hostname: "old.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: ptr(true)}, nil
 		},
 		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
 			return service.ErrHostnameConflict

@@ -87,12 +87,12 @@ func TestProxyRepository_Create(t *testing.T) {
 			Name:                  "Full Proxy",
 			Hostname:              "full.example.com",
 			Description:           &description,
-			SSLEnabled:            true,
-			SSLForced:             true,
+			SSLEnabled:            ptr(true),
+			SSLForced:             ptr(true),
 			IsActive:              true,
 			CreatedBy:             user.ID,
-			BlockExploits:         true,
-			TLSInsecureSkipVerify: false,
+			BlockExploits:         ptr(true),
+			TLSInsecureSkipVerify: ptr(false),
 			Upstreams: []interface{}{
 				map[string]interface{}{
 					"host":   "backend1",
@@ -269,13 +269,14 @@ func TestProxyRepository_Update(t *testing.T) {
 
 		description := "Updated description"
 		proxy.Description = &description
-		proxy.BlockExploits = true
+		proxy.BlockExploits = ptr(true)
 		err := repo.Update(proxy)
 		require.NoError(t, err)
 
 		fetched, _ := repo.GetByID(proxy.ID)
 		assert.Equal(t, "Updated description", *fetched.Description)
-		assert.True(t, fetched.BlockExploits)
+		require.NotNil(t, fetched.BlockExploits)
+		assert.True(t, *fetched.BlockExploits)
 	})
 
 	t.Run("Success_UpdateUpstreams", func(t *testing.T) {
@@ -303,12 +304,13 @@ func TestProxyRepository_Update(t *testing.T) {
 
 		// Disabling SSL must persist. With db.Updates(struct), the false zero
 		// value is silently dropped and SSL stays enabled.
-		proxy.SSLEnabled = false
+		proxy.SSLEnabled = ptr(false)
 		require.NoError(t, repo.Update(proxy))
 
 		fetched, err := repo.GetByID(proxy.ID)
 		require.NoError(t, err)
-		assert.False(t, fetched.SSLEnabled, "disabling SSL should persist")
+		require.NotNil(t, fetched.SSLEnabled)
+		assert.False(t, *fetched.SSLEnabled, "disabling SSL should persist")
 	})
 }
 
@@ -732,7 +734,7 @@ func TestProxyRepository_List_SSLFilter(t *testing.T) {
 		Type:       models.ProxyTypeReverseProxy,
 		Name:       "SSL Enabled",
 		Hostname:   "ssl-enabled.example.com",
-		SSLEnabled: true,
+		SSLEnabled: ptr(true),
 		CreatedBy:  user.ID,
 	}
 	_ = repo.Create(sslProxy)
@@ -741,7 +743,7 @@ func TestProxyRepository_List_SSLFilter(t *testing.T) {
 		Type:       models.ProxyTypeReverseProxy,
 		Name:       "SSL Disabled",
 		Hostname:   "ssl-disabled.example.com",
-		SSLEnabled: false,
+		SSLEnabled: ptr(false),
 		CreatedBy:  user.ID,
 	}
 	_ = repo.Create(noSslProxy)
@@ -755,7 +757,8 @@ func TestProxyRepository_List_SSLFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		for _, p := range proxies {
-			assert.True(t, p.SSLEnabled)
+			require.NotNil(t, p.SSLEnabled)
+			assert.True(t, *p.SSLEnabled)
 		}
 	})
 
@@ -768,7 +771,8 @@ func TestProxyRepository_List_SSLFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		for _, p := range proxies {
-			assert.False(t, p.SSLEnabled)
+			require.NotNil(t, p.SSLEnabled)
+			assert.False(t, *p.SSLEnabled)
 		}
 	})
 

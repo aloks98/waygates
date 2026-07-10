@@ -14,35 +14,37 @@ type Proxy struct {
 	Name        string  `json:"name" gorm:"type:varchar(255);not null"`
 	Hostname    string  `json:"hostname" gorm:"type:varchar(255);uniqueIndex;not null"`
 	Description *string `json:"description,omitempty" gorm:"type:text"`
-	// SSLEnabled deliberately has no GORM `default` tag. A `default` tag makes
-	// GORM omit the column from INSERT whenever the field holds its zero value
-	// (false), so the database default wins and an explicitly-disabled toggle is
-	// silently re-enabled on create. The create handler applies the "true"
-	// default when the client omits the field. The DB column keeps its DEFAULT
-	// for backfilling existing rows.
-	SSLEnabled bool `json:"ssl_enabled" gorm:"not null"`
-	SSLForced  bool `json:"ssl_forced" gorm:"default:true;not null"`
-	// IsActive omits the GORM `default` tag for the same reason as SSLEnabled
-	// above: a `default` tag drops an explicit "false" on create, which would
-	// silently re-activate an inactive proxy brought in via import. Create paths
-	// apply the "true" default explicitly; the DB column keeps its DEFAULT for
-	// backfilling existing rows.
-	IsActive  bool      `json:"is_active" gorm:"not null"`
-	CreatedBy int       `json:"-" gorm:"not null"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	// SSLEnabled / SSLForced / BlockExploits / TLSInsecureSkipVerify are
+	// tri-state: nil means "inherit from the proxy's group, or the system
+	// default if ungrouped". They carry no GORM `default:` tag — a default tag
+	// makes GORM omit the column from INSERT on a zero value, which would both
+	// drop an explicit false and destroy the nil/inherit signal.
+	// proxygroup.Resolve is the only place a default is applied.
+	SSLEnabled *bool `json:"ssl_enabled" gorm:"column:ssl_enabled"`
+	SSLForced  *bool `json:"ssl_forced" gorm:"column:ssl_forced"`
+	// IsActive omits the GORM `default` tag for the same reason. It is NOT
+	// inheritable — a group-level kill switch would make "why is my proxy down"
+	// a two-table question.
+	IsActive  bool      `json:"is_active" gorm:"column:is_active;not null"`
+	CreatedBy int       `json:"-" gorm:"column:created_by;not null"`
+	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+
+	// GroupID is the proxy's ProxyGroup (config inheritance), never an ACLGroup.
+	GroupID *int `json:"group_id,omitempty" gorm:"column:group_id"`
+	// HostnameLabel is set iff the proxy has a group AND that group has a
+	// base_domain. Hostname then holds the materialized <label>.<base_domain>.
+	HostnameLabel *string     `json:"hostname_label,omitempty" gorm:"column:hostname_label;type:varchar(63)"`
+	Group         *ProxyGroup `json:"group,omitempty" gorm:"foreignKey:GroupID"`
 
 	// Type-specific fields (stored as JSON in database)
-	Upstreams     interface{} `json:"upstreams,omitempty" gorm:"type:text;serializer:json"`
-	LoadBalancing JSONField   `json:"load_balancing,omitempty" gorm:"type:text"`
-	// BlockExploits / TLSInsecureSkipVerify omit the GORM `default` tag for the
-	// same reason as SSLEnabled above: it would drop an explicit "false" on
-	// create. Defaults for omitted fields are applied in the create handler.
-	BlockExploits         bool          `json:"block_exploits" gorm:"not null"`
-	TLSInsecureSkipVerify bool          `json:"tls_insecure_skip_verify" gorm:"not null"`
-	CustomHeaders         CustomHeaders `json:"custom_headers,omitempty" gorm:"type:text"`
-	RedirectConfig        JSONField     `json:"redirect,omitempty" gorm:"type:text;column:redirect_config"`
-	StaticConfig          JSONField     `json:"static,omitempty" gorm:"type:text;column:static_config"`
+	Upstreams             interface{}   `json:"upstreams,omitempty" gorm:"column:upstreams;type:text;serializer:json"`
+	LoadBalancing         JSONField     `json:"load_balancing,omitempty" gorm:"column:load_balancing;type:text"`
+	BlockExploits         *bool         `json:"block_exploits" gorm:"column:block_exploits"`
+	TLSInsecureSkipVerify *bool         `json:"tls_insecure_skip_verify" gorm:"column:tls_insecure_skip_verify"`
+	CustomHeaders         CustomHeaders `json:"custom_headers,omitempty" gorm:"column:custom_headers;type:text"`
+	RedirectConfig        JSONField     `json:"redirect,omitempty" gorm:"column:redirect_config;type:text"`
+	StaticConfig          JSONField     `json:"static,omitempty" gorm:"column:static_config;type:text"`
 
 	// Relations (will be populated when needed)
 	Creator *User `json:"created_by,omitempty" gorm:"foreignKey:CreatedBy"`
@@ -50,6 +52,8 @@ type Proxy struct {
 	// ACL summary — computed by the repository List query, not persisted.
 	ACLGroupCount int      `json:"acl_group_count" gorm:"-"`
 	ACLGroupNames []string `json:"acl_group_names" gorm:"-"`
+	// GroupName is computed by the repository List query, not persisted.
+	GroupName *string `json:"group_name,omitempty" gorm:"-"`
 }
 
 // TableName specifies the table name for GORM
@@ -246,6 +250,18 @@ func (p *Proxy) Validate() error {
 		return ErrProxyNameTooLong
 	}
 
+	if p.HostnameLabel != nil {
+		if p.GroupID == nil {
+			return ErrLabelRequiresGroup
+		}
+		if err := validateHostname(*p.HostnameLabel); err != nil {
+			return err
+		}
+		if strings.Contains(*p.HostnameLabel, ".") {
+			return ErrLabelNotASingleLabel
+		}
+	}
+
 	if p.Hostname == "" {
 		return ErrProxyHostnameRequired
 	}
@@ -333,6 +349,8 @@ var (
 	ErrUpstreamsRequired      = &ValidationError{Message: "upstreams are required for reverse_proxy type"}
 	ErrRedirectConfigRequired = &ValidationError{Message: "redirect configuration is required for redirect type"}
 	ErrStaticConfigRequired   = &ValidationError{Message: "static configuration is required for static type"}
+	ErrLabelRequiresGroup     = &ValidationError{Message: "hostname_label requires a group"}
+	ErrLabelNotASingleLabel   = &ValidationError{Message: "hostname_label must be a single DNS label (no dots)"}
 )
 
 // ValidationError represents a validation error

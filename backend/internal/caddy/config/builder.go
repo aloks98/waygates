@@ -388,12 +388,19 @@ func (b *Builder) buildL4TLSRoutes() []*HTTPRoute {
 	return routes
 }
 
+// derefBool reports the pointed-to value, treating a nil *bool as false. This
+// is a TEMPORARY shim: models.Proxy's inheritable booleans are now *bool
+// (nil = inherit from group / system default), but this builder still
+// operates on raw, unresolved proxies. Task 3 retypes the builder to accept
+// only resolved proxies and deletes this helper — do not add new callers.
+func derefBool(b *bool) bool { return b != nil && *b }
+
 // buildProxyRoutes builds routes for a single proxy.
 func (b *Builder) buildProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
 	var routes []*HTTPRoute
 
 	// Add security routes if BlockExploits is enabled
-	if proxy.BlockExploits {
+	if derefBool(proxy.BlockExploits) {
 		securityRoutes := SecurityRoutesForHost(proxy.Hostname)
 		routes = append(routes, securityRoutes...)
 		b.logger.Debug("Added security routes for proxy",
@@ -457,7 +464,7 @@ func (b *Builder) collectTLSDomains() []string {
 			continue
 		}
 		// Only collect domains for SSL-enabled proxies
-		if proxy.SSLEnabled {
+		if derefBool(proxy.SSLEnabled) {
 			domainSet[proxy.Hostname] = true
 		}
 	}
@@ -499,7 +506,7 @@ func (b *Builder) BuildSingleProxy(proxy *models.Proxy) (*CaddyConfig, error) {
 		},
 	}
 
-	if proxy.SSLEnabled {
+	if derefBool(proxy.SSLEnabled) {
 		config.Apps.TLS = NewTLSApp([]string{proxy.Hostname})
 	}
 

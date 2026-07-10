@@ -20,6 +20,10 @@ import (
 	"github.com/aloks98/waygates/backend/internal/models"
 )
 
+// ptr returns a pointer to v. Handy for building *bool fixtures for the
+// tri-state SSLEnabled/SSLForced/BlockExploits/TLSInsecureSkipVerify fields.
+func ptr[T any](v T) *T { return &v }
+
 // TestDB holds the test database connection and container
 type TestDB struct {
 	Container testcontainers.Container
@@ -154,9 +158,9 @@ func CreateTestProxy(t *testing.T, db *gorm.DB, userID int, name, hostname, prox
 		CreatedBy: userID,
 		// Set the secure-by-default toggles explicitly. The model no longer
 		// carries GORM `default` tags for these (so explicit "false" persists),
-		// which means unset fields would otherwise be stored as false here.
-		SSLEnabled:    true,
-		BlockExploits: true,
+		// which means unset fields would otherwise be stored as nil (inherit).
+		SSLEnabled:    ptr(true),
+		BlockExploits: ptr(true),
 	}
 
 	// Add type-specific configuration

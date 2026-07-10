@@ -21,15 +21,15 @@ func TestExportProxies_ByIDs_MapsFieldsAndDropsServerManaged(t *testing.T) {
 				Name:                  "proxy-1",
 				Hostname:              "one.example.com",
 				Description:           &desc,
-				SSLEnabled:            true,
-				SSLForced:             true,
+				SSLEnabled:            ptr(true),
+				SSLForced:             ptr(true),
 				IsActive:              false, // inactive should be preserved
 				CreatedBy:             99,
 				CreatedAt:             time.Now(),
 				UpdatedAt:             time.Now(),
 				Upstreams:             []interface{}{"localhost:8080"},
-				BlockExploits:         true,
-				TLSInsecureSkipVerify: true,
+				BlockExploits:         ptr(true),
+				TLSInsecureSkipVerify: ptr(true),
 			}}, nil
 		},
 	}
