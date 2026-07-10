@@ -251,8 +251,20 @@ func (env *ContainerTestEnv) RegisterAndLogin(t *testing.T) {
 	env.RefreshToken = loginResp.Data.RefreshToken
 }
 
-// MakeAuthenticatedRequest makes an authenticated HTTP request
+// MakeAuthenticatedRequest makes an authenticated HTTP request using the
+// environment's current AccessToken (set by RegisterAndLogin — the
+// first-registered, bootstrap-admin user).
 func (env *ContainerTestEnv) MakeAuthenticatedRequest(t *testing.T, method, path string, body interface{}) *http.Response {
+	t.Helper()
+	return env.MakeRequestWithToken(t, env.AccessToken, method, path, body)
+}
+
+// MakeRequestWithToken makes an authenticated HTTP request using an explicit
+// access token, rather than env.AccessToken. This lets a single test compare
+// behavior across two different users/roles within the same container — e.g.
+// asserting that a viewer-role token is refused where an admin token
+// succeeds — without clobbering env.AccessToken for other tests/subtests.
+func (env *ContainerTestEnv) MakeRequestWithToken(t *testing.T, token, method, path string, body interface{}) *http.Response {
 	t.Helper()
 	var reqBody io.Reader
 	if body != nil {
@@ -269,7 +281,7 @@ func (env *ContainerTestEnv) MakeAuthenticatedRequest(t *testing.T, method, path
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+env.AccessToken)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -278,6 +290,46 @@ func (env *ContainerTestEnv) MakeAuthenticatedRequest(t *testing.T, method, path
 	}
 
 	return resp
+}
+
+// Login logs in with an arbitrary identifier/password (unlike RegisterAndLogin,
+// which always registers+logs in the bootstrap-admin test user) and returns
+// the resulting access token. Used to obtain a token for a second,
+// non-admin-role user created via the (admin-only) users API.
+func (env *ContainerTestEnv) Login(t *testing.T, identifier, password string) string {
+	t.Helper()
+	loginBody := map[string]string{
+		"identifier": identifier,
+		"password":   password,
+	}
+	body, err := json.Marshal(loginBody)
+	if err != nil {
+		t.Fatalf("Failed to marshal login body: %v", err)
+	}
+
+	resp, err := http.Post(env.BaseURL+"/api/auth/login", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatalf("Failed to login: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Failed to login as %q: %d - %s", identifier, resp.StatusCode, string(respBody))
+	}
+
+	var loginResp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+	}
+	respBody, _ := io.ReadAll(resp.Body)
+	if err := json.Unmarshal(respBody, &loginResp); err != nil {
+		t.Fatalf("Failed to parse login response: %v", err)
+	}
+
+	return loginResp.Data.AccessToken
 }
 
 // ExecInContainer executes a command inside the waygates container
@@ -2301,4 +2353,133 @@ func TestIntegration_ACLIPRuleValidation(t *testing.T) {
 
 	// Cleanup
 	_ = env.MakeAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/api/acl/groups/%d", groupID), nil)
+}
+
+// TestIntegration_ProxyGroups_ViewerPermissions is a regression test for a
+// gap the whole-branch review flagged: nothing proved that a viewer-role
+// user (rbac.yaml grants "proxygroups:read" but not "proxygroups:create") is
+// actually refused by the real router + RBAC middleware chain on
+// POST /api/proxy-groups. The route wiring (chimw.RequirePermission with
+// "proxygroups:create"/"proxygroups:read" — see routes.go) and the
+// third-party goauth middleware it calls are otherwise untested for this
+// specific route, so this exercises the full stack: real JWTs, real RBAC
+// role->permission resolution, real chi routing.
+//
+// This mirrors the only real router + minted-token pattern in this test
+// suite (ContainerTestEnv / RegisterAndLogin / MakeAuthenticatedRequest,
+// used throughout this file) — there is no lighter middleware-only harness
+// for RBAC in this repo, so the full container-based integration test is
+// used rather than inventing a new one. The one addition is Login +
+// MakeRequestWithToken, needed because every existing test in this file
+// only ever authenticates as the single bootstrap-admin user RegisterAndLogin
+// creates; this test needs a second, non-admin token in the same run.
+//
+// IMPORTANT: the refused status is 404, not 403. internal/auth/goauth.go's
+// ErrorHandler() deliberately remaps every permission-denied result
+// (goauth's ErrPermissionDenied -> http.StatusForbidden) to a 404 "Not
+// found", with the comment "avoid leaking information about protected
+// resources". That remapping is applied once, globally, to every
+// RequirePermission-gated route in routes.go (mwConfig.ErrorHandler =
+// auth.ErrorHandler()), not something specific to proxy-groups. This was
+// discovered by first asserting 403 here and observing a real 404 from the
+// live container — see the response body assertion below for what the
+// actual wire behavior is.
+func TestIntegration_ProxyGroups_ViewerPermissions(t *testing.T) {
+	env := SetupContainerEnvironment(t)
+	defer env.Cleanup(t)
+
+	// First-registered user bootstraps as admin (see auth_handler.go).
+	env.RegisterAndLogin(t)
+
+	// Create a second user with the "viewer" role via the (admin-only) users
+	// API. rbac.yaml grants viewer "proxygroups:read" but none of
+	// "proxygroups:create/update/delete".
+	viewerUsername := fmt.Sprintf("viewer_%d", time.Now().UnixNano())
+	viewerPassword := "viewerpassword123"
+	createResp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/users", map[string]string{
+		"name":     "Viewer User",
+		"username": viewerUsername,
+		"email":    viewerUsername + "@example.com",
+		"password": viewerPassword,
+		"role":     "viewer",
+	})
+	if createResp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(createResp.Body)
+		_ = createResp.Body.Close()
+		t.Fatalf("Failed to create viewer user: %d - %s", createResp.StatusCode, string(respBody))
+	}
+	_ = createResp.Body.Close()
+
+	viewerToken := env.Login(t, viewerUsername, viewerPassword)
+
+	t.Run("POST_proxy_groups_is_refused_for_viewer", func(t *testing.T) {
+		resp := env.MakeRequestWithToken(t, viewerToken, http.MethodPost, "/api/proxy-groups", map[string]any{
+			"name": "should-not-be-created",
+		})
+		defer func() { _ = resp.Body.Close() }()
+
+		// Refused as 404 "Not found", NOT 403 — auth.ErrorHandler() (see the
+		// doc comment on this test) intentionally masks permission-denied as
+		// not-found everywhere in this app, so this route is no exception.
+		respBody, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected 404 Not Found (permission-denied is masked as 404, not 403 — see auth.ErrorHandler) for viewer POST /api/proxy-groups (viewer lacks proxygroups:create), got %d: %s", resp.StatusCode, string(respBody))
+		}
+		var errResp struct {
+			Success bool `json:"success"`
+			Error   struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(respBody, &errResp); err != nil {
+			t.Fatalf("failed to parse error response: %v (body=%s)", err, string(respBody))
+		}
+		if errResp.Success {
+			t.Fatalf("expected success=false in the error envelope, got %s", string(respBody))
+		}
+		if errResp.Error.Code != "NOT_FOUND" {
+			t.Fatalf("expected error code NOT_FOUND, got %q (body=%s)", errResp.Error.Code, string(respBody))
+		}
+
+		// Belt-and-braces: confirm the mutation was actually refused, not
+		// just that the response happened to carry a not-found-shaped error.
+		// Uses the admin token (proxygroups:read) since the viewer's own read
+		// access isn't itself in question here.
+		listResp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/proxy-groups?search=should-not-be-created", nil)
+		defer func() { _ = listResp.Body.Close() }()
+		var listBody struct {
+			Data struct {
+				Total int64 `json:"total"`
+			} `json:"data"`
+		}
+		env.ReadJSONResponse(t, listResp, &listBody)
+		if listBody.Data.Total != 0 {
+			t.Fatalf("viewer's refused POST must not have created the proxy group, but search found %d match(es)", listBody.Data.Total)
+		}
+	})
+
+	t.Run("GET_proxy_groups_is_200_for_viewer", func(t *testing.T) {
+		resp := env.MakeRequestWithToken(t, viewerToken, http.MethodGet, "/api/proxy-groups", nil)
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 200 OK for viewer GET /api/proxy-groups (viewer has proxygroups:read), got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
+
+	// Confirm the admin token (which DOES have proxygroups:create) succeeds
+	// on the same route, so the refusal above can't be explained by
+	// something else being broken about proxy-group creation in general.
+	t.Run("POST_proxy_groups_is_201_for_admin", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPost, "/api/proxy-groups", map[string]any{
+			"name": fmt.Sprintf("admin-created-%d", time.Now().UnixNano()),
+		})
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusCreated {
+			respBody, _ := io.ReadAll(resp.Body)
+			t.Fatalf("expected 201 Created for admin POST /api/proxy-groups, got %d: %s", resp.StatusCode, string(respBody))
+		}
+	})
 }

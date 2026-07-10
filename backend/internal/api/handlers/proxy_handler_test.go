@@ -398,6 +398,25 @@ func TestGetProxy_EffectiveView_GroupLookupError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
+// TestSourceOf pins sourceOf's proxy -> group -> default precedence directly,
+// independent of the GetProxy handler tests above (which exercise it only
+// indirectly via the JSON response). sourceOf re-encodes the exact
+// proxy -> group -> default precedence proxygroup.Resolve's resolveBool
+// implements (internal/proxygroup/resolve.go) so the UI can report
+// provenance; if the two ever diverge, GetProxy would report a _source that
+// doesn't match what was actually served.
+func TestSourceOf(t *testing.T) {
+	t.Parallel()
+
+	proxyVal := ptr(true)
+	groupVal := ptr(false)
+
+	assert.Equal(t, "proxy", sourceOf(proxyVal, groupVal), "the proxy's own value wins over the group's")
+	assert.Equal(t, "proxy", sourceOf(proxyVal, nil), "the proxy's own value wins even with no group present")
+	assert.Equal(t, "group", sourceOf(nil, groupVal), "no proxy opinion falls through to the group's value")
+	assert.Equal(t, "default", sourceOf(nil, nil), "neither proxy nor group set: falls through to the system default")
+}
+
 // =============================================================================
 // CreateProxy Tests
 // =============================================================================

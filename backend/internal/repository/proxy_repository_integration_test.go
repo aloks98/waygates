@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
 // =============================================================================
@@ -1001,6 +1002,45 @@ func TestProxyRepository_List_SSLFilterResolvesThroughGroup(t *testing.T) {
 		assert.Contains(t, ids, inheritsDefault.ID, "system default is true when neither proxy nor group has an opinion")
 		assert.Contains(t, ids, overridesGroup.ID)
 		assert.NotContains(t, ids, inheritsFalse.ID)
+	})
+}
+
+// Every case in TestProxyRepository_List_SSLFilterResolvesThroughGroup above
+// attaches the proxy to a group, so the COALESCE's middle term (g.ssl_enabled)
+// always has a chance to match. A truly ungrouped proxy (group_id NULL) has
+// no group row for the LEFT JOIN to match at all, so g.ssl_enabled is also
+// NULL and the query falls through to the COALESCE's final literal `true` —
+// a path never exercised until now.
+//
+// That literal is a hand-maintained copy of proxygroup.DefaultSSLEnabled
+// (see the comment above the filter in proxy_repository.go). Referencing the
+// constant here, rather than a bare `true`, means this test fails the moment
+// someone flips DefaultSSLEnabled without updating the SQL — instead of the
+// two silently drifting apart.
+func TestProxyRepository_List_SSLFilterUngroupedResolvesThroughSystemDefault(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	proxyRepo := NewProxyRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	// Ungrouped, and no explicit ssl_enabled opinion of its own: nothing but
+	// the system default can decide this proxy's effective ssl_enabled.
+	ungrouped := CreateTestProxy(t, tdb.DB, user.ID, "Ungrouped No Opinion", "ungrouped-no-opinion.example.com", models.ProxyTypeReverseProxy)
+	ungrouped.SSLEnabled = nil
+	require.NoError(t, proxyRepo.Update(ungrouped))
+	require.Nil(t, ungrouped.GroupID, "must be truly ungrouped for this test to exercise the COALESCE's final fallback")
+
+	t.Run("matches_the_system_default", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, SSLEnabled: ptr(proxygroup.DefaultSSLEnabled)})
+		require.NoError(t, err)
+		assert.Contains(t, proxyIDs(proxies), ungrouped.ID, "an ungrouped proxy with no opinion must resolve to proxygroup.DefaultSSLEnabled")
+	})
+
+	t.Run("excluded_by_the_opposite_of_the_system_default", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, SSLEnabled: ptr(!proxygroup.DefaultSSLEnabled)})
+		require.NoError(t, err)
+		assert.NotContains(t, proxyIDs(proxies), ungrouped.ID)
 	})
 }
 
