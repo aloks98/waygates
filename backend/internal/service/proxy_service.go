@@ -360,7 +360,7 @@ func (s *ProxyService) materializeHostname(p *models.Proxy) error {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrGroupNotFound
 		}
-		return fmt.Errorf("loading group %d: %w", *p.GroupID, err)
+		return fmt.Errorf("%w (group %d): %w", ErrGroupLookupFailed, *p.GroupID, err)
 	}
 
 	if g.BaseDomain == nil {
@@ -390,6 +390,14 @@ var (
 	// neither at all.
 	ErrLabelRequiresBaseDomain   = errors.New("hostname_label requires the group to have a base_domain")
 	ErrLabelRequiredByBaseDomain = errors.New("group has a base_domain; hostname_label is required")
+
+	// ErrGroupLookupFailed wraps a genuine (non-not-found) error from loading a
+	// proxy's group in materializeHostname — e.g. a transient DB error. It is
+	// distinct from ErrGroupNotFound (gorm.ErrRecordNotFound) so the handler
+	// can map it to a 500 without echoing the underlying error text to the
+	// client, while the real error stays in the chain for server-side
+	// logging via errors.Unwrap / %w.
+	ErrGroupLookupFailed = errors.New("failed to load proxy group")
 )
 
 // CaddyError represents an error from Caddy operations

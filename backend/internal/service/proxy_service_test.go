@@ -1309,6 +1309,7 @@ func TestProxyService_CreateGroupRepoErrorPropagatesWrapped(t *testing.T) {
 
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrGroupNotFound), "a non-not-found DB error must not be misclassified as ErrGroupNotFound")
+	assert.ErrorIs(t, err, ErrGroupLookupFailed, "must be classified as ErrGroupLookupFailed so the handler can map it to a 500")
 	assert.ErrorIs(t, err, dbErr, "the underlying error must be preserved via %%w")
 }
 

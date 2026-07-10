@@ -396,6 +396,20 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 			utils.Conflict(w, "Hostname already exists")
 			return
 		}
+		if errors.Is(err, service.ErrGroupNotFound) {
+			utils.NotFound(w, "proxy group not found")
+			return
+		}
+		if errors.Is(err, service.ErrGroupLookupFailed) {
+			if h.logger != nil {
+				h.logger.Error("failed to load proxy group while creating proxy",
+					zap.String("hostname", proxy.Hostname),
+					zap.Int("user_id", userID),
+					zap.Error(err))
+			}
+			utils.InternalError(w, "failed to load proxy group")
+			return
+		}
 		// Check if it's a Caddy error
 		if service.IsCaddyError(err) {
 			if h.logger != nil {
@@ -561,6 +575,20 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, service.ErrHostnameConflict) {
 			utils.Conflict(w, "Hostname already exists")
+			return
+		}
+		if errors.Is(err, service.ErrGroupNotFound) {
+			utils.NotFound(w, "proxy group not found")
+			return
+		}
+		if errors.Is(err, service.ErrGroupLookupFailed) {
+			if h.logger != nil {
+				h.logger.Error("failed to load proxy group while updating proxy",
+					zap.Int("id", id),
+					zap.String("hostname", proxy.Hostname),
+					zap.Error(err))
+			}
+			utils.InternalError(w, "failed to load proxy group")
 			return
 		}
 		// Check if it's a Caddy error

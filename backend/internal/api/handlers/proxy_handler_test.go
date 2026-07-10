@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -544,6 +545,58 @@ func TestCreateProxy_ValidationError(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+// A group_id referencing a non-existent proxy group must be reported as 404,
+// not the generic 400 the catch-all would otherwise produce.
+func TestCreateProxy_GroupNotFound(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{
+		CreateProxyFunc: func(_ *models.Proxy, _ int) error {
+			return service.ErrGroupNotFound
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":     "Test Proxy",
+		"hostname": "test.example.com",
+		"group_id": 99,
+	})
+	req := requestWithUserID(http.MethodPost, "/api/proxies", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.CreateProxy(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// A genuine DB failure while loading the proxy's group must map to a 500 with
+// a generic message — the raw underlying error text (which could contain
+// connection details) must never be echoed back to the API caller.
+func TestCreateProxy_GroupLookupFailed(t *testing.T) {
+	t.Parallel()
+	rawErr := errors.New("dial tcp 10.0.0.5:5432: connection refused")
+	mockService := &mocks.MockProxyService{
+		CreateProxyFunc: func(_ *models.Proxy, _ int) error {
+			return fmt.Errorf("%w (group %d): %w", service.ErrGroupLookupFailed, 5, rawErr)
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"name":     "Test Proxy",
+		"hostname": "test.example.com",
+		"group_id": 5,
+	})
+	req := requestWithUserID(http.MethodPost, "/api/proxies", body, "123")
+	rec := httptest.NewRecorder()
+
+	handler.CreateProxy(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "connection refused", "raw DB error text must not be echoed to the client")
+	assert.NotContains(t, rec.Body.String(), "10.0.0.5", "raw DB error text must not be echoed to the client")
+}
+
 // =============================================================================
 // ImportProxies Tests
 // =============================================================================
@@ -896,6 +949,64 @@ func TestUpdateProxy_ValidationError(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// A group_id referencing a non-existent proxy group must be reported as 404,
+// not the generic 400 the catch-all would otherwise produce.
+func TestUpdateProxy_GroupNotFound(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: ptr(true)}, nil
+		},
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
+			return service.ErrGroupNotFound
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil, nil)
+
+	r := chi.NewRouter()
+	r.Put("/api/proxies/{id}", handler.UpdateProxy)
+
+	body, _ := json.Marshal(map[string]interface{}{"hostname": "test.example.com", "ssl_enabled": true, "group_id": 99})
+	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// A genuine DB failure while loading the proxy's group must map to a 500 with
+// a generic message — the raw underlying error text must never be echoed back
+// to the API caller.
+func TestUpdateProxy_GroupLookupFailed(t *testing.T) {
+	t.Parallel()
+	rawErr := errors.New("dial tcp 10.0.0.5:5432: connection refused")
+	mockService := &mocks.MockProxyService{
+		GetProxyByIDFunc: func(_ int) (*models.Proxy, error) {
+			return &models.Proxy{ID: 1, Name: "Existing", Hostname: "test.example.com", SSLEnabled: ptr(true)}, nil
+		},
+		UpdateProxyFunc: func(_ int, _ *models.Proxy) error {
+			return fmt.Errorf("%w (group %d): %w", service.ErrGroupLookupFailed, 5, rawErr)
+		},
+	}
+	handler := NewProxyHandler(mockService, nil, nil, nil)
+
+	r := chi.NewRouter()
+	r.Put("/api/proxies/{id}", handler.UpdateProxy)
+
+	body, _ := json.Marshal(map[string]interface{}{"hostname": "test.example.com", "ssl_enabled": true, "group_id": 5})
+	req := httptest.NewRequest(http.MethodPut, "/api/proxies/1", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "connection refused", "raw DB error text must not be echoed to the client")
+	assert.NotContains(t, rec.Body.String(), "10.0.0.5", "raw DB error text must not be echoed to the client")
 }
 
 // =============================================================================

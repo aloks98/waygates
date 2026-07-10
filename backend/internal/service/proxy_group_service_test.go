@@ -325,11 +325,43 @@ func TestProxyGroupService_UpdateGroupACLAssignmentSuccessRebuildsConfig(t *test
 	assert.Equal(t, 1, syncer.Calls)
 }
 
+// Unlike AssignACLToGroup, UpdateGroupACLAssignment has no rollback-on-
+// sync-failure step (the update already landed; there's nothing to
+// symmetrically undo). It must still log the RebuildAll failure and
+// propagate a non-nil error to the caller rather than swallowing it.
+func TestProxyGroupService_UpdateGroupACLAssignmentPropagatesSyncFailure(t *testing.T) {
+	repo := &MockProxyGroupRepository{
+		ListACLAssignmentsFunc: func(int) ([]models.ProxyGroupACLAssignment, error) {
+			return []models.ProxyGroupACLAssignment{{ID: 5, ProxyGroupID: 3}}, nil
+		},
+	}
+	syncer := &MockGroupSyncer{RebuildAllFunc: func() error { return errors.New("caddy reload failed") }}
+	svc := newGroupService(repo, syncer)
+
+	err := svc.UpdateGroupACLAssignment(3, 5, "/admin/*", 2, false)
+
+	require.Error(t, err)
+	assert.Equal(t, 1, syncer.Calls)
+}
+
 func TestProxyGroupService_RemoveACLFromGroupRebuildsConfig(t *testing.T) {
 	syncer := &MockGroupSyncer{}
 	svc := newGroupService(&MockProxyGroupRepository{}, syncer)
 
 	require.NoError(t, svc.RemoveACLFromGroup(3, 7))
+	assert.Equal(t, 1, syncer.Calls)
+}
+
+// Like UpdateGroupACLAssignment, RemoveACLFromGroup has no rollback-on-
+// sync-failure step (the row is already deleted). It must still log the
+// RebuildAll failure and propagate a non-nil error to the caller.
+func TestProxyGroupService_RemoveACLFromGroupPropagatesSyncFailure(t *testing.T) {
+	syncer := &MockGroupSyncer{RebuildAllFunc: func() error { return errors.New("caddy reload failed") }}
+	svc := newGroupService(&MockProxyGroupRepository{}, syncer)
+
+	err := svc.RemoveACLFromGroup(3, 7)
+
+	require.Error(t, err)
 	assert.Equal(t, 1, syncer.Calls)
 }
 
