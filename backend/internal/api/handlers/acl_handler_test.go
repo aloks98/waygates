@@ -54,7 +54,7 @@ type aclMockACLService struct {
 	ConfigureWaygatesAuthFunc func(groupID int, config *models.ACLWaygatesAuth) error
 
 	// Proxy Assignment
-	AssignToProxyFunc         func(groupID, proxyID int, path string, priority int) error
+	AssignToProxyFunc         func(groupID, proxyID int, path string, priority int, enabled bool) error
 	UpdateProxyAssignmentFunc func(assignmentID int, path string, priority int, enabled bool) error
 	RemoveFromProxyFunc       func(groupID, proxyID int) error
 	GetProxyACLFunc           func(proxyID int) ([]models.ProxyACLAssignment, error)
@@ -212,9 +212,9 @@ func (m *aclMockACLService) ConfigureWaygatesAuth(groupID int, config *models.AC
 	return nil
 }
 
-func (m *aclMockACLService) AssignToProxy(groupID, proxyID int, path string, priority int) error {
+func (m *aclMockACLService) AssignToProxy(groupID, proxyID int, path string, priority int, enabled bool) error {
 	if m.AssignToProxyFunc != nil {
-		return m.AssignToProxyFunc(groupID, proxyID, path, priority)
+		return m.AssignToProxyFunc(groupID, proxyID, path, priority, enabled)
 	}
 	return nil
 }

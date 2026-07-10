@@ -268,6 +268,10 @@ type AssignGroupACLRequest struct {
 	ACLGroupID  int    `json:"acl_group_id"`
 	PathPattern string `json:"path_pattern,omitempty"`
 	Priority    int    `json:"priority"`
+	// Enabled mirrors AssignACLRequest (proxy_acl_handler.go): a pointer so
+	// an omitted field defaults to true and an explicit false is
+	// distinguishable from "not sent".
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // UpdateGroupACLRequest is the request body for updating a proxy group ACL
@@ -323,7 +327,12 @@ func (h *ProxyGroupHandler) AssignACLToGroup(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := h.service.AssignACLToGroup(groupID, req.ACLGroupID, req.PathPattern, req.Priority); err != nil {
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	if err := h.service.AssignACLToGroup(groupID, req.ACLGroupID, req.PathPattern, req.Priority, enabled); err != nil {
 		switch {
 		case errors.Is(err, service.ErrGroupNotFound):
 			utils.NotFound(w, "Proxy group not found")

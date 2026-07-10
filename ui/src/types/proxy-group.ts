@@ -51,6 +51,10 @@ export interface AssignProxyGroupAclRequest {
   acl_group_id: number;
   path_pattern: string;
   priority: number;
+  // Omitted means "enabled" (server default). An explicit false is the
+  // documented way a member proxy's group opts out of an ACL in the same
+  // save that adds it — see diffAclAssignments in lib/diff-acl-assignments.ts.
+  enabled?: boolean;
 }
 
 export interface UpdateProxyGroupAclRequest {

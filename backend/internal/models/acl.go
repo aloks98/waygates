@@ -218,13 +218,16 @@ func (ACLWaygatesAuth) TableName() string {
 // ProxyACLAssignment represents a proxy-to-ACL-group mapping
 // Multiple ACL groups can be assigned to the same proxy and path pattern (union behavior)
 type ProxyACLAssignment struct {
-	ID          int       `json:"id" gorm:"primaryKey;autoIncrement"`
-	ProxyID     int       `json:"proxy_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
-	ACLGroupID  int       `json:"acl_group_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
-	PathPattern string    `json:"path_pattern" gorm:"type:varchar(500);not null;default:'/*'"`
-	Priority    int       `json:"priority" gorm:"not null;default:0"`
-	Enabled     bool      `json:"enabled" gorm:"default:true"`
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
+	ID          int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	ProxyID     int    `json:"proxy_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
+	ACLGroupID  int    `json:"acl_group_id" gorm:"not null;index;uniqueIndex:uq_proxy_acl_assignments_proxy_group"`
+	PathPattern string `json:"path_pattern" gorm:"type:varchar(500);not null;default:'/*'"`
+	Priority    int    `json:"priority" gorm:"not null;default:0"`
+	// Enabled carries no GORM `default:` tag — a default tag drops an explicit
+	// false on INSERT (see models/proxy.go:17-30). This is what lets a proxy
+	// opt out of an ACL inherited from its group by re-assigning it disabled.
+	Enabled   bool      `json:"enabled" gorm:"not null"`
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
 
 	// Relations
 	Proxy    *Proxy    `json:"proxy,omitempty" gorm:"foreignKey:ProxyID"`

@@ -1237,12 +1237,14 @@ func TestConfigureWaygatesAuth_DefaultSessionTTL(t *testing.T) {
 func TestAssignToProxy_Success(t *testing.T) {
 	t.Parallel()
 
+	var created *models.ProxyACLAssignment
 	aclRepo := &MockACLRepository{
 		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
 			return &models.ACLGroup{ID: id}, nil
 		},
 		CreateProxyACLAssignmentFunc: func(assignment *models.ProxyACLAssignment) error {
 			assignment.ID = 1
+			created = assignment
 			return nil
 		},
 	}
@@ -1254,9 +1256,12 @@ func TestAssignToProxy_Success(t *testing.T) {
 
 	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
 
-	err := svc.AssignToProxy(1, 2, "/api/*", 10)
+	err := svc.AssignToProxy(1, 2, "/api/*", 10, true)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+	if created == nil || !created.Enabled {
+		t.Fatalf("Expected assignment to be created enabled, got: %+v", created)
 	}
 }
 
@@ -1271,7 +1276,7 @@ func TestAssignToProxy_ProxyNotFound(t *testing.T) {
 
 	svc := NewACLService(ACLServiceConfig{ACLRepo: &MockACLRepository{}, ProxyRepo: proxyRepo})
 
-	err := svc.AssignToProxy(999, 1, "/*", 0)
+	err := svc.AssignToProxy(999, 1, "/*", 0, true)
 	if !errors.Is(err, ErrProxyNotFound) {
 		t.Errorf("Expected ErrProxyNotFound, got: %v", err)
 	}
@@ -1293,7 +1298,7 @@ func TestAssignToProxy_GroupNotFound(t *testing.T) {
 
 	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
 
-	err := svc.AssignToProxy(1, 999, "/*", 0)
+	err := svc.AssignToProxy(1, 999, "/*", 0, true)
 	if !errors.Is(err, ErrACLGroupNotFound) {
 		t.Errorf("Expected ErrACLGroupNotFound, got: %v", err)
 	}
@@ -1315,7 +1320,7 @@ func TestAssignToProxy_InvalidPathPattern(t *testing.T) {
 
 	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
 
-	err := svc.AssignToProxy(1, 2, "invalid?path#fragment", 0)
+	err := svc.AssignToProxy(1, 2, "invalid?path#fragment", 0, true)
 	if !errors.Is(err, ErrInvalidPathPattern) {
 		t.Errorf("Expected ErrInvalidPathPattern, got: %v", err)
 	}

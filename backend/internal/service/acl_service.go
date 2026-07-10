@@ -730,8 +730,10 @@ func (s *ACLService) ConfigureWaygatesAuth(groupID int, config *models.ACLWaygat
 // Proxy Assignment
 // =============================================================================
 
-// AssignToProxy assigns an ACL group to a proxy
-func (s *ACLService) AssignToProxy(proxyID, groupID int, pathPattern string, priority int) error {
+// AssignToProxy assigns an ACL group to a proxy. enabled lets a caller
+// create the assignment already disabled in one save — the documented way a
+// proxy opts out of an ACL it would otherwise inherit from its group.
+func (s *ACLService) AssignToProxy(proxyID, groupID int, pathPattern string, priority int, enabled bool) error {
 	// Check proxy exists
 	_, err := s.proxyRepo.GetByID(proxyID)
 	if err != nil {
@@ -765,7 +767,7 @@ func (s *ACLService) AssignToProxy(proxyID, groupID int, pathPattern string, pri
 		ACLGroupID:  groupID,
 		PathPattern: pathPattern,
 		Priority:    priority,
-		Enabled:     true,
+		Enabled:     enabled,
 	}
 
 	if err := s.aclRepo.CreateProxyACLAssignment(assignment); err != nil {

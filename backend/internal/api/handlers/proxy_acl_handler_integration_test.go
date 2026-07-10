@@ -143,7 +143,7 @@ func TestProxyACLHandler_GetProxyACL_InvalidProxyID(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_Success(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, _ bool) error {
 			return nil
 		},
 		GetProxyACLFunc: func(proxyID int) ([]models.ProxyACLAssignment, error) {
@@ -174,7 +174,7 @@ func TestProxyACLHandler_AssignACLToProxy_Success(t *testing.T) {
 func TestProxyACLHandler_AssignACLToProxy_DefaultPathPattern(t *testing.T) {
 	var capturedPathPattern string
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int, _ bool) error {
 			capturedPathPattern = pathPattern
 			return nil
 		},
@@ -198,7 +198,7 @@ func TestProxyACLHandler_AssignACLToProxy_DefaultPathPattern(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_DuplicatePath(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, _ bool) error {
 			return service.ErrProxyACLExists
 		},
 	}
@@ -216,7 +216,7 @@ func TestProxyACLHandler_AssignACLToProxy_DuplicatePath(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_ProxyNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, _ bool) error {
 			return service.ErrProxyNotFound
 		},
 	}
@@ -234,7 +234,7 @@ func TestProxyACLHandler_AssignACLToProxy_ProxyNotFound(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_GroupNotFound(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, _ bool) error {
 			return service.ErrACLGroupNotFound
 		},
 	}
@@ -248,6 +248,60 @@ func TestProxyACLHandler_AssignACLToProxy_GroupNotFound(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// TestProxyACLHandler_AssignACLToProxy_EnabledFalse proves the handler forwards
+// an explicit "enabled": false through to the service instead of dropping it —
+// this is what lets a proxy opt out of an ACL inherited from its group in a
+// single save.
+func TestProxyACLHandler_AssignACLToProxy_EnabledFalse(t *testing.T) {
+	var capturedEnabled bool
+	mockService := &MockACLService{
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, enabled bool) error {
+			capturedEnabled = enabled
+			return nil
+		},
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		},
+	}
+
+	r := setupProxyACLTestRouter(mockService)
+	body := `{"acl_group_id": 1, "path_pattern": "/*", "priority": 0, "enabled": false}`
+	req := httptest.NewRequest(http.MethodPost, "/api/proxies/1/acl", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.False(t, capturedEnabled)
+}
+
+// TestProxyACLHandler_AssignACLToProxy_EnabledOmittedDefaultsTrue proves an
+// omitted "enabled" field defaults to true, preserving pre-existing behavior.
+func TestProxyACLHandler_AssignACLToProxy_EnabledOmittedDefaultsTrue(t *testing.T) {
+	var capturedEnabled bool
+	mockService := &MockACLService{
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, enabled bool) error {
+			capturedEnabled = enabled
+			return nil
+		},
+		GetProxyACLFunc: func(_ int) ([]models.ProxyACLAssignment, error) {
+			return []models.ProxyACLAssignment{}, nil
+		},
+	}
+
+	r := setupProxyACLTestRouter(mockService)
+	body := `{"acl_group_id": 1, "path_pattern": "/*", "priority": 0}`
+	req := httptest.NewRequest(http.MethodPost, "/api/proxies/1/acl", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.True(t, capturedEnabled)
 }
 
 func TestProxyACLHandler_AssignACLToProxy_MissingACLGroupID(t *testing.T) {
@@ -288,7 +342,7 @@ func TestProxyACLHandler_AssignACLToProxy_NegativeACLGroupID(t *testing.T) {
 
 func TestProxyACLHandler_AssignACLToProxy_InvalidPathPattern(t *testing.T) {
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, _ string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, _ string, _ int, _ bool) error {
 			return service.ErrInvalidPathPattern
 		},
 	}
@@ -539,7 +593,7 @@ func TestProxyACLHandler_FullWorkflow(t *testing.T) {
 	nextID := 1
 
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int) error {
+		AssignToProxyFunc: func(proxyID, groupID int, pathPattern string, priority int, _ bool) error {
 			assignments[nextID] = models.ProxyACLAssignment{
 				ID:          nextID,
 				ProxyID:     proxyID,
@@ -709,7 +763,7 @@ func TestProxyACLHandler_LargeProxyID(t *testing.T) {
 func TestProxyACLHandler_SpecialCharactersInPathPattern(t *testing.T) {
 	var capturedPattern string
 	mockService := &MockACLService{
-		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int) error {
+		AssignToProxyFunc: func(_, _ int, pathPattern string, _ int, _ bool) error {
 			capturedPattern = pathPattern
 			return nil
 		},

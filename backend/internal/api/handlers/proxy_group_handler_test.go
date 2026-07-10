@@ -454,7 +454,7 @@ func TestAssignACLToGroup_InvalidACLGroupID(t *testing.T) {
 func TestAssignACLToGroup_GroupNotFound(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyGroupService{
-		AssignACLToGroupFunc: func(_, _ int, _ string, _ int) error { return service.ErrGroupNotFound },
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, _ bool) error { return service.ErrGroupNotFound },
 	}
 	handler := NewProxyGroupHandler(mockService, nil, nil)
 
@@ -472,7 +472,7 @@ func TestAssignACLToGroup_GroupNotFound(t *testing.T) {
 func TestAssignACLToGroup_Conflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyGroupService{
-		AssignACLToGroupFunc: func(_, _ int, _ string, _ int) error { return service.ErrGroupACLAssignmentExists },
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, _ bool) error { return service.ErrGroupACLAssignmentExists },
 	}
 	handler := NewProxyGroupHandler(mockService, nil, nil)
 
@@ -491,7 +491,7 @@ func TestAssignACLToGroup_Success_LogsAuditAndReturnsList(t *testing.T) {
 	t.Parallel()
 	auditCalled := false
 	mockService := &mocks.MockProxyGroupService{
-		AssignACLToGroupFunc: func(_, _ int, _ string, _ int) error { return nil },
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, _ bool) error { return nil },
 		ListACLAssignmentsFunc: func(_ int) ([]models.ProxyGroupACLAssignment, error) {
 			return []models.ProxyGroupACLAssignment{{ID: 1, ACLGroupID: 5}}, nil
 		},
@@ -516,6 +516,63 @@ func TestAssignACLToGroup_Success_LogsAuditAndReturnsList(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code)
 	assert.True(t, auditCalled)
 	assert.True(t, strings.Contains(rec.Body.String(), `"acl_group_id":5`))
+}
+
+// TestAssignACLToGroup_EnabledFalse mirrors the proxy-side handler test
+// (proxy_acl_handler_integration_test.go): an explicit "enabled": false must
+// reach the service, not be dropped by the request struct.
+func TestAssignACLToGroup_EnabledFalse(t *testing.T) {
+	t.Parallel()
+	var capturedEnabled bool
+	mockService := &mocks.MockProxyGroupService{
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, enabled bool) error {
+			capturedEnabled = enabled
+			return nil
+		},
+		ListACLAssignmentsFunc: func(_ int) ([]models.ProxyGroupACLAssignment, error) {
+			return []models.ProxyGroupACLAssignment{}, nil
+		},
+	}
+	handler := NewProxyGroupHandler(mockService, nil, nil)
+
+	r := chi.NewRouter()
+	r.Post("/api/proxy-groups/{id}/acl", handler.AssignACLToGroup)
+
+	body, _ := json.Marshal(map[string]interface{}{"acl_group_id": 5, "enabled": false})
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy-groups/3/acl", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	assert.False(t, capturedEnabled)
+}
+
+// TestAssignACLToGroup_EnabledOmittedDefaultsTrue proves an omitted "enabled"
+// field defaults to true, preserving pre-existing behavior.
+func TestAssignACLToGroup_EnabledOmittedDefaultsTrue(t *testing.T) {
+	t.Parallel()
+	var capturedEnabled bool
+	mockService := &mocks.MockProxyGroupService{
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, enabled bool) error {
+			capturedEnabled = enabled
+			return nil
+		},
+		ListACLAssignmentsFunc: func(_ int) ([]models.ProxyGroupACLAssignment, error) {
+			return []models.ProxyGroupACLAssignment{}, nil
+		},
+	}
+	handler := NewProxyGroupHandler(mockService, nil, nil)
+
+	r := chi.NewRouter()
+	r.Post("/api/proxy-groups/{id}/acl", handler.AssignACLToGroup)
+
+	body, _ := json.Marshal(map[string]int{"acl_group_id": 5})
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy-groups/3/acl", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	assert.True(t, capturedEnabled)
 }
 
 func TestUpdateGroupACLAssignment_NotFound(t *testing.T) {

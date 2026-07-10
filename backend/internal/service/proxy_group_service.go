@@ -206,7 +206,7 @@ func (s *ProxyGroupService) ListACLAssignments(groupID int) ([]models.ProxyGroup
 // rolled back by deleting the row it just inserted, so — like CreateGroup —
 // a sync failure undoes the write rather than leaving a DB row that isn't
 // reflected in the served config.
-func (s *ProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int) error {
+func (s *ProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int, enabled bool) error {
 	if _, err := s.repo.GetByID(groupID); err != nil {
 		return ErrGroupNotFound
 	}
@@ -222,7 +222,7 @@ func (s *ProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPatter
 		ACLGroupID:   aclGroupID,
 		PathPattern:  pathPattern,
 		Priority:     priority,
-		Enabled:      true,
+		Enabled:      enabled,
 	}
 	if err := s.repo.CreateACLAssignment(a); err != nil {
 		if repository.IsUniqueViolation(err, groupACLAssignmentConstraint) {

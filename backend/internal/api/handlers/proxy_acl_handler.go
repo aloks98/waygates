@@ -47,6 +47,11 @@ type AssignACLRequest struct {
 	ACLGroupID  int    `json:"acl_group_id"`
 	PathPattern string `json:"path_pattern,omitempty"`
 	Priority    int    `json:"priority"`
+	// Enabled is a pointer so an omitted field defaults to true (the
+	// historical behavior) while an explicit `false` is distinguishable from
+	// "not sent" — this is what lets a proxy opt out of an inherited ACL by
+	// re-assigning it with enabled: false in a single save.
+	Enabled *bool `json:"enabled,omitempty"`
 }
 
 // UpdateProxyACLRequest is the request body for updating a proxy ACL assignment
@@ -120,6 +125,14 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 		pathPattern = "/*"
 	}
 
+	// Default to enabled when the client omits the field; an explicit false
+	// is the documented way to opt a proxy out of an ACL inherited from its
+	// group.
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
 	// Get proxy and group names for audit logging
 	proxyName := ""
 	if h.proxyRepo != nil {
@@ -133,7 +146,7 @@ func (h *ProxyACLHandler) AssignACLToProxy(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Assign ACL group to proxy
-	if err := h.aclService.AssignToProxy(proxyID, req.ACLGroupID, pathPattern, req.Priority); err != nil {
+	if err := h.aclService.AssignToProxy(proxyID, req.ACLGroupID, pathPattern, req.Priority, enabled); err != nil {
 		if errors.Is(err, service.ErrProxyNotFound) {
 			utils.NotFound(w, "Proxy not found")
 			return

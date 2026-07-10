@@ -686,7 +686,7 @@ Passwords are bcrypt-hashed; the hash is never returned. `username` is unique wi
 | `acl_group_id` | int | |
 | `path_pattern` | string | Default `"/*"`. Caddy route matcher pattern. |
 | `priority` | int | Default 0 |
-| `enabled` | bool | Default `true` |
+| `enabled` | bool | Default `true` if omitted on `POST`. Send `enabled: false` on `POST /api/proxies/{id}/acl` to create the assignment already disabled — the standard way to opt a proxy out of an ACL group it inherits, in one save (see section 7's Proxy Group ACL Assignments). |
 
 ### 6.5 External Providers (Authelia / Authentik / Custom)
 
@@ -839,9 +839,9 @@ Fails with `409` if the group still has member proxies; the message carries the 
 
 ### Proxy Group ACL Assignments (nested)
 
-Fields mirror `ProxyACLAssignment` (section 6.4) — `id`, `proxy_group_id` (in place of `proxy_id`), `acl_group_id`, `path_pattern` (default `/*`), `priority`, `enabled`. A new assignment is always created with `enabled: true`; there's no way to create one pre-disabled. A duplicate `acl_group_id` for the same proxy group returns `409`; an invalid `path_pattern` returns `400`.
+Fields mirror `ProxyACLAssignment` (section 6.4) — `id`, `proxy_group_id` (in place of `proxy_id`), `acl_group_id`, `path_pattern` (default `/*`), `priority`, `enabled`. `enabled` defaults to `true` if omitted on `POST`; send `enabled: false` to create the assignment already disabled. A duplicate `acl_group_id` for the same proxy group returns `409`; an invalid `path_pattern` returns `400`.
 
-Assignments made here are inherited by every member proxy, merged per `acl_group_id` with the proxy's own assignments (see the Proxy Data Model, section 4). **To opt a specific proxy out of a group-inherited ACL**, assign that same `acl_group_id` directly to the proxy: `POST /api/proxies/{id}/acl` (section 6.4) creates it `enabled: true`, then `PUT /api/proxies/{id}/acl/{assignmentId}` to set `enabled: false`. The proxy's own row for that `acl_group_id` always wins over the group's inherited one, so a disabled proxy-level row suppresses it.
+Assignments made here are inherited by every member proxy, merged per `acl_group_id` with the proxy's own assignments (see the Proxy Data Model, section 4). **To opt a specific proxy out of a group-inherited ACL**, assign that same `acl_group_id` directly to the proxy with `enabled: false`: `POST /api/proxies/{id}/acl` (section 6.4) with `{"acl_group_id": ..., "enabled": false}` creates the opt-out in a single save — no separate `PUT` needed. The proxy's own row for that `acl_group_id` always wins over the group's inherited one, so a disabled proxy-level row suppresses it.
 
 ---
 

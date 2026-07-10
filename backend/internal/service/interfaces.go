@@ -34,7 +34,7 @@ type ProxyGroupServiceInterface interface {
 	DeleteGroup(id int) error
 
 	ListACLAssignments(groupID int) ([]models.ProxyGroupACLAssignment, error)
-	AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int) error
+	AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int, enabled bool) error
 	UpdateGroupACLAssignment(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error
 	RemoveACLFromGroup(groupID, aclGroupID int) error
 }
@@ -176,7 +176,7 @@ type ACLServiceInterface interface {
 	ConfigureWaygatesAuth(groupID int, config *models.ACLWaygatesAuth) error
 
 	// Proxy Assignment
-	AssignToProxy(proxyID, groupID int, pathPattern string, priority int) error
+	AssignToProxy(proxyID, groupID int, pathPattern string, priority int, enabled bool) error
 	UpdateProxyAssignment(id int, pathPattern string, priority int, enabled bool) error
 	RemoveFromProxy(proxyID, groupID int) error
 	GetProxyACL(proxyID int) ([]models.ProxyACLAssignment, error)

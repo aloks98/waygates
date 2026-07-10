@@ -226,7 +226,7 @@ func TestProxyGroupService_AssignACLToGroupNotFound(t *testing.T) {
 	}
 	svc := newGroupService(repo, &MockGroupSyncer{})
 
-	err := svc.AssignACLToGroup(99, 1, "/*", 0)
+	err := svc.AssignACLToGroup(99, 1, "/*", 0, true)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrGroupNotFound)
@@ -243,7 +243,7 @@ func TestProxyGroupService_AssignACLToGroupSuccessRebuildsConfig(t *testing.T) {
 	syncer := &MockGroupSyncer{}
 	svc := newGroupService(repo, syncer)
 
-	err := svc.AssignACLToGroup(3, 7, "", 5)
+	err := svc.AssignACLToGroup(3, 7, "", 5, true)
 
 	require.NoError(t, err)
 	require.NotNil(t, created)
@@ -263,7 +263,7 @@ func TestProxyGroupService_AssignACLToGroupDuplicateConflict(t *testing.T) {
 	syncer := &MockGroupSyncer{}
 	svc := newGroupService(repo, syncer)
 
-	err := svc.AssignACLToGroup(3, 7, "/*", 0)
+	err := svc.AssignACLToGroup(3, 7, "/*", 0, true)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrGroupACLAssignmentExists)
@@ -281,7 +281,7 @@ func TestProxyGroupService_AssignACLToGroupRollsBackOnSyncFailure(t *testing.T) 
 	syncer := &MockGroupSyncer{RebuildAllFunc: func() error { return errors.New("caddy reload failed") }}
 	svc := newGroupService(repo, syncer)
 
-	err := svc.AssignACLToGroup(3, 7, "/*", 0)
+	err := svc.AssignACLToGroup(3, 7, "/*", 0, true)
 
 	require.Error(t, err)
 	assert.Equal(t, 3, deletedGroupID, "a sync failure must roll back the row it just inserted")

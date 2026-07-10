@@ -87,7 +87,7 @@ func (m *oauthMockACLService) ConfigureWaygatesAuth(_ int, _ *models.ACLWaygates
 }
 
 // Proxy Assignment
-func (m *oauthMockACLService) AssignToProxy(_, _ int, _ string, _ int) error {
+func (m *oauthMockACLService) AssignToProxy(_, _ int, _ string, _ int, _ bool) error {
 	return nil
 }
 func (m *oauthMockACLService) UpdateProxyAssignment(_ int, _ string, _ int, _ bool) error {

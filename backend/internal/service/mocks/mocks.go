@@ -132,7 +132,7 @@ type MockProxyGroupService struct {
 	UpdateGroupFunc              func(g *models.ProxyGroup) error
 	DeleteGroupFunc              func(id int) error
 	ListACLAssignmentsFunc       func(groupID int) ([]models.ProxyGroupACLAssignment, error)
-	AssignACLToGroupFunc         func(groupID, aclGroupID int, pathPattern string, priority int) error
+	AssignACLToGroupFunc         func(groupID, aclGroupID int, pathPattern string, priority int, enabled bool) error
 	UpdateGroupACLAssignmentFunc func(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error
 	RemoveACLFromGroupFunc       func(groupID, aclGroupID int) error
 }
@@ -194,9 +194,9 @@ func (m *MockProxyGroupService) ListACLAssignments(groupID int) ([]models.ProxyG
 }
 
 // AssignACLToGroup implements ProxyGroupServiceInterface.
-func (m *MockProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int) error {
+func (m *MockProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPattern string, priority int, enabled bool) error {
 	if m.AssignACLToGroupFunc != nil {
-		return m.AssignACLToGroupFunc(groupID, aclGroupID, pathPattern, priority)
+		return m.AssignACLToGroupFunc(groupID, aclGroupID, pathPattern, priority, enabled)
 	}
 	return nil
 }

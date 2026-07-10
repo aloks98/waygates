@@ -70,6 +70,7 @@ export function ProxyGroupEditPage() {
         acl_group_id: assignment.acl_group_id,
         path_pattern: assignment.path_pattern,
         priority: assignment.priority,
+        enabled: assignment.enabled,
       });
     }
 
