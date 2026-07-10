@@ -9,6 +9,9 @@ import (
 // pgUniqueViolation is the Postgres SQLSTATE for a unique-constraint violation.
 const pgUniqueViolation = "23505"
 
+// pgForeignKeyViolation is the Postgres SQLSTATE for a foreign-key violation.
+const pgForeignKeyViolation = "23503"
+
 // IsUniqueViolation reports whether err is a Postgres unique-violation
 // (SQLSTATE 23505) raised against the named constraint or index.
 //
@@ -26,4 +29,18 @@ func IsUniqueViolation(err error, constraint string) bool {
 		return false
 	}
 	return pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == constraint
+}
+
+// IsForeignKeyViolation reports whether err is a Postgres foreign-key
+// violation (SQLSTATE 23503) raised against the named constraint. Mirrors
+// IsUniqueViolation for the same reason: with TranslateError disabled (see
+// IsUniqueViolation's doc comment), the driver's raw *pgconn.PgError is the
+// only signal available, and matching SQLSTATE + constraint name is the
+// portable way to classify it without string-sniffing.
+func IsForeignKeyViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == pgForeignKeyViolation && pgErr.ConstraintName == constraint
 }

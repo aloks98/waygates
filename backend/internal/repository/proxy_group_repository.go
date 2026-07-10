@@ -3,6 +3,7 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -77,11 +78,11 @@ func (r *ProxyGroupRepository) List(params ProxyGroupListParams) ([]models.Proxy
 	}
 
 	sortField := "created_at"
-	if validField, ok := allowedGroupSortFields[params.Sort]; ok {
+	if validField, ok := allowedGroupSortFields[strings.ToLower(params.Sort)]; ok {
 		sortField = validField
 	}
 	sortOrder := "DESC"
-	if validOrder, ok := allowedSortOrders[params.Order]; ok {
+	if validOrder, ok := allowedSortOrders[strings.ToLower(params.Order)]; ok {
 		sortOrder = validOrder
 	}
 
@@ -221,7 +222,19 @@ func (r *ProxyGroupRepository) UpdateACLAssignment(a *models.ProxyGroupACLAssign
 		Select("path_pattern", "priority", "enabled", "updated_at").Updates(a).Error
 }
 
+// DeleteACLAssignment deletes an ACL assignment by (group_id, acl_group_id).
+// If no row matches, it returns gorm.ErrRecordNotFound (mirroring GORM's own
+// not-found signal from First/Take) so the service can distinguish a real
+// deletion from a no-op and skip the RebuildAll + audit log a no-op delete
+// shouldn't trigger.
 func (r *ProxyGroupRepository) DeleteACLAssignment(groupID, aclGroupID int) error {
-	return r.db.Where("proxy_group_id = ? AND acl_group_id = ?", groupID, aclGroupID).
-		Delete(&models.ProxyGroupACLAssignment{}).Error
+	res := r.db.Where("proxy_group_id = ? AND acl_group_id = ?", groupID, aclGroupID).
+		Delete(&models.ProxyGroupACLAssignment{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

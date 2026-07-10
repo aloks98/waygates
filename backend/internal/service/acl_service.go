@@ -43,6 +43,15 @@ var (
 	ErrProxyNotFoundForHost     = errors.New("proxy not found for hostname")
 )
 
+// proxyACLAssignmentsACLGroupConstraint is the FK constraint name on
+// proxy_acl_assignments.acl_group_id (migrations/000007_create_acl_tables.up.sql).
+// Matched against a create failure to classify a bogus acl_group_id as
+// ErrACLGroupNotFound instead of a raw 500 — see AssignToProxy. In practice
+// AssignToProxy's own GetGroupByID pre-check already catches this case; this
+// is defense-in-depth against the TOCTOU window between that check and the
+// insert (e.g. the ACL group is deleted concurrently).
+const proxyACLAssignmentsACLGroupConstraint = "fk_proxy_acl_assignments_acl_group"
+
 // ListACLGroupsRequest holds parameters for listing ACL groups
 type ListACLGroupsRequest struct {
 	Page   int
@@ -775,6 +784,9 @@ func (s *ACLService) AssignToProxy(proxyID, groupID int, pathPattern string, pri
 		if strings.Contains(err.Error(), "UNIQUE constraint") || strings.Contains(err.Error(), "duplicate") {
 			return ErrProxyACLExists
 		}
+		if repository.IsForeignKeyViolation(err, proxyACLAssignmentsACLGroupConstraint) {
+			return ErrACLGroupNotFound
+		}
 		return fmt.Errorf("creating proxy ACL assignment: %w", err)
 	}
 
@@ -825,6 +837,9 @@ func (s *ACLService) UpdateProxyAssignment(id int, pathPattern string, priority 
 // RemoveFromProxy removes an ACL group from a proxy
 func (s *ACLService) RemoveFromProxy(proxyID, groupID int) error {
 	if err := s.aclRepo.DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrProxyACLNotFound
+		}
 		return fmt.Errorf("removing proxy ACL assignment: %w", err)
 	}
 

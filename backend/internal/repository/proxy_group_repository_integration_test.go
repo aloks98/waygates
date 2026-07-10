@@ -1,10 +1,12 @@
 package repository
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 )
@@ -193,4 +195,71 @@ func TestProxyGroupRepository_UpdateGroupTxNameCollisionRollsBackEverything(t *t
 	assert.Equal(t, "abc.group.acme.in", members[0].Hostname, "member hostname must be unchanged")
 
 	assertNoHostnameDrift(t, tdb)
+}
+
+// =============================================================================
+// ACL assignment CRUD
+// =============================================================================
+
+func TestProxyGroupRepository_ACLAssignmentCRUD(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+	g := createGroup(t, groupRepo, user.ID, "internal", nil)
+	aclGroup := CreateTestACLGroup(t, tdb.DB, user.ID, "acl-crud-test")
+
+	a := &models.ProxyGroupACLAssignment{
+		ProxyGroupID: g.ID, ACLGroupID: aclGroup.ID, PathPattern: "/*", Priority: 0, Enabled: true,
+	}
+	require.NoError(t, groupRepo.CreateACLAssignment(a))
+
+	list, err := groupRepo.ListACLAssignments(g.ID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+
+	require.NoError(t, groupRepo.DeleteACLAssignment(g.ID, aclGroup.ID))
+
+	list, err = groupRepo.ListACLAssignments(g.ID)
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
+// A delete that matches nothing (bogus acl_group_id, or an assignment already
+// removed) must report gorm.ErrRecordNotFound rather than silently
+// "succeeding" — this is what lets ProxyGroupService.RemoveACLFromGroup skip
+// the RebuildAll + audit log for a no-op.
+func TestProxyGroupRepository_DeleteACLAssignmentNoOpReturnsNotFound(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+	g := createGroup(t, groupRepo, user.ID, "internal", nil)
+
+	err := groupRepo.DeleteACLAssignment(g.ID, 99999)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound),
+		"a no-op delete must report gorm.ErrRecordNotFound, got: %v", err)
+}
+
+// A bogus acl_group_id must be rejected by the fk_pgaa_acl_group foreign key
+// (migrations/000014_create_proxy_groups.up.sql), classified via
+// IsForeignKeyViolation the same way ProxyGroupService.AssignACLToGroup does.
+func TestProxyGroupRepository_CreateACLAssignmentBogusACLGroupIsRejectedByForeignKey(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+	g := createGroup(t, groupRepo, user.ID, "internal", nil)
+
+	a := &models.ProxyGroupACLAssignment{
+		ProxyGroupID: g.ID, ACLGroupID: 99999, PathPattern: "/*", Priority: 0, Enabled: true,
+	}
+	err := groupRepo.CreateACLAssignment(a)
+	require.Error(t, err)
+	assert.True(t, IsForeignKeyViolation(err, "fk_pgaa_acl_group"),
+		"expected a SQLSTATE 23503 violation of fk_pgaa_acl_group, got: %v", err)
 }

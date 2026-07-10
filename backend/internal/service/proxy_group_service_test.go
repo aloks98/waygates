@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -330,4 +331,41 @@ func TestProxyGroupService_RemoveACLFromGroupRebuildsConfig(t *testing.T) {
 
 	require.NoError(t, svc.RemoveACLFromGroup(3, 7))
 	assert.Equal(t, 1, syncer.Calls)
+}
+
+// A no-op delete (bogus acl_group_id, or an assignment already removed) must
+// be reported as ErrGroupACLAssignmentNotFound and must NOT trigger a
+// RebuildAll — mirrors TestProxyGroupService_FailedRenameDoesNotRebuild's
+// "assert the syncer's call count stays 0" pattern.
+func TestProxyGroupService_RemoveACLFromGroupNoOpDoesNotRebuild(t *testing.T) {
+	syncer := &MockGroupSyncer{}
+	repo := &MockProxyGroupRepository{
+		DeleteACLAssignmentFunc: func(int, int) error { return gorm.ErrRecordNotFound },
+	}
+	svc := newGroupService(repo, syncer)
+
+	err := svc.RemoveACLFromGroup(3, 999)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrGroupACLAssignmentNotFound)
+	assert.Zero(t, syncer.Calls, "a no-op delete must not rebuild the config")
+}
+
+// A bogus acl_group_id hitting the fk_pgaa_acl_group foreign key must be
+// classified as ErrACLGroupNotFound (-> 404 in the handler), not a raw
+// wrapped error (-> 500), and must not trigger a RebuildAll.
+func TestProxyGroupService_AssignACLToGroupACLGroupNotFoundOnForeignKeyViolation(t *testing.T) {
+	syncer := &MockGroupSyncer{}
+	repo := &MockProxyGroupRepository{
+		CreateACLAssignmentFunc: func(*models.ProxyGroupACLAssignment) error {
+			return &pgconn.PgError{Code: "23503", ConstraintName: "fk_pgaa_acl_group"}
+		},
+	}
+	svc := newGroupService(repo, syncer)
+
+	err := svc.AssignACLToGroup(3, 999, "/*", 0, true)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrACLGroupNotFound)
+	assert.Zero(t, syncer.Calls)
 }

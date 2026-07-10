@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
 	"github.com/aloks98/waygates/backend/internal/repository"
@@ -60,6 +61,15 @@ var ErrBaseDomainRequiredByMembers = repository.ErrBaseDomainRequiredByMembers
 const (
 	proxyGroupsNameConstraint    = "uq_proxy_groups_name"
 	groupACLAssignmentConstraint = "uq_pgaa_group_acl"
+
+	// groupACLAssignmentACLGroupConstraint is the FK constraint name on
+	// proxy_group_acl_assignments.acl_group_id
+	// (migrations/000014_create_proxy_groups.up.sql). Matched against a create
+	// failure to classify a bogus acl_group_id as ErrACLGroupNotFound instead
+	// of a raw 500 — see AssignACLToGroup. Unlike ACLService.AssignToProxy,
+	// ProxyGroupService has no ACL-repo dependency to pre-check the ACL group
+	// with, so this FK check is the only guard, not defense-in-depth.
+	groupACLAssignmentACLGroupConstraint = "fk_pgaa_acl_group"
 )
 
 // ListGroups returns a paginated page of groups. Page/Limit are clamped to
@@ -228,9 +238,17 @@ func (s *ProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPatter
 		if repository.IsUniqueViolation(err, groupACLAssignmentConstraint) {
 			return ErrGroupACLAssignmentExists
 		}
+		if repository.IsForeignKeyViolation(err, groupACLAssignmentACLGroupConstraint) {
+			return ErrACLGroupNotFound
+		}
 		return fmt.Errorf("failed to assign ACL to proxy group: %w", err)
 	}
 
+	// Create rolls back on sync failure because it can: the row it just
+	// inserted can be cleanly deleted, leaving the database exactly as it was
+	// before the request (mirrors ProxyService.CreateProxy's convention).
+	// UpdateGroupACLAssignment and RemoveACLFromGroup below do NOT roll back —
+	// see the comments there for why that asymmetry is intentional.
 	if err := s.syncer.RebuildAll(); err != nil {
 		if delErr := s.repo.DeleteACLAssignment(groupID, aclGroupID); delErr != nil {
 			return fmt.Errorf("failed to sync and rollback failed: %w", errors.Join(err, delErr))
@@ -248,7 +266,11 @@ func (s *ProxyGroupService) AssignACLToGroup(groupID, aclGroupID int, pathPatter
 // Update/Delete have no rollback-on-sync-failure step, unlike Create: there is
 // nothing to symmetrically undo (re-applying the previous values, or
 // recreating a deleted row, would be inventing a new pattern UpdateGroup and
-// DeleteGroup don't use either) — the sync error is simply propagated.
+// DeleteGroup don't use either) — cleanly "un-updating" is fragile and worse
+// than relying on the 60-second periodic sync (SyncService) to reconcile.
+// The sync error is still logged and propagated (not swallowed): the caller
+// gets a 500 telling it the write may not be live yet, and the periodic sync
+// fixes the served config regardless.
 func (s *ProxyGroupService) UpdateGroupACLAssignment(groupID, assignmentID int, pathPattern string, priority int, enabled bool) error {
 	// Empty pathPattern is intentionally passed through unvalidated and
 	// unchanged, mirroring ACLService.UpdateProxyAssignment's exact behavior.
@@ -277,13 +299,35 @@ func (s *ProxyGroupService) UpdateGroupACLAssignment(groupID, assignmentID int, 
 	if err := s.repo.UpdateACLAssignment(a); err != nil {
 		return fmt.Errorf("failed to update proxy group ACL assignment: %w", err)
 	}
-	return s.syncer.RebuildAll()
+	if err := s.syncer.RebuildAll(); err != nil {
+		s.logger.Error("failed to rebuild caddy config after updating proxy group ACL assignment",
+			zap.Int("group_id", groupID), zap.Int("assignment_id", assignmentID), zap.Error(err))
+		return fmt.Errorf("failed to sync proxy group ACL assignment update: %w", err)
+	}
+	return nil
 }
 
-// RemoveACLFromGroup removes an ACL group assignment from a proxy group.
+// RemoveACLFromGroup removes an ACL group assignment from a proxy group. If
+// no assignment matches (groupID, aclGroupID) — a bogus aclGroupID, or one
+// already removed — it returns ErrGroupACLAssignmentNotFound without
+// rebuilding the config or letting the caller log an audit event for a
+// deletion that never happened.
+//
+// Like UpdateGroupACLAssignment above, a successful delete has no
+// rollback-on-sync-failure step: the row is already gone, so there is nothing
+// to symmetrically undo. The sync error is logged and propagated; the
+// periodic sync (SyncService) reconciles the served config regardless.
 func (s *ProxyGroupService) RemoveACLFromGroup(groupID, aclGroupID int) error {
 	if err := s.repo.DeleteACLAssignment(groupID, aclGroupID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrGroupACLAssignmentNotFound
+		}
 		return fmt.Errorf("failed to remove ACL from proxy group: %w", err)
 	}
-	return s.syncer.RebuildAll()
+	if err := s.syncer.RebuildAll(); err != nil {
+		s.logger.Error("failed to rebuild caddy config after removing ACL from proxy group",
+			zap.Int("group_id", groupID), zap.Int("acl_group_id", aclGroupID), zap.Error(err))
+		return fmt.Errorf("failed to sync proxy group ACL removal: %w", err)
+	}
+	return nil
 }

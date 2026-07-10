@@ -336,6 +336,8 @@ func (h *ProxyGroupHandler) AssignACLToGroup(w http.ResponseWriter, r *http.Requ
 		switch {
 		case errors.Is(err, service.ErrGroupNotFound):
 			utils.NotFound(w, "Proxy group not found")
+		case errors.Is(err, service.ErrACLGroupNotFound):
+			utils.NotFound(w, "ACL group not found")
 		case errors.Is(err, service.ErrGroupACLAssignmentExists):
 			utils.Conflict(w, "This ACL group is already assigned to this proxy group")
 		case errors.Is(err, service.ErrInvalidPathPattern):
@@ -456,6 +458,10 @@ func (h *ProxyGroupHandler) RemoveACLFromGroup(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := h.service.RemoveACLFromGroup(groupID, aclGroupID); err != nil {
+		if errors.Is(err, service.ErrGroupACLAssignmentNotFound) {
+			utils.NotFound(w, "Proxy group ACL assignment not found")
+			return
+		}
 		if h.logger != nil {
 			h.logger.Error("Failed to remove ACL from proxy group",
 				zap.Int("group_id", groupID), zap.Int("acl_group_id", aclGroupID), zap.Error(err))

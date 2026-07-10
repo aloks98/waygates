@@ -469,6 +469,26 @@ func TestAssignACLToGroup_GroupNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+// TestAssignACLToGroup_ACLGroupNotFound proves a bogus acl_group_id maps to
+// 404, not a raw 500 — the fix for the foreign-key-violation defect.
+func TestAssignACLToGroup_ACLGroupNotFound(t *testing.T) {
+	t.Parallel()
+	mockService := &mocks.MockProxyGroupService{
+		AssignACLToGroupFunc: func(_, _ int, _ string, _ int, _ bool) error { return service.ErrACLGroupNotFound },
+	}
+	handler := NewProxyGroupHandler(mockService, nil, nil)
+
+	r := chi.NewRouter()
+	r.Post("/api/proxy-groups/{id}/acl", handler.AssignACLToGroup)
+
+	body, _ := json.Marshal(map[string]int{"acl_group_id": 999})
+	req := httptest.NewRequest(http.MethodPost, "/api/proxy-groups/3/acl", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
 func TestAssignACLToGroup_Conflict(t *testing.T) {
 	t.Parallel()
 	mockService := &mocks.MockProxyGroupService{
@@ -646,6 +666,34 @@ func TestRemoveACLFromGroup_Success_LogsAudit(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, auditCalled)
+}
+
+// TestRemoveACLFromGroup_NotFound proves a no-op removal (bogus acl_group_id,
+// or an assignment already removed) maps to 404 and does NOT log an audit
+// event for a deletion that never happened.
+func TestRemoveACLFromGroup_NotFound(t *testing.T) {
+	t.Parallel()
+	auditCalled := false
+	mockService := &mocks.MockProxyGroupService{
+		RemoveACLFromGroupFunc: func(_, _ int) error { return service.ErrGroupACLAssignmentNotFound },
+	}
+	mockAudit := &mocks.MockAuditService{
+		LogEventFunc: func(_ context.Context, _ models.AuditEvent) error {
+			auditCalled = true
+			return nil
+		},
+	}
+	handler := NewProxyGroupHandler(mockService, mockAudit, nil)
+
+	r := chi.NewRouter()
+	r.Delete("/api/proxy-groups/{id}/acl/{aclGroupId}", handler.RemoveACLFromGroup)
+
+	req := requestWithUserID(http.MethodDelete, "/api/proxy-groups/3/acl/999", nil, "123")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	assert.False(t, auditCalled, "a no-op delete must not log an audit event")
 }
 
 // =============================================================================

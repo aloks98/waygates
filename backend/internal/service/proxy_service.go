@@ -352,7 +352,15 @@ func (s *ProxyService) materializeHostname(p *models.Proxy) error {
 
 	g, err := s.groupRepo.GetByID(*p.GroupID)
 	if err != nil {
-		return ErrGroupNotFound
+		// ProxyGroupRepository.GetByID returns gorm's raw error (no wrapping),
+		// so a genuine not-found is gorm.ErrRecordNotFound. Anything else is a
+		// transient/DB error and must not be misreported as "group not found"
+		// (which the handler maps to 400/404) — surface it as a wrapped 500
+		// instead.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrGroupNotFound
+		}
+		return fmt.Errorf("loading group %d: %w", *p.GroupID, err)
 	}
 
 	if g.BaseDomain == nil {

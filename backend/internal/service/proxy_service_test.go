@@ -1287,6 +1287,31 @@ func TestProxyService_CreateGroupNotFound(t *testing.T) {
 	assert.ErrorIs(t, svc.CreateProxy(p, 1), ErrGroupNotFound)
 }
 
+// A transient/DB error from groupRepo.GetByID (anything other than
+// gorm.ErrRecordNotFound) must NOT be misreported as ErrGroupNotFound — that
+// would surface a 500 as a misleading 400/404. It must propagate wrapped
+// instead, so the underlying cause isn't dropped.
+func TestProxyService_CreateGroupRepoErrorPropagatesWrapped(t *testing.T) {
+	dbErr := errors.New("connection reset by peer")
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(int) (*models.ProxyGroup, error) { return nil, dbErr },
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: &MockProxyRepository{}, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(3), HostnameLabel: ptr("abc"), IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	err := svc.CreateProxy(p, 1)
+
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrGroupNotFound), "a non-not-found DB error must not be misclassified as ErrGroupNotFound")
+	assert.ErrorIs(t, err, dbErr, "the underlying error must be preserved via %%w")
+}
+
 // Attaching a group + label on UpdateProxy materializes the hostname exactly
 // as CreateProxy does.
 func TestProxyService_UpdateAttachMaterializesHostname(t *testing.T) {

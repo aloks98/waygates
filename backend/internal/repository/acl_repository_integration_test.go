@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -861,7 +862,43 @@ func TestACLRepository_ProxyACLAssignments(t *testing.T) {
 		err = repo.CreateProxyACLAssignment(duplicate)
 		assert.Error(t, err) // This should fail - same proxy+group
 	})
+
+	t.Run("delete by proxy and group returns not found when nothing matches", func(t *testing.T) {
+		CleanACLTables(t, tdb.DB)
+		user := CreateTestUser(t, tdb.DB)
+		proxy := CreateTestProxy(t, tdb.DB, user.ID, "noop-delete-test", "noop-delete.example.com", models.ProxyTypeReverseProxy)
+
+		// Nothing was ever assigned, so this delete is a no-op.
+		err := repo.DeleteProxyACLAssignmentByProxyAndGroup(proxy.ID, 99999)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound),
+			"a no-op delete must report gorm.ErrRecordNotFound, not silently succeed")
+	})
+
+	t.Run("bogus acl_group_id is rejected by the foreign key", func(t *testing.T) {
+		CleanACLTables(t, tdb.DB)
+		user := CreateTestUser(t, tdb.DB)
+		proxy := CreateTestProxy(t, tdb.DB, user.ID, "fk-test", "fk-test.example.com", models.ProxyTypeReverseProxy)
+
+		assignment := &models.ProxyACLAssignment{
+			ProxyID:     proxy.ID,
+			ACLGroupID:  99999, // does not exist
+			PathPattern: "/*",
+			Priority:    0,
+			Enabled:     true,
+		}
+		err := repo.CreateProxyACLAssignment(assignment)
+		require.Error(t, err)
+		assert.True(t, IsForeignKeyViolation(err, proxiesACLAssignmentsACLGroupConstraintForTest),
+			"expected a SQLSTATE 23503 violation of %s, got: %v", proxiesACLAssignmentsACLGroupConstraintForTest, err)
+	})
 }
+
+// proxiesACLAssignmentsACLGroupConstraintForTest mirrors
+// service.proxyACLAssignmentsACLGroupConstraint (acl_service.go) — duplicated
+// here rather than exported cross-package, since the repository package must
+// not import the service package.
+const proxiesACLAssignmentsACLGroupConstraintForTest = "fk_proxy_acl_assignments_acl_group"
 
 // =============================================================================
 // Branding Tests

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
@@ -1347,6 +1348,54 @@ func TestRemoveFromProxy_Success(t *testing.T) {
 
 	if !deleteCalled {
 		t.Error("Expected DeleteProxyACLAssignmentByProxyAndGroup to be called")
+	}
+}
+
+// A no-op delete (bogus group, or an assignment already removed) must be
+// reported as ErrProxyACLNotFound, not a silent success — the repository
+// signals this via gorm.ErrRecordNotFound when zero rows were affected.
+func TestRemoveFromProxy_NoOpReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	aclRepo := &MockACLRepository{
+		DeleteProxyACLAssignmentByProxyAndGroupFunc: func(_, _ int) error {
+			return gorm.ErrRecordNotFound
+		},
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo})
+
+	err := svc.RemoveFromProxy(1, 999)
+	if !errors.Is(err, ErrProxyACLNotFound) {
+		t.Errorf("Expected ErrProxyACLNotFound, got: %v", err)
+	}
+}
+
+// A bogus acl_group_id hitting the fk_proxy_acl_assignments_acl_group foreign
+// key must be classified as ErrACLGroupNotFound (-> 404), not a raw wrapped
+// error (-> 500). AssignToProxy's own GetGroupByID pre-check already catches
+// the common case; this covers the TOCTOU race where the group existed at
+// check time but is gone by insert time.
+func TestAssignToProxy_ACLGroupNotFoundOnForeignKeyViolation(t *testing.T) {
+	t.Parallel()
+
+	aclRepo := &MockACLRepository{
+		GetGroupByIDFunc: func(id int) (*models.ACLGroup, error) {
+			return &models.ACLGroup{ID: id}, nil
+		},
+		CreateProxyACLAssignmentFunc: func(*models.ProxyACLAssignment) error {
+			return &pgconn.PgError{Code: "23503", ConstraintName: "fk_proxy_acl_assignments_acl_group"}
+		},
+	}
+	proxyRepo := &MockProxyRepository{
+		GetByIDFunc: func(id int) (*models.Proxy, error) { return &models.Proxy{ID: id}, nil },
+	}
+
+	svc := NewACLService(ACLServiceConfig{ACLRepo: aclRepo, ProxyRepo: proxyRepo})
+
+	err := svc.AssignToProxy(1, 2, "/*", 0, true)
+	if !errors.Is(err, ErrACLGroupNotFound) {
+		t.Errorf("Expected ErrACLGroupNotFound, got: %v", err)
 	}
 }
 

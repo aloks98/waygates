@@ -486,9 +486,20 @@ func (r *ACLRepository) DeleteProxyACLAssignment(id int) error {
 	return r.db.Delete(&models.ProxyACLAssignment{}, id).Error
 }
 
-// DeleteProxyACLAssignmentByProxyAndGroup deletes a proxy ACL assignment by proxy ID and group ID
+// DeleteProxyACLAssignmentByProxyAndGroup deletes a proxy ACL assignment by
+// proxy ID and group ID. If no row matches, it returns gorm.ErrRecordNotFound
+// (mirroring GORM's own not-found signal from First/Take) so the service can
+// distinguish a real deletion from a no-op and skip the resync + audit log
+// that a no-op delete shouldn't trigger.
 func (r *ACLRepository) DeleteProxyACLAssignmentByProxyAndGroup(proxyID, groupID int) error {
-	return r.db.Where("proxy_id = ? AND acl_group_id = ?", proxyID, groupID).Delete(&models.ProxyACLAssignment{}).Error
+	res := r.db.Where("proxy_id = ? AND acl_group_id = ?", proxyID, groupID).Delete(&models.ProxyACLAssignment{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // =============================================================================
