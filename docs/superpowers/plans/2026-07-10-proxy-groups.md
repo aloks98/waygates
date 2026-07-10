@@ -319,12 +319,12 @@ And add to the error vars block:
 package models
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm/schema"
-	"gorm.io/gorm/utils/tests"
 )
 
 // columnNames parses a model with GORM's schema package and returns its DB
@@ -332,7 +332,7 @@ import (
 // (an underscore is not inserted before a digit), so every column is asserted.
 func columnNames(t *testing.T, model interface{}) map[string]bool {
 	t.Helper()
-	s, err := schema.Parse(model, &schema.NamingStrategy{}, schema.NamingStrategy{})
+	s, err := schema.Parse(model, &sync.Map{}, schema.NamingStrategy{})
 	require.NoError(t, err)
 	out := map[string]bool{}
 	for _, f := range s.Fields {
@@ -883,7 +883,7 @@ Makes it impossible to hand an unresolved proxy to config generation. Ships with
 package config
 
 import (
-	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -893,6 +893,7 @@ import (
 	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
+// NOTE: if package `config`'s existing tests already define `ptr`, delete this.
 func ptr[T any](v T) *T { return &v }
 
 func buildJSONFor(t *testing.T, e proxygroup.EffectiveProxy) []byte {
@@ -982,10 +983,13 @@ func TestBuildJSON_GroupEnablesSecurityRoutes(t *testing.T) {
 	member.GroupID = ptr(3)
 	on := buildJSONFor(t, proxygroup.Resolve(member, &models.ProxyGroup{ID: 3, BlockExploits: ptr(true)}, nil, nil))
 
-	var offCfg, onCfg map[string]interface{}
-	require.NoError(t, json.Unmarshal(off, &offCfg))
-	require.NoError(t, json.Unmarshal(on, &onCfg))
-	require.NotEqual(t, string(off), string(on), "group must be able to enable security routes")
+	// Assert the direction of the difference, not merely that the bytes differ:
+	// a change anywhere would satisfy NotEqual while security routes stayed off.
+	// SecurityRoutesForHost prepends extra host-matched routes, so the hostname
+	// appears strictly more often once BlockExploits resolves true.
+	offN := strings.Count(string(off), "svc.acme.in")
+	onN := strings.Count(string(on), "svc.acme.in")
+	require.Greater(t, onN, offN, "group must enable security routes for a silent member")
 }
 ```
 
