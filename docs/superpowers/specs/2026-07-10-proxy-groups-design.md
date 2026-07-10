@@ -133,7 +133,7 @@ A CHECK constraint cannot span tables, so the **service** owns this invariant:
 
 ## Resolution
 
-One pure function, no DB access, in a new package `backend/internal/service/proxygroup`:
+One pure function, no DB access, in a new package `backend/internal/proxygroup`. It lives at `internal/proxygroup`, **not** `internal/service/proxygroup`, because `internal/caddy/config` must import it and should not depend on the service layer.
 
 ```go
 // Resolve merges a group's defaults into a proxy. g may be nil.
@@ -143,16 +143,11 @@ func Resolve(
     proxyACL []models.ProxyACLAssignment,
     groupACL []models.ProxyGroupACLAssignment,
 ) EffectiveProxy
-
-type EffectiveACLAssignment struct {
-    ACLGroupID  int
-    PathPattern string
-    Priority    int
-    Enabled     bool
-}
 ```
 
-`EffectiveProxy` mirrors `Proxy` but with plain `bool` fields and an `ACL []EffectiveACLAssignment` — every value decided, nothing left to interpret. The two ACL row types are distinct Go types over identical columns, which is why the resolver normalizes both into `EffectiveACLAssignment` rather than merging one into the other.
+`EffectiveProxy` mirrors `Proxy` but with plain `bool` fields — every value decided, nothing left to interpret.
+
+Its `ACL` field is `[]models.ProxyACLAssignment`, deliberately reusing the existing row type rather than a new one. `Builder.SetACLAssignments` (`caddy/config/builder.go:136`) already accepts that type and already skips rows with `Enabled == false`, and `BuildReverseProxyRoutesWithACL` already consumes it. Resolve therefore synthesizes inherited rows into the same shape — `ProxyID` set to the member proxy, `ID = 0` marking "inherited from group" — and the builder's existing `Enabled` filter *is* the opt-out mechanism, with no changes to the ACL builder at all. `ID == 0` also gives the UI its provenance signal for free.
 
 **Scalars** (`ssl_enabled`, `ssl_forced`, `tls_insecure_skip_verify`, `block_exploits`) resolve in three steps: proxy value if non-nil → group value if non-nil → system default.
 
@@ -179,20 +174,29 @@ These are **not** all-false, and getting them wrong is a security regression: an
 
 Two call sites need effective values: `sync_service.buildConfigBytes` (what Caddy serves) and the API read path (what the user sees). If each inlines its own nil-checks, they will eventually diverge, and a divergence between the UI and the served config is the worst failure this feature can produce — the proxy detail page would report an ACL that Caddy is not enforcing, with no error anywhere.
 
-This is prevented structurally, not by convention. The Caddy builder accepts `EffectiveProxy`, not `models.Proxy`:
+This is prevented structurally, not by convention. Every Caddy builder entry point that today takes a `*models.Proxy` is retyped to take a `*proxygroup.EffectiveProxy`:
 
 ```go
-func BuildHTTPProxy(p proxygroup.EffectiveProxy) (json.RawMessage, error)
+func (b *Builder)     SetHTTPProxies(proxies []proxygroup.EffectiveProxy) *Builder
+func (b *Builder)     BuildSingleProxy(p *proxygroup.EffectiveProxy) (*CaddyConfig, error)
+func (b *Builder)     buildProxyRoutes(p *proxygroup.EffectiveProxy) ([]*HTTPRoute, error)
+func (b *HTTPBuilder) BuildReverseProxyRoutes(p *proxygroup.EffectiveProxy) ([]*HTTPRoute, error)
+func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(p *proxygroup.EffectiveProxy, assignments []models.ProxyACLAssignment, aclGroups map[int64]*models.ACLGroup, aclBuilder *ACLBuilder) ([]*HTTPRoute, error)
+func (b *HTTPBuilder) BuildRedirectRoutes(p *proxygroup.EffectiveProxy) ([]*HTTPRoute, error)
+func (b *HTTPBuilder) BuildStaticRoutes(p *proxygroup.EffectiveProxy) ([]*HTTPRoute, error)
+func (b *HTTPBuilder) buildReverseProxyHandler(p *proxygroup.EffectiveProxy, upstreams []*Upstream) *ReverseProxyHandler
 ```
 
-`EffectiveProxy` exposes no constructor other than `Resolve`. Passing an unresolved proxy to the builder does not compile. The read path is forced through the same door.
+Passing an unresolved `models.Proxy` to any of them does not compile. The read path is forced through the same door. The bodies of these functions are otherwise unchanged: every field they read (`Hostname`, `SSLEnabled`, `BlockExploits`, `TLSInsecureSkipVerify`, `CustomHeaders`, `LoadBalancing`, `Upstreams`, `Type`, `ID`) exists on `EffectiveProxy` with the same name and a now-plain `bool` type.
 
 ### Loading the inputs
 
 `Resolve` takes no repository, so its callers must supply the group and both ACL sets:
 
 - **Single-proxy paths** (`GetProxyByID`, `GenerateProxyConfigJSON`, `BuildSingleProxy`): the proxy repository preloads `Group`, and the ACL repository is asked for the proxy's and the group's assignments.
-- **`buildConfigBytes`**: it already loads all proxies flat and all `acl_groups` once. It additionally loads all `proxy_groups` and all `proxy_group_acl_assignments` once into maps keyed by group ID, then resolves each proxy against its map entry. No N+1.
+- **`buildConfigBytes`** (`sync_service.go:320`): it already loads all proxies flat and all `acl_groups` once, and already issues one `GetProxyACLAssignments` per proxy. We add **two** batch queries — all `proxy_groups` and all `proxy_group_acl_assignments` — into maps keyed by group ID, then resolve each proxy against its map entry before calling `SetHTTPProxies`.
+
+Note the pre-existing per-proxy ACL query in that loop is an N+1 today. This spec does not fix it, but it must not make it worse: the group and group-ACL loads are batched, never per-proxy.
 
 ## API
 
