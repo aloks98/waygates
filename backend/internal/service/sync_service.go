@@ -16,6 +16,7 @@ import (
 	"github.com/aloks98/waygates/backend/internal/caddy"
 	"github.com/aloks98/waygates/backend/internal/caddy/config"
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
 
@@ -33,15 +34,16 @@ type SyncStatus struct {
 
 // SyncService handles periodic synchronization between database and Caddy
 type SyncService struct {
-	proxyRepo    repository.ProxyRepositoryInterface
-	settingsRepo repository.SettingsRepositoryInterface
-	aclRepo      repository.ACLRepositoryInterface
-	l4ProxyRepo  repository.L4ProxyRepositoryInterface
-	fileManager  caddy.FileManagerInterface
-	reloader     caddy.ReloaderInterface
-	logger       *zap.Logger
-	email        string
-	acmeProvider string
+	proxyRepo      repository.ProxyRepositoryInterface
+	settingsRepo   repository.SettingsRepositoryInterface
+	aclRepo        repository.ACLRepositoryInterface
+	l4ProxyRepo    repository.L4ProxyRepositoryInterface
+	proxyGroupRepo repository.ProxyGroupRepositoryInterface // Optional: nil until Task 5 wires it up
+	fileManager    caddy.FileManagerInterface
+	reloader       caddy.ReloaderInterface
+	logger         *zap.Logger
+	email          string
+	acmeProvider   string
 
 	// JSON configuration builder
 	jsonBuilder *config.Builder
@@ -71,15 +73,16 @@ type SyncService struct {
 
 // SyncServiceConfig holds configuration for the sync service
 type SyncServiceConfig struct {
-	ProxyRepo    repository.ProxyRepositoryInterface
-	SettingsRepo repository.SettingsRepositoryInterface
-	ACLRepo      repository.ACLRepositoryInterface     // Optional: for ACL-enabled proxies
-	L4ProxyRepo  repository.L4ProxyRepositoryInterface // Optional: for L4 proxy support
-	FileManager  caddy.FileManagerInterface
-	Reloader     caddy.ReloaderInterface
-	Logger       *zap.Logger
-	Email        string // Email for ACME certificates
-	ACMEProvider string // ACME provider: off, http, cloudflare, route53, etc.
+	ProxyRepo      repository.ProxyRepositoryInterface
+	SettingsRepo   repository.SettingsRepositoryInterface
+	ACLRepo        repository.ACLRepositoryInterface        // Optional: for ACL-enabled proxies
+	L4ProxyRepo    repository.L4ProxyRepositoryInterface    // Optional: for L4 proxy support
+	ProxyGroupRepo repository.ProxyGroupRepositoryInterface // Optional: for proxy group inheritance
+	FileManager    caddy.FileManagerInterface
+	Reloader       caddy.ReloaderInterface
+	Logger         *zap.Logger
+	Email          string // Email for ACME certificates
+	ACMEProvider   string // ACME provider: off, http, cloudflare, route53, etc.
 
 	// JSON mode configuration
 	WaygatesVerifyURL string // Waygates auth verify URL for ACL
@@ -109,6 +112,7 @@ func NewSyncService(cfg SyncServiceConfig) *SyncService {
 		settingsRepo:        cfg.SettingsRepo,
 		aclRepo:             cfg.ACLRepo,
 		l4ProxyRepo:         cfg.L4ProxyRepo,
+		proxyGroupRepo:      cfg.ProxyGroupRepo,
 		fileManager:         cfg.FileManager,
 		reloader:            cfg.Reloader,
 		logger:              logger,
@@ -330,6 +334,29 @@ func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 		return nil, fmt.Errorf("failed to list proxies: %w", err)
 	}
 
+	// 1b. Load every proxy group and its ACL assignments in two batch queries.
+	// The per-proxy GetProxyACLAssignments call below is a pre-existing N+1; do
+	// not add another one here.
+	groupsByID := map[int]*models.ProxyGroup{}
+	groupACLByGroupID := map[int][]models.ProxyGroupACLAssignment{}
+	if s.proxyGroupRepo != nil {
+		groups, listErr := s.proxyGroupRepo.ListAll()
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list proxy groups: %w", listErr)
+		}
+		for i := range groups {
+			groupsByID[groups[i].ID] = &groups[i]
+		}
+
+		groupACLs, aclErr := s.proxyGroupRepo.ListAllACLAssignments()
+		if aclErr != nil {
+			return nil, fmt.Errorf("failed to list proxy group ACL assignments: %w", aclErr)
+		}
+		for _, a := range groupACLs {
+			groupACLByGroupID[a.ProxyGroupID] = append(groupACLByGroupID[a.ProxyGroupID], a)
+		}
+	}
+
 	// 2. Get 404 settings from DB
 	notFoundSettings, err := s.settingsRepo.GetNotFoundSettings()
 	if err != nil {
@@ -342,7 +369,7 @@ func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 
 	// 3. Load ACL groups and assignments if ACL repository is available
 	var aclGroups []models.ACLGroup
-	var aclAssignments []models.ProxyACLAssignment
+	aclByProxyID := map[int][]models.ProxyACLAssignment{}
 
 	if s.aclRepo != nil {
 		// Get all ACL groups
@@ -367,7 +394,7 @@ func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 					zap.Error(assignErr))
 				continue
 			}
-			aclAssignments = append(aclAssignments, assignments...)
+			aclByProxyID[proxies[i].ID] = append(aclByProxyID[proxies[i].ID], assignments...)
 		}
 	}
 
@@ -416,11 +443,28 @@ func (s *SyncService) buildConfigBytes() (json.RawMessage, error) {
 		metricsPublishSettings = nil
 	}
 
-	// 6. Configure the JSON builder with all data
+	// 6. Resolve every proxy against its group before the builder sees it.
+	effective := make([]proxygroup.EffectiveProxy, 0, len(proxies))
+	var resolvedACL []models.ProxyACLAssignment
+	for i := range proxies {
+		var g *models.ProxyGroup
+		if proxies[i].GroupID != nil {
+			g = groupsByID[*proxies[i].GroupID]
+		}
+		e := proxygroup.Resolve(
+			proxies[i],
+			g,
+			aclByProxyID[proxies[i].ID],
+			groupACLForProxy(g, groupACLByGroupID),
+		)
+		effective = append(effective, e)
+		resolvedACL = append(resolvedACL, e.ACL...)
+	}
+
 	// Note: Layer4App is set in step 4 if L4 proxies exist, otherwise it remains nil
-	s.jsonBuilder.SetHTTPProxies(proxies)
+	s.jsonBuilder.SetHTTPProxies(effective)
 	s.jsonBuilder.SetACLGroups(aclGroups)
-	s.jsonBuilder.SetACLAssignments(aclAssignments)
+	s.jsonBuilder.SetACLAssignments(resolvedACL)
 	s.jsonBuilder.SetNotFoundSettings(notFoundSettings)
 	s.jsonBuilder.SetMetricsPublishSettings(metricsPublishSettings)
 
@@ -473,26 +517,61 @@ func (s *SyncService) GenerateProxyConfigJSON(proxyID int) (json.RawMessage, err
 
 	var assignments []models.ProxyACLAssignment
 	var groups []models.ACLGroup
+	seenACLGroup := map[int]bool{}
 	if s.aclRepo != nil {
 		assignments, err = s.aclRepo.GetProxyACLAssignments(proxyID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get proxy ACL assignments: %w", err)
 		}
-		seen := map[int]bool{}
 		for i := range assignments {
 			g := assignments[i].ACLGroup // preloaded by GetProxyACLAssignments
-			if g != nil && g.ID != 0 && !seen[g.ID] {
-				seen[g.ID] = true
+			if g != nil && g.ID != 0 && !seenACLGroup[g.ID] {
+				seenACLGroup[g.ID] = true
 				groups = append(groups, *g)
 			}
 		}
 	}
 
+	// Load the proxy's group (config inheritance) and its ACL assignments, if
+	// any, so the preview matches what the sync would actually resolve.
+	var group *models.ProxyGroup
+	var groupACL []models.ProxyGroupACLAssignment
+	if proxy.GroupID != nil && s.proxyGroupRepo != nil {
+		allGroups, listErr := s.proxyGroupRepo.ListAll()
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list proxy groups: %w", listErr)
+		}
+		for i := range allGroups {
+			if allGroups[i].ID == *proxy.GroupID {
+				group = &allGroups[i]
+				break
+			}
+		}
+
+		allGroupACL, aclErr := s.proxyGroupRepo.ListAllACLAssignments()
+		if aclErr != nil {
+			return nil, fmt.Errorf("failed to list proxy group ACL assignments: %w", aclErr)
+		}
+		for i := range allGroupACL {
+			if allGroupACL[i].ProxyGroupID != *proxy.GroupID {
+				continue
+			}
+			groupACL = append(groupACL, allGroupACL[i])
+			if g := allGroupACL[i].ACLGroup; g != nil && g.ID != 0 && !seenACLGroup[g.ID] {
+				seenACLGroup[g.ID] = true
+				groups = append(groups, *g)
+			}
+		}
+	}
+
+	e := proxygroup.Resolve(*proxy, group, assignments, groupACL)
+
 	b := s.newConfiguredBuilder()
 	b.SetACLGroups(groups)
-	// Flatten to []models.ProxyACLAssignment for SetACLAssignments
-	b.SetACLAssignments(assignments)
-	cfg, buildErr := b.BuildSingleProxy(proxy)
+	// Feed the resolved assignments (e.ACL), not the raw per-proxy ones, so an
+	// inherited ACL shows up in the preview exactly as sync would enforce it.
+	b.SetACLAssignments(e.ACL)
+	cfg, buildErr := b.BuildSingleProxy(&e)
 	if buildErr != nil {
 		return nil, fmt.Errorf("failed to build proxy config: %w", buildErr)
 	}
@@ -711,4 +790,13 @@ func extractL4TLSHostnames(l4Proxies []models.L4Proxy) []string {
 	}
 
 	return hostnames
+}
+
+// groupACLForProxy returns the ACL assignments of g, or nil when the proxy is
+// ungrouped.
+func groupACLForProxy(g *models.ProxyGroup, byGroupID map[int][]models.ProxyGroupACLAssignment) []models.ProxyGroupACLAssignment {
+	if g == nil {
+		return nil
+	}
+	return byGroupID[g.ID]
 }

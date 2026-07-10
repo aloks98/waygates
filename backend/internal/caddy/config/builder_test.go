@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
 // =============================================================================
@@ -23,6 +24,24 @@ func newTestLogger() *zap.Logger {
 // ptr returns a pointer to v. Handy for building *bool fixtures for the
 // tri-state SSLEnabled/SSLForced/BlockExploits/TLSInsecureSkipVerify fields.
 func ptr[T any](v T) *T { return &v }
+
+// eff resolves a raw test proxy with no group, which is the identity function
+// on today's behavior (see proxygroup.Resolve doc comment). This package's
+// pre-existing tests build fixtures as models.Proxy for readability; the
+// Caddy builder only accepts proxygroup.EffectiveProxy, so every fixture is
+// funneled through here at the call site.
+func eff(p models.Proxy) proxygroup.EffectiveProxy {
+	return proxygroup.Resolve(p, nil, nil, nil)
+}
+
+// effAll resolves a slice of raw test proxies with no group. See eff.
+func effAll(proxies []models.Proxy) []proxygroup.EffectiveProxy {
+	out := make([]proxygroup.EffectiveProxy, len(proxies))
+	for i, p := range proxies {
+		out[i] = eff(p)
+	}
+	return out
+}
 
 // createTestProxy creates a test proxy with the given parameters.
 func createTestProxy(id int, name, hostname, proxyType string, isActive, sslEnabled bool) models.Proxy {
@@ -185,7 +204,7 @@ func TestBuilder_Build_WithActiveReverseProxy(t *testing.T) {
 	proxy := createReverseProxy(1, "test-proxy", "example.com", upstreams, true, true)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -212,7 +231,7 @@ func TestBuilder_Build_WithSSLEnabledProxy_CollectsDomains(t *testing.T) {
 	}
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies(proxies)
+	b.SetHTTPProxies(effAll(proxies))
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -232,7 +251,7 @@ func TestBuilder_Build_WithInactiveProxies_SkipsThem(t *testing.T) {
 	}
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies(proxies)
+	b.SetHTTPProxies(effAll(proxies))
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -269,7 +288,7 @@ func TestBuilder_Build_WithACLAssignments(t *testing.T) {
 	aclBuilder.SetWaygatesURLs("http://localhost:8080/verify", "http://localhost:8080/login")
 
 	b := NewBuilder(WithLogger(newTestLogger()), WithACLBuilder(aclBuilder))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 	b.SetACLGroups([]models.ACLGroup{aclGroup})
 	b.SetACLAssignments([]models.ProxyACLAssignment{assignment})
 
@@ -373,7 +392,8 @@ func TestBuilder_BuildSingleProxy(t *testing.T) {
 
 	b := NewBuilder(WithLogger(newTestLogger()))
 
-	config, err := b.BuildSingleProxy(&proxy)
+	e := eff(proxy)
+	config, err := b.BuildSingleProxy(&e)
 	require.NoError(t, err)
 	require.NotNil(t, config)
 
@@ -389,7 +409,8 @@ func TestBuilder_BuildSingleProxy_UnknownType_ReturnsError(t *testing.T) {
 
 	b := NewBuilder(WithLogger(newTestLogger()))
 
-	config, err := b.BuildSingleProxy(&proxy)
+	e := eff(proxy)
+	config, err := b.BuildSingleProxy(&e)
 	assert.Error(t, err)
 	assert.Nil(t, config)
 	assert.Contains(t, err.Error(), "unknown proxy type")
@@ -513,7 +534,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := NewHTTPBuilder(newTestLogger())
 
-			routes, err := b.BuildReverseProxyRoutes(&tt.proxy)
+			e := eff(tt.proxy)
+			routes, err := b.BuildReverseProxyRoutes(&e)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -543,7 +565,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithCustomHeaders(t *testing.T) {
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutes(&e)
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
@@ -564,7 +587,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithResponseHeaders(t *testing.T) {
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutes(&e)
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
@@ -592,7 +616,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithLoadBalancing(t *testing.T) {
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutes(&e)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
@@ -608,7 +633,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithHTTPSUpstream(t *testing.T) {
 		[]interface{}{createTestUpstream("backend", 443, "https")}, true, true)
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutes(&e)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
@@ -624,7 +650,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutes_WithTLSInsecureSkipVerify(t *testin
 	proxy.TLSInsecureSkipVerify = ptr(true)
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutes(&e)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
@@ -654,7 +681,8 @@ func TestHTTPBuilder_BuildReverseProxyRoutesWithACL(t *testing.T) {
 	aclBuilder := NewACLBuilder(newTestLogger())
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildReverseProxyRoutesWithACL(&proxy, assignments, aclGroups, aclBuilder)
+	e := eff(proxy)
+	routes, err := b.BuildReverseProxyRoutesWithACL(&e, assignments, aclGroups, aclBuilder)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
@@ -731,7 +759,8 @@ func TestHTTPBuilder_BuildRedirectRoutes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := NewHTTPBuilder(newTestLogger())
 
-			routes, err := b.BuildRedirectRoutes(&tt.proxy)
+			e := eff(tt.proxy)
+			routes, err := b.BuildRedirectRoutes(&e)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -761,7 +790,8 @@ func TestHTTPBuilder_BuildRedirectRoutes_PreserveQueryIncludesSeparator(t *testi
 	p.RedirectConfig["preserve_query"] = true
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildRedirectRoutes(&p)
+	e := eff(p)
+	routes, err := b.BuildRedirectRoutes(&e)
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
@@ -780,7 +810,8 @@ func TestHTTPBuilder_BuildRedirectRoutes_DefaultStatusCode(t *testing.T) {
 	}
 
 	b := NewHTTPBuilder(newTestLogger())
-	routes, err := b.BuildRedirectRoutes(&proxy)
+	e := eff(proxy)
+	routes, err := b.BuildRedirectRoutes(&e)
 
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
@@ -856,7 +887,8 @@ func TestHTTPBuilder_BuildStaticRoutes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := NewHTTPBuilder(newTestLogger())
 
-			routes, err := b.BuildStaticRoutes(&tt.proxy)
+			e := eff(tt.proxy)
+			routes, err := b.BuildStaticRoutes(&e)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -882,7 +914,8 @@ func TestHTTPBuilder_BuildStaticRoutes_TryFilesGatedByFileMatcher(t *testing.T) 
 	p := createStaticProxy(1, "static", "static.example.com", "/var/www/html", true, true)
 	p.StaticConfig["try_files"] = []interface{}{"{path}", "/index.html"}
 
-	routes, err := b.BuildStaticRoutes(&p)
+	e := eff(p)
+	routes, err := b.BuildStaticRoutes(&e)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(routes), 2, "expected a rewrite route plus the file-server route")
 
@@ -1495,8 +1528,8 @@ func TestBuilder_TrustedProxies_AppliedToServer(t *testing.T) {
 		TrustedProxies:  []string{"172.18.0.0/16"},
 		ClientIPHeaders: []string{"Cf-Connecting-Ip"},
 	})
-	b.SetHTTPProxies([]models.Proxy{
-		createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+		eff(createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 	})
 
 	data, err := b.BuildJSON()
@@ -1514,8 +1547,8 @@ func TestBuilder_TrustedProxies_AppliedToServer(t *testing.T) {
 // is emitted when none are configured (Caddy stays the edge).
 func TestBuilder_TrustedProxies_OmittedWhenUnset(t *testing.T) {
 	b := NewBuilder(WithLogger(newTestLogger()), WithACLBuilder(NewACLBuilder(newTestLogger())))
-	b.SetHTTPProxies([]models.Proxy{
-		createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+		eff(createReverseProxy(1, "rp", "rp.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 	})
 
 	data, err := b.BuildJSON()
@@ -1833,7 +1866,7 @@ func TestBuilder_FullIntegration_ReverseProxyWithACL(t *testing.T) {
 
 	b := NewBuilder(WithLogger(newTestLogger()), WithACLBuilder(aclBuilder))
 	b.SetSettings(settings)
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 	b.SetACLGroups([]models.ACLGroup{aclGroup})
 	b.SetACLAssignments([]models.ProxyACLAssignment{assignment})
 	b.SetNotFoundSettings(notFoundSettings)
@@ -1882,7 +1915,7 @@ func TestBuilder_FullIntegration_MultipleProxyTypes(t *testing.T) {
 	}
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies(proxies)
+	b.SetHTTPProxies(effAll(proxies))
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -1907,7 +1940,7 @@ func TestBuilder_FullIntegration_SecurityRoutes(t *testing.T) {
 	proxy.BlockExploits = ptr(true)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -1945,7 +1978,7 @@ func TestBuilder_FullIntegration_NoSecurityRoutesWhenDisabled(t *testing.T) {
 	proxy.BlockExploits = ptr(false)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	config, err := b.Build()
 	require.NoError(t, err)
@@ -2018,7 +2051,7 @@ func TestBuilder_Build_Logging_AccessLog_WithProxies(t *testing.T) {
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	cfg, err := b.Build()
 	require.NoError(t, err)
@@ -2069,7 +2102,7 @@ func TestBuilder_Build_Logging_ValidJSON(t *testing.T) {
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	jsonBytes, err := b.BuildJSON()
 	require.NoError(t, err)
@@ -2088,7 +2121,7 @@ func TestBuilder_Build_Metrics_EnabledWithProxies(t *testing.T) {
 		[]interface{}{createTestUpstream("backend", 8080, "http")}, true, false)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{proxy})
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{eff(proxy)})
 
 	cfg, err := b.Build()
 	require.NoError(t, err)
@@ -2122,8 +2155,8 @@ func TestBuilder_Build_Metrics_EnabledWithProxies(t *testing.T) {
 // no metrics route appears in the generated routes (only the server metrics option).
 func TestBuilder_MetricsPublish_Disabled(t *testing.T) {
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{
-		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+		eff(createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 	})
 	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
 		Enabled:       false,
@@ -2173,8 +2206,8 @@ func TestBuilder_MetricsPublish_Enabled(t *testing.T) {
 	)
 
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{
-		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+		eff(createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 	})
 	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
 		Enabled:       true,
@@ -2273,8 +2306,8 @@ func TestBuilder_MetricsPublish_FailClosed(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			b := NewBuilder(WithLogger(newTestLogger()))
-			b.SetHTTPProxies([]models.Proxy{
-				createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+			b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+				eff(createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 			})
 			b.SetMetricsPublishSettings(tc.settings)
 
@@ -2308,8 +2341,8 @@ func TestBuilder_MetricsPublish_FailClosed(t *testing.T) {
 // default "/metrics" is substituted.
 func TestBuilder_MetricsPublish_DefaultPath(t *testing.T) {
 	b := NewBuilder(WithLogger(newTestLogger()))
-	b.SetHTTPProxies([]models.Proxy{
-		createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true),
+	b.SetHTTPProxies([]proxygroup.EffectiveProxy{
+		eff(createReverseProxy(1, "rp", "proxy.example.com", []interface{}{createTestUpstream("backend", 8080, "http")}, true, true)),
 	})
 	b.SetMetricsPublishSettings(&models.MetricsPublishSettings{
 		Enabled:       true,

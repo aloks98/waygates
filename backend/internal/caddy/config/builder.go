@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
 // Builder orchestrates the generation of Caddy JSON configuration.
@@ -24,7 +25,7 @@ type Builder struct {
 	settings *Settings
 
 	// Configuration inputs
-	httpProxies []models.Proxy
+	httpProxies []proxygroup.EffectiveProxy
 	aclGroups   map[int64]*models.ACLGroup
 	aclAssigns  map[int64][]models.ProxyACLAssignment
 	notFound    *models.NotFoundSettings
@@ -119,7 +120,7 @@ func (b *Builder) SetSettings(settings *Settings) *Builder {
 }
 
 // SetHTTPProxies sets the HTTP proxies to include in the configuration.
-func (b *Builder) SetHTTPProxies(proxies []models.Proxy) *Builder {
+func (b *Builder) SetHTTPProxies(proxies []proxygroup.EffectiveProxy) *Builder {
 	b.httpProxies = proxies
 	return b
 }
@@ -388,19 +389,12 @@ func (b *Builder) buildL4TLSRoutes() []*HTTPRoute {
 	return routes
 }
 
-// derefBool reports the pointed-to value, treating a nil *bool as false. This
-// is a TEMPORARY shim: models.Proxy's inheritable booleans are now *bool
-// (nil = inherit from group / system default), but this builder still
-// operates on raw, unresolved proxies. Task 3 retypes the builder to accept
-// only resolved proxies and deletes this helper — do not add new callers.
-func derefBool(b *bool) bool { return b != nil && *b }
-
 // buildProxyRoutes builds routes for a single proxy.
-func (b *Builder) buildProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
+func (b *Builder) buildProxyRoutes(proxy *proxygroup.EffectiveProxy) ([]*HTTPRoute, error) {
 	var routes []*HTTPRoute
 
 	// Add security routes if BlockExploits is enabled
-	if derefBool(proxy.BlockExploits) {
+	if proxy.BlockExploits {
 		securityRoutes := SecurityRoutesForHost(proxy.Hostname)
 		routes = append(routes, securityRoutes...)
 		b.logger.Debug("Added security routes for proxy",
@@ -464,7 +458,7 @@ func (b *Builder) collectTLSDomains() []string {
 			continue
 		}
 		// Only collect domains for SSL-enabled proxies
-		if derefBool(proxy.SSLEnabled) {
+		if proxy.SSLEnabled {
 			domainSet[proxy.Hostname] = true
 		}
 	}
@@ -487,7 +481,7 @@ func (b *Builder) collectTLSDomains() []string {
 
 // BuildSingleProxy generates JSON configuration for a single proxy.
 // This is useful for validation or preview purposes.
-func (b *Builder) BuildSingleProxy(proxy *models.Proxy) (*CaddyConfig, error) {
+func (b *Builder) BuildSingleProxy(proxy *proxygroup.EffectiveProxy) (*CaddyConfig, error) {
 	routes, err := b.buildProxyRoutes(proxy)
 	if err != nil {
 		return nil, err
@@ -506,7 +500,7 @@ func (b *Builder) BuildSingleProxy(proxy *models.Proxy) (*CaddyConfig, error) {
 		},
 	}
 
-	if derefBool(proxy.SSLEnabled) {
+	if proxy.SSLEnabled {
 		config.Apps.TLS = NewTLSApp([]string{proxy.Hostname})
 	}
 

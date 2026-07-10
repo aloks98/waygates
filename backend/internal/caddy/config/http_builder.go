@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 )
 
 // HTTPBuilder builds HTTP routes from proxy configurations.
@@ -27,7 +28,7 @@ func NewHTTPBuilder(logger *zap.Logger) *HTTPBuilder {
 }
 
 // BuildReverseProxyRoutes builds routes for a reverse proxy.
-func (b *HTTPBuilder) BuildReverseProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
+func (b *HTTPBuilder) BuildReverseProxyRoutes(proxy *proxygroup.EffectiveProxy) ([]*HTTPRoute, error) {
 	if proxy.Upstreams == nil {
 		return nil, fmt.Errorf("reverse proxy requires at least one upstream")
 	}
@@ -55,7 +56,7 @@ func (b *HTTPBuilder) BuildReverseProxyRoutes(proxy *models.Proxy) ([]*HTTPRoute
 
 // BuildReverseProxyRoutesWithACL builds routes for a reverse proxy with ACL protection.
 func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(
-	proxy *models.Proxy,
+	proxy *proxygroup.EffectiveProxy,
 	assignments []models.ProxyACLAssignment,
 	aclGroups map[int64]*models.ACLGroup,
 	aclBuilder *ACLBuilder,
@@ -118,7 +119,7 @@ func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(
 }
 
 // BuildRedirectRoutes builds routes for a redirect proxy.
-func (b *HTTPBuilder) BuildRedirectRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
+func (b *HTTPBuilder) BuildRedirectRoutes(proxy *proxygroup.EffectiveProxy) ([]*HTTPRoute, error) {
 	redirectConfig, err := b.parseRedirectConfig(proxy.RedirectConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid redirect config: %w", err)
@@ -153,7 +154,7 @@ func (b *HTTPBuilder) BuildRedirectRoutes(proxy *models.Proxy) ([]*HTTPRoute, er
 }
 
 // BuildStaticRoutes builds routes for a static file server proxy.
-func (b *HTTPBuilder) BuildStaticRoutes(proxy *models.Proxy) ([]*HTTPRoute, error) {
+func (b *HTTPBuilder) BuildStaticRoutes(proxy *proxygroup.EffectiveProxy) ([]*HTTPRoute, error) {
 	staticConfig, err := b.parseStaticConfig(proxy.StaticConfig)
 	if err != nil {
 		return nil, fmt.Errorf("invalid static config: %w", err)
@@ -206,7 +207,7 @@ func (b *HTTPBuilder) BuildStaticRoutes(proxy *models.Proxy) ([]*HTTPRoute, erro
 }
 
 // buildReverseProxyHandler builds a reverse proxy handler with all configurations.
-func (b *HTTPBuilder) buildReverseProxyHandler(proxy *models.Proxy, upstreams []*Upstream) *ReverseProxyHandler {
+func (b *HTTPBuilder) buildReverseProxyHandler(proxy *proxygroup.EffectiveProxy, upstreams []*Upstream) *ReverseProxyHandler {
 	handler := NewReverseProxyHandler(upstreams...)
 
 	// Add standard proxy headers
@@ -235,11 +236,11 @@ func (b *HTTPBuilder) buildReverseProxyHandler(proxy *models.Proxy, upstreams []
 
 	// Configure TLS transport if needed
 	hasHTTPS := b.hasHTTPSUpstream(proxy.Upstreams)
-	if hasHTTPS || derefBool(proxy.TLSInsecureSkipVerify) {
+	if hasHTTPS || proxy.TLSInsecureSkipVerify {
 		handler.Transport = &HTTPTransport{
 			Protocol: "http", // Required by Caddy to identify the transport module
 			TLS: &TLSConfig{
-				InsecureSkipVerify: derefBool(proxy.TLSInsecureSkipVerify),
+				InsecureSkipVerify: proxy.TLSInsecureSkipVerify,
 			},
 		}
 	}

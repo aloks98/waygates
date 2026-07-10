@@ -77,6 +77,17 @@ type TrafficSampleRepositoryInterface interface {
 	DeleteOlderThan(t time.Time) (int64, error)
 }
 
+// ProxyGroupRepositoryInterface defines proxy group database operations.
+//
+// This is a partial declaration: Task 4 creates the concrete ProxyGroupRepository
+// and extends this interface with CRUD methods. Until then, no compile-time
+// assertion binds a concrete type to it (there is none yet) — SyncService's
+// proxyGroupRepo field defaults to nil and buildConfigBytes guards every use.
+type ProxyGroupRepositoryInterface interface {
+	ListAll() ([]models.ProxyGroup, error)
+	ListAllACLAssignments() ([]models.ProxyGroupACLAssignment, error)
+}
+
 // L4ProxyListParams holds parameters for listing L4 proxies
 type L4ProxyListParams struct {
 	Page     int
