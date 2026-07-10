@@ -90,10 +90,21 @@ Permissions are checked per-endpoint by the `goauth` middleware. Role templates 
 | Role | Key permissions |
 |------|----------------|
 | `admin` | All permissions (`*`) |
-| `operator` | `proxies:*`, `l4proxies:*`, `acl:*`, `settings:read/write`, `sync:*`, `audit_logs:read`, `metrics:read` |
-| `viewer` | `proxies:read`, `l4proxies:read`, `acl:read`, `settings:read`, `sync:read`, `metrics:read` |
+| `operator` | `proxies:*`, `l4proxies:*`, `proxygroups:*`, `acl:*`, `settings:read/write`, `sync:*`, `audit_logs:read`, `metrics:read` |
+| `viewer` | `proxies:read`, `l4proxies:read`, `proxygroups:read`, `acl:read`, `settings:read`, `sync:read`, `metrics:read` |
 
 The first registered user is automatically assigned `admin`; subsequent users get `operator`.
+
+---
+
+## Breaking changes
+
+Proxy groups (section 7) changed two `PUT /api/proxies/{id}` semantics. Both are specific to `PUT`; `POST /api/proxies` and `POST /api/proxies/import` never had "keep existing" semantics for these fields.
+
+1. **An omitted tri-state setting now means "inherit," not "keep existing."** `ssl_enabled`, `ssl_forced`, `block_exploits`, and `tls_insecure_skip_verify` used to mean "keep the current value" when left out of a `PUT` body (`ssl_forced` in particular could not be changed via the API at all — it was always force-preserved from the existing row). An omitted field, or an explicit `null`, on `PUT /api/proxies/{id}` now means *inherit from the group, or the system default if ungrouped*. Send an explicit `true`/`false` to set a value; send `null`, or omit the field, to inherit. **Clients that relied on partial `PUT` bodies leaving these four fields unchanged must now send the proxy's current effective value explicitly**, or the field will silently start inheriting. `GET /api/proxies/{id}` returns an `effective` object with a `_source` map (`"proxy"` / `"group"` / `"default"`) so a client can look up the current effective value before deciding what to send — see section 4.
+2. **Omitting `group_id` on `PUT /api/proxies/{id}` detaches the proxy from its group.** `PUT` is a full replace: a field absent from the request body is treated exactly like an explicit `null`. This has always been true of `group_id`, but it's easy to miss now that it matters — a client that fetches a proxy, edits an unrelated field, and `PUT`s the result back **without re-including `group_id`** will silently detach the proxy, dropping its inherited settings, headers, and ACLs. Always echo back the proxy's current `group_id` (and `hostname_label`, if label-addressed) on every `PUT /api/proxies/{id}` unless detaching is intended.
+
+These two interact: a proxy whose tri-state fields were all `null` (pure inheritance) that gets detached by an omitted `group_id` falls back one level further — from "the group's opinion" to "the system default" — so values a client never touched can change as a side effect of an unrelated edit.
 
 ---
 
@@ -369,7 +380,7 @@ All proxy endpoints require authentication.
 | `name` | string | Display name, max 255 chars |
 | `hostname` | string | Unique; no scheme, port, or path. Required unless `hostname_label` is used (see below) — in that case it is server-computed and read-only. |
 | `description` | string\|null | Optional |
-| `group_id` | int\|null | The proxy's `ProxyGroup` (config inheritance) — **not** an ACL group. `null` means ungrouped. |
+| `group_id` | int\|null | The proxy's `ProxyGroup` (config inheritance) — **not** an ACL group. `null` means ungrouped. See section 7 for the `ProxyGroup` resource. |
 | `hostname_label` | string\|null | A single DNS label (no dots). Valid **iff** the proxy has a `group_id` **and** that group has a `base_domain`; in that case `hostname` is server-computed as `<hostname_label>.<group's base_domain>` and any `hostname` sent in the request body is ignored. |
 | `group_name` | string\|null | Computed; the group's name, when grouped (list only) |
 | `ssl_enabled` | bool\|null | Tri-state: `true`/`false` is explicit; `null` means **inherit** — from the group's `ssl_enabled` if grouped and the group has an opinion, else the system default `true` |
@@ -478,7 +489,7 @@ The server computes `hostname` as `<hostname_label>.<group.base_domain>`. Sendin
 
 ### PUT /api/proxies/{id} — Update
 
-Same body shape as create. `group_id` / `hostname_label` can be changed to move a proxy between groups or detach it (set both to `null`) — detaching does **not** change the proxy's existing `hostname`, it just stops inheriting.
+Same body shape as create. `group_id` / `hostname_label` can be changed to move a proxy between groups, or to detach it — set both to `null`, **or simply omit them**: `PUT` is a full replace, so an omitted `group_id` has exactly the same effect as an explicit `null` and detaches the proxy from its group (see **Breaking changes** above). Detaching does **not** change the proxy's existing `hostname`; it just stops inheriting the group's settings, headers, and ACLs.
 
 > **⚠️ Breaking change**: `ssl_enabled`, `ssl_forced`, `block_exploits`, and `tls_insecure_skip_verify` used to mean "keep the current value" when omitted from a `PUT` body (and `ssl_forced` could not be changed via the API at all — it was always force-preserved from the existing row). **An omitted field on `PUT /api/proxies/{id}` now means "inherit from the group, or the system default if ungrouped"** — `null` cannot mean both "keep existing" and "inherit", and proxy-group inheritance needs the real meaning. The UI always sends all four booleans explicitly (`null` when the user picked "Inherit") so the wire contract is unambiguous; API clients that previously omitted these fields to leave them unchanged must now send the current *effective* value explicitly to preserve prior behavior.
 
@@ -513,7 +524,7 @@ See section 6.4 below.
 
 ### GET /api/proxies/{id}/config-preview
 
-`caddy_config:read` — Returns the generated Caddy JSON snippet for this single proxy (including ACL handlers). Does not write or reload Caddy. See section 11.
+`caddy_config:read` — Returns the generated Caddy JSON snippet for this single proxy (including ACL handlers). Does not write or reload Caddy. See section 12.
 
 ---
 
@@ -759,7 +770,82 @@ Passwords are bcrypt-hashed; the hash is never returned. `username` is unique wi
 
 ---
 
-## 7. Audit Logs
+## 7. Proxy Groups
+
+All proxy group endpoints require authentication. A `ProxyGroup` is a config-inheritance parent for HTTP proxies — each proxy belongs to at most one group, or none. It is a distinct concept from `ACLGroup` (section 6): an ACL group is an auth grouping, a proxy group is a config grouping. See the Proxy Data Model (section 4) for exactly how a proxy's tri-state settings, headers, and ACL assignments resolve against its group, and how `hostname_label` plus a group's `base_domain` compose a proxy's `hostname`.
+
+| Method | Path | RBAC permission | Description |
+|--------|------|----------------|-------------|
+| `GET` | `/api/proxy-groups` | `proxygroups:read` | List proxy groups (paginated); each row carries `member_count` |
+| `GET` | `/api/proxy-groups/{id}` | `proxygroups:read` | Get a single proxy group (also carries `member_count`) |
+| `POST` | `/api/proxy-groups` | `proxygroups:create` | Create proxy group |
+| `PUT` | `/api/proxy-groups/{id}` | `proxygroups:update` | Update proxy group (full replace) |
+| `DELETE` | `/api/proxy-groups/{id}` | `proxygroups:delete` | Delete proxy group (must have no members) |
+| `GET` | `/api/proxy-groups/{id}/acl` | `acl:read` | List ACL groups assigned to this proxy group |
+| `POST` | `/api/proxy-groups/{id}/acl` | `acl:update` | Assign an ACL group to this proxy group |
+| `PUT` | `/api/proxy-groups/{id}/acl/{assignmentId}` | `acl:update` | Update an assignment (path/priority/enabled) |
+| `DELETE` | `/api/proxy-groups/{id}/acl/{aclGroupId}` | `acl:delete` | Remove an ACL group from this proxy group |
+
+### ProxyGroup Data Model
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | int | Auto-increment primary key |
+| `name` | string | Unique, max 255 chars |
+| `description` | string\|null | Optional |
+| `base_domain` | string\|null | When set, member proxies may be addressed by a single DNS label (`hostname_label`) instead of a full `hostname` — see section 4 |
+| `ssl_enabled` | bool\|null | Tri-state: `null` means "the group has no opinion," **not** `false`. A member proxy that also leaves this `null` inherits it; if the group has no opinion either, the system default `true` applies |
+| `ssl_forced` | bool\|null | Same tri-state semantics; system default `true` |
+| `tls_insecure_skip_verify` | bool\|null | Same tri-state semantics; system default `false` |
+| `block_exploits` | bool\|null | Same tri-state semantics; system default `true` |
+| `custom_headers` | object\|null | `{request: {k:v}, response: {k:v}}` — same shape as a proxy's `custom_headers`. Merged into member proxies per header key, with the proxy's own value winning on conflict |
+| `member_count` | int | Computed; number of proxies currently assigned to this group. Present on both list rows and the single-get response |
+| `created_at` / `updated_at` | RFC3339 | |
+
+`load_balancing` is a proxy-only field and is **never** inherited from a group.
+
+### POST /api/proxy-groups — Create
+
+```json
+{
+  "name": "Internal Services",
+  "description": "Backend services on the internal network",
+  "base_domain": "internal.example.com",
+  "ssl_enabled": true,
+  "ssl_forced": true,
+  "block_exploits": true,
+  "custom_headers": {
+    "request": { "X-Internal": "true" }
+  }
+}
+```
+
+`name` is required; every other field is optional. Omitting a tri-state field (or sending `null`) leaves the group with "no opinion" on it. Returns `201 Created` with the full `ProxyGroup` object. A `name` collision with an existing group returns `409`.
+
+### PUT /api/proxy-groups/{id} — Update
+
+Same body shape as create, and is a full replace: an omitted tri-state field is written back as `null` ("no opinion"), exactly like `POST`.
+
+> **Renaming `base_domain` re-homes every member.** When `base_domain` changes, every label-addressed member (a proxy with `hostname_label` set) has its materialized `hostname` rewritten to `<hostname_label>.<new base_domain>` in the same request, and the config is resynced before the response is returned. Affected proxies' old hostnames stop resolving as soon as the new config is live, and Caddy will request a fresh ACME certificate for every new hostname — on a group with many members this is a burst of certificate-issuance activity worth scheduling deliberately, not something to trigger casually on a busy group.
+
+`PUT /api/proxy-groups/{id}` can return `409` for:
+- **Name collision** — another group already has the given `name`.
+- **`base_domain` cleared while label-addressed members exist** — setting `base_domain` to `null` when the group still has members with `hostname_label` set fails; the message is *"group has label-addressed members; base_domain cannot be cleared"*. Un-label or reassign those members first.
+- **Rename collides with an existing hostname** — if re-homing a member during a `base_domain` change would produce a hostname another proxy already owns, the update is rejected; the message names the specific colliding hostname, e.g. *"hostname already exists: api.internal.example.com"*.
+
+### DELETE /api/proxy-groups/{id}
+
+Fails with `409` if the group still has member proxies; the message carries the member count, e.g. *"proxy group has member proxies: 7 member proxies; reassign or remove them first"*. Reassign the members to another group or detach them (`PUT /api/proxies/{id}` with `group_id: null`, or simply omitting `group_id` — see **Breaking changes** above) before deleting.
+
+### Proxy Group ACL Assignments (nested)
+
+Fields mirror `ProxyACLAssignment` (section 6.4) — `id`, `proxy_group_id` (in place of `proxy_id`), `acl_group_id`, `path_pattern` (default `/*`), `priority`, `enabled`. A new assignment is always created with `enabled: true`; there's no way to create one pre-disabled. A duplicate `acl_group_id` for the same proxy group returns `409`; an invalid `path_pattern` returns `400`.
+
+Assignments made here are inherited by every member proxy, merged per `acl_group_id` with the proxy's own assignments (see the Proxy Data Model, section 4). **To opt a specific proxy out of a group-inherited ACL**, assign that same `acl_group_id` directly to the proxy: `POST /api/proxies/{id}/acl` (section 6.4) creates it `enabled: true`, then `PUT /api/proxies/{id}/acl/{assignmentId}` to set `enabled: false`. The proxy's own row for that `acl_group_id` always wins over the group's inherited one, so a disabled proxy-level row suppresses it.
+
+---
+
+## 8. Audit Logs
 
 | Method | Path | RBAC permission | Description |
 |--------|------|----------------|-------------|
@@ -815,7 +901,7 @@ A flat object of boolean flags, one per event type. See `AuditConfig` in `backen
 
 ---
 
-## 8. Settings
+## 9. Settings
 
 | Method | Path | RBAC permission | Description |
 |--------|------|----------------|-------------|
@@ -887,7 +973,7 @@ The bcrypt hash is never returned; `has_basic_auth` indicates whether one is sto
 
 ---
 
-## 9. Sync
+## 10. Sync
 
 | Method | Path | RBAC permission | Description |
 |--------|------|----------------|-------------|
@@ -909,7 +995,7 @@ Sync runs automatically every 60 seconds in the background. A manual trigger via
 
 ---
 
-## 10. Caddy Logs
+## 11. Caddy Logs
 
 | Method | Path | RBAC permission | Description |
 |--------|------|----------------|-------------|
@@ -935,7 +1021,7 @@ Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, 
 
 ---
 
-## 11. Caddy Config Preview
+## 12. Caddy Config Preview
 
 These endpoints return the generated Caddy JSON config **without** writing it to disk or reloading Caddy. Useful for debugging.
 
@@ -948,7 +1034,7 @@ Both endpoints return the raw Caddy JSON config object inside `data`.
 
 ---
 
-## 12. Traffic Metrics
+## 13. Traffic Metrics
 
 | Method | Path | RBAC permission | Description |
 |--------|------|----------------|-------------|
@@ -986,6 +1072,6 @@ Metrics are scraped from Caddy's Prometheus endpoint every 30 seconds by the bac
 All routes registered in `backend/internal/api/routes/routes.go` are documented above:
 
 - Public group: `GET /api/health`, `GET /api/status`, `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET /api/auth/acl/verify`, `POST /api/auth/acl/login`, `POST /api/auth/acl/logout`, `GET /api/auth/acl/session`, `GET /api/auth/oauth/providers`, `GET /auth/oauth/{provider}`, `GET /auth/oauth/{provider}/callback`, `GET /api/acl/branding`, `GET /api/acl/options` — **14 endpoints**
-- Protected group: `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/change-password` + all proxy, settings, sync, audit-log, ACL, caddy-logs, caddy-config, metrics, and L4-proxy routes — **74 endpoints**
+- Protected group: `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/change-password` + all proxy, proxy-group, settings, sync, audit-log, ACL, caddy-logs, caddy-config, metrics, and L4-proxy routes — **83 endpoints**
 
-**Total documented: 88 endpoints** (counting each registered `Method + Path` combination as one endpoint).
+**Total documented: 97 endpoints** (counting each registered `Method + Path` combination as one endpoint).

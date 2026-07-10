@@ -13,6 +13,7 @@ Manage your Caddy reverse proxy configurations through a clean web interface.</p
 
 **Proxying**
 - **HTTP reverse proxies** — upstream routing, redirects, static file serving, load balancing
+- **Proxy groups** — shared base domain, TLS/security defaults, custom headers, and ACLs inherited by member proxies, with per-proxy overrides and label-based hostnames (`label.base-domain`)
 - **L4 (TCP/UDP) proxies** — protocol-aware routing with TLS/SNI, SSH, PostgreSQL, HTTP, RDP, SOCKS5 matchers; IP ACL; Proxy Protocol v1/v2 support
 
 **Access control**
