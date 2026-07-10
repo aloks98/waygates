@@ -49,6 +49,10 @@ type CaddyConfig struct {
 	StoragePath  string // Caddy storage path for certificates (default: /data)
 	LogPath      string // Caddy log path for runtime + access logs (default: /var/log/caddy)
 
+	// ACMEResolvers are the DNS servers used for the DNS-01 propagation check.
+	// Empty = public resolvers; "system" = resolve through the host.
+	ACMEResolvers []string
+
 	// TrustedProxies are CIDR ranges of upstream proxies/tunnels (e.g.
 	// cloudflared, Pangolin) whose forwarded client-IP headers Caddy should
 	// trust for real-client-IP resolution. Empty = Caddy is the edge.
@@ -147,6 +151,7 @@ func Load() (*Config, error) {
 		Caddy: CaddyConfig{
 			Email:               viper.GetString("CADDY_EMAIL"),
 			ACMEProvider:        viper.GetString("CADDY_ACME_PROVIDER"),
+			ACMEResolvers:       splitAndTrimCSV(viper.GetString("CADDY_ACME_RESOLVERS")),
 			StoragePath:         viper.GetString("CADDY_STORAGE_PATH"),
 			LogPath:             viper.GetString("CADDY_LOG_PATH"),
 			TrustedProxies:      splitAndTrimCSV(viper.GetString("CADDY_TRUSTED_PROXIES")),
@@ -213,6 +218,7 @@ func setDefaults() {
 	// Caddy ACME configuration
 	viper.SetDefault("CADDY_EMAIL", "")
 	viper.SetDefault("CADDY_ACME_PROVIDER", "off") // off, http, cloudflare, route53, duckdns, digitalocean, hetzner, porkbun, azure, vultr, namecheap, ovh
+	viper.SetDefault("CADDY_ACME_RESOLVERS", "")   // empty = public resolvers; "system" = resolve through the host
 	viper.SetDefault("CADDY_STORAGE_PATH", "/data")
 	viper.SetDefault("CADDY_LOG_PATH", "/var/log/caddy")
 

@@ -1,4 +1,4 @@
-import type { CaddyLogLine } from '@/types/caddy-logs';
+import { type CaddyLogLine, isAccessLogLine } from '@/types/caddy-logs';
 
 interface LogRowProps {
   line: CaddyLogLine;
@@ -39,15 +39,7 @@ function formatDuration(duration?: number): string {
 }
 
 export function LogRow({ line }: LogRowProps) {
-  // Access log: Caddy access entries carry level=info + msg="handled request",
-  // so detect them by the access logger name (or request-derived fields) FIRST —
-  // otherwise they'd fall into the runtime branch and only show "handled request".
-  const isAccess =
-    line.logger?.startsWith('http.log.access') === true ||
-    line.status != null ||
-    line.method != null;
-
-  if (isAccess) {
+  if (isAccessLogLine(line)) {
     const ts = formatTimestamp(line.ts);
     return (
       <div className="py-0.5">
@@ -66,16 +58,36 @@ export function LogRow({ line }: LogRowProps) {
     );
   }
 
-  // Runtime log: has level or msg
-  if (line.level != null || line.msg != null) {
+  // Runtime log: has level, msg, or an error with neither
+  if (line.level != null || line.msg != null || line.error != null) {
     const ts = formatTimestamp(line.ts);
     const level = (line.level ?? 'info').toUpperCase();
+    // http.log.error and http.handlers.reverse_proxy describe a failed request,
+    // so the request they failed on belongs on the row.
+    const hasRequest = line.method != null || line.host != null || line.uri != null;
     return (
       <div className={`py-0.5 ${getLevelClass(line.level)}`}>
         {ts && <span className="text-muted-foreground">{ts} </span>}
         <span className="font-semibold">[{level}]</span>
         {line.logger && <span className="text-muted-foreground"> {line.logger}</span>}
         {line.msg && <span> {line.msg}</span>}
+        {line.identifier && <span className="text-muted-foreground"> ({line.identifier})</span>}
+        {line.error && <span className="text-destructive"> {line.error}</span>}
+        {hasRequest && (
+          <span className="text-muted-foreground">
+            {' '}
+            {line.method && `${line.method} `}
+            {line.host}
+            {line.uri}
+          </span>
+        )}
+        {line.status != null && (
+          <span className={`font-semibold ${getStatusClass(line.status)}`}> {line.status}</span>
+        )}
+        {line.upstream && <span className="text-muted-foreground"> upstream={line.upstream}</span>}
+        {line.duration != null && (
+          <span className="text-muted-foreground"> {formatDuration(line.duration)}</span>
+        )}
       </div>
     );
   }

@@ -102,6 +102,13 @@ type DNSChallengeConfig struct {
 	// Provider can be any of the DNS provider types defined in tls.go
 	// (DNSProviderCloudflare, DNSProviderRoute53, etc.)
 	Provider interface{} `json:"provider,omitempty"`
+
+	// Resolvers are the DNS servers used for the challenge's propagation check.
+	// Empty means Caddy uses the host's resolver, which fails wherever that
+	// resolver is authoritative for the zone in split-horizon: it answers the
+	// NS lookup with an internal nameserver that cannot serve the public
+	// _acme-challenge TXT record. See DefaultACMEResolvers.
+	Resolvers []string `json:"resolvers,omitempty"`
 }
 
 // HTTPApp configures the HTTP server application.

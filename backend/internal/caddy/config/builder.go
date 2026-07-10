@@ -58,6 +58,11 @@ type Settings struct {
 	// DNS provider credentials (loaded from environment)
 	DNSCredentials map[string]string
 
+	// ACMEResolvers are the DNS servers used for the DNS-01 propagation check.
+	// Empty means DefaultACMEResolvers; the single value ACMEResolversSystem
+	// means resolve through the host.
+	ACMEResolvers []string
+
 	// TrustedProxies are CIDR ranges of upstream proxies/tunnels (e.g.
 	// cloudflared, Pangolin) whose forwarded client-IP headers Caddy should
 	// trust. Empty means Caddy is the edge. ClientIPHeaders lists the headers

@@ -3,9 +3,22 @@ package config
 
 import (
 	"os"
+	"slices"
 
 	"go.uber.org/zap"
 )
+
+// DefaultACMEResolvers are the DNS servers used for the DNS-01 propagation check
+// when none are configured. Let's Encrypt validates the _acme-challenge TXT
+// record against the zone's public authoritative nameservers, so the pre-check
+// has to look at public DNS too. Resolving through the host is the wrong default
+// for any host whose resolver is authoritative for the zone internally.
+var DefaultACMEResolvers = []string{"1.1.1.1", "8.8.8.8"}
+
+// ACMEResolversSystem is the CADDY_ACME_RESOLVERS value that opts back in to
+// Caddy's own default of resolving through the host. Needed only when the host
+// resolver can already see the public authoritative nameservers.
+const ACMEResolversSystem = "system"
 
 // TLSBuilder builds TLS configuration for Caddy.
 type TLSBuilder struct {
@@ -126,6 +139,33 @@ func (b *TLSBuilder) buildIssuer() (*Issuer, error) {
 	}
 }
 
+// newDNSIssuer builds an ACME issuer for a DNS-01 provider. Every provider
+// shares the same resolver policy, so they all go through here.
+func (b *TLSBuilder) newDNSIssuer(provider interface{}) *Issuer {
+	return &Issuer{
+		Module: "acme",
+		Email:  b.settings.AdminEmail,
+		Challenges: &ChallengesConfig{
+			DNS: &DNSChallengeConfig{
+				Provider:  provider,
+				Resolvers: b.dnsResolvers(),
+			},
+		},
+	}
+}
+
+// dnsResolvers resolves the configured resolver policy into the value Caddy
+// receives. Nil leaves the key out of the JSON, restoring Caddy's default.
+func (b *TLSBuilder) dnsResolvers() []string {
+	if b.settings == nil || len(b.settings.ACMEResolvers) == 0 {
+		return slices.Clone(DefaultACMEResolvers)
+	}
+	if slices.Equal(b.settings.ACMEResolvers, []string{ACMEResolversSystem}) {
+		return nil
+	}
+	return slices.Clone(b.settings.ACMEResolvers)
+}
+
 // buildCloudflareIssuer builds a Cloudflare DNS challenge issuer.
 func (b *TLSBuilder) buildCloudflareIssuer() (*Issuer, error) {
 	apiToken := b.getCredential("CLOUDFLARE_API_TOKEN")
@@ -134,30 +174,14 @@ func (b *TLSBuilder) buildCloudflareIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewCloudflareProvider(apiToken),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewCloudflareProvider(apiToken)), nil
 }
 
 // buildRoute53Issuer builds a Route53 DNS challenge issuer.
 func (b *TLSBuilder) buildRoute53Issuer() (*Issuer, error) {
 	// Route53 uses AWS SDK credential chain
 	// Credentials are typically set via AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc.
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewRoute53Provider(),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewRoute53Provider()), nil
 }
 
 // buildDuckDNSIssuer builds a DuckDNS DNS challenge issuer.
@@ -168,15 +192,7 @@ func (b *TLSBuilder) buildDuckDNSIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewDuckDNSProvider(apiToken),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewDuckDNSProvider(apiToken)), nil
 }
 
 // buildDigitalOceanIssuer builds a DigitalOcean DNS challenge issuer.
@@ -187,15 +203,7 @@ func (b *TLSBuilder) buildDigitalOceanIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewDigitalOceanProvider(authToken),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewDigitalOceanProvider(authToken)), nil
 }
 
 // buildHetznerIssuer builds a Hetzner DNS challenge issuer.
@@ -206,15 +214,7 @@ func (b *TLSBuilder) buildHetznerIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewHetznerProvider(apiToken),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewHetznerProvider(apiToken)), nil
 }
 
 // buildPorkbunIssuer builds a Porkbun DNS challenge issuer.
@@ -226,15 +226,7 @@ func (b *TLSBuilder) buildPorkbunIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewPorkbunProvider(apiKey, apiSecretKey),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewPorkbunProvider(apiKey, apiSecretKey)), nil
 }
 
 // buildAzureIssuer builds an Azure DNS challenge issuer.
@@ -250,15 +242,7 @@ func (b *TLSBuilder) buildAzureIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewAzureProvider(tenantID, clientID, clientSecret, subscriptionID, resourceGroup),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewAzureProvider(tenantID, clientID, clientSecret, subscriptionID, resourceGroup)), nil
 }
 
 // buildVultrIssuer builds a Vultr DNS challenge issuer.
@@ -269,15 +253,7 @@ func (b *TLSBuilder) buildVultrIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewVultrProvider(apiKey),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewVultrProvider(apiKey)), nil
 }
 
 // buildNamecheapIssuer builds a Namecheap DNS challenge issuer.
@@ -289,15 +265,7 @@ func (b *TLSBuilder) buildNamecheapIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewNamecheapProvider(apiKey, user),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewNamecheapProvider(apiKey, user)), nil
 }
 
 // buildOVHIssuer builds an OVH DNS challenge issuer.
@@ -312,15 +280,7 @@ func (b *TLSBuilder) buildOVHIssuer() (*Issuer, error) {
 		return nil, nil
 	}
 
-	return &Issuer{
-		Module: "acme",
-		Email:  b.settings.AdminEmail,
-		Challenges: &ChallengesConfig{
-			DNS: &DNSChallengeConfig{
-				Provider: NewOVHProvider(endpoint, applicationKey, applicationSecret, consumerKey),
-			},
-		},
-	}, nil
+	return b.newDNSIssuer(NewOVHProvider(endpoint, applicationKey, applicationSecret, consumerKey)), nil
 }
 
 // getCredential gets a credential from settings or environment.

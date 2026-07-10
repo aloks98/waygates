@@ -91,6 +91,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		Logger:              logger,
 		Email:               cfg.Caddy.Email,
 		ACMEProvider:        cfg.Caddy.ACMEProvider,
+		ACMEResolvers:       cfg.Caddy.ACMEResolvers,
 		WaygatesVerifyURL:   cfg.ACL.WaygatesVerifyURL,
 		WaygatesLoginURL:    cfg.ACL.WaygatesLoginURL,
 		StoragePath:         cfg.Caddy.StoragePath,

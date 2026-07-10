@@ -72,13 +72,23 @@ export function useCaddyLogs(source: CaddyLogSource): UseCaddyLogsResult {
       controller.signal,
     )
       .then(() => {
+        if (isStale()) return;
         setIsStreaming(false);
       })
       .catch((err: unknown) => {
+        if (isStale()) return;
         setIsStreaming(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
         setError(err instanceof Error ? err : new Error(String(err)));
       });
+
+    // An aborted streaming fetch does not reject uniformly: some browsers give
+    // an AbortError, Chrome rejects the body reader with `TypeError: network
+    // error`. Checking the error name surfaces a torn-down stream as a genuine
+    // failure, so trust the signal instead. A superseded stream (source switch)
+    // must stay silent too, or its rejection lands on its replacement's state.
+    function isStale(): boolean {
+      return controller.signal.aborted || abortRef.current !== controller;
+    }
   }, []);
 
   // Reset the buffer when the source changes so each tab shows only its own

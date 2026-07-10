@@ -81,6 +81,9 @@ type SyncServiceConfig struct {
 	Email        string // Email for ACME certificates
 	ACMEProvider string // ACME provider: off, http, cloudflare, route53, etc.
 
+	// ACMEResolvers are the DNS servers used for the DNS-01 propagation check.
+	ACMEResolvers []string
+
 	// JSON mode configuration
 	WaygatesVerifyURL string // Waygates auth verify URL for ACL
 	WaygatesLoginURL  string // Waygates auth login URL for ACL
@@ -163,6 +166,7 @@ func (s *SyncService) initJSONBuilder(cfg SyncServiceConfig, logger *zap.Logger)
 	s.builderSettings = &config.Settings{
 		AdminEmail:        cfg.Email,
 		ACMEProvider:      cfg.ACMEProvider,
+		ACMEResolvers:     cfg.ACMEResolvers,
 		StoragePath:       storagePath,
 		LogPath:           cfg.LogPath,
 		WaygatesVerifyURL: cfg.WaygatesVerifyURL,
