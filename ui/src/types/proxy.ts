@@ -53,8 +53,11 @@ export interface ProxyConfig {
   // default if ungrouped". Never coerce null to false — that silently turns
   // "inherit" into "explicitly disabled". See `effective` for the resolved
   // value actually served.
-  ssl_enabled: boolean | null;
-  ssl_forced: boolean | null;
+  // All four are optional because GET /api/proxies (the list endpoint) can
+  // omit them from a given row; only GET /api/proxies/:id is guaranteed to
+  // send every field. Treat a missing key the same as null (inherit).
+  ssl_enabled?: boolean | null;
+  ssl_forced?: boolean | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -71,8 +74,8 @@ export interface ProxyConfig {
   // Reverse proxy fields
   upstreams?: Upstream[];
   load_balancing?: LoadBalancing;
-  block_exploits: boolean | null;
-  tls_insecure_skip_verify: boolean | null;
+  block_exploits?: boolean | null;
+  tls_insecure_skip_verify?: boolean | null;
   custom_headers?: CustomHeaders;
   // Redirect fields
   redirect?: RedirectConfig;

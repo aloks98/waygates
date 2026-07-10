@@ -170,7 +170,7 @@ export function ProxyDataGrid({
       {
         accessorKey: 'ssl_enabled',
         header: 'SSL',
-        cell: ({ row }) => <ProxySslCell enabled={row.original.ssl_enabled} />,
+        cell: ({ row }) => <ProxySslCell enabled={row.original.ssl_enabled ?? null} />,
         enableSorting: false,
         minSize: 60,
         maxSize: 80,

@@ -26,6 +26,16 @@ export interface InheritableSwitchProps {
   /** When there is no group, collapse to a plain switch. */
   hasGroup: boolean;
   label: string;
+  /**
+   * Standard a11y props RHF's FormControl injects onto its single child
+   * (id, aria-describedby, aria-invalid) when this is wired up via
+   * FormField/FormControl, same as a plain <Switch> or <SelectTrigger>
+   * would receive directly. Forwarded to whichever control actually
+   * renders (the Select trigger with a group, the Switch without one).
+   */
+  id?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
 }
 
 /**
@@ -47,6 +57,9 @@ export function InheritableSwitch({
   systemDefault,
   hasGroup,
   label,
+  id,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
 }: InheritableSwitchProps) {
   if (!hasGroup) {
     return (
@@ -54,6 +67,9 @@ export function InheritableSwitch({
         checked={value ?? systemDefault}
         onCheckedChange={(next) => onChange(next)}
         aria-label={label}
+        id={id}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
       />
     );
   }
@@ -66,7 +82,13 @@ export function InheritableSwitch({
       value={value === null ? 'inherit' : value ? 'on' : 'off'}
       onValueChange={(next) => onChange(next === 'inherit' ? null : next === 'on')}
     >
-      <SelectTrigger aria-label={label} className="w-40">
+      <SelectTrigger
+        aria-label={label}
+        id={id}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        className="w-40"
+      >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
