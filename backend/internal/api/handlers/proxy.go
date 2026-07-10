@@ -14,21 +14,33 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 	"github.com/aloks98/waygates/backend/internal/service"
 	"github.com/aloks98/waygates/backend/internal/utils"
 )
 
+// groupGetter is the one capability GetProxy needs from the proxy-group layer:
+// loading the proxy's group so proxygroup.Resolve can merge its settings. A
+// narrow interface here (rather than the full ProxyGroupServiceInterface)
+// keeps the handler's test double to a single method; it is satisfied by
+// *service.ProxyGroupService without any change there.
+type groupGetter interface {
+	GetGroupByID(id int) (*models.ProxyGroup, error)
+}
+
 // ProxyHandler handles proxy-related HTTP requests
 type ProxyHandler struct {
 	service      service.ProxyServiceInterface
+	groupService groupGetter
 	auditService service.AuditServiceInterface
 	logger       *zap.Logger
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(svc service.ProxyServiceInterface, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyHandler {
+func NewProxyHandler(svc service.ProxyServiceInterface, groupService groupGetter, auditService service.AuditServiceInterface, logger *zap.Logger) *ProxyHandler {
 	return &ProxyHandler{
 		service:      svc,
+		groupService: groupService,
 		auditService: auditService,
 		logger:       logger,
 	}
@@ -150,6 +162,50 @@ func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 		req.Target = target
 	}
 
+	// Parse group filter (supports the same operator:value syntax as type and
+	// status): ?group=eq:3, ?group=in:1,2, ?group=not:3, ?group=eq:none (ungrouped).
+	if groupParam := r.URL.Query().Get("group"); groupParam != "" {
+		fv := parseFilterParam(groupParam)
+		switch fv.Operator {
+		case OpEq:
+			if fv.Value == "none" {
+				req.Ungrouped = true
+			} else {
+				id, err := strconv.Atoi(fv.Value)
+				if err != nil {
+					utils.BadRequest(w, "Invalid group parameter: must be an integer group id or 'none'", nil)
+					return
+				}
+				req.GroupID = &id
+			}
+		case OpIn:
+			values := fv.Values
+			if len(values) == 0 {
+				values = splitAndTrim(fv.Value)
+			}
+			ids := make([]int, 0, len(values))
+			for _, v := range values {
+				id, err := strconv.Atoi(v)
+				if err != nil {
+					utils.BadRequest(w, "Invalid group parameter: must be a comma-separated list of integer group ids", nil)
+					return
+				}
+				ids = append(ids, id)
+			}
+			req.GroupIDIn = ids
+		case OpNot:
+			id, err := strconv.Atoi(fv.Value)
+			if err != nil {
+				utils.BadRequest(w, "Invalid group parameter: must be an integer group id", nil)
+				return
+			}
+			req.GroupIDNot = &id
+		default:
+			utils.BadRequest(w, "Invalid operator for group filter", nil)
+			return
+		}
+	}
+
 	// Get proxies from service
 	result, err := h.service.ListProxies(req)
 	if err != nil {
@@ -165,6 +221,52 @@ func (h *ProxyHandler) ListProxies(w http.ResponseWriter, r *http.Request) {
 
 	// Return success response
 	utils.Success(w, result, "")
+}
+
+// effectiveSource reports, per inheritable setting, where the effective value
+// came from: "proxy" (explicit on this proxy), "group" (inherited), or
+// "default" (neither has an opinion — the system default applies). Without
+// this the edit form cannot distinguish "Inherit (currently on)" from an
+// explicit "On" — the exact divergence proxygroup.Resolve exists to prevent,
+// relocated into the UI if this weren't exposed.
+type effectiveSource struct {
+	SSLEnabled            string `json:"ssl_enabled"`
+	SSLForced             string `json:"ssl_forced"`
+	BlockExploits         string `json:"block_exploits"`
+	TLSInsecureSkipVerify string `json:"tls_insecure_skip_verify"`
+}
+
+// effectiveView is the resolved (proxygroup.Resolve) view of a proxy's
+// inheritable settings: what is actually served, as opposed to the raw
+// nullable columns on the embedded Proxy.
+type effectiveView struct {
+	SSLEnabled            bool                 `json:"ssl_enabled"`
+	SSLForced             bool                 `json:"ssl_forced"`
+	BlockExploits         bool                 `json:"block_exploits"`
+	TLSInsecureSkipVerify bool                 `json:"tls_insecure_skip_verify"`
+	CustomHeaders         models.CustomHeaders `json:"custom_headers"`
+	Source                effectiveSource      `json:"_source"`
+}
+
+// proxyDetailResponse is the GET /api/proxies/{id} response: the raw nullable
+// row (so the edit form can render "inherit" correctly) plus the resolved
+// `effective` view (so the overview can show what is actually served).
+type proxyDetailResponse struct {
+	*models.Proxy
+	Effective effectiveView `json:"effective"`
+}
+
+// sourceOf reports where a resolved value came from: the proxy's own value if
+// it set one, else the group's, else the system default.
+func sourceOf(proxyVal, groupVal *bool) string {
+	switch {
+	case proxyVal != nil:
+		return "proxy"
+	case groupVal != nil:
+		return "group"
+	default:
+		return "default"
+	}
 }
 
 // GetProxy handles GET /api/proxies/:id
@@ -193,17 +295,65 @@ func (h *ProxyHandler) GetProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load the proxy's group (if any) so its settings can be merged in.
+	var group *models.ProxyGroup
+	if proxy.GroupID != nil && h.groupService != nil {
+		group, err = h.groupService.GetGroupByID(*proxy.GroupID)
+		if err != nil {
+			if h.logger != nil {
+				h.logger.Error("Failed to load proxy's group",
+					zap.Int("id", id), zap.Int("group_id", *proxy.GroupID), zap.Error(err))
+			}
+			utils.InternalError(w, "Failed to resolve proxy configuration")
+			return
+		}
+	}
+
+	// proxygroup.Resolve is the only place a default is applied (see
+	// internal/proxygroup). ACL assignments are not part of effectiveView, so
+	// they are passed as nil rather than fetched.
+	eff := proxygroup.Resolve(*proxy, group, nil, nil)
+
+	var gSSLEnabled, gSSLForced, gBlockExploits, gTLSInsecure *bool
+	if group != nil {
+		gSSLEnabled, gSSLForced = group.SSLEnabled, group.SSLForced
+		gBlockExploits, gTLSInsecure = group.BlockExploits, group.TLSInsecureSkipVerify
+	}
+
+	resp := proxyDetailResponse{
+		Proxy: proxy,
+		Effective: effectiveView{
+			SSLEnabled:            eff.SSLEnabled,
+			SSLForced:             eff.SSLForced,
+			BlockExploits:         eff.BlockExploits,
+			TLSInsecureSkipVerify: eff.TLSInsecureSkipVerify,
+			CustomHeaders:         eff.CustomHeaders,
+			Source: effectiveSource{
+				SSLEnabled:            sourceOf(proxy.SSLEnabled, gSSLEnabled),
+				SSLForced:             sourceOf(proxy.SSLForced, gSSLForced),
+				BlockExploits:         sourceOf(proxy.BlockExploits, gBlockExploits),
+				TLSInsecureSkipVerify: sourceOf(proxy.TLSInsecureSkipVerify, gTLSInsecure),
+			},
+		},
+	}
+
 	// Return success response
-	utils.Success(w, proxy, "")
+	utils.Success(w, resp, "")
 }
 
-// createProxyRequest wraps proxy with optional fields for proper default handling.
-// These bool fields are pointers so the handler can distinguish "omitted" (apply
-// the secure default) from an explicit false (persist it). The model no longer
-// carries GORM `default` tags for them, so the handler owns the defaulting.
+// createProxyRequest wraps proxy with optional fields for proper tri-state
+// handling. These bool fields are pointers so the handler can distinguish
+// "omitted" (nil = inherit from the group, or the system default if
+// ungrouped) from an explicit true/false (persist it). The model carries no
+// GORM `default` tag for them, so nothing here or in the service defaults
+// them — proxygroup.Resolve is the only place a default is applied.
+// group_id / hostname_label need no such wrapper field: they decode straight
+// through the embedded Proxy, since a plain *int/*string has no "omitted vs
+// explicit zero value" ambiguity the way a *bool does.
 type createProxyRequest struct {
 	models.Proxy
 	SSLEnabled    *bool `json:"ssl_enabled"`
+	SSLForced     *bool `json:"ssl_forced"`
 	BlockExploits *bool `json:"block_exploits"`
 	IsActive      *bool `json:"is_active"`
 }
@@ -232,12 +382,12 @@ func (h *ProxyHandler) CreateProxy(w http.ResponseWriter, r *http.Request) {
 
 	proxy := req.Proxy
 
-	// SSLEnabled / BlockExploits are tri-state: nil means inherit (from group,
-	// or the system default if ungrouped), so pass the client's value straight
-	// through instead of defaulting it here.
+	// SSLEnabled / SSLForced / BlockExploits are tri-state: nil means inherit
+	// (from the group, or the system default if ungrouped), so pass the
+	// client's value straight through instead of defaulting it here.
 	proxy.SSLEnabled = req.SSLEnabled
+	proxy.SSLForced = req.SSLForced
 	proxy.BlockExploits = req.BlockExploits
-	proxy.SSLForced = nil
 	proxy.IsActive = true
 
 	// Create proxy via service
@@ -313,12 +463,13 @@ func (h *ProxyHandler) ImportProxies(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		proxy := cpr.Proxy
-		// SSLEnabled / BlockExploits are tri-state: nil means inherit (from
-		// group, or the system default if ungrouped), so pass the imported
-		// value straight through instead of defaulting it here.
+		// SSLEnabled / SSLForced / BlockExploits are tri-state: nil means
+		// inherit (from the group, or the system default if ungrouped), so
+		// pass the imported value straight through instead of defaulting it
+		// here — the same tri-state contract as CreateProxy.
 		proxy.SSLEnabled = cpr.SSLEnabled
+		proxy.SSLForced = cpr.SSLForced
 		proxy.BlockExploits = cpr.BlockExploits
-		proxy.SSLForced = nil
 		// Preserve is_active from the imported item (exports carry it) so an
 		// exported inactive proxy imports inactive; default to active when the
 		// field is absent, matching CreateProxy.
@@ -344,10 +495,23 @@ func (h *ProxyHandler) ImportProxies(w http.ResponseWriter, r *http.Request) {
 	utils.Success(w, report, "Import processed")
 }
 
-// updateProxyRequest wraps proxy with optional fields for proper handling
+// updateProxyRequest wraps proxy with optional tri-state fields, mirroring
+// createProxyRequest. BlockExploits / TLSInsecureSkipVerify need no such
+// wrapper field: they already decode straight through the embedded Proxy with
+// the same nil-means-inherit semantics, since nothing here ever preserved
+// them from the existing row.
+//
+// BREAKING (this task): an omitted ssl_enabled / ssl_forced on PUT used to
+// mean "keep the existing value" (ssl_enabled) or was simply not settable at
+// all (ssl_forced, always force-preserved by the service). Both now mean
+// "inherit from the group, or the system default if ungrouped" — nil cannot
+// mean both "keep existing" and "inherit", so this had to be a deliberate
+// choice. The UI always sends all four booleans explicitly (null for
+// inherit), so the wire contract is unambiguous. See docs/API.md.
 type updateProxyRequest struct {
 	models.Proxy
 	SSLEnabled *bool `json:"ssl_enabled"`
+	SSLForced  *bool `json:"ssl_forced"`
 }
 
 // UpdateProxy handles PUT /api/proxies/:id
@@ -371,7 +535,7 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch existing proxy for change tracking and ssl_enabled preservation
+	// Fetch existing proxy for audit change tracking
 	existing, err := h.service.GetProxyByID(id)
 	if err != nil {
 		if errors.Is(err, service.ErrProxyNotFound) {
@@ -384,10 +548,10 @@ func (h *ProxyHandler) UpdateProxy(w http.ResponseWriter, r *http.Request) {
 
 	proxy := req.Proxy
 
-	// SSLEnabled is tri-state: nil now means inherit, not "keep existing".
-	// TODO(task-6): revisit update semantics — an omitted field previously
-	// preserved the existing value; it now means inherit-from-group.
+	// SSLEnabled / SSLForced are tri-state: nil means inherit, not "keep
+	// existing" — see the BREAKING note on updateProxyRequest.
 	proxy.SSLEnabled = req.SSLEnabled
+	proxy.SSLForced = req.SSLForced
 
 	// Update proxy via service
 	if err := h.service.UpdateProxy(id, &proxy); err != nil {
@@ -775,12 +939,21 @@ func (h *ProxyHandler) GetStats(w http.ResponseWriter, _ *http.Request) {
 	utils.Success(w, stats, "")
 }
 
-// derefBool reports the pointed-to value, treating a nil *bool as false. This
-// is a transitional shim for audit diffing only — it does NOT resolve
-// inheritance (nil means "inherit", not "false"). Task 3 removes the
-// equivalent helper in caddy/config once the builder is retyped to accept
-// only resolved proxies.
-func derefBool(b *bool) bool { return b != nil && *b }
+// ptrChanged reports whether two pointers to a comparable type differ,
+// distinguishing nil from an explicit zero value. A plain dereferenced
+// comparison (treating nil as the zero value) would hide, for example, a
+// transition from "inherit" (nil) to an explicit "off" (false) — exactly the
+// divergence proxygroup.Resolve exists to prevent, silently dropped from the
+// audit log. Used for every tri-state (nil = inherit) field.
+func ptrChanged[T comparable](old, updated *T) bool {
+	if old == nil && updated == nil {
+		return false
+	}
+	if old == nil || updated == nil {
+		return true
+	}
+	return *old != *updated
+}
 
 // buildProxyChanges compares old and new proxy values and returns a map of changes.
 // Each changed field is represented as {"old": oldValue, "new": newValue}.
@@ -804,11 +977,38 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 		}
 	}
 
-	// Track ssl_enabled changes
-	if derefBool(old.SSLEnabled) != derefBool(updated.SSLEnabled) {
+	// Track ssl_enabled changes. old/new are stored as the raw *bool (not
+	// dereferenced), so the audit JSON records the tri-state honestly: `null`
+	// for inherit, `true`/`false` for an explicit value.
+	if ptrChanged(old.SSLEnabled, updated.SSLEnabled) {
 		changes["ssl_enabled"] = map[string]interface{}{
 			"old": old.SSLEnabled,
 			"new": updated.SSLEnabled,
+		}
+	}
+
+	// Track ssl_forced changes (settable since this task; previously always
+	// force-preserved by the service, so never actually changed via the API).
+	if ptrChanged(old.SSLForced, updated.SSLForced) {
+		changes["ssl_forced"] = map[string]interface{}{
+			"old": old.SSLForced,
+			"new": updated.SSLForced,
+		}
+	}
+
+	// Track group membership changes
+	if ptrChanged(old.GroupID, updated.GroupID) {
+		changes["group_id"] = map[string]interface{}{
+			"old": old.GroupID,
+			"new": updated.GroupID,
+		}
+	}
+
+	// Track hostname_label changes
+	if ptrChanged(old.HostnameLabel, updated.HostnameLabel) {
+		changes["hostname_label"] = map[string]interface{}{
+			"old": old.HostnameLabel,
+			"new": updated.HostnameLabel,
 		}
 	}
 
@@ -853,7 +1053,7 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	}
 
 	// Track block_exploits changes
-	if derefBool(old.BlockExploits) != derefBool(updated.BlockExploits) {
+	if ptrChanged(old.BlockExploits, updated.BlockExploits) {
 		changes["block_exploits"] = map[string]interface{}{
 			"old": old.BlockExploits,
 			"new": updated.BlockExploits,
@@ -861,7 +1061,7 @@ func buildProxyChanges(old, updated *models.Proxy) map[string]interface{} {
 	}
 
 	// Track tls_insecure_skip_verify changes
-	if derefBool(old.TLSInsecureSkipVerify) != derefBool(updated.TLSInsecureSkipVerify) {
+	if ptrChanged(old.TLSInsecureSkipVerify, updated.TLSInsecureSkipVerify) {
 		changes["tls_insecure_skip_verify"] = map[string]interface{}{
 			"old": old.TLSInsecureSkipVerify,
 			"new": updated.TLSInsecureSkipVerify,

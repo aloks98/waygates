@@ -83,8 +83,19 @@ func (s *ProxyService) ImportProxies(inputs []ImportInput, dryRun bool, userID i
 
 		proxy := in.Proxy
 		res.Name = proxy.Name
-		res.Hostname = proxy.Hostname
 		res.Type = proxy.Type
+
+		// materializeHostname must run before Validate, same as CreateProxy /
+		// UpdateProxy: a label-addressed item has no raw Hostname until this
+		// resolves it against its group's base_domain.
+		if err := s.materializeHostname(proxy); err != nil {
+			res.Hostname = proxy.Hostname
+			res.Status = ImportStatusInvalid
+			res.Reason = err.Error()
+			report.Items = append(report.Items, res)
+			continue
+		}
+		res.Hostname = proxy.Hostname
 
 		if err := proxy.Validate(); err != nil {
 			res.Status = ImportStatusInvalid

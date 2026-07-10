@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
@@ -1128,4 +1130,248 @@ func TestUpdateProxy_TypeChange(t *testing.T) {
 	if len(newProxy.RedirectConfig) == 0 {
 		t.Error("Expected RedirectConfig to be preserved")
 	}
+}
+
+// =============================================================================
+// Hostname materialization (Task 6)
+// =============================================================================
+
+// A label-addressed proxy has its hostname materialized before it is written.
+func TestProxyService_CreateMaterializesHostnameFromLabel(t *testing.T) {
+	var written *models.Proxy
+	repo := &MockProxyRepository{
+		CreateFunc:         func(p *models.Proxy) error { written = p; return nil },
+		HostnameExistsFunc: func(string, int) (bool, error) { return false, nil },
+	}
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(id int) (*models.ProxyGroup, error) {
+			return &models.ProxyGroup{ID: id, BaseDomain: ptr("group.acme.in")}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: repo, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(3), HostnameLabel: ptr("abc"), IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	require.NoError(t, svc.CreateProxy(p, 1))
+
+	assert.Equal(t, "abc.group.acme.in", written.Hostname)
+}
+
+// A group with no base_domain leaves the absolute hostname alone and forbids a label.
+func TestProxyService_CreateRejectsLabelWhenGroupHasNoBaseDomain(t *testing.T) {
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(id int) (*models.ProxyGroup, error) {
+			return &models.ProxyGroup{ID: id, BaseDomain: nil}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: &MockProxyRepository{}, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(3), HostnameLabel: ptr("abc"), IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	assert.ErrorIs(t, svc.CreateProxy(p, 1), ErrLabelRequiresBaseDomain)
+}
+
+// Detaching keeps the materialized hostname — that is what the materialized-cache
+// design bought.
+func TestProxyService_UpdateDetachKeepsHostname(t *testing.T) {
+	existing := &models.Proxy{
+		ID: 1, Type: models.ProxyTypeReverseProxy, Name: "svc",
+		Hostname: "abc.group.acme.in", GroupID: ptr(3), HostnameLabel: ptr("abc"),
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	var written *models.Proxy
+	repo := &MockProxyRepository{
+		GetByIDFunc:        func(int) (*models.Proxy, error) { return existing, nil },
+		UpdateFunc:         func(p *models.Proxy) error { written = p; return nil },
+		HostnameExistsFunc: func(string, int) (bool, error) { return false, nil },
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: repo, GroupRepo: &MockProxyGroupRepository{}, SyncService: &MockProxySyncer{},
+	})
+
+	update := *existing
+	update.GroupID = nil
+	update.HostnameLabel = nil
+	require.NoError(t, svc.UpdateProxy(1, &update))
+
+	assert.Equal(t, "abc.group.acme.in", written.Hostname, "detach must not change the hostname")
+	assert.Nil(t, written.GroupID)
+	assert.Nil(t, written.HostnameLabel)
+}
+
+// A label with no group at all is rejected before Validate ever runs — no
+// groupRepo call is made, since there's no group to look up.
+func TestProxyService_CreateRejectsLabelWithoutGroup(t *testing.T) {
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: &MockProxyRepository{}, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		HostnameLabel: ptr("abc"), IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	assert.ErrorIs(t, svc.CreateProxy(p, 1), models.ErrLabelRequiresGroup)
+}
+
+// A group WITH a base_domain requires every member to be label-addressed.
+func TestProxyService_CreateRequiresLabelWhenGroupHasBaseDomain(t *testing.T) {
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(id int) (*models.ProxyGroup, error) {
+			return &models.ProxyGroup{ID: id, BaseDomain: ptr("group.acme.in")}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: &MockProxyRepository{}, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(3), Hostname: "raw.example.com", IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	assert.ErrorIs(t, svc.CreateProxy(p, 1), ErrLabelRequiredByBaseDomain)
+}
+
+// A grouped proxy whose group has no base_domain is addressed absolutely —
+// materializeHostname leaves the caller's raw Hostname untouched.
+func TestProxyService_CreateGroupedWithoutBaseDomainKeepsRawHostname(t *testing.T) {
+	var written *models.Proxy
+	repo := &MockProxyRepository{
+		CreateFunc:         func(p *models.Proxy) error { written = p; return nil },
+		HostnameExistsFunc: func(string, int) (bool, error) { return false, nil },
+	}
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(id int) (*models.ProxyGroup, error) {
+			return &models.ProxyGroup{ID: id, BaseDomain: nil}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: repo, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(3), Hostname: "raw.example.com", IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	require.NoError(t, svc.CreateProxy(p, 1))
+	assert.Equal(t, "raw.example.com", written.Hostname)
+}
+
+// A group_id that does not exist is reported as ErrGroupNotFound, not a raw
+// repository error.
+func TestProxyService_CreateGroupNotFound(t *testing.T) {
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(int) (*models.ProxyGroup, error) { return nil, gorm.ErrRecordNotFound },
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: &MockProxyRepository{}, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	p := &models.Proxy{
+		Type: models.ProxyTypeReverseProxy, Name: "svc",
+		GroupID: ptr(99), HostnameLabel: ptr("abc"), IsActive: true,
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	assert.ErrorIs(t, svc.CreateProxy(p, 1), ErrGroupNotFound)
+}
+
+// Attaching a group + label on UpdateProxy materializes the hostname exactly
+// as CreateProxy does.
+func TestProxyService_UpdateAttachMaterializesHostname(t *testing.T) {
+	existing := &models.Proxy{
+		ID: 1, Type: models.ProxyTypeReverseProxy, Name: "svc",
+		Hostname:  "standalone.example.com",
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	var written *models.Proxy
+	repo := &MockProxyRepository{
+		GetByIDFunc:        func(int) (*models.Proxy, error) { return existing, nil },
+		UpdateFunc:         func(p *models.Proxy) error { written = p; return nil },
+		HostnameExistsFunc: func(string, int) (bool, error) { return false, nil },
+	}
+	groupRepo := &MockProxyGroupRepository{
+		GetByIDFunc: func(id int) (*models.ProxyGroup, error) {
+			return &models.ProxyGroup{ID: id, BaseDomain: ptr("group.acme.in")}, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: repo, GroupRepo: groupRepo, SyncService: &MockProxySyncer{},
+	})
+
+	update := *existing
+	update.GroupID = ptr(5)
+	update.HostnameLabel = ptr("svc")
+	require.NoError(t, svc.UpdateProxy(1, &update))
+
+	assert.Equal(t, "svc.group.acme.in", written.Hostname)
+}
+
+// SSLForced is no longer force-preserved from the existing row on update: an
+// explicit nil in the update payload must persist as nil (inherit), not
+// silently revert to whatever the existing proxy had.
+func TestProxyService_UpdateSSLForcedIsNotForcePreserved(t *testing.T) {
+	existing := &models.Proxy{
+		ID: 1, Type: models.ProxyTypeReverseProxy, Name: "svc",
+		Hostname:  "svc.example.com",
+		SSLForced: ptr(true),
+		Upstreams: []interface{}{map[string]interface{}{"address": "http://127.0.0.1:1"}},
+	}
+	var written *models.Proxy
+	repo := &MockProxyRepository{
+		GetByIDFunc:        func(int) (*models.Proxy, error) { return existing, nil },
+		UpdateFunc:         func(p *models.Proxy) error { written = p; return nil },
+		HostnameExistsFunc: func(string, int) (bool, error) { return false, nil },
+	}
+	svc := NewProxyService(ProxyServiceConfig{
+		Repo: repo, GroupRepo: &MockProxyGroupRepository{}, SyncService: &MockProxySyncer{},
+	})
+
+	update := *existing
+	update.SSLForced = nil // caller wants to inherit
+	require.NoError(t, svc.UpdateProxy(1, &update))
+
+	assert.Nil(t, written.SSLForced, "SSLForced must not be force-preserved from the existing row")
+}
+
+// =============================================================================
+// Group filters passed through to the repository (Task 6)
+// =============================================================================
+
+func TestListProxies_PassesGroupFilters(t *testing.T) {
+	var gotParams repository.ProxyListParams
+	repo := &MockProxyRepository{
+		ListFunc: func(p repository.ProxyListParams) ([]models.Proxy, int64, error) {
+			gotParams = p
+			return nil, 0, nil
+		},
+	}
+	svc := NewProxyService(ProxyServiceConfig{Repo: repo, SyncService: &MockProxySyncer{}})
+
+	_, err := svc.ListProxies(ListProxiesRequest{
+		Page: 1, Limit: 10,
+		GroupID:    ptr(3),
+		GroupIDIn:  []int{1, 2},
+		GroupIDNot: ptr(4),
+		Ungrouped:  true,
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, gotParams.GroupID)
+	assert.Equal(t, 3, *gotParams.GroupID)
+	assert.Equal(t, []int{1, 2}, gotParams.GroupIDIn)
+	require.NotNil(t, gotParams.GroupIDNot)
+	assert.Equal(t, 4, *gotParams.GroupIDNot)
+	assert.True(t, gotParams.Ungrouped)
 }

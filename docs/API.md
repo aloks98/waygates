@@ -367,24 +367,62 @@ All proxy endpoints require authentication.
 | `id` | int | Auto-increment primary key |
 | `type` | string | `"reverse_proxy"`, `"redirect"`, or `"static"` |
 | `name` | string | Display name, max 255 chars |
-| `hostname` | string | Unique; no scheme, port, or path |
+| `hostname` | string | Unique; no scheme, port, or path. Required unless `hostname_label` is used (see below) — in that case it is server-computed and read-only. |
 | `description` | string\|null | Optional |
-| `ssl_enabled` | bool | Default `true` on create |
-| `ssl_forced` | bool | Always set `true` on create |
-| `is_active` | bool | Default `true` on create |
-| `block_exploits` | bool | Default `true` on create |
-| `tls_insecure_skip_verify` | bool | Skip TLS verification for HTTPS upstreams with self-signed certificates. Default `false`. |
+| `group_id` | int\|null | The proxy's `ProxyGroup` (config inheritance) — **not** an ACL group. `null` means ungrouped. |
+| `hostname_label` | string\|null | A single DNS label (no dots). Valid **iff** the proxy has a `group_id` **and** that group has a `base_domain`; in that case `hostname` is server-computed as `<hostname_label>.<group's base_domain>` and any `hostname` sent in the request body is ignored. |
+| `group_name` | string\|null | Computed; the group's name, when grouped (list only) |
+| `ssl_enabled` | bool\|null | Tri-state: `true`/`false` is explicit; `null` means **inherit** — from the group's `ssl_enabled` if grouped and the group has an opinion, else the system default `true` |
+| `ssl_forced` | bool\|null | Same tri-state/inherit semantics as `ssl_enabled`; system default `true` |
+| `is_active` | bool | Default `true` on create. **Not** inheritable — always explicit. |
+| `block_exploits` | bool\|null | Same tri-state/inherit semantics as `ssl_enabled`; system default `true` |
+| `tls_insecure_skip_verify` | bool\|null | Same tri-state/inherit semantics as `ssl_enabled`; system default `false` |
 | `upstreams` | array | Required for `reverse_proxy`; each item: `{host, port, scheme}` |
 | `load_balancing` | object\|null | `{strategy, health_checks}` |
 | `redirect` | object\|null | Required for `redirect`: `{target, status_code, preserve_path, preserve_query}` |
 | `static` | object\|null | Required for `static`: `{root_path, index_file, browse, template_rendering, try_files}` |
-| `custom_headers` | object\|null | `{request: {k:v}, response: {k:v}}`. Legacy flat map accepted (treated as request headers). |
+| `custom_headers` | object\|null | `{request: {k:v}, response: {k:v}}`. Legacy flat map accepted (treated as request headers). Merged with the group's headers when grouped (proxy wins per key). |
 | `acl_group_count` | int | Computed; number of ACL groups assigned (list only) |
 | `acl_group_names` | string[] | Computed; ACL group names (list only) |
 | `created_at` | RFC3339 | |
 | `updated_at` | RFC3339 | |
 
 **`tls_insecure_skip_verify`**: When `true`, Caddy skips TLS certificate verification when connecting to the upstream. Use only for internal services with self-signed certificates.
+
+**Inheritance**: `ssl_enabled`, `ssl_forced`, `block_exploits`, and `tls_insecure_skip_verify` are tri-state. The list/detail responses above always return the **raw** value as stored (`null` for "this proxy has no opinion"); see `GET /api/proxies/{id}` below for the **resolved** value actually served.
+
+### GET /api/proxies/{id} — effective config and \_source
+
+The detail response returns the raw proxy fields (as in the table above) **plus** an `effective` object: the fully-resolved tri-state settings (what Caddy actually serves), and a `_source` map telling the UI where each resolved value came from — `"proxy"` (this proxy set it explicitly), `"group"` (inherited from the group), or `"default"` (neither has an opinion; the system default applies). Without `_source`, an inherited "on" and an explicit "on" are indistinguishable in the edit form.
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 12,
+    "hostname": "abc.internal.example.com",
+    "group_id": 3,
+    "hostname_label": "abc",
+    "ssl_enabled": null,
+    "block_exploits": false,
+    "...": "...other raw Proxy fields...",
+    "effective": {
+      "ssl_enabled": true,
+      "ssl_forced": true,
+      "block_exploits": false,
+      "tls_insecure_skip_verify": false,
+      "custom_headers": { "request": {}, "response": {} },
+      "_source": {
+        "ssl_enabled": "group",
+        "ssl_forced": "default",
+        "block_exploits": "proxy",
+        "tls_insecure_skip_verify": "default"
+      }
+    }
+  },
+  "error": null
+}
+```
 
 ### GET /api/proxies — Query Parameters
 
@@ -393,12 +431,13 @@ All proxy endpoints require authentication.
 | `page` | Page number (default 0) |
 | `limit` | Page size 0-100 (default: service default) |
 | `search` | Text search on name/hostname |
-| `sort` | Field to sort by |
+| `sort` | Field to sort by (includes `group_id`) |
 | `order` | `asc` or `desc` |
 | `type` | Filter by type, supports operators: `eq:reverse_proxy`, `in:reverse_proxy,redirect`, `not:static` |
 | `status` | `active` or `inactive`; supports `eq:` and `not:` operators |
-| `ssl_enabled` | `true` or `false` |
+| `ssl_enabled` | `true` or `false`. Matches the **effective** (resolved) value, not just proxies with an explicit column value — an ungrouped proxy with no opinion, or a proxy inheriting `true` from its group, both match `ssl_enabled=true`. |
 | `target` | Search in upstreams / redirect config |
+| `group` | Filter by `ProxyGroup`. Supports `eq:<id>`, `in:<id1>,<id2>`, `not:<id>` (excludes that group but **still includes ungrouped proxies**), and `eq:none` (ungrouped only) |
 
 ### POST /api/proxies — Create
 
@@ -413,6 +452,7 @@ All proxy endpoints require authentication.
   "block_exploits": true,
   "tls_insecure_skip_verify": false,
   "ssl_enabled": true,
+  "ssl_forced": true,
   "custom_headers": {
     "request": { "X-Real-IP": "{http.request.remote.host}" },
     "response": { "X-Frame-Options": "SAMEORIGIN" }
@@ -422,7 +462,29 @@ All proxy endpoints require authentication.
 
 Returns `201 Created` with the full `Proxy` object.
 
+**Group-addressed create** — omit `hostname` and supply `group_id` + `hostname_label` instead, when the target group has a `base_domain`:
+
+```json
+{
+  "type": "reverse_proxy",
+  "name": "Internal API",
+  "group_id": 3,
+  "hostname_label": "api",
+  "upstreams": [{ "host": "192.168.1.100", "port": 8080, "scheme": "http" }]
+}
+```
+
+The server computes `hostname` as `<hostname_label>.<group.base_domain>`. Sending `hostname_label` without a `group_id`, or against a group with no `base_domain`, is a `400`; so is a `group_id` for a group **with** a `base_domain` but no `hostname_label`.
+
+### PUT /api/proxies/{id} — Update
+
+Same body shape as create. `group_id` / `hostname_label` can be changed to move a proxy between groups or detach it (set both to `null`) — detaching does **not** change the proxy's existing `hostname`, it just stops inheriting.
+
+> **⚠️ Breaking change**: `ssl_enabled`, `ssl_forced`, `block_exploits`, and `tls_insecure_skip_verify` used to mean "keep the current value" when omitted from a `PUT` body (and `ssl_forced` could not be changed via the API at all — it was always force-preserved from the existing row). **An omitted field on `PUT /api/proxies/{id}` now means "inherit from the group, or the system default if ungrouped"** — `null` cannot mean both "keep existing" and "inherit", and proxy-group inheritance needs the real meaning. The UI always sends all four booleans explicitly (`null` when the user picked "Inherit") so the wire contract is unambiguous; API clients that previously omitted these fields to leave them unchanged must now send the current *effective* value explicitly to preserve prior behavior.
+
 ### POST /api/proxies/import
+
+Accepts the same fields as create, including `group_id` / `hostname_label` and the tri-state booleans (`null` = inherit, consistent with create and update).
 
 ```json
 {

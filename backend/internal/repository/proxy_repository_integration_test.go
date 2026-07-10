@@ -843,6 +843,167 @@ func TestProxyRepository_List_TargetFilter(t *testing.T) {
 	})
 }
 
+// =============================================================================
+// Group filters, group_name summary, and the group-aware ssl_enabled filter
+// (Task 6)
+// =============================================================================
+
+func TestProxyRepository_List_GroupFilters(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	proxyRepo := NewProxyRepository(tdb.DB)
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	groupA := createGroup(t, groupRepo, user.ID, "group-a", nil)
+	groupB := createGroup(t, groupRepo, user.ID, "group-b", nil)
+
+	memberA := CreateTestProxy(t, tdb.DB, user.ID, "Member A", "member-a.example.com", models.ProxyTypeReverseProxy)
+	memberA.GroupID = &groupA.ID
+	require.NoError(t, proxyRepo.Update(memberA))
+
+	memberB := CreateTestProxy(t, tdb.DB, user.ID, "Member B", "member-b.example.com", models.ProxyTypeReverseProxy)
+	memberB.GroupID = &groupB.ID
+	require.NoError(t, proxyRepo.Update(memberB))
+
+	ungrouped := CreateTestProxy(t, tdb.DB, user.ID, "Ungrouped", "ungrouped.example.com", models.ProxyTypeReverseProxy)
+
+	t.Run("GroupID_MatchesOnlyThatGroup", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, GroupID: &groupA.ID})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.Contains(t, ids, memberA.ID)
+		assert.NotContains(t, ids, memberB.ID)
+		assert.NotContains(t, ids, ungrouped.ID)
+	})
+
+	t.Run("GroupIDIn_MatchesEitherGroup", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, GroupIDIn: []int{groupA.ID, groupB.ID}})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.Contains(t, ids, memberA.ID)
+		assert.Contains(t, ids, memberB.ID)
+		assert.NotContains(t, ids, ungrouped.ID)
+	})
+
+	t.Run("Ungrouped_MatchesOnlyProxiesWithoutAGroup", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, Ungrouped: true})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.Contains(t, ids, ungrouped.ID)
+		assert.NotContains(t, ids, memberA.ID)
+		assert.NotContains(t, ids, memberB.ID)
+	})
+
+	// The IS DISTINCT FROM invariant: "not in group A" must include the
+	// ungrouped proxy, not just proxies in other groups. A plain `<>` would
+	// drop it, because `NULL <> groupA.ID` is NULL, not TRUE.
+	t.Run("GroupIDNot_IncludesUngrouped", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, GroupIDNot: &groupA.ID})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.NotContains(t, ids, memberA.ID, "excluded group must not appear")
+		assert.Contains(t, ids, memberB.ID, "other groups must still appear")
+		assert.Contains(t, ids, ungrouped.ID, "ungrouped proxies must still appear — this is the IS DISTINCT FROM behavior")
+	})
+}
+
+func proxyIDs(proxies []models.Proxy) []int {
+	ids := make([]int, len(proxies))
+	for i := range proxies {
+		ids[i] = proxies[i].ID
+	}
+	return ids
+}
+
+func TestProxyRepository_List_PopulatesGroupNameSummary(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	proxyRepo := NewProxyRepository(tdb.DB)
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	group := createGroup(t, groupRepo, user.ID, "internal-summary", nil)
+
+	member := CreateTestProxy(t, tdb.DB, user.ID, "Grouped", "grouped-summary.example.com", models.ProxyTypeReverseProxy)
+	member.GroupID = &group.ID
+	require.NoError(t, proxyRepo.Update(member))
+
+	standalone := CreateTestProxy(t, tdb.DB, user.ID, "Standalone", "standalone-summary.example.com", models.ProxyTypeReverseProxy)
+
+	proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, GroupIDIn: []int{group.ID}})
+	require.NoError(t, err)
+	require.Len(t, proxies, 1)
+	require.NotNil(t, proxies[0].GroupName)
+	assert.Equal(t, "internal-summary", *proxies[0].GroupName)
+
+	all, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50})
+	require.NoError(t, err)
+	byID := make(map[int]models.Proxy, len(all))
+	for _, p := range all {
+		byID[p.ID] = p
+	}
+	assert.Nil(t, byID[standalone.ID].GroupName, "an ungrouped proxy must not get a group_name")
+	require.NotNil(t, byID[member.ID].GroupName)
+	assert.Equal(t, "internal-summary", *byID[member.ID].GroupName)
+}
+
+// The ssl_enabled filter must resolve inheritance in SQL: an inheriting proxy
+// (ssl_enabled NULL) matches on its group's value, or the system default
+// (true) if the group has no opinion either — exactly what proxygroup.Resolve
+// would produce, just computed by COALESCE instead.
+func TestProxyRepository_List_SSLFilterResolvesThroughGroup(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+
+	proxyRepo := NewProxyRepository(tdb.DB)
+	groupRepo := NewProxyGroupRepository(tdb.DB)
+	user := CreateTestUser(t, tdb.DB)
+
+	sslOffGroup := &models.ProxyGroup{Name: "ssl-off-group", CreatedBy: user.ID, SSLEnabled: ptr(false)}
+	require.NoError(t, groupRepo.Create(sslOffGroup))
+	noOpinionGroup := &models.ProxyGroup{Name: "no-opinion-group", CreatedBy: user.ID}
+	require.NoError(t, groupRepo.Create(noOpinionGroup))
+
+	// Inherits false from its group.
+	inheritsFalse := CreateTestProxy(t, tdb.DB, user.ID, "Inherits False", "inherits-false.example.com", models.ProxyTypeReverseProxy)
+	inheritsFalse.SSLEnabled = nil
+	inheritsFalse.GroupID = &sslOffGroup.ID
+	require.NoError(t, proxyRepo.Update(inheritsFalse))
+
+	// Inherits the system default (true): grouped, but the group has no opinion.
+	inheritsDefault := CreateTestProxy(t, tdb.DB, user.ID, "Inherits Default", "inherits-default.example.com", models.ProxyTypeReverseProxy)
+	inheritsDefault.SSLEnabled = nil
+	inheritsDefault.GroupID = &noOpinionGroup.ID
+	require.NoError(t, proxyRepo.Update(inheritsDefault))
+
+	// Explicit true overrides a group that says false.
+	overridesGroup := CreateTestProxy(t, tdb.DB, user.ID, "Overrides Group", "overrides-group.example.com", models.ProxyTypeReverseProxy)
+	overridesGroup.SSLEnabled = ptr(true)
+	overridesGroup.GroupID = &sslOffGroup.ID
+	require.NoError(t, proxyRepo.Update(overridesGroup))
+
+	t.Run("false_matches_inherited_group_false_only", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, SSLEnabled: ptr(false)})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.Contains(t, ids, inheritsFalse.ID, "inherits false from its group")
+		assert.NotContains(t, ids, inheritsDefault.ID)
+		assert.NotContains(t, ids, overridesGroup.ID, "explicit true must win over the group's false")
+	})
+
+	t.Run("true_matches_explicit_and_default_inherited", func(t *testing.T) {
+		proxies, _, err := proxyRepo.List(ProxyListParams{Page: 1, Limit: 50, SSLEnabled: ptr(true)})
+		require.NoError(t, err)
+		ids := proxyIDs(proxies)
+		assert.Contains(t, ids, inheritsDefault.ID, "system default is true when neither proxy nor group has an opinion")
+		assert.Contains(t, ids, overridesGroup.ID)
+		assert.NotContains(t, ids, inheritsFalse.ID)
+	})
+}
+
 func TestProxyRepository_List_PopulatesACLSummary(t *testing.T) {
 	tdb := SetupTestDB(t)
 	defer tdb.Cleanup(t)

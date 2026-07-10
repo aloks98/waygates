@@ -104,6 +104,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 
 	proxyService := service.NewProxyService(service.ProxyServiceConfig{
 		Repo:        proxyRepo,
+		GroupRepo:   proxyGroupRepo,
 		SyncService: syncService,
 		Logger:      logger,
 	})
@@ -151,7 +152,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	// Handlers
 	healthHandler := handlers.NewHealthHandlerWithDB(db)
 	authHandler := handlers.NewAuthHandler(goauthInstance, userRepo, settingsRepo, auditService, cfg.Security.BcryptCost, logger)
-	proxyHandler := handlers.NewProxyHandler(proxyService, auditService, logger)
+	proxyHandler := handlers.NewProxyHandler(proxyService, proxyGroupService, auditService, logger)
 	proxyGroupHandler := handlers.NewProxyGroupHandler(proxyGroupService, auditService, logger)
 	statusHandler := handlers.NewStatusHandler(caddyReloader, userRepo)
 	settingsHandler := handlers.NewSettingsHandler(settingsService, auditService, logger)

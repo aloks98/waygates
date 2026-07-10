@@ -9,12 +9,14 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/aloks98/waygates/backend/internal/models"
+	"github.com/aloks98/waygates/backend/internal/proxygroup"
 	"github.com/aloks98/waygates/backend/internal/repository"
 )
 
 // ProxyService handles business logic for proxies
 type ProxyService struct {
 	repo        repository.ProxyRepositoryInterface
+	groupRepo   repository.ProxyGroupRepositoryInterface
 	syncService ProxySyncer
 	logger      *zap.Logger
 }
@@ -22,6 +24,7 @@ type ProxyService struct {
 // ProxyServiceConfig holds configuration for ProxyService
 type ProxyServiceConfig struct {
 	Repo        repository.ProxyRepositoryInterface
+	GroupRepo   repository.ProxyGroupRepositoryInterface
 	SyncService ProxySyncer
 	Logger      *zap.Logger
 }
@@ -34,6 +37,7 @@ func NewProxyService(cfg ProxyServiceConfig) *ProxyService {
 
 	return &ProxyService{
 		repo:        cfg.Repo,
+		groupRepo:   cfg.GroupRepo,
 		syncService: cfg.SyncService,
 		logger:      cfg.Logger.Named("proxy-service"),
 	}
@@ -50,6 +54,10 @@ type ListProxiesRequest struct {
 	StatusNot    string // Exclude status
 	SSLEnabled   *bool  // Filter by SSL enabled
 	Target       string // Filter by target/upstream address
+	GroupID      *int   // Filter by group (nil = no filter)
+	GroupIDIn    []int  // Filter by group, IN list
+	GroupIDNot   *int   // Exclude a group (ungrouped proxies are still included)
+	Ungrouped    bool   // Filter to proxies with no group
 	Sort         string
 	Order        string
 }
@@ -75,6 +83,10 @@ func (s *ProxyService) ListProxies(req ListProxiesRequest) (*models.ProxyListRes
 		StatusNot:    req.StatusNot,
 		SSLEnabled:   req.SSLEnabled,
 		Target:       req.Target,
+		GroupID:      req.GroupID,
+		GroupIDIn:    req.GroupIDIn,
+		GroupIDNot:   req.GroupIDNot,
+		Ungrouped:    req.Ungrouped,
 		Sort:         req.Sort,
 		Order:        req.Order,
 	})
@@ -108,6 +120,12 @@ func (s *ProxyService) GetProxyByID(id int) (*models.Proxy, error) {
 
 // CreateProxy creates a new proxy
 func (s *ProxyService) CreateProxy(proxy *models.Proxy, userID int) error {
+	// materializeHostname must run before Validate: for a label-addressed
+	// proxy it writes the real Hostname, which Validate then checks.
+	if err := s.materializeHostname(proxy); err != nil {
+		return err
+	}
+
 	// Validate
 	if err := proxy.Validate(); err != nil {
 		return err
@@ -153,6 +171,15 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 		return fmt.Errorf("failed to get proxy: %w", err)
 	}
 
+	// materializeHostname must run before Validate, same as CreateProxy.
+	// Detaching a proxy from its group (GroupID/HostnameLabel both nil on the
+	// incoming proxy) is a no-op: it leaves proxy.Hostname exactly as the
+	// caller set it, which — since UpdateProxy's caller sends the existing
+	// materialized hostname unchanged in that case — preserves it.
+	if err := s.materializeHostname(proxy); err != nil {
+		return err
+	}
+
 	// Validate
 	if err := proxy.Validate(); err != nil {
 		return err
@@ -172,8 +199,11 @@ func (s *ProxyService) UpdateProxy(id int, proxy *models.Proxy) error {
 	// Preserve fields that shouldn't be changed via update
 	proxy.ID = id
 	proxy.IsActive = existing.IsActive
-	// Note: SSLEnabled is intentionally NOT preserved - it can be updated
-	proxy.SSLForced = existing.SSLForced
+	// SSLEnabled / SSLForced / BlockExploits / TLSInsecureSkipVerify are
+	// intentionally NOT preserved from `existing`: they are tri-state
+	// (nil = inherit from group / system default), and the handler always
+	// sends all four explicitly (nil for inherit), so an omitted field means
+	// inherit, not "keep existing". See handlers/proxy.go UpdateProxy.
 	proxy.CreatedBy = existing.CreatedBy
 	proxy.CreatedAt = existing.CreatedAt
 
@@ -303,12 +333,55 @@ func (s *ProxyService) GetStats() (*repository.ProxyStats, error) {
 	return s.repo.GetStats()
 }
 
+// materializeHostname enforces the cross-table rule that no CHECK constraint
+// can express: a proxy is label-addressed iff it has a group AND that group
+// has a base_domain. It writes proxies.hostname, the denormalized cache that
+// keeps the unique index and every existing proxy.Hostname reader working.
+//
+// Detaching a proxy from its group (GroupID set to nil) is a no-op here: the
+// already-materialized Hostname is left exactly as it is. That is the point of
+// the materialized-cache design — a proxy keeps serving its existing hostname
+// after detach rather than losing it.
+func (s *ProxyService) materializeHostname(p *models.Proxy) error {
+	if p.GroupID == nil {
+		if p.HostnameLabel != nil {
+			return models.ErrLabelRequiresGroup
+		}
+		return nil
+	}
+
+	g, err := s.groupRepo.GetByID(*p.GroupID)
+	if err != nil {
+		return ErrGroupNotFound
+	}
+
+	if g.BaseDomain == nil {
+		if p.HostnameLabel != nil {
+			return ErrLabelRequiresBaseDomain
+		}
+		return nil // grouped, but addressed absolutely
+	}
+
+	if p.HostnameLabel == nil {
+		return ErrLabelRequiredByBaseDomain
+	}
+	p.Hostname = proxygroup.EffectiveHostname(*p.HostnameLabel, *g.BaseDomain)
+	return nil
+}
+
 // Service errors
 var (
 	ErrProxyNotFound        = fmt.Errorf("proxy not found")
 	ErrHostnameConflict     = fmt.Errorf("hostname already exists")
 	ErrProxyAlreadyEnabled  = fmt.Errorf("proxy is already enabled")
 	ErrProxyAlreadyDisabled = fmt.Errorf("proxy is already disabled")
+
+	// ErrLabelRequiresBaseDomain / ErrLabelRequiredByBaseDomain express the two
+	// halves of the cross-table rule materializeHostname enforces:
+	// hostname_label and the group's base_domain must be present together, or
+	// neither at all.
+	ErrLabelRequiresBaseDomain   = errors.New("hostname_label requires the group to have a base_domain")
+	ErrLabelRequiredByBaseDomain = errors.New("group has a base_domain; hostname_label is required")
 )
 
 // CaddyError represents an error from Caddy operations

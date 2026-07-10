@@ -18,6 +18,7 @@ var allowedSortFields = map[string]string{
 	"is_active":  "is_active",
 	"created_at": "created_at",
 	"updated_at": "updated_at",
+	"group_id":   "group_id",
 }
 
 // Allowed sort orders (whitelist to prevent SQL injection)
@@ -47,6 +48,10 @@ type ProxyListParams struct {
 	StatusNot    string   // Exclude status
 	SSLEnabled   *bool    // Filter by SSL enabled (nil = no filter)
 	Target       string   // Filter by target/upstream address (searches in upstreams JSON)
+	GroupID      *int     // Filter by group (nil = no filter)
+	GroupIDIn    []int    // Filter by group, IN list
+	GroupIDNot   *int     // Exclude a group
+	Ungrouped    bool     // Filter to proxies with no group
 	Sort         string
 	Order        string
 }
@@ -85,9 +90,48 @@ func (r *ProxyRepository) List(params ProxyListParams) ([]models.Proxy, int64, e
 		query = query.Where("is_active = ?", true)
 	}
 
-	// SSL enabled filter
+	// SSL enabled filter. NULL means inherit, since inheriting proxies store no
+	// explicit ssl_enabled value. Resolve through the group and then the system
+	// default entirely in SQL, so the filter matches what is actually served
+	// rather than only proxies with an explicit value.
+	//
+	// The literal `true` below is proxygroup.DefaultSSLEnabled. If that
+	// constant ever changes, this query must change with it — proxygroup.Resolve
+	// is meant to be the only place a default is applied; this subquery +
+	// COALESCE is the one sanctioned SQL exception, because filtering has to
+	// happen in the database rather than after loading rows into Go.
+	//
+	// This is a WHERE-only subquery, not a JOIN on the outer query: joining
+	// proxy_groups directly into `query` would make `SELECT *` (what Find
+	// issues by default) ambiguous, since proxy_groups shares several column
+	// names with proxies (id, name, ssl_enabled, ...) and would silently
+	// overwrite them.
 	if params.SSLEnabled != nil {
-		query = query.Where("ssl_enabled = ?", *params.SSLEnabled)
+		query = query.Where(
+			`proxies.id IN (
+				SELECT p.id FROM proxies p
+				LEFT JOIN proxy_groups g ON g.id = p.group_id
+				WHERE COALESCE(p.ssl_enabled, g.ssl_enabled, true) = ?
+			)`, *params.SSLEnabled)
+	}
+
+	// Group filters. Ungrouped/GroupID/GroupIDIn are mutually exclusive in
+	// practice (the handler sets at most one from the `group` query param), but
+	// nothing here assumes that; they simply AND together like every other
+	// filter.
+	if params.Ungrouped {
+		query = query.Where("proxies.group_id IS NULL")
+	} else if params.GroupID != nil {
+		query = query.Where("proxies.group_id = ?", *params.GroupID)
+	} else if len(params.GroupIDIn) > 0 {
+		query = query.Where("proxies.group_id IN ?", params.GroupIDIn)
+	}
+	if params.GroupIDNot != nil {
+		// IS DISTINCT FROM, not <>: NULL <> 3 evaluates to NULL (not TRUE) in
+		// SQL, so a plain <> would silently drop every ungrouped proxy from a
+		// "not in group 3" filter. IS DISTINCT FROM treats NULL like any other
+		// value, so ungrouped proxies are correctly included.
+		query = query.Where("proxies.group_id IS DISTINCT FROM ?", *params.GroupIDNot)
 	}
 
 	// Target filter (searches in upstreams JSON and redirect_config)
@@ -143,6 +187,33 @@ func (r *ProxyRepository) List(params ProxyListParams) ([]models.Proxy, int64, e
 			return nil, 0, fmt.Errorf("loading proxy ACL summaries: %w", err)
 		}
 		applyACLSummaries(proxies, rows)
+
+		// Group-name summary — reuses the `ids` slice built above. An INNER
+		// JOIN is correct here: an ungrouped proxy simply produces no row, and
+		// GroupName stays nil for it.
+		type groupNameRow struct {
+			ProxyID int
+			Name    string
+		}
+		var groupRows []groupNameRow
+		if err := r.db.
+			Table("proxies").
+			Select("proxies.id AS proxy_id, proxy_groups.name").
+			Joins("JOIN proxy_groups ON proxy_groups.id = proxies.group_id").
+			Where("proxies.id IN ?", ids).
+			Scan(&groupRows).Error; err != nil {
+			return nil, 0, fmt.Errorf("loading proxy group names: %w", err)
+		}
+		byProxyGroupName := make(map[int]string, len(groupRows))
+		for _, row := range groupRows {
+			byProxyGroupName[row.ProxyID] = row.Name
+		}
+		for i := range proxies {
+			if name, ok := byProxyGroupName[proxies[i].ID]; ok {
+				n := name
+				proxies[i].GroupName = &n
+			}
+		}
 	}
 
 	return proxies, total, nil
