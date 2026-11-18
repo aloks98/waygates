@@ -12,6 +12,17 @@ const workflow = readFileSync(join(root, '.forgejo/workflows/nexus-release.yaml'
 const releaseId = '12345678-1234-1234-1234-123456789abc';
 const source = 'a'.repeat(40);
 
+test('CI and Docker share the pinned Node runtime', () => {
+  const nodeVersion = readFileSync(join(root, '.node-version'), 'utf8').trim();
+  const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
+  const ci = readFileSync(join(root, '.forgejo/workflows/ci.yml'), 'utf8');
+  assert.match(nodeVersion, /^\d+\.\d+\.\d+$/);
+  assert(dockerfile.includes(`node:${nodeVersion}-alpine AS ui-builder`));
+  assert.match(workflow, /node-version-file: \.node-version/);
+  assert.match(ci, /node-version-file: \.node-version/);
+  assert.doesNotMatch(dockerfile, /pnpm@latest|\|\| pnpm install/);
+});
+
 function runBuild(t, { fail = '', tls = false, warmCache = false, version = '1.2.3', plan } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'waygates-release-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -31,7 +42,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const command = path.basename(process.argv[1]);
 const args = process.argv.slice(2);
-const entry = { command, args };
+const entry = { command, args, cwd: process.cwd() };
 const configFlag = args.indexOf('--buildkitd-config');
 if (configFlag >= 0) entry.buildkit = fs.readFileSync(args[configFlag + 1], 'utf8');
 fs.appendFileSync(process.env.RELEASE_TEST_LOG, JSON.stringify(entry) + '\\n');
@@ -116,14 +127,12 @@ for (const warmCache of [false, true]) {
     const checks = commands.filter((c) => c.command === 'pnpm');
     assert.deepEqual(
       checks.map((c) => c.args),
-      [
-        ['--dir', 'ui', 'install', '--frozen-lockfile'],
-        ['--dir', 'ui', 'check'],
-        ['--dir', 'ui', 'typecheck'],
-        ['--dir', 'ui', 'test', '--run'],
-      ],
+      [['install', '--frozen-lockfile'], ['check'], ['typecheck'], ['test', '--run']],
     );
+    // Corepack must see ui/package.json before choosing a pnpm version.
+    assert(checks.every((command) => command.cwd === join(root, 'ui')));
     const backend = commands.find((c) => c.command === 'go');
+    assert.equal(backend.cwd, root.replace(/\/$/, ''));
     assert.deepEqual(backend.args, ['test', '-count=1', './backend/...']);
     assert(commands.indexOf(checks.at(-1)) < commands.indexOf(builds[0]));
     assert(commands.indexOf(builds[0]) < commands.indexOf(backend));
@@ -146,9 +155,9 @@ test('preserves DinD TLS when creating the Buildx context', (t) => {
 });
 
 for (const fail of [
-  'pnpm --dir ui check',
-  'pnpm --dir ui typecheck',
-  'pnpm --dir ui test --run',
+  'pnpm check',
+  'pnpm typecheck',
+  'pnpm test --run',
   'go test -count=1 ./backend/...',
 ]) {
   test(`does not publish after failure: ${fail}`, (t) => {

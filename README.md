@@ -166,7 +166,7 @@ For the full variable reference and deployment scenarios see **[docs/DEPLOYMENT.
 ### Prerequisites
 
 - Go 1.25+
-- Node.js 22+ with pnpm
+- Node.js 26 LTS (version in `.node-version`) and pnpm 12.21.0
 - PostgreSQL 14+ (or Docker)
 
 ### Running locally
@@ -179,8 +179,16 @@ docker compose up -d postgres
 make backend-run
 
 # In another terminal — run the UI dev server (from repo root)
-pnpm --dir ui dev
+cd ui
+pnpm install --frozen-lockfile
+pnpm dev
 ```
+
+The exact pnpm version and integrity hash are pinned in `ui/package.json`.
+If using Corepack, install Corepack 0.36.0 separately on Node 26, enable it, and
+run `corepack install` from `ui/`. Run pnpm from `ui/` so Corepack sees the pin
+before selecting a version. CI and Docker use the same Node/Corepack/pnpm versions.
+Oxlint and Oxfmt provide linting and formatting; Vite uses Oxc for transforms.
 
 The UI dev server proxies API requests to the backend. Hot reload works for both frontend and backend independently.
 
@@ -192,8 +200,8 @@ The UI dev server proxies API requests to the backend. Hot reload works for both
 | `make backend-build` | Compile backend binary to `bin/waygates` |
 | `make backend-test` | Run all backend tests |
 | `make backend-test-coverage` | Run tests with coverage report |
-| `pnpm --dir ui dev` | Start UI dev server (port 8008) |
-| `pnpm --dir ui build` | Build UI for production |
+| `cd ui && pnpm dev` | Start UI dev server (port 8008) |
+| `cd ui && pnpm build` | Build UI for production |
 | `make lint` | Lint backend + UI |
 | `make format` | Format backend + UI |
 | `make check` | Lint + test everything |

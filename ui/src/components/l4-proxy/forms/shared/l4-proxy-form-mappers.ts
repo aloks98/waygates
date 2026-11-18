@@ -61,33 +61,31 @@ export function mapL4FormValuesToRequest(values: L4ProxyFormValues): CreateL4Pro
     listen_port: values.listen_port,
     protocol: values.protocol,
     is_active: values.is_active,
-    routes: (values.routes ?? []).map(
-      (r): CreateL4RouteRequest => ({
-        priority: r.priority,
-        matcher_type: r.matcher_type,
-        upstreams: r.upstreams.map((u) => ({
-          host: u.host,
-          port: u.port,
-          ...(u.weight != null ? { weight: u.weight } : {}),
-        })),
-        load_balancing_policy: r.load_balancing_policy,
-        tls_terminate: r.tls_terminate,
-        tls_passthrough: r.tls_passthrough,
-        ...(r.proxy_protocol_version ? { proxy_protocol_version: r.proxy_protocol_version } : {}),
-        ...(r.matcher_type === 'tls'
-          ? { sni_hostnames: (r.sni_hostnames ?? []).map((i) => i.value.trim()).filter(Boolean) }
-          : {}),
-        ...(r.matcher_type === 'remote_ip'
-          ? {
-              allowed_ip_ranges: (r.allowed_ip_ranges ?? [])
-                .map((i) => i.value.trim())
-                .filter(Boolean),
-            }
-          : {}),
-        ...(r.matcher_type === 'regexp'
-          ? { regex_pattern: r.regex_pattern?.trim() || undefined }
-          : {}),
-      }),
-    ),
+    routes: (values.routes ?? []).map((r): CreateL4RouteRequest => ({
+      priority: r.priority,
+      matcher_type: r.matcher_type,
+      upstreams: r.upstreams.map((u) => ({
+        host: u.host,
+        port: u.port,
+        ...(u.weight != null ? { weight: u.weight } : {}),
+      })),
+      load_balancing_policy: r.load_balancing_policy,
+      tls_terminate: r.tls_terminate,
+      tls_passthrough: r.tls_passthrough,
+      ...(r.proxy_protocol_version ? { proxy_protocol_version: r.proxy_protocol_version } : {}),
+      ...(r.matcher_type === 'tls'
+        ? { sni_hostnames: (r.sni_hostnames ?? []).map((i) => i.value.trim()).filter(Boolean) }
+        : {}),
+      ...(r.matcher_type === 'remote_ip'
+        ? {
+            allowed_ip_ranges: (r.allowed_ip_ranges ?? [])
+              .map((i) => i.value.trim())
+              .filter(Boolean),
+          }
+        : {}),
+      ...(r.matcher_type === 'regexp'
+        ? { regex_pattern: r.regex_pattern?.trim() || undefined }
+        : {}),
+    })),
   };
 }

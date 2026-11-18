@@ -53,7 +53,7 @@ jobs:
             echo "changed files:"
             echo "$changed"
             echo "$changed" | grep -Eq '^(backend/|go\.mod|go\.sum)' && backend=true || backend=false
-            echo "$changed" | grep -Eq '^ui/' && ui=true || ui=false
+            echo "$changed" | grep -Eq '^(ui/|\.node-version$|\.forgejo/workflows/ci\.yml$)' && ui=true || ui=false
             echo "$changed" | grep -Eq '^(Dockerfile|docker-compose\.yml|docker/|conf/)' && docker=true || docker=false
           fi
 
@@ -110,12 +110,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: install Node runtime libraries
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libatomic1
+
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .node-version
 
-      - name: enable pnpm
-        run: corepack enable
+      - name: enable pinned pnpm
+        working-directory: ui
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack install
 
       - name: resolve pnpm store
         id: pnpm-store
@@ -126,8 +135,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+          key: ${{ runner.os }}-node26-pnpm12-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-node26-pnpm12-
 
       - name: install dependencies
         working-directory: ui
@@ -136,6 +145,10 @@ jobs:
       - name: lint + format check
         working-directory: ui
         run: pnpm check
+
+      - name: typecheck
+        working-directory: ui
+        run: pnpm typecheck
 
   test-ui:
     runs-on: small
@@ -150,12 +163,21 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: install Node runtime libraries
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libatomic1
+
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .node-version
 
-      - name: enable pnpm
-        run: corepack enable
+      - name: enable pinned pnpm
+        working-directory: ui
+        run: |
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack install
 
       - name: resolve pnpm store
         id: pnpm-store
@@ -166,8 +188,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+          key: ${{ runner.os }}-node26-pnpm12-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-node26-pnpm12-
 
       - name: install dependencies
         working-directory: ui

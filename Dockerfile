@@ -42,21 +42,21 @@
 # =============================================================================
 # Stage 1: Build UI (only once on build platform - output is static files)
 # =============================================================================
-FROM --platform=$BUILDPLATFORM node:22-alpine AS ui-builder
+FROM --platform=$BUILDPLATFORM node:26.13.1-alpine AS ui-builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Node 26 does not bundle Corepack. Bootstrap it; pnpm manages project dependencies.
+RUN npm install --global corepack@0.36.0 && corepack enable
 
 # Copy UI package files
-COPY ui/package.json ui/pnpm-lock.yaml* ./
+COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
+RUN corepack install
 
 # Install dependencies. The cache mount persists pnpm's content-addressable
 # store across builds so packages aren't re-downloaded on a cache miss.
 RUN --mount=type=cache,target=/pnpm-store \
-    pnpm install --frozen-lockfile --store-dir /pnpm-store \
-    || pnpm install --store-dir /pnpm-store
+    pnpm install --frozen-lockfile --store-dir /pnpm-store
 
 # Copy UI source code
 COPY ui/ .

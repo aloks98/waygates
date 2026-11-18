@@ -17,10 +17,14 @@ platforms=$(jq -er '.config.artifacts[] | select(.id == "image" and .kind == "oc
 [[ "$NEXUS_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Expected a stable version without a v prefix.' >&2; exit 1; }
 [[ "$NEXUS_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid source revision.' >&2; exit 1; }
 
-pnpm --dir ui install --frozen-lockfile
-pnpm --dir ui check
-pnpm --dir ui typecheck
-pnpm --dir ui test --run
+# Corepack selects packageManager from cwd before pnpm processes --dir.
+(
+  cd ui
+  pnpm install --frozen-lockfile
+  pnpm check
+  pnpm typecheck
+  pnpm test --run
+)
 
 # Register emulation before BuildKit discovers supported platforms.
 docker run --privileged --rm tonistiigi/binfmt --install arm64

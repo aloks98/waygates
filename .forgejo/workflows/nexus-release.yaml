@@ -29,22 +29,28 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+      - name: Install Node runtime libraries
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libatomic1
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version-file: .node-version
       - name: Enable pnpm and locate its store
         id: pnpm-store
         working-directory: ui
         run: |
+          npm install --global corepack@0.36.0
           corepack enable
+          corepack install
           echo "path=$(pnpm store path --silent)" >> "$FORGEJO_OUTPUT"
       - name: Cache pnpm downloads
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+          key: ${{ runner.os }}-node26-pnpm12-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-node26-pnpm12-
       - name: Cache container build layers
         uses: actions/cache@v4
         with:

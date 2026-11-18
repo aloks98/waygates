@@ -17,6 +17,11 @@ installation. This follows the [Nexus onboarding guide](https://outline.nexus.e4
   container integration tests; then builds and stages the multi-architecture image.
   The release job uses the Docker-capable `large` runner with Go and Node setup,
   and preserves DinD TLS settings and dependency/build caches.
+  Node is pinned in `.node-version`, Corepack in the workflow/Dockerfile, and
+  pnpm in `ui/package.json`. UI checks run from `ui/`: Corepack resolves its
+  version before pnpm processes `--dir`, so invoking it from the repository
+  root can select a different version. Container installs use the frozen
+  lockfile without a fallback that changes dependency resolution.
 - Version metadata comes from `NEXUS_VERSION`, without a `v` prefix. The image
   candidate is `nexus-<release-id>-image`. Only the shared helper promotes the
   verified candidate to the final `vX.Y.Z` tag. There are no `latest`, minor, or

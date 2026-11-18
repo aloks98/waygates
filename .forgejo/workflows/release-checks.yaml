@@ -2,6 +2,9 @@ name: Release contract checks
 on:
   pull_request:
     paths:
+      - .node-version
+      - Dockerfile
+      - .forgejo/workflows/ci.yml
       - nexus-release.json
       - .forgejo/workflows/nexus-release.yaml
       - .forgejo/workflows/release-checks.yaml
@@ -9,6 +12,9 @@ on:
   push:
     branches: [master]
     paths:
+      - .node-version
+      - Dockerfile
+      - .forgejo/workflows/ci.yml
       - nexus-release.json
       - .forgejo/workflows/nexus-release.yaml
       - .forgejo/workflows/release-checks.yaml

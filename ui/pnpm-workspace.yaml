@@ -1,0 +1,7 @@
+minimumReleaseAgeExclude:
+  - '@vitest/coverage-v8@5.1.1'
+  - '@vitest/mocker@5.1.1'
+  - '@vitest/spy@5.1.1'
+  - vitest@5.1.1
+  # Already present in the previous lockfile; keep the exception version-specific.
+  - electron-to-chromium@1.5.490
