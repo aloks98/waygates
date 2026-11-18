@@ -1,27 +1,21 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  RadioGroup,
-  RadioGroupItem,
-  Skeleton,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Skeleton } from '@/components/ui/skeleton';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useNotFoundSettings } from '@/hooks/use-settings';
 
@@ -99,10 +93,6 @@ export function CatchallSettings() {
     <Card>
       <CardHeader>
         <CardTitle>404 Page Configuration</CardTitle>
-        <CardDescription>
-          Configure what happens when a visitor accesses a hostname that doesn&apos;t match any
-          proxy.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -164,9 +154,7 @@ export function CatchallSettings() {
                     <FormControl>
                       <Input placeholder="https://example.com" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      Visitors will be redirected to this URL when accessing an unknown hostname
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}

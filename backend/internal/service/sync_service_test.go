@@ -3359,3 +3359,66 @@ func TestFullSync_BehaviorUnchangedAfterRefactor(t *testing.T) {
 		t.Error("FullSync must still reload Caddy after refactor")
 	}
 }
+
+func TestDraftPreviewBuildsUnsavedValuesWithoutSideEffects(t *testing.T) {
+	svc, proxyRepo, _, aclRepo, fileManager, reloader := newTestSyncServiceWithJSON()
+	proxyRepo.GetByIDFunc = func(int) (*models.Proxy, error) { t.Fatal("draft must not load a saved proxy"); return nil, nil }
+	fileManager.WriteJSONConfigFunc = func(string, []byte) error { t.Fatal("preview must not write configuration"); return nil }
+	reloader.ReloadJSONFunc = func(context.Context, string) (*caddy.ReloadResult, error) {
+		t.Fatal("preview must not reload Caddy")
+		return nil, nil
+	}
+	aclRepo.GetGroupByIDFunc = func(id int) (*models.ACLGroup, error) {
+		if id != 7 {
+			t.Fatalf("unexpected group %d", id)
+		}
+		return &models.ACLGroup{ID: 7, Name: "Team", BasicAuthUsers: []models.ACLBasicAuthUser{{ID: 1, ACLGroupID: 7, Username: "alice", PasswordHash: "$2a$12$abc"}}}, nil
+	}
+	draft := models.Proxy{ID: 42, Name: "Draft", Hostname: "draft.example.com", Type: models.ProxyTypeReverseProxy, SSLEnabled: true, SSLForced: true, Upstreams: []interface{}{map[string]interface{}{"host": "analytics", "port": float64(3000), "scheme": "http"}}}
+	assignments := []models.ProxyACLAssignment{{ProxyID: 42, ACLGroupID: 7, PathPattern: "/*", Enabled: true}}
+	raw, err := svc.GenerateDraftProxyConfigJSON(draft, assignments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !json.Valid(raw) || !contains(string(raw), "draft.example.com") || !contains(string(raw), "analytics:3000") || !contains(string(raw), "authentication") {
+		t.Fatalf("preview must contain unsaved destination and access configuration: %s", raw)
+	}
+	if assignments[0].ProxyID != 42 || draft.ID != 42 {
+		t.Fatal("preview must not mutate input values")
+	}
+}
+
+func TestDraftPreviewRejectsInvalidProxyAndMissingAccessGroup(t *testing.T) {
+	svc, _, _, aclRepo, _, _ := newTestSyncServiceWithJSON()
+	if _, err := svc.GenerateDraftProxyConfigJSON(models.Proxy{}, nil); err == nil {
+		t.Fatal("invalid proxy should fail")
+	}
+	draft := models.Proxy{Name: "Draft", Hostname: "draft.example.com", Type: models.ProxyTypeReverseProxy, Upstreams: []interface{}{map[string]interface{}{"host": "analytics", "port": float64(3000), "scheme": "http"}}}
+	aclRepo.GetGroupByIDFunc = func(int) (*models.ACLGroup, error) { return nil, gorm.ErrRecordNotFound }
+	if _, err := svc.GenerateDraftProxyConfigJSON(draft, []models.ProxyACLAssignment{{ACLGroupID: 999, Enabled: true, PathPattern: "/*"}}); err == nil {
+		t.Fatal("missing group must fail instead of previewing public access")
+	}
+}
+
+func TestDraftL4PreviewIncludesDestinationAndTLS(t *testing.T) {
+	svc, _, _, _, fileManager, reloader := newTestSyncServiceWithJSON()
+	fileManager.WriteJSONConfigFunc = func(string, []byte) error { t.Fatal("preview must not write configuration"); return nil }
+	reloader.ReloadJSONFunc = func(context.Context, string) (*caddy.ReloadResult, error) {
+		t.Fatal("preview must not reload Caddy")
+		return nil, nil
+	}
+	proxy := models.L4Proxy{Name: "Database", Protocol: "tcp", ListenPort: 5432, Routes: []models.L4Route{{MatcherType: "tls", SNIHostnames: []string{"db.example.com"}, TLSTerminate: true, LoadBalancingPolicy: "round_robin", Upstreams: []models.L4Upstream{{Host: "postgres", Port: 5432}}}}}
+	raw, err := svc.GenerateDraftL4ConfigJSON(proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"layer4", "postgres:5432", "db.example.com", "tls"} {
+		if !contains(string(raw), value) {
+			t.Fatalf("missing %s in preview: %s", value, raw)
+		}
+	}
+	proxy.Routes = nil
+	if _, err := svc.GenerateDraftL4ConfigJSON(proxy); err == nil {
+		t.Fatal("preview must reject missing routes")
+	}
+}

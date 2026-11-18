@@ -1,3 +1,12 @@
+import { useNavigate } from '@tanstack/react-router';
+import type { PaginationState, RowSelectionState } from '@tanstack/react-table';
+import { Download, Plus, Search, Upload } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import { ProxyDataGrid } from '@/components/proxy';
+import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
+import { ProxyImportDialog } from '@/components/proxy/proxy-import-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,22 +16,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Button,
-  type Filter,
-  type FilterFieldsConfig,
-  Filters,
-  Input,
-} from '@e412/rnui-react';
-import { useNavigate } from '@tanstack/react-router';
-import type { PaginationState, RowSelectionState } from '@tanstack/react-table';
-import { Download, Plus, Search, Upload } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
-
-import { ProxiesTabs } from '@/components/layout/proxies-tabs';
-import { ProxyDataGrid } from '@/components/proxy';
-import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
-import { ProxyImportDialog } from '@/components/proxy/proxy-import-dialog';
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { FilterMenu, type MenuFilterField } from '@/components/ui/filter-menu';
+import type { Filter } from '@/components/ui/filters';
+import { Input } from '@/components/ui/input';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies } from '@/hooks/use-proxies';
 import { api } from '@/lib/api';
@@ -31,9 +29,9 @@ import type { ApiResponse } from '@/types/api';
 import type { ProxyConfig } from '@/types/proxy';
 
 const typeOptions = [
-  { value: 'reverse_proxy', label: 'Reverse Proxy' },
+  { value: 'reverse_proxy', label: 'Reverse proxy' },
   { value: 'redirect', label: 'Redirect' },
-  { value: 'static', label: 'Static File Server' },
+  { value: 'static', label: 'Static files' },
 ];
 
 const statusOptions = [
@@ -46,30 +44,23 @@ const sslOptions = [
   { value: 'false', label: 'Disabled' },
 ];
 
-const filterFields: FilterFieldsConfig<string> = [
+const filterFields: MenuFilterField<string>[] = [
   {
     key: 'type',
     label: 'Type',
-    type: 'select',
     options: typeOptions,
-    operators: [
-      { value: 'is', label: 'is' },
-      { value: 'is_not', label: 'is not' },
-    ],
+    allowExclusion: true,
   },
   {
     key: 'status',
     label: 'Status',
-    type: 'select',
     options: statusOptions,
-    operators: [{ value: 'is', label: 'is' }],
   },
   {
     key: 'ssl_enabled',
-    label: 'SSL',
-    type: 'select',
+    label: 'HTTPS',
     options: sslOptions,
-    operators: [{ value: 'is', label: 'is' }],
+    anyLabel: 'Any',
   },
 ];
 
@@ -141,7 +132,7 @@ export function ProxiesListPage() {
       const value = filter.values[0];
       switch (filter.field) {
         case 'type':
-          p.type = value;
+          p.type = filter.operator === 'is_not' ? `not:${value}` : value;
           break;
         case 'status':
           p.status = value;
@@ -279,12 +270,9 @@ export function ProxiesListPage() {
   }, [selectedIds, debouncedSearch, filters]);
 
   return (
-    <div className="space-y-6">
-      <div className="mb-4">
-        <ProxiesTabs active="http" />
-      </div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Proxies</h1>
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[28px] font-semibold">Proxies</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleExport} disabled={isExporting}>
             <Download className="size-4" />
@@ -299,13 +287,13 @@ export function ProxiesListPage() {
           {canCreateProxies && (
             <Button onClick={() => navigate({ to: '/proxies/new' })}>
               <Plus className="size-4" />
-              Add Proxy
+              Create proxy
             </Button>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex shrink-0 flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -317,14 +305,7 @@ export function ProxiesListPage() {
           />
         </div>
 
-        <Filters
-          filters={filters}
-          fields={filterFields}
-          onChange={handleFiltersChange}
-          addButtonText="Add Filter"
-          variant="outline"
-          size="md"
-        />
+        <FilterMenu filters={filters} fields={filterFields} onChange={handleFiltersChange} />
       </div>
 
       <ProxyBulkBar

@@ -1,13 +1,4 @@
 import {
-  Badge,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridPagination,
-  DataGridTable,
-  Skeleton,
-} from '@e412/rnui-react';
-import {
   type ColumnDef,
   getCoreRowModel,
   getPaginationRowModel,
@@ -18,6 +9,14 @@ import {
 import { format } from 'date-fns';
 import { useMemo } from 'react';
 
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { AuditLog } from '@/types/audit';
 
 import { getActionMeta } from './activity-actions';
@@ -45,7 +44,8 @@ export function ActivityTable({
     () => [
       {
         accessorKey: 'created_at',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Time" />,
+        enableSorting: false,
+        header: ({ column }) => <DataGridColumnHeader column={column} title="When" />,
         cell: ({ row }) => (
           <span className="text-sm text-muted-foreground">
             {format(new Date(row.original.created_at), 'PP p')}
@@ -55,14 +55,19 @@ export function ActivityTable({
       },
       {
         accessorKey: 'action',
-        header: 'Action',
+        header: 'Change',
         cell: ({ row }) => {
           const meta = getActionMeta(row.original.action);
           const Icon = meta.icon;
           return (
             <span className="flex items-center gap-2">
               <Icon className="size-4 text-muted-foreground" />
-              <span className="text-sm">{meta.label}</span>
+              <span className="text-sm">
+                {meta.label}
+                {row.original.status === 'failure' && (
+                  <span className="ml-2 text-destructive">Failed</span>
+                )}
+              </span>
             </span>
           );
         },
@@ -78,34 +83,12 @@ export function ActivityTable({
       },
       {
         id: 'user',
-        header: 'User',
+        header: 'By',
         cell: ({ row }) => (
           <span className="text-sm">{row.original.user?.username ?? 'system'}</span>
         ),
         enableSorting: false,
         meta: { skeleton: <Skeleton className="h-5 w-20" /> },
-      },
-      {
-        accessorKey: 'ip_address',
-        header: 'IP',
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
-            {row.original.ip_address ?? '—'}
-          </span>
-        ),
-        enableSorting: false,
-        meta: { skeleton: <Skeleton className="h-5 w-24" /> },
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }) => (
-          <Badge variant={row.original.status === 'failure' ? 'destructive' : 'secondary'}>
-            {row.original.status}
-          </Badge>
-        ),
-        enableSorting: false,
-        meta: { skeleton: <Skeleton className="h-6 w-16 rounded" /> },
       },
     ],
     [],

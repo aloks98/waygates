@@ -1,40 +1,6 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@e412/rnui-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { format } from 'date-fns';
-import {
-  ArrowLeft,
-  Calendar,
-  Globe,
-  Key,
-  KeyRound,
-  Network,
-  Pencil,
-  Shield,
-  Trash2,
-  User,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronRight, Pencil, Shield, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { getModeLabel } from '@/components/acl/access-labels';
@@ -45,22 +11,23 @@ import { GroupUsageTab } from '@/components/acl/group-usage-tab';
 import { IPRulesTab } from '@/components/acl/ip-rules-tab';
 import { OAuthSSOTab } from '@/components/acl/oauth-sso-tab';
 import { WaygatesAccountTab } from '@/components/acl/waygates-account-tab';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DetailRow } from '@/components/ui/detail-row';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useACLGroup, useDeleteACLGroup } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
-import type { CombinationMode } from '@/types/acl';
-
-function getCombinationModeDescription(mode: CombinationMode): string {
-  switch (mode) {
-    case 'any':
-      return 'Access is granted if any authentication method succeeds';
-    case 'all':
-      return 'All configured authentication methods must succeed';
-    case 'ip_bypass':
-      return 'If IP matches allow rules, other auth methods are skipped';
-    default:
-      return '';
-  }
-}
 
 function OverviewTab({
   groupId,
@@ -100,151 +67,65 @@ function OverviewTab({
     return <div className="text-center py-8 text-muted-foreground">Group not found</div>;
   }
 
+  const methods = [
+    { key: 'ip-rules', label: 'IP rules', count: group.ip_rules?.length ?? 0 },
+    { key: 'basic-auth', label: 'Basic auth', count: group.basic_auth_users?.length ?? 0 },
+    {
+      key: 'oauth-sso',
+      label: 'OAuth / SSO',
+      count: group.waygates_auth?.allowed_providers?.length ?? 0,
+    },
+    {
+      key: 'account',
+      label: 'Waygates account',
+      count: group.waygates_auth?.enabled ? 'Enabled' : 'Disabled',
+    },
+    { key: 'forward-auth', label: 'Forward auth', count: group.external_providers?.length ?? 0 },
+  ];
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="size-4" />
-            Group Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Name</p>
-            <p className="font-medium">{group.name}</p>
-          </div>
-          {group.description && (
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                Description
-              </p>
-              <p className="text-sm text-muted-foreground">{group.description}</p>
-            </div>
-          )}
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-              How methods combine
-            </p>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{getModeLabel(group.combination_mode)}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {getCombinationModeDescription(group.combination_mode)}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="size-4" />
-            Metadata
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Created</p>
-            <p className="text-sm">{format(new Date(group.created_at), 'PPpp')}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-              Last Updated
-            </p>
-            <p className="text-sm">{format(new Date(group.updated_at), 'PPpp')}</p>
-          </div>
-          {group.created_by_user && (
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                Created By
-              </p>
-              <div className="flex items-center gap-2">
-                <User className="size-4 text-muted-foreground" />
-                <span className="text-sm">{group.created_by_user.username}</span>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Configuration Summary</CardTitle>
-          <CardDescription>
-            Overview of all authentication methods configured for this group
-          </CardDescription>
+          <CardTitle>Group details</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <button
-              type="button"
-              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              onClick={() => onTabChange('ip-rules')}
+          <dl className="divide-y">
+            <DetailRow label="Name">{group.name}</DetailRow>
+            {group.description && <DetailRow label="Description">{group.description}</DetailRow>}
+            <DetailRow label="How methods combine">
+              {getModeLabel(group.combination_mode)}
+            </DetailRow>
+            <DetailRow label="Updated">{format(new Date(group.updated_at), 'PP p')}</DetailRow>
+            <DetailRow label="Created">{format(new Date(group.created_at), 'PP p')}</DetailRow>
+            {group.created_by_user && (
+              <DetailRow label="Created by">{group.created_by_user.username}</DetailRow>
+            )}
+          </dl>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Authentication methods</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {methods.map((method) => (
+            <Button
+              key={method.key}
+              variant="outline"
+              className="h-11 w-full justify-between"
+              onClick={() => onTabChange(method.key)}
             >
-              <div className="flex items-center justify-center size-10 rounded bg-blue-500/10">
-                <Network className="size-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{group.ip_rules?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">IP Rules</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              onClick={() => onTabChange('basic-auth')}
-            >
-              <div className="flex items-center justify-center size-10 rounded bg-green-500/10">
-                <Key className="size-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{group.basic_auth_users?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Basic Auth</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              onClick={() => onTabChange('oauth-sso')}
-            >
-              <div className="flex items-center justify-center size-10 rounded bg-yellow-500/10">
-                <KeyRound className="size-5 text-yellow-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {group.waygates_auth?.allowed_providers?.length ?? 0}
-                </p>
-                <p className="text-xs text-muted-foreground">OAuth Providers</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              onClick={() => onTabChange('account')}
-            >
-              <div className="flex items-center justify-center size-10 rounded bg-purple-500/10">
-                <Users className="size-5 text-purple-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{group.waygates_auth?.enabled ? 'Yes' : 'No'}</p>
-                <p className="text-xs text-muted-foreground">Waygates Account</p>
-              </div>
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-3 p-3 rounded border bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-              onClick={() => onTabChange('forward-auth')}
-            >
-              <div className="flex items-center justify-center size-10 rounded bg-orange-500/10">
-                <Globe className="size-5 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{group.external_providers?.length ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Forward Auth</p>
-              </div>
-            </button>
-          </div>
+              <span>{method.label}</span>
+              <span className="flex items-center gap-3 text-muted-foreground">
+                <span className="text-xs">{method.count}</span>
+                <ChevronRight className="size-4" />
+              </span>
+            </Button>
+          ))}
+          <Button variant="ghost" className="justify-start" onClick={() => onTabChange('usage')}>
+            View assigned proxies
+            <ArrowRight data-icon="inline-end" />
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -272,8 +153,8 @@ export function ACLGroupDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 items-center gap-4">
           <Skeleton className="size-8" />
           <Skeleton className="h-8 w-48" />
         </div>
@@ -302,9 +183,9 @@ export function ACLGroupDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/access' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
@@ -314,7 +195,7 @@ export function ACLGroupDetailPage() {
               <Shield className="size-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{group.name}</h1>
+              <h1 className="text-[28px] font-semibold">{group.name}</h1>
               {group.description && (
                 <p className="text-sm text-muted-foreground">{group.description}</p>
               )}
@@ -344,15 +225,17 @@ export function ACLGroupDetailPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList variant="line">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="ip-rules">IP Rules</TabsTrigger>
-          <TabsTrigger value="basic-auth">Basic Auth</TabsTrigger>
-          <TabsTrigger value="oauth-sso">OAuth / SSO</TabsTrigger>
-          <TabsTrigger value="account">Waygates Account</TabsTrigger>
-          <TabsTrigger value="forward-auth">Forward Auth</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-        </TabsList>
+        <div className="max-w-full overflow-x-auto pb-1">
+          <TabsList variant="line">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="ip-rules">IP Rules</TabsTrigger>
+            <TabsTrigger value="basic-auth">Basic Auth</TabsTrigger>
+            <TabsTrigger value="oauth-sso">OAuth / SSO</TabsTrigger>
+            <TabsTrigger value="account">Waygates Account</TabsTrigger>
+            <TabsTrigger value="forward-auth">Forward Auth</TabsTrigger>
+            <TabsTrigger value="usage">Usage</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="mt-6">
           <OverviewTab groupId={groupId} onTabChange={setActiveTab} />

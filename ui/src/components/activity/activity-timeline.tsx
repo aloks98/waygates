@@ -1,17 +1,8 @@
-import {
-  Badge,
-  Skeleton,
-  Timeline,
-  TimelineContent,
-  TimelineDate,
-  TimelineIndicator,
-  TimelineItem,
-  TimelineSeparator,
-  TimelineTitle,
-} from '@e412/rnui-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Activity } from 'lucide-react';
 
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { AuditLog } from '@/types/audit';
 
 import { getActionMeta, toneTextClass } from './activity-actions';
@@ -55,22 +46,22 @@ export function ActivityTimeline({ logs, isLoading, onSelect }: ActivityTimeline
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {group.label}
           </h3>
-          <Timeline orientation="vertical">
-            {group.logs.map((log, i) => {
+          <ol className="flex flex-col gap-5 border-l pl-5">
+            {group.logs.map((log) => {
               const meta = getActionMeta(log.action);
               const Icon = meta.icon;
               const failed = log.status === 'failure';
               const actor = log.user?.username ?? 'system';
               return (
-                <TimelineItem key={log.id} step={i + 1}>
-                  <TimelineIndicator className="flex size-5 items-center justify-center border-0 bg-background">
+                <li key={log.id} className="relative flex gap-3">
+                  <span className="-ml-8 flex size-5 items-center justify-center bg-background">
                     <Icon
                       className={`size-4 ${failed ? 'text-destructive' : toneTextClass(meta.tone)}`}
                     />
-                  </TimelineIndicator>
-                  <TimelineSeparator />
-                  <TimelineContent>
-                    <TimelineTitle>
+                  </span>
+
+                  <div className="flex flex-col gap-1">
+                    <div>
                       <button
                         type="button"
                         onClick={() => onSelect(log.id)}
@@ -89,15 +80,15 @@ export function ActivityTimeline({ logs, isLoading, onSelect }: ActivityTimeline
                           failed
                         </Badge>
                       )}
-                    </TimelineTitle>
-                    <TimelineDate>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                    </TimelineDate>
-                  </TimelineContent>
-                </TimelineItem>
+                    </div>
+                  </div>
+                </li>
               );
             })}
-          </Timeline>
+          </ol>
         </div>
       ))}
     </div>

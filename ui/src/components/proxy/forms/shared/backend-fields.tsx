@@ -1,19 +1,17 @@
+import { Plus, Trash2 } from 'lucide-react';
+import { useFieldArray, useFormContext } from 'react-hook-form';
+
+import { Button } from '@/components/ui/button';
+import { FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
-  Button,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-  Input,
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@e412/rnui-react';
-import { Plus, Trash2 } from 'lucide-react';
-import { useFieldArray, useFormContext } from 'react-hook-form';
-
+} from '@/components/ui/select';
 import type { ReverseProxyFormValues } from '@/lib/form-validation';
 
 // single source of truth driving both the trigger label and the dropdown options
@@ -35,20 +33,22 @@ export function BackendFields() {
             name={`upstreams.${index}.scheme`}
             render={({ field }) => (
               <FormItem className="w-28">
-                <FormControl>
-                  <Select items={SCHEMES} value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
+                <Select items={SCHEMES} value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectGroup>
                       {SCHEMES.map((o) => (
                         <SelectItem key={o.value} value={o.value}>
                           {o.label}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -59,7 +59,11 @@ export function BackendFields() {
             render={({ field }) => (
               <FormItem className="flex-1">
                 <FormControl>
-                  <Input placeholder="10.0.0.5 or backend.internal" {...field} />
+                  <Input
+                    className="font-mono"
+                    placeholder="10.0.0.5 or backend.internal"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -72,6 +76,7 @@ export function BackendFields() {
               <FormItem className="w-28">
                 <FormControl>
                   <Input
+                    className="font-mono"
                     type="number"
                     placeholder="8080"
                     {...field}

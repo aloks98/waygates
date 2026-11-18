@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@e412/rnui-react';
-
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DetailRow } from '@/components/ui/detail-row';
 import type { ProxyConfig } from '@/types/proxy';
 

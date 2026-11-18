@@ -1,3 +1,10 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { ExternalLink, Globe, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,51 +14,45 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardAction,
-  CardHeader,
-  CardTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardAction, CardHeader, CardTitle } from '@/components/ui/card';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  Input,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { ExternalLink, Globe, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-
+} from '@/components/ui/table';
 import { TagsInput } from '@/components/ui/tags-input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const FORWARD_AUTH_HEADER_SUGGESTIONS = [
   'Remote-User',
@@ -100,10 +101,10 @@ function getProviderTypeLabel(type: ProviderType): string {
 
 function getProviderTypeBadgeVariant(
   type: ProviderType,
-): 'primary' | 'secondary' | 'outline' | 'destructive' {
+): 'default' | 'secondary' | 'outline' | 'destructive' {
   switch (type) {
     case 'authelia':
-      return 'primary';
+      return 'default';
     case 'authentik':
       return 'secondary';
     case 'custom':
@@ -227,14 +228,16 @@ function ProviderFormModal({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {PROVIDER_TYPE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
+                          <SelectGroup>
+                            {PROVIDER_TYPE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <FormDescription>Select the type of authentication provider</FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -267,9 +270,7 @@ function ProviderFormModal({
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription>
-                        URL to verify authentication tokens/sessions
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -284,9 +285,7 @@ function ProviderFormModal({
                       <FormControl>
                         <Input type="url" placeholder="https://auth.example.com/login" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        URL to redirect unauthenticated users for login
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -307,9 +306,7 @@ function ProviderFormModal({
                           suggestions={FORWARD_AUTH_HEADER_SUGGESTIONS}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Pick common headers or type your own to copy from the auth response
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -358,10 +355,7 @@ export function ExternalProvidersTab({ groupId }: ExternalProvidersTabProps) {
             <Globe className="size-5" />
             Forward Auth
           </CardTitle>
-          <CardDescription>
-            Integrate with forward authentication services like Authelia, Authentik, or custom
-            forward auth providers.
-          </CardDescription>
+
           {canUpdateAccess && (
             <CardAction>
               <Button onClick={() => setCreateModalOpen(true)}>

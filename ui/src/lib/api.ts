@@ -36,7 +36,7 @@ async function refreshTokens(): Promise<TokenPair | null> {
   }
 }
 
-async function handleTokenRefresh(): Promise<TokenPair | null> {
+export async function handleTokenRefresh(): Promise<TokenPair | null> {
   if (isRefreshing) {
     return refreshPromise;
   }
@@ -84,6 +84,7 @@ export const api: KyInstance = ky.create({
               headers,
               body: request.body,
               credentials: request.credentials,
+              signal: request.signal,
             });
           }
 

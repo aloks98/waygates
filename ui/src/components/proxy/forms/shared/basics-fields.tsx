@@ -1,13 +1,7 @@
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-} from '@e412/rnui-react';
 import { useFormContext } from 'react-hook-form';
+
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 
 export function BasicsFields({ autoFocusName = false }: { autoFocusName?: boolean }) {
   // BasicsFields only touches name/hostname/description, present on all 3 schemas.
@@ -35,29 +29,16 @@ export function BasicsFields({ autoFocusName = false }: { autoFocusName?: boolea
           name="hostname"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Hostname</FormLabel>
+              <FormLabel>Domain</FormLabel>
               <FormControl>
-                <Input placeholder="app.example.com" {...field} />
+                <Input className="font-mono" placeholder="app.example.com" {...field} />
               </FormControl>
-              <FormDescription>The domain visitors will use to reach this service.</FormDescription>
+
               <FormMessage />
             </FormItem>
           )}
         />
       </div>
-      <FormField
-        control={form.control}
-        name="description"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl>
-              <Input {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
     </div>
   );
 }

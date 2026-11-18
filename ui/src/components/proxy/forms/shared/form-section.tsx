@@ -1,6 +1,7 @@
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@e412/rnui-react';
 import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
+
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface FormSectionProps {
   title: string;

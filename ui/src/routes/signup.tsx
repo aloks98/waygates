@@ -1,16 +1,3 @@
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  FieldGroup,
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -19,7 +6,19 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-import { WaygateLogo } from '@/components/layout/waygate-logo';
+import { WaygateLogo, WaygatesWordmark, WaygatesBrand } from '@/components/layout/waygate-logo';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { FieldGroup } from '@/components/ui/field';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 
 import { publicApi } from '../lib/api';
 import type { ApiResponse } from '../types/api';
@@ -93,20 +92,15 @@ export function SignupPage() {
   return (
     <div className="flex min-h-screen">
       {/* Brand panel — left side on desktop */}
-      <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] bg-primary/[0.06] items-end justify-start p-12 relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 size-96 rounded-none border border-primary/10" />
-        <div className="absolute -top-12 -right-12 size-72 rounded-none border border-primary/[0.06]" />
-        <div className="absolute bottom-32 right-24 size-40 rounded-none bg-primary/[0.04]" />
+      <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] bg-sidebar text-white items-end justify-start p-12 relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 size-96 rounded-none border border-sidebar-border" />
+        <div className="absolute -top-12 -right-12 size-72 rounded-none border border-sidebar-border/60" />
+        <div className="absolute bottom-32 right-24 size-40 rounded-none bg-sidebar-accent/40" />
 
         <div className="relative z-10 max-w-lg animate-fade-up">
           <WaygateLogo className="size-16" />
-          <h1
-            className="mt-6 text-6xl tracking-wide leading-[1.1]"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Waygates
-          </h1>
-          <p className="mt-4 text-lg text-muted-foreground max-w-sm">
+          <WaygatesWordmark className="mt-6 !h-[48px] !w-[264px]" />
+          <p className="mt-4 text-lg text-sidebar-foreground max-w-sm">
             Fast travel for your network.
           </p>
         </div>
@@ -116,23 +110,14 @@ export function SignupPage() {
       <div className="flex flex-1 items-center justify-center px-6 py-12 bg-background">
         <div className="w-full max-w-sm animate-fade-up" style={{ animationDelay: '100ms' }}>
           {/* Mobile-only brand header */}
-          <div className="flex flex-col items-center gap-2 mb-8 lg:hidden">
-            <WaygateLogo className="size-12" />
-            <h2 className="text-4xl tracking-wide" style={{ fontFamily: 'var(--font-display)' }}>
-              Waygates
-            </h2>
+          <div className="mb-8 flex justify-center lg:hidden">
+            <WaygatesBrand />
           </div>
 
           {/* Desktop heading */}
-          <div className="hidden lg:block mb-8">
-            <h2 className="text-2xl font-bold tracking-tight">Create account</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Set up your Waygates admin account</p>
+          <div className="mb-8">
+            <h2 className="text-[28px] font-semibold tracking-tight">Create account</h2>
           </div>
-
-          {/* Mobile subtitle */}
-          <p className="text-center text-sm text-muted-foreground mb-6 lg:hidden">
-            Create a new account
-          </p>
 
           {/* Registration closed notice */}
           {!regLoading && !registrationOpen && (
@@ -258,11 +243,7 @@ export function SignupPage() {
                     )}
                   />
 
-                  <Button
-                    type="submit"
-                    disabled={form.formState.isSubmitting}
-                    className="w-full glow-primary"
-                  >
+                  <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
                     {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
                   </Button>
 

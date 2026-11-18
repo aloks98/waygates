@@ -1,21 +1,19 @@
-import {
-  Badge,
-  Button,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridTable,
-  Skeleton,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ColumnDef, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { ExternalLink, Globe, Shield } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { api } from '@/lib/api';
 import type { ProxyACLAssignment } from '@/types/acl';
 import type { ApiResponse } from '@/types/api';

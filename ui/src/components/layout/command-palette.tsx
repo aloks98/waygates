@@ -1,12 +1,3 @@
-import {
-  Command,
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   Activity,
@@ -23,6 +14,15 @@ import {
 import { useTheme } from 'next-themes';
 import { useEffect } from 'react';
 
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { useSyncStatus } from '@/hooks/use-dashboard';
 import { useLogout } from '@/hooks/use-logout';
 import { useCommandPalette } from '@/stores/command-palette';

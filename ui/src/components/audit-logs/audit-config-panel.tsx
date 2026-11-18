@@ -1,6 +1,8 @@
+import { ChevronRight, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  Alert,
-  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -9,23 +11,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  Checkbox,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  Skeleton,
-  Spinner,
-} from '@e412/rnui-react';
-import { ChevronRight, ShieldAlert, TriangleAlert } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuditConfig, useAuditEventGroups } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import type { AuditConfig, AuditEventDefinition, AuditEventGroup } from '@/types/audit';
@@ -208,9 +200,6 @@ export function AuditConfigPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Event Logging Configuration</CardTitle>
-          <CardDescription>
-            Choose which events to log. Disabled events will not create audit log entries.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive">
@@ -247,9 +236,6 @@ export function AuditConfigPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Event Logging Configuration</CardTitle>
-          <CardDescription>
-            Choose which events to log. Disabled events will not create audit log entries.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {newlyDisabledSecurityEvents.length > 0 && (
@@ -270,7 +256,8 @@ export function AuditConfigPanel() {
           <div className="flex items-center justify-between border-b pb-3">
             <div className="flex items-center gap-3">
               <Checkbox
-                checked={masterCheckedState}
+                checked={masterCheckedState === true}
+                indeterminate={masterCheckedState === 'indeterminate'}
                 onCheckedChange={handleMasterToggle}
                 id="master-toggle"
               />
@@ -308,7 +295,8 @@ export function AuditConfigPanel() {
                     <div className="flex items-center gap-3">
                       <Checkbox
                         className="shrink-0"
-                        checked={checkedState}
+                        checked={checkedState === true}
+                        indeterminate={checkedState === 'indeterminate'}
                         onCheckedChange={() => handleGroupToggle(group.events)}
                         id={`group-${group.key}`}
                       />
@@ -385,7 +373,7 @@ export function AuditConfigPanel() {
             <Button onClick={handleSave} disabled={!canWriteSettings || isUpdating || !hasChanges}>
               {isUpdating ? (
                 <>
-                  <Spinner variant="circle" />
+                  <Spinner />
                   Saving...
                 </>
               ) : (

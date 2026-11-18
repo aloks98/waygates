@@ -1,14 +1,3 @@
-import {
-  Badge,
-  Button,
-  Checkbox,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridPagination,
-  DataGridTable,
-  Skeleton,
-} from '@e412/rnui-react';
 import { Link } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -23,16 +12,27 @@ import {
 import { ExternalLink, Globe, Network, Plus } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { buttonVariants } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { ProxyConfig } from '@/types/proxy';
 
-import {
-  ProxyAclCell,
-  ProxyActionsCell,
-  ProxySslCell,
-  ProxyStatusBadge,
-  ProxyTargetCell,
-  ProxyTypeBadge,
-} from './cells';
+import { ProxyActionsCell, ProxyStatusBadge, ProxyTargetCell } from './cells';
 
 interface ProxyDataGridProps {
   data: ProxyConfig[];
@@ -107,79 +107,65 @@ export function ProxyDataGrid({
       },
       {
         accessorKey: 'name',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Name" />,
-        cell: ({ row }) => <span className="font-medium break-words">{row.getValue('name')}</span>,
-        minSize: 120,
-        maxSize: 200,
-        meta: {
-          skeleton: <Skeleton className="h-5 w-32" />,
-        },
-      },
-      {
-        accessorKey: 'hostname',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Hostname" />,
-        cell: ({ row }) => {
-          const hostname = row.getValue('hostname') as string;
-          const url = `https://${hostname}`;
-          return (
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Proxy" />,
+        cell: ({ row }) => (
+          <div className="flex min-w-44 flex-col gap-1">
+            <Link
+              to="/proxies/$proxyId"
+              params={{ proxyId: String(row.original.id) }}
+              className="font-medium hover:underline"
+            >
+              {row.original.name}
+            </Link>
             <a
-              href={url}
+              href={`${row.original.ssl_enabled ? 'https' : 'http'}://${row.original.hostname}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 group"
+              className="flex w-fit items-center gap-1.5 font-mono text-xs text-muted-foreground hover:text-accent-foreground"
             >
-              <Badge
-                variant="secondary"
-                className="font-mono text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-              >
-                {hostname}
-                <ExternalLink className="ml-1 size-3 opacity-50 group-hover:opacity-100" />
-              </Badge>
+              {row.original.hostname}
+              <ExternalLink className="size-3" />
             </a>
-          );
-        },
-        minSize: 150,
-        maxSize: 260,
-        meta: {
-          skeleton: <Skeleton className="h-6 w-40 rounded" />,
-        },
+          </div>
+        ),
       },
       {
         id: 'target',
-        header: 'Target',
-        cell: ({ row }) => <ProxyTargetCell proxy={row.original} />,
+        header: 'Destination',
         enableSorting: false,
-        minSize: 200,
-        maxSize: 320,
-        meta: {
-          skeleton: <Skeleton className="h-5 w-48" />,
-        },
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1">
+            <ProxyTargetCell proxy={row.original} />
+            <span className="text-xs text-muted-foreground">
+              {
+                { reverse_proxy: 'Reverse proxy', redirect: 'Redirect', static: 'Static files' }[
+                  row.original.type
+                ]
+              }
+            </span>
+          </div>
+        ),
       },
       {
-        accessorKey: 'type',
-        header: 'Type',
-        cell: ({ row }) => <ProxyTypeBadge type={row.original.type} />,
+        id: 'security',
+        header: 'Security & access',
         enableSorting: false,
-        minSize: 100,
-        maxSize: 150,
-        meta: {
-          skeleton: <Skeleton className="h-6 w-28 rounded" />,
-        },
-      },
-      {
-        accessorKey: 'ssl_enabled',
-        header: 'SSL',
-        cell: ({ row }) => <ProxySslCell enabled={row.original.ssl_enabled} />,
-        enableSorting: false,
-        minSize: 60,
-        maxSize: 80,
-        meta: {
-          skeleton: <Skeleton className="h-5 w-16" />,
-        },
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-1">
+            <span className="text-sm">{row.original.ssl_enabled ? 'HTTPS' : 'HTTP'}</span>
+            <span className="text-xs text-muted-foreground">
+              {row.original.acl_group_count
+                ? row.original.acl_group_names?.join(', ') ||
+                  `${row.original.acl_group_count} access groups`
+                : 'Public'}
+            </span>
+          </div>
+        ),
       },
       {
         accessorKey: 'is_active',
         header: 'Status',
+        enableSorting: false,
         cell: ({ row }) => (
           <ProxyStatusBadge
             isActive={row.original.is_active}
@@ -188,26 +174,6 @@ export function ProxyDataGrid({
             isToggling={isToggling}
           />
         ),
-        enableSorting: false,
-        minSize: 80,
-        maxSize: 100,
-        meta: {
-          skeleton: <Skeleton className="h-6 w-16 rounded" />,
-        },
-      },
-      {
-        id: 'acl',
-        accessorKey: 'acl_group_count',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Access" />,
-        cell: ({ row }) => (
-          <ProxyAclCell count={row.original.acl_group_count} names={row.original.acl_group_names} />
-        ),
-        enableSorting: false,
-        minSize: 100,
-        maxSize: 160,
-        meta: {
-          skeleton: <Skeleton className="h-5 w-20" />,
-        },
       },
       ...(canUpdateProxies || canDeleteProxies || onDuplicate
         ? [
@@ -270,30 +236,37 @@ export function ProxyDataGrid({
       loadingMode="skeleton"
       onRowClick={onRowClick}
       emptyMessage={
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded bg-muted p-4">
-            <Globe className="size-8 text-muted-foreground" />
-          </div>
-          <h3 className="mt-4 text-base font-medium">No proxies yet</h3>
-          <p className="mt-1.5 text-sm text-muted-foreground max-w-[260px]">
-            Create your first proxy to start routing traffic through Waygates.
-          </p>
-          <div className="mt-4 flex gap-2">
-            <Button size="sm" render={<Link to="/proxies/new" />}>
-              <Plus className="size-4" />
-              HTTP Proxy
-            </Button>
-            <Button size="sm" variant="outline" render={<Link to="/proxies/tcp-udp/new" />}>
-              <Network className="size-4" />
-              TCP/UDP Proxy
-            </Button>
-          </div>
-        </div>
+        <Empty className="py-12">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Globe />
+            </EmptyMedia>
+            <EmptyTitle>No proxies yet</EmptyTitle>
+            <EmptyDescription>
+              Create your first proxy to start routing traffic through Waygates.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Link to="/proxies/new" className={buttonVariants({ size: 'sm' })}>
+                <Plus data-icon="inline-start" />
+                HTTP Proxy
+              </Link>
+              <Link
+                to="/proxies/tcp-udp/new"
+                className={buttonVariants({ size: 'sm', variant: 'outline' })}
+              >
+                <Network data-icon="inline-start" />
+                TCP/UDP Proxy
+              </Link>
+            </div>
+          </EmptyContent>
+        </Empty>
       }
     >
-      <DataGridContainer>
-        <DataGridTable />
-        <div className="border-t px-4 py-2">
+      <DataGridContainer className="flex min-h-0 flex-1 flex-col">
+        <DataGridTable scrollable />
+        <div className="shrink-0 border-t px-4 py-2">
           <DataGridPagination
             sizes={[10, 20, 50]}
             className="[&_[data-slot=select-trigger]]:w-fit"

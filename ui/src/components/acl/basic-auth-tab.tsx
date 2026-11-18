@@ -1,3 +1,10 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { Eye, EyeOff, Key, Plus, Trash2, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,44 +14,35 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardAction,
-  CardHeader,
-  CardTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardAction, CardHeader, CardTitle } from '@/components/ui/card';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  Input,
-  Skeleton,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { Eye, EyeOff, Key, Plus, Trash2, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-
+} from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAddBasicAuthUser, useBasicAuthUsers, useDeleteBasicAuthUser } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLBasicAuthUser } from '@/types/acl';
@@ -132,9 +130,7 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
                       <FormControl>
                         <Input placeholder="e.g., john_doe" autoComplete="off" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Letters, numbers, underscores, and hyphens only
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -173,7 +169,7 @@ function AddUserModal({ open, onOpenChange, groupId }: AddUserModalProps) {
                           </Button>
                         </div>
                       </FormControl>
-                      <FormDescription>Minimum 8 characters</FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -221,10 +217,7 @@ export function BasicAuthTab({ groupId }: BasicAuthTabProps) {
             <Key className="size-5" />
             Basic Authentication Users
           </CardTitle>
-          <CardDescription>
-            Manage users who can access protected resources using HTTP Basic Auth. Passwords are
-            securely hashed and cannot be retrieved.
-          </CardDescription>
+
           {canUpdateAccess && (
             <CardAction>
               <Button onClick={() => setAddModalOpen(true)}>

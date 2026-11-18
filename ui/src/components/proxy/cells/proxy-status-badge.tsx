@@ -1,4 +1,5 @@
-import { Badge, Switch } from '@e412/rnui-react';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 
 interface ProxyStatusBadgeProps {
   isActive: boolean;
@@ -16,13 +17,24 @@ export function ProxyStatusBadge({
   if (canToggle && onToggle) {
     return (
       <div className="flex items-center gap-2">
-        <Switch checked={isActive} onCheckedChange={onToggle} disabled={isToggling} size="sm" />
+        <Switch
+          checked={isActive}
+          onCheckedChange={onToggle}
+          disabled={isToggling}
+          size="sm"
+          aria-label={isActive ? 'Disable proxy' : 'Enable proxy'}
+        />
         <span className="text-sm text-muted-foreground">{isActive ? 'Active' : 'Inactive'}</span>
       </div>
     );
   }
 
   return (
-    <Badge variant={isActive ? 'primary' : 'secondary'}>{isActive ? 'Active' : 'Inactive'}</Badge>
+    <Badge
+      className={isActive ? 'border-success/25 bg-success/5 text-success' : 'text-muted-foreground'}
+      variant={'outline'}
+    >
+      {isActive ? 'Active' : 'Inactive'}
+    </Badge>
   );
 }

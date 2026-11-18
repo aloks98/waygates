@@ -503,6 +503,76 @@ func (s *SyncService) GenerateProxyConfigJSON(proxyID int) (json.RawMessage, err
 	return json.MarshalIndent(cfg, "", "  ")
 }
 
+// GenerateDraftProxyConfigJSON previews unsaved form values without persisting or reloading.
+func (s *SyncService) GenerateDraftProxyConfigJSON(proxy models.Proxy, assignments []models.ProxyACLAssignment) (json.RawMessage, error) {
+	if err := proxy.Validate(); err != nil {
+		return nil, err
+	}
+	proxy.ID = 0
+	proxy.IsActive = true
+	assignments = append([]models.ProxyACLAssignment(nil), assignments...)
+	var groups []models.ACLGroup
+	seen := map[int]bool{}
+	for i := range assignments {
+		assignments[i].ProxyID = 0
+		if !assignments[i].Enabled {
+			continue
+		}
+		if s.aclRepo == nil {
+			return nil, fmt.Errorf("access groups are unavailable")
+		}
+		if seen[assignments[i].ACLGroupID] {
+			continue
+		}
+		group, err := s.aclRepo.GetGroupByID(assignments[i].ACLGroupID)
+		if err != nil {
+			return nil, fmt.Errorf("access group is unavailable: %w", err)
+		}
+		seen[group.ID] = true
+		groups = append(groups, *group)
+	}
+	b := s.newConfiguredBuilder()
+	b.SetACLGroups(groups)
+	b.SetACLAssignments(assignments)
+	cfg, err := b.BuildSingleProxy(&proxy)
+	if err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(cfg, "", "  ")
+}
+
+// GenerateDraftL4ConfigJSON previews TCP/UDP routing and TLS without changing the running config.
+func (s *SyncService) GenerateDraftL4ConfigJSON(proxy models.L4Proxy) (json.RawMessage, error) {
+	if err := proxy.Validate(); err != nil {
+		return nil, err
+	}
+	if len(proxy.Routes) == 0 {
+		return nil, fmt.Errorf("at least one route is required")
+	}
+	for i := range proxy.Routes {
+		if err := proxy.Routes[i].Validate(); err != nil {
+			return nil, err
+		}
+	}
+	proxy.IsActive = true
+	proxies := []models.L4Proxy{proxy}
+	app, err := config.NewL4Builder(s.logger).BuildL4Config(proxies)
+	if err != nil {
+		return nil, err
+	}
+	if len(app.Servers) == 0 {
+		return nil, fmt.Errorf("unable to build TCP/UDP routes")
+	}
+	b := s.newConfiguredBuilder()
+	b.SetLayer4App(app)
+	b.SetL4TLSHostnames(extractL4TLSHostnames(proxies))
+	cfg, err := b.Build()
+	if err != nil {
+		return nil, err
+	}
+	return json.MarshalIndent(cfg, "", "  ")
+}
+
 // performFullSyncJSON executes sync using JSON configuration builder
 func (s *SyncService) performFullSyncJSON() error {
 	ctx := context.Background()

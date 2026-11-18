@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { AppSidebar } from '@/components/layout';
 import { ChangePasswordDialog } from '@/components/layout/change-password-dialog';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 import type { ApiResponse } from '@/types/api';
 import type { User } from '@/types/auth';
@@ -12,6 +13,7 @@ import type { User } from '@/types/auth';
 export function DashboardLayout() {
   const { setUser, user } = useAuthStore();
   const location = useLocation();
+  const fillViewport = /^\/proxies\/?$/.test(location.pathname);
 
   const { data, isLoading } = useQuery({
     queryKey: ['auth', 'me'],
@@ -42,9 +44,12 @@ export function DashboardLayout() {
     data?.data?.must_change_password ?? user?.must_change_password ?? false;
 
   return (
-    <div className="flex h-screen">
-      <AppSidebar>
-        <div key={location.pathname} className="page-enter">
+    <div className={cn('flex h-screen', fillViewport && 'h-dvh overflow-hidden')}>
+      <AppSidebar fillViewport={fillViewport}>
+        <div
+          key={location.pathname}
+          className={cn('page-enter', fillViewport && 'flex min-h-0 flex-1 flex-col')}
+        >
           <Outlet />
         </div>
       </AppSidebar>

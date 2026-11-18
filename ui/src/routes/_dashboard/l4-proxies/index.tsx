@@ -1,29 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Badge,
-  Button,
-  Checkbox,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridPagination,
-  DataGridTable,
-  Input,
-  Skeleton,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -39,9 +13,32 @@ import { Copy, Download, Network, Pencil, Plus, Search, Trash2 } from 'lucide-re
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { ProxiesTabs } from '@/components/layout/proxies-tabs';
 import { L4ProtocolBadge, ProxyStatusBadge } from '@/components/proxy/cells';
 import { ProxyBulkBar } from '@/components/proxy/proxy-bulk-bar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useL4Proxies, useL4ProxyStats } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
 import { api } from '@/lib/api';
@@ -54,7 +51,7 @@ type ProtocolFilter = 'all' | 'tcp' | 'udp';
 
 export function L4ProxiesListPage() {
   const navigate = useNavigate();
-  const { canCreateProxies, canUpdateProxies, canDeleteProxies } = usePermissions();
+  const { canCreateL4Proxies, canUpdateL4Proxies, canDeleteL4Proxies } = usePermissions();
 
   // Filter state
   const [protocolFilter, setProtocolFilter] = useState<ProtocolFilter>('all');
@@ -101,7 +98,7 @@ export function L4ProxiesListPage() {
       prevFilterRef.current = protocolFilter;
       setPagination((prev) => ({ ...prev, pageIndex: 0 }));
     }
-  });
+  }, [protocolFilter]);
 
   // Fetch L4 proxies
   const params = useMemo(() => {
@@ -338,7 +335,7 @@ export function L4ProxiesListPage() {
         cell: ({ row }) => (
           <ProxyStatusBadge
             isActive={row.original.is_active}
-            canToggle={canUpdateProxies}
+            canToggle={canUpdateL4Proxies}
             onToggle={() => handleToggleStatus(row.original)}
             isToggling={isToggling}
           />
@@ -355,7 +352,7 @@ export function L4ProxiesListPage() {
         header: '',
         cell: ({ row }) => (
           <div className="flex items-center gap-1">
-            {canUpdateProxies && (
+            {canUpdateL4Proxies && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -375,7 +372,7 @@ export function L4ProxiesListPage() {
                 <TooltipContent>Edit</TooltipContent>
               </Tooltip>
             )}
-            {canCreateProxies && (
+            {canCreateL4Proxies && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -395,7 +392,7 @@ export function L4ProxiesListPage() {
                 <TooltipContent>Duplicate</TooltipContent>
               </Tooltip>
             )}
-            {canDeleteProxies && (
+            {canDeleteL4Proxies && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -426,9 +423,9 @@ export function L4ProxiesListPage() {
       },
     ],
     [
-      canCreateProxies,
-      canDeleteProxies,
-      canUpdateProxies,
+      canCreateL4Proxies,
+      canDeleteL4Proxies,
+      canUpdateL4Proxies,
       handleDuplicate,
       handleEdit,
       handleToggleStatus,
@@ -458,18 +455,15 @@ export function L4ProxiesListPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="mb-4">
-        <ProxiesTabs active="tcp-udp" />
-      </div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">TCP/UDP Proxies</h1>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[28px] font-semibold">TCP/UDP Proxies</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleExport} disabled={isExporting}>
             <Download className="size-4" />
             {isExporting ? 'Exporting...' : 'Export'}
           </Button>
-          {canCreateProxies && (
+          {canCreateL4Proxies && (
             <Button onClick={() => navigate({ to: '/proxies/tcp-udp/new' })}>
               <Plus className="size-4" />
               Add TCP/UDP Proxy

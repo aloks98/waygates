@@ -1,7 +1,9 @@
-import { Button, FormControl, FormField, FormItem, FormMessage, Input } from '@e412/rnui-react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 
+import { Button } from '@/components/ui/button';
+import { FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import type { ReverseProxyFormValues } from '@/lib/form-validation';
 
 export function CustomHeadersFields() {
@@ -47,7 +49,7 @@ export function CustomHeadersFields() {
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input placeholder="Header-Name" {...field} />
+                      <Input className="font-mono" placeholder="Header-Name" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -59,7 +61,7 @@ export function CustomHeadersFields() {
                 render={({ field }) => (
                   <FormItem className="flex-1">
                     <FormControl>
-                      <Input placeholder="value" {...field} />
+                      <Input className="font-mono" placeholder="value" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

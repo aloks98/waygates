@@ -1,21 +1,17 @@
+import { Plus, Trash2 } from 'lucide-react';
+import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
+
+import { Button } from '@/components/ui/button';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
-  Button,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@e412/rnui-react';
-import { Plus, Trash2 } from 'lucide-react';
-import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-
+} from '@/components/ui/select';
 import type { L4ProxyFormValues } from '@/lib/form-validation';
 
 // single source of truth (ported from l4-proxy-form.tsx): concise `label` drives the
@@ -41,8 +37,7 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
 
   return (
     <div className="space-y-3">
-      <FormLabel>Backend Servers</FormLabel>
-      <FormDescription>Where to forward matched connections</FormDescription>
+      <p className="text-sm font-medium">Destinations</p>
 
       {fields.map((item, i) => (
         <div key={item.id} className="flex items-start gap-2">
@@ -50,9 +45,14 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
             control={form.control}
             name={`routes.${routeIndex}.upstreams.${i}.host` as never}
             render={({ field }) => (
-              <FormItem className="flex-1">
+              <FormItem className="min-w-0 flex-1">
+                <FormLabel className="sr-only">Destination host {i + 1}</FormLabel>
                 <FormControl>
-                  <Input placeholder="10.0.0.5 or backend.internal" {...field} />
+                  <Input
+                    className="font-mono"
+                    placeholder="10.0.0.5 or backend.internal"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -63,8 +63,10 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
             name={`routes.${routeIndex}.upstreams.${i}.port` as never}
             render={({ field }) => (
               <FormItem className="w-24">
+                <FormLabel className="sr-only">Destination port {i + 1}</FormLabel>
                 <FormControl>
                   <Input
+                    className="font-mono"
                     type="number"
                     placeholder="8080"
                     {...field}
@@ -84,8 +86,10 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
               name={`routes.${routeIndex}.upstreams.${i}.weight` as never}
               render={({ field }) => (
                 <FormItem className="w-20">
+                  <FormLabel className="sr-only">Weight {i + 1}</FormLabel>
                   <FormControl>
                     <Input
+                      className="font-mono"
                       type="number"
                       placeholder="weight"
                       {...field}
@@ -142,12 +146,14 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Load Balancing Strategy</FormLabel>
-              <FormControl>
-                <Select items={LB_POLICIES} value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger>
+              <Select items={LB_POLICIES} value={field.value} onValueChange={field.onChange}>
+                <FormControl>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                </FormControl>
+                <SelectContent>
+                  <SelectGroup>
                     {LB_POLICIES.map((o) => (
                       <SelectItem key={o.value} value={o.value}>
                         {'description' in o && o.description
@@ -155,10 +161,10 @@ export function L4UpstreamFields({ routeIndex }: L4UpstreamFieldsProps) {
                           : o.label}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormDescription>How to distribute connections across your servers</FormDescription>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
               <FormMessage />
             </FormItem>
           )}

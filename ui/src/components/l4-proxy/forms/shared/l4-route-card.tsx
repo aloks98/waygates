@@ -1,21 +1,12 @@
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-} from '@e412/rnui-react';
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import type { L4ProxyFormValues } from '@/lib/form-validation';
 import { L4_MATCHER_CONFIG } from '@/types/l4-proxy';
 import type { L4MatcherType } from '@/types/l4-proxy';
@@ -42,12 +33,12 @@ export function L4RouteCard({
 
   const matcherType = useWatch({
     control: form.control,
-    name: `routes.${routeIndex}.matcher_type` as never,
+    name: `routes.${routeIndex}.matcher_type`,
   }) as L4MatcherType | undefined;
 
   const upstreams = useWatch({
     control: form.control,
-    name: `routes.${routeIndex}.upstreams` as never,
+    name: `routes.${routeIndex}.upstreams`,
   }) as { host: string; port: number; weight?: number }[] | undefined;
 
   const upstreamCount = upstreams?.length ?? 0;
@@ -103,7 +94,7 @@ export function L4RouteCard({
           {totalRoutes > 1 && (
             <FormField
               control={form.control}
-              name={`routes.${routeIndex}.priority` as never}
+              name={`routes.${routeIndex}.priority`}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Priority</FormLabel>
@@ -119,7 +110,7 @@ export function L4RouteCard({
                       }
                     />
                   </FormControl>
-                  <FormDescription>Lower values are matched first (default: 0)</FormDescription>
+
                   <FormMessage />
                 </FormItem>
               )}

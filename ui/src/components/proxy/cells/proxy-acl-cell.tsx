@@ -1,5 +1,7 @@
-import { Badge, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
 import { Shield, ShieldOff } from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function ProxyAclCell({ count, names }: { count?: number; names?: string[] }) {
   const n = count ?? 0;

@@ -1,10 +1,14 @@
-import { Alert, AlertDescription, Card, CardContent, Separator, Skeleton } from '@e412/rnui-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
 import { AlertCircle, CheckCircle, Lock, RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 
 import { ACLLoginForm, OAuthProvidersList } from '@/components/acl';
+import { WaygatesBrand } from '@/components/layout/waygate-logo';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { publicApi } from '@/lib/api';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
 import type { ACLBranding, AuthOptionsResponse, OAuthProvider } from '@/types/acl';
@@ -15,7 +19,7 @@ const defaultBranding: ACLBranding = {
   id: 0,
   title: 'Waygates',
   subtitle: 'Sign in to continue',
-  primary_color: '#6E72F0',
+  primary_color: '',
   background_color: '', // Empty to use default theme background
   updated_at: '',
 };
@@ -57,7 +61,7 @@ function useAuthOptions(hostname?: string) {
 // Loading skeleton component
 function LoadingSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-5">
       <div className="text-center space-y-2">
         <Skeleton className="h-12 w-12 rounded mx-auto" />
         <Skeleton className="h-8 w-48 mx-auto" />
@@ -97,11 +101,10 @@ function ErrorState({ message, onRetry }: { message: string; onRetry?: () => voi
 // Host display component
 function HostBadge({ host }: { host: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded border bg-muted/50 px-4 py-3">
+    <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-3">
       <Lock className="size-4 text-muted-foreground" />
       <div className="text-center">
-        <p className="text-xs text-muted-foreground">Accessing</p>
-        <p className="text-sm font-medium truncate max-w-[280px]">{host}</p>
+        <p className="text-sm font-mono break-all">{host}</p>
       </div>
     </div>
   );
@@ -150,23 +153,16 @@ function ACLLoginContent({
   const requiresAuth = authOptions?.requires_auth ?? true;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-5">
       {/* Header - only show login header when auth is required */}
       {requiresAuth ? (
-        <div className="text-center space-y-2">
-          {branding.logo_url ? (
-            <img
-              src={branding.logo_url}
-              alt={branding.title}
-              className="h-12 w-auto mx-auto object-contain"
-            />
-          ) : (
-            <div className="h-12 w-12 mx-auto rounded bg-primary/10 flex items-center justify-center">
-              <Lock className="size-6 text-primary" />
-            </div>
-          )}
-          <h1 className="text-2xl font-semibold tracking-tight">{branding.title}</h1>
-          {branding.subtitle && (
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {branding.title && branding.title !== 'Waygates'
+              ? branding.title
+              : 'Sign in to continue'}
+          </h1>
+          {branding.subtitle && branding.subtitle !== 'Sign in to continue' && (
             <p className="text-sm text-muted-foreground">{branding.subtitle}</p>
           )}
         </div>
@@ -300,11 +296,20 @@ export function ACLLoginPage() {
       {customStyles && <style dangerouslySetInnerHTML={customStyles} />}
 
       <div
-        className="flex min-h-screen items-center justify-center bg-background px-4 py-8"
+        className="flex min-h-screen flex-col items-center justify-center gap-7 bg-background px-4 py-8"
         style={backgroundStyle}
       >
-        <Card className="w-full max-w-md shadow-lg animate-fade-up">
-          <CardContent className="pt-6">
+        {effectiveBranding.logo_url ? (
+          <img
+            src={effectiveBranding.logo_url}
+            alt={effectiveBranding.title}
+            className="h-9 max-w-48 object-contain"
+          />
+        ) : (
+          <WaygatesBrand />
+        )}
+        <Card className="w-full max-w-md rounded-xl [--card-spacing:28px]">
+          <CardContent>
             {/* Show error from URL param (e.g., OAuth failure) */}
             {errorParam && (
               <Alert variant="destructive" className="mb-6">

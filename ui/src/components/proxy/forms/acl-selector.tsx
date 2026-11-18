@@ -1,36 +1,22 @@
+import { Link } from '@tanstack/react-router';
+import { Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
-  Badge,
-  Button,
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
-} from '@e412/rnui-react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from '@tanstack/react-router';
-import { ExternalLink, Plus, Shield, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-
+} from '@/components/ui/select';
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Switch } from '@/components/ui/switch';
 import { useACLGroups } from '@/hooks';
-import type { ACLGroup } from '@/types/acl';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export interface ACLAssignment {
   acl_group_id: number;
@@ -38,324 +24,220 @@ export interface ACLAssignment {
   priority: number;
   enabled: boolean;
 }
-
 interface ACLSelectorProps {
-  /** Current ACL assignments */
   value: ACLAssignment[];
-  /** Called when assignments change */
-  onChange: (assignments: ACLAssignment[]) => void;
-  /** Whether the selector is disabled */
+  onChange: (value: ACLAssignment[]) => void;
   disabled?: boolean;
 }
 
-const addAssignmentSchema = z.object({
-  group_id: z.string().min(1, 'Please select an ACL group'),
-  path_pattern: z.string(),
-  priority: z.number().min(0).max(1000),
-});
-
-type AddAssignmentFormValues = z.infer<typeof addAssignmentSchema>;
-
-function getCombinationModeLabel(mode: string): string {
-  switch (mode) {
-    case 'any':
-      return 'Any Match';
-    case 'all':
-      return 'All Required';
-    case 'ip_bypass':
-      return 'IP Bypass';
-    default:
-      return mode;
-  }
-}
-
 export function ACLSelector({ value, onChange, disabled }: ACLSelectorProps) {
-  const { groups, isLoading } = useACLGroups({ limit: 100 });
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  const addForm = useForm<AddAssignmentFormValues>({
-    resolver: zodResolver(addAssignmentSchema),
-    defaultValues: {
-      group_id: '',
-      path_pattern: '/*',
-      priority: 100,
-    },
-  });
-
-  // Get group details by ID
-  const getGroup = (groupId: number): ACLGroup | undefined => {
-    return groups.find((g) => g.id === groupId);
-  };
-
-  // Get groups that haven't been assigned yet (or show all if path patterns differ)
-  const availableGroups = groups;
-
-  // value -> label list (sourced from availableGroups) so the collapsed Select
-  // trigger shows the group name; the dropdown rows below render their own richer markup
-  const groupItems = availableGroups.map((group) => ({
-    value: String(group.id),
-    label: group.name,
-  }));
-
-  const handleAddAssignment = (formValues: AddAssignmentFormValues) => {
-    const newAssignment: ACLAssignment = {
-      acl_group_id: parseInt(formValues.group_id, 10),
-      path_pattern: formValues.path_pattern || '/*',
-      priority: formValues.priority,
-      enabled: true,
-    };
-
-    onChange([...value, newAssignment]);
-
-    // Reset local add-form and hide it
-    addForm.reset();
-    setShowAddForm(false);
-  };
-
-  const handleCancelAdd = () => {
-    setShowAddForm(false);
-    addForm.reset();
-  };
-
-  const handleRemoveAssignment = (index: number) => {
-    onChange(value.filter((_, i) => i !== index));
-  };
-
-  const handleToggleEnabled = (index: number) => {
-    const updated = [...value];
-    updated[index] = { ...updated[index], enabled: !updated[index].enabled };
-    onChange(updated);
-  };
-
+  const { canReadAccess, canUpdateAccess, canDeleteAccess } = usePermissions();
+  const { groups, isLoading, isError } = useACLGroups({ limit: 100 }, canReadAccess);
+  disabled = disabled || !canUpdateAccess || isError || (value.length > 0 && !canDeleteAccess);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<(ACLAssignment & { rowId: string })[]>([]);
+  const defaults = value.filter((a) => a.path_pattern === '/*');
+  const selected =
+    defaults.length === 0
+      ? 'public'
+      : defaults.length === 1 && defaults[0].enabled
+        ? String(defaults[0].acl_group_id)
+        : 'custom';
+  const items = [
+    { value: 'public', label: 'Public · no sign in' },
+    ...groups.map((g) => ({ value: String(g.id), label: g.name })),
+    ...(selected === 'custom' ? [{ value: 'custom', label: 'Custom access rules' }] : []),
+  ];
+  if (selected !== 'public' && selected !== 'custom' && !items.some((i) => i.value === selected))
+    items.push({ value: selected, label: `Access group ${selected}` });
+  const update = (index: number, patch: Partial<ACLAssignment>) =>
+    setDraft(draft.map((a, i) => (i === index ? { ...a, ...patch } : a)));
+  const valid =
+    new Set(draft.map((a) => a.acl_group_id)).size === draft.length &&
+    draft.every(
+      (a) =>
+        a.acl_group_id > 0 &&
+        a.path_pattern.startsWith('/') &&
+        Number.isInteger(a.priority) &&
+        a.priority >= 0 &&
+        a.priority <= 1000,
+    );
+  if (!canReadAccess) return null;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="size-5" />
-          Access Control
-        </CardTitle>
-        <CardDescription>
-          Assign ACL groups to protect this proxy with authentication rules
-        </CardDescription>
-        <CardAction>
-          {!showAddForm && (
+    <Field orientation="horizontal" className="flex flex-wrap items-center justify-between gap-3">
+      <FieldLabel htmlFor="proxy-access">Access</FieldLabel>
+      <div className="flex flex-1 flex-wrap justify-end gap-2">
+        <Select
+          items={items}
+          value={selected}
+          disabled={disabled || isLoading}
+          onValueChange={(v) => {
+            if (!v || v === 'custom') return;
+            const paths = value.filter(
+              (a) => a.path_pattern !== '/*' && (v === 'public' || a.acl_group_id !== Number(v)),
+            );
+            onChange(
+              v === 'public'
+                ? paths
+                : [
+                    { acl_group_id: Number(v), path_pattern: '/*', priority: 100, enabled: true },
+                    ...paths,
+                  ],
+            );
+          }}
+        >
+          <SelectTrigger id="proxy-access" className="w-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {items.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          disabled={disabled}
+          onClick={() => {
+            setDraft(value.map((assignment) => ({ ...assignment, rowId: crypto.randomUUID() })));
+            setOpen(true);
+          }}
+        >
+          <SlidersHorizontal />
+          <span className="sr-only">Path rules</span>
+        </Button>
+      </div>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent className="sm:max-w-xl" aria-describedby={undefined}>
+          <SheetHeader>
+            <SheetTitle>Access rules</SheetTitle>
+          </SheetHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto px-6 py-2">
+            {draft.map((a, i) => (
+              <div key={a.rowId} className="flex flex-col gap-4 rounded-lg border p-4">
+                <Field>
+                  <FieldLabel htmlFor={`rule-group-${i}`}>Access group</FieldLabel>
+                  <Select
+                    items={groups.map((g) => ({ value: String(g.id), label: g.name }))}
+                    value={String(a.acl_group_id)}
+                    onValueChange={(v) => v && update(i, { acl_group_id: Number(v) })}
+                  >
+                    <SelectTrigger className="w-full" id={`rule-group-${i}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {groups.map((g) => (
+                          <SelectItem key={g.id} value={String(g.id)}>
+                            {g.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field>
+                    <FieldLabel htmlFor={`rule-path-${i}`}>Path</FieldLabel>
+                    <Input
+                      id={`rule-path-${i}`}
+                      className="font-mono"
+                      value={a.path_pattern}
+                      onChange={(e) => update(i, { path_pattern: e.target.value })}
+                      placeholder="/admin/*"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor={`rule-priority-${i}`}>Priority</FieldLabel>
+                    <Input
+                      id={`rule-priority-${i}`}
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={Number.isNaN(a.priority) ? '' : a.priority}
+                      onChange={(e) => update(i, { priority: e.target.valueAsNumber })}
+                    />
+                  </Field>
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={a.enabled}
+                      onCheckedChange={(enabled) => update(i, { enabled })}
+                    />
+                    Enabled
+                  </label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Remove rule"
+                    onClick={() => setDraft(draft.filter((_, index) => index !== i))}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {groups.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  setDraft([
+                    ...draft,
+                    {
+                      rowId: crypto.randomUUID(),
+                      acl_group_id: (
+                        groups.find(
+                          (group) => !draft.some((rule) => rule.acl_group_id === group.id),
+                        ) ?? groups[0]
+                      ).id,
+                      path_pattern: '/*',
+                      priority: 100,
+                      enabled: true,
+                    },
+                  ])
+                }
+              >
+                <Plus data-icon="inline-start" />
+                Add rule
+              </Button>
+            ) : (
+              <Link to="/access" className="text-sm text-accent-foreground underline">
+                Create an access group
+              </Link>
+            )}
+            {!valid && (
+              <p role="alert" className="text-sm text-destructive">
+                Each rule needs a unique group, a path starting with /, and a priority from 0 to
+                1000.
+              </p>
+            )}
+          </div>
+          <SheetFooter className="flex-row justify-end border-t">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
             <Button
               type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAddForm(true)}
-              disabled={disabled || groups.length === 0}
+              disabled={!valid || disabled}
+              onClick={() => {
+                onChange(draft.map(({ rowId: _rowId, ...assignment }) => assignment));
+                setOpen(false);
+              }}
             >
-              <Plus className="size-4" />
-              Add ACL
+              Apply
             </Button>
-          )}
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : groups.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
-            <Shield className="size-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">No ACL groups available</p>
-            <p className="text-xs mt-1">
-              <Link
-                to="/access"
-                className="text-primary hover:underline inline-flex items-center gap-1"
-              >
-                Create an ACL group first
-                <ExternalLink className="size-3" />
-              </Link>
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Current Assignments */}
-            {value.length > 0 && (
-              <div className="space-y-2">
-                {value.map((assignment, index) => {
-                  const group = getGroup(assignment.acl_group_id);
-                  if (!group) return null;
-
-                  return (
-                    <div
-                      key={`${assignment.acl_group_id}-${assignment.path_pattern}-${index}`}
-                      className={`flex items-center justify-between p-3 rounded border ${
-                        assignment.enabled ? 'bg-muted/30' : 'bg-muted/10 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center justify-center size-8 rounded bg-primary/10 flex-shrink-0">
-                          <Shield className="size-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{group.name}</span>
-                            <Badge variant="outline" className="text-xs flex-shrink-0">
-                              {getCombinationModeLabel(group.combination_mode)}
-                            </Badge>
-                            {!assignment.enabled && (
-                              <Badge variant="secondary" className="text-xs flex-shrink-0">
-                                Disabled
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            <code className="bg-muted px-1 rounded">{assignment.path_pattern}</code>
-                            <span>Priority: {assignment.priority}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 p-0"
-                          onClick={() => handleToggleEnabled(index)}
-                          disabled={disabled}
-                        >
-                          {assignment.enabled ? (
-                            <X className="size-4 text-muted-foreground" />
-                          ) : (
-                            <Shield className="size-4 text-muted-foreground" />
-                          )}
-                          <span className="sr-only">
-                            {assignment.enabled ? 'Disable' : 'Enable'}
-                          </span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="size-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => handleRemoveAssignment(index)}
-                          disabled={disabled}
-                        >
-                          <Trash2 className="size-4" />
-                          <span className="sr-only">Remove</span>
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Add Form */}
-            {showAddForm && (
-              <Form {...addForm}>
-                <form
-                  onSubmit={addForm.handleSubmit(handleAddAssignment)}
-                  className="p-4 rounded border border-dashed bg-muted/20 space-y-4"
-                >
-                  <FormField
-                    control={addForm.control}
-                    name="group_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>ACL Group</FormLabel>
-                        <Select
-                          items={groupItems}
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select an ACL group..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {availableGroups.map((group) => (
-                              <SelectItem key={group.id} value={String(group.id)}>
-                                <div className="flex items-center gap-2">
-                                  <Shield className="size-4 text-muted-foreground" />
-                                  <span>{group.name}</span>
-                                  <Badge variant="outline" className="text-xs ml-auto">
-                                    {getCombinationModeLabel(group.combination_mode)}
-                                  </Badge>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          The ACL group containing authentication rules to apply
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={addForm.control}
-                      name="path_pattern"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Path Pattern</FormLabel>
-                          <FormControl>
-                            <Input placeholder="/*" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            URL path pattern to protect (e.g., /*, /api/*, /admin)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={addForm.control}
-                      name="priority"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={1000}
-                              value={field.value}
-                              onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 100)}
-                              onBlur={field.onBlur}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Lower numbers are evaluated first (0-1000)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" size="sm" onClick={handleCancelAdd}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" size="sm" disabled={!addForm.watch('group_id')}>
-                      Add Assignment
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            )}
-
-            {/* Empty state when no assignments */}
-            {value.length === 0 && !showAddForm && (
-              <div className="text-center py-4 text-muted-foreground">
-                <p className="text-sm">No access control configured</p>
-                <p className="text-xs mt-1">This proxy will be publicly accessible</p>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    </Field>
   );
 }

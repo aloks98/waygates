@@ -1,20 +1,16 @@
+import { useFormContext, useWatch } from 'react-hook-form';
+
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
-} from '@e412/rnui-react';
-import { useFormContext, useWatch } from 'react-hook-form';
-
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import type { ReverseProxyFormValues } from '@/lib/form-validation';
 
 // single source of truth: concise `label` drives the trigger, `description` the dropdown hint
@@ -41,12 +37,14 @@ export function LoadBalancingFields() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Strategy</FormLabel>
-            <FormControl>
-              <Select items={LB_STRATEGIES} value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
+            <Select items={LB_STRATEGIES} value={field.value} onValueChange={field.onChange}>
+              <FormControl>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+              </FormControl>
+              <SelectContent>
+                <SelectGroup>
                   {LB_STRATEGIES.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {'description' in o && o.description
@@ -54,9 +52,9 @@ export function LoadBalancingFields() {
                         : o.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </FormControl>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <FormMessage />
           </FormItem>
         )}
@@ -66,12 +64,12 @@ export function LoadBalancingFields() {
         control={form.control}
         name="health_check_enabled"
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between gap-4">
+          <FormItem
+            orientation="horizontal"
+            className="flex flex-row items-center justify-between gap-4"
+          >
             <div className="space-y-0.5">
               <FormLabel>Health Checks</FormLabel>
-              <FormDescription>
-                Periodically check if your backend servers are reachable
-              </FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -105,7 +103,7 @@ export function LoadBalancingFields() {
                   <FormControl>
                     <Input placeholder="30s" {...field} />
                   </FormControl>
-                  <FormDescription>e.g., 30s, 1m, 5m</FormDescription>
+
                   <FormMessage />
                 </FormItem>
               )}
@@ -119,7 +117,7 @@ export function LoadBalancingFields() {
                   <FormControl>
                     <Input placeholder="5s" {...field} />
                   </FormControl>
-                  <FormDescription>How long to wait for a response</FormDescription>
+
                   <FormMessage />
                 </FormItem>
               )}

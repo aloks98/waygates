@@ -1,127 +1,151 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { handleTokenRefresh } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth';
 import { type CaddyLogLine, type CaddyLogSource, parseCaddyLogLine } from '@/types/caddy-logs';
 
 const BUFFER_CAP = 3000;
-
-// Monotonic counter for stable React keys across buffer rotations and filter changes.
 let lineIdCounter = 0;
+export class LogStreamError extends Error {
+  constructor(public status: number) {
+    super(
+      status === 401
+        ? 'Session expired. Sign in again.'
+        : status === 403
+          ? 'You do not have access to these logs.'
+          : `Connection interrupted (${status}).`,
+    );
+  }
+}
 
 export async function streamCaddyLogs(
   source: CaddyLogSource,
   onLine: (raw: string) => void,
   signal: AbortSignal,
+  options: { backfill?: boolean; onConnected?: () => void; onActivity?: () => void } = {},
 ): Promise<void> {
-  const { accessToken } = useAuthStore.getState();
-  const res = await fetch(`/api/caddy-logs/stream?source=${source}`, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error(`stream failed: ${res.status}`);
+  const connect = () => {
+    const { accessToken } = useAuthStore.getState();
+    return fetch(
+      `/api/caddy-logs/stream?source=${source}${options.backfill === false ? '&backfill=0' : ''}`,
+      { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, signal },
+    );
+  };
+  let res = await connect();
+  if (res.status === 401 && !signal.aborted) {
+    const tokens = await handleTokenRefresh();
+    if (tokens && !signal.aborted) res = await connect();
+  }
+  if (!res.ok || !res.body) throw new LogStreamError(res.status);
+  options.onConnected?.();
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split('\n\n');
-    buffer = frames.pop() ?? '';
-    for (const frame of frames) {
-      const dataLine = frame.split('\n').find((l) => l.startsWith('data: '));
-      if (dataLine) onLine(dataLine.slice(6));
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || signal.aborted) break;
+      buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        options.onActivity?.();
+        const data = frame
+          .split('\n')
+          .filter((l) => l.startsWith('data:'))
+          .map((l) => l.slice(5).replace(/^ /, ''))
+          .join('\n');
+        if (data) onLine(data);
+      }
     }
+  } finally {
+    reader.releaseLock?.();
   }
 }
 
-interface UseCaddyLogsResult {
-  lines: CaddyLogLine[];
-  isStreaming: boolean;
-  error: Error | null;
-  pause: () => void;
-  resume: () => void;
-  clear: () => void;
-}
-
-export function useCaddyLogs(source: CaddyLogSource): UseCaddyLogsResult {
+export function useCaddyLogs(source: CaddyLogSource) {
   const [lines, setLines] = useState<CaddyLogLine[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [paused, setPaused] = useState(false);
-
-  // Track the current AbortController so pause/resume can cancel/restart.
+  const [restart, setRestart] = useState(0);
+  const history = useRef({ source, received: false });
   const abortRef = useRef<AbortController | null>(null);
-
-  const startStream = useCallback((src: CaddyLogSource) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setIsStreaming(true);
-    setError(null);
-
-    streamCaddyLogs(
-      src,
-      (raw) => {
-        const line: CaddyLogLine = { ...parseCaddyLogLine(raw), id: ++lineIdCounter };
-        setLines((prev) => {
-          const next = [...prev, line];
-          return next.length > BUFFER_CAP ? next.slice(next.length - BUFFER_CAP) : next;
-        });
-      },
-      controller.signal,
-    )
-      .then(() => {
-        if (isStale()) return;
-        setIsStreaming(false);
-      })
-      .catch((err: unknown) => {
-        if (isStale()) return;
-        setIsStreaming(false);
-        setError(err instanceof Error ? err : new Error(String(err)));
-      });
-
-    // An aborted streaming fetch does not reject uniformly: some browsers give
-    // an AbortError, Chrome rejects the body reader with `TypeError: network
-    // error`. Checking the error name surfaces a torn-down stream as a genuine
-    // failure, so trust the signal instead. A superseded stream (source switch)
-    // must stay silent too, or its rejection lands on its replacement's state.
-    function isStale(): boolean {
-      return controller.signal.aborted || abortRef.current !== controller;
-    }
-  }, []);
-
-  // Reset the buffer when the source changes so each tab shows only its own
-  // log (otherwise the previous source's lines persist and the new source's
-  // backfill just appends, making the tabs look identical). Pause/resume keeps
-  // the buffer since `source` is unchanged.
   useEffect(() => {
+    history.current = { source, received: false };
     setLines([]);
+    setError(null);
   }, [source]);
-
-  // Start/restart stream when source changes or paused state transitions to false.
   useEffect(() => {
     if (paused) return;
-    startStream(source);
-    return () => {
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const start = async () => {
+      clearTimeout(retryTimer);
       abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const stale = () => disposed || controller.signal.aborted || abortRef.current !== controller;
+      setIsStreaming(false);
+      let connectedAt = 0;
+      try {
+        await streamCaddyLogs(
+          source,
+          (raw) => {
+            if (stale()) return;
+            history.current.received = true;
+            const line = { ...parseCaddyLogLine(raw), id: ++lineIdCounter };
+            setLines((prev) => [...prev, line].slice(-BUFFER_CAP));
+          },
+          controller.signal,
+          {
+            backfill: !history.current.received,
+            onConnected: () => {
+              if (!stale()) {
+                connectedAt = Date.now();
+                setIsStreaming(true);
+                setError(null);
+              }
+            },
+            onActivity: () => {
+              if (Date.now() - connectedAt > 5000) attempts = 0;
+            },
+          },
+        );
+        if (stale()) return;
+        throw new Error('Connection closed. Reconnecting…');
+      } catch (cause) {
+        if (stale()) return;
+        setIsStreaming(false);
+        const failure = cause instanceof Error ? cause : new Error(String(cause));
+        setError(failure);
+        if (failure instanceof LogStreamError && [401, 403].includes(failure.status)) return;
+        retryTimer = setTimeout(start, Math.min(1000 * 2 ** attempts++, 30_000));
+      }
     };
-  }, [source, paused, startStream]);
-
+    void start();
+    const online = () => {
+      void start();
+    };
+    window.addEventListener('online', online);
+    return () => {
+      disposed = true;
+      clearTimeout(retryTimer);
+      abortRef.current?.abort();
+      window.removeEventListener('online', online);
+    };
+  }, [source, paused, restart]);
   const pause = useCallback(() => {
     abortRef.current?.abort();
     setPaused(true);
     setIsStreaming(false);
+    setError(null);
   }, []);
-
   const resume = useCallback(() => {
     setPaused(false);
-    // The effect re-runs because paused changed, which calls startStream.
+    setRestart((v) => v + 1);
   }, []);
-
-  const clear = useCallback(() => {
-    setLines([]);
-  }, []);
-
-  return { lines, isStreaming, error, pause, resume, clear };
+  const clear = useCallback(() => setLines([]), []);
+  return { lines, isStreaming, error, paused, pause, resume, clear };
 }

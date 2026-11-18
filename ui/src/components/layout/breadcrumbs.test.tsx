@@ -20,9 +20,9 @@ test('numeric id segment becomes Details', () => {
   ]);
 });
 
-test('new segment becomes New', () => {
+test('new segment becomes Create', () => {
   expect(buildCrumbs('/proxies/new')).toEqual([
     { label: 'Proxies', href: '/proxies' },
-    { label: 'New', href: '/proxies/new' },
+    { label: 'Create', href: '/proxies/new' },
   ]);
 });

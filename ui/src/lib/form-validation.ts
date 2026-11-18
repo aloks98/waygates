@@ -61,14 +61,14 @@ export const l4RouteSchema = z
   .object({
     priority: z.number({ error: 'Priority is required' }).min(0, 'Priority must be at least 0'),
     matcher_type: z.enum(L4_MATCHER_TYPES, {
-      errorMap: () => ({ message: 'Invalid matcher type' }),
+      error: 'Invalid matcher type',
     }),
     sni_hostnames: z.array(sniHostnameSchema).optional(),
     allowed_ip_ranges: z.array(ipRangeSchema).optional(),
     regex_pattern: z.string().optional(),
     upstreams: z.array(l4UpstreamSchema).min(1, 'At least one upstream is required'),
     load_balancing_policy: z.enum(L4_LOAD_BALANCING_POLICIES, {
-      errorMap: () => ({ message: 'Invalid load balancing policy' }),
+      error: 'Invalid load balancing policy',
     }),
     tls_terminate: z.boolean(),
     tls_passthrough: z.boolean(),
@@ -128,7 +128,7 @@ export const l4ProxySchema = z.object({
     .min(1, 'Port must be at least 1')
     .max(65535, 'Port must be at most 65535'),
   protocol: z.enum(L4_PROTOCOLS, {
-    errorMap: () => ({ message: 'Protocol must be tcp or udp' }),
+    error: 'Protocol must be tcp or udp',
   }),
   is_active: z.boolean(),
   routes: z.array(l4RouteSchema).optional(),

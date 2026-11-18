@@ -1,13 +1,13 @@
+import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 import {
-  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@e412/rnui-react';
-import { Copy, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-
+} from '@/components/ui/dropdown-menu';
 import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyActionsCellProps {

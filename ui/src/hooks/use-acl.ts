@@ -80,11 +80,12 @@ async function handleApiError(error: unknown): Promise<string> {
 // ACL Groups
 // =============================================================================
 
-export function useACLGroups(params: ACLGroupListParams = {}) {
+export function useACLGroups(params: ACLGroupListParams = {}, enabled = true) {
   const { page = 1, limit = 20, ...filters } = params;
 
   const query = useQuery({
     queryKey: [...ACL_GROUPS_KEY, { page, limit, ...filters }],
+    enabled,
     queryFn: async () => {
       const searchParams: Record<string, string> = {
         page: String(page),
@@ -682,7 +683,7 @@ export function useDeleteOAuthProviderRestriction() {
 // Proxy ACL
 // =============================================================================
 
-export function useProxyACL(proxyId: number) {
+export function useProxyACL(proxyId: number, enabled = true) {
   const query = useQuery({
     queryKey: proxyAclKey(proxyId),
     queryFn: async () => {
@@ -691,7 +692,7 @@ export function useProxyACL(proxyId: number) {
         .json<ApiResponse<ProxyACLAssignment[]>>();
       return response.data;
     },
-    enabled: proxyId > 0,
+    enabled: proxyId > 0 && enabled,
   });
 
   return {

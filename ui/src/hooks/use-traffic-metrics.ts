@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import type { ApiResponse } from '@/types/api';
 import type { TrafficRange, TrafficSeries } from '@/types/metrics';
 
-export function useTrafficMetrics(range: TrafficRange) {
+export function useTrafficMetrics(range: TrafficRange, enabled = true) {
   const query = useQuery({
     queryKey: ['traffic-metrics', range],
     queryFn: async () => {
@@ -14,10 +14,13 @@ export function useTrafficMetrics(range: TrafficRange) {
       return response.data;
     },
     refetchInterval: 30_000,
+    enabled,
   });
 
   return {
     series: query.data,
+    isError: query.isError,
+    refetch: query.refetch,
     isLoading: query.isLoading,
   };
 }

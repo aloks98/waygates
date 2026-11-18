@@ -1,18 +1,11 @@
-import { Button, StatusIndicator, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
 import { formatDistanceToNow } from 'date-fns';
 
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSyncStatus } from '@/hooks/use-dashboard';
 
 export function SyncStatus() {
   const { syncStatus, isSyncing, triggerSync } = useSyncStatus();
-
-  const state = isSyncing
-    ? 'fixing'
-    : syncStatus?.last_error
-      ? 'down'
-      : syncStatus?.last_sync_success
-        ? 'active'
-        : 'idle';
 
   const label = isSyncing
     ? 'Syncing…'
@@ -37,6 +30,7 @@ export function SyncStatus() {
       <TooltipTrigger
         render={
           <Button
+            aria-label={label}
             variant="ghost"
             size="sm"
             className="gap-2"
@@ -45,7 +39,10 @@ export function SyncStatus() {
           />
         }
       >
-        <StatusIndicator state={state} size="sm" label={label} />
+        <span
+          className={`size-1.5 rounded-full ${syncStatus?.last_error ? 'bg-destructive' : isSyncing ? 'bg-warning' : syncStatus?.last_sync_success ? 'bg-success' : 'bg-muted-foreground'}`}
+        />
+        <span className="hidden text-xs text-muted-foreground sm:inline">{label}</span>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>

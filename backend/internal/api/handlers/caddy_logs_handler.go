@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -30,8 +32,6 @@ func NewCaddyLogsHandler(svc *service.CaddyLogsService, logger *zap.Logger) *Cad
 // Query parameters:
 //   - source: "runtime" (default) or "access"
 //   - limit:  number of lines to return, default 200, capped at 1000
-//
-// Task 4 will add a Stream method to this handler for the SSE route.
 func (h *CaddyLogsHandler) List(w http.ResponseWriter, r *http.Request) {
 	source := r.URL.Query().Get("source")
 	if source == "" {
@@ -95,14 +95,41 @@ func (h *CaddyLogsHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	rc := http.NewResponseController(w)
+	// This endpoint is long-lived; the server's normal 15-second write deadline
+	// must not terminate a healthy event stream.
+	_ = rc.SetWriteDeadline(time.Time{})
+	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
+		return
+	}
+	if err := rc.Flush(); err != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	heartbeat := time.NewTicker(15 * time.Second)
+	defer heartbeat.Stop()
+	backfill := 500
+	if r.URL.Query().Get("backfill") == "0" {
+		backfill = 0
+	}
 	lines := make(chan []byte, 256)
 
-	go func() { _ = tailer.Stream(r.Context(), 500, lines) }()
+	go func() {
+		defer close(lines)
+		_ = tailer.Stream(ctx, backfill, lines)
+	}()
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-heartbeat.C:
+			if _, err := fmt.Fprint(w, ": heartbeat\n\n"); err != nil {
+				return
+			}
+			if err := rc.Flush(); err != nil {
+				return
+			}
 		case line, ok := <-lines:
 			if !ok {
 				return

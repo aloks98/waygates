@@ -55,7 +55,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 	r.Use(chiMiddleware.RealIP)
 	r.Use(middleware.RequestLogger(logger)) // Structured zap logging for all requests
 	r.Use(chiMiddleware.Recoverer)
-	r.Use(chiMiddleware.Timeout(60 * time.Second))
+	r.Use(middleware.RequestTimeout(60 * time.Second))
 	r.Use(middleware.BodyLimit(middleware.DefaultBodyLimit)) // 1MB body limit
 
 	// Initialize Caddy components
@@ -355,6 +355,7 @@ func SetupRoutes(cfg *config.Config, db *gorm.DB, logger *zap.Logger, goauthInst
 		// Caddy config preview routes - require caddy_config:read (admin-only)
 		r.Route("/api/caddy-config", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Get("/", configPreviewHandler.GetFull)
+			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Post("/preview", configPreviewHandler.PreviewDraft)
 		})
 		r.Route("/api/proxies/{id}/config-preview", func(r chi.Router) {
 			r.With(chimw.RequirePermission(authAdapter, "caddy_config:read", mwConfig)).Get("/", configPreviewHandler.GetForProxy)

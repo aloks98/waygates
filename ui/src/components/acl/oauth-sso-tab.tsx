@@ -1,36 +1,33 @@
-import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Label,
-  Skeleton,
-  Switch,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, Globe, KeyRound, Mail, Save, Settings, Shield } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { FieldGroup } from '@/components/ui/field';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { TagsInput } from '@/components/ui/tags-input';
 import {
   useConfigureWaygatesAuth,
@@ -143,7 +140,7 @@ function ProviderRestrictionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="size-5" />
@@ -151,20 +148,17 @@ function ProviderRestrictionModal({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-2 space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <FieldGroup className="gap-4">
               <FormField
                 control={form.control}
                 name="enabled"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between">
-                    <div className="space-y-0.5">
-                      <FormLabel>Enable Restrictions</FormLabel>
-                      <FormDescription>
-                        When enabled, only users matching the restrictions below can authenticate
-                        via {providerName}
-                      </FormDescription>
-                    </div>
+                  <FormItem
+                    orientation="horizontal"
+                    className="flex flex-row items-center justify-between"
+                  >
+                    <FormLabel>Enable Restrictions</FormLabel>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
                     </FormControl>
@@ -190,10 +184,7 @@ function ProviderRestrictionModal({
                         validation={emailTagsValidation}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Specific email addresses allowed via {providerName}. Press Enter or comma to
-                      add.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -217,15 +208,12 @@ function ProviderRestrictionModal({
                         validation={domainTagsValidation}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Email domains allowed. Users with emails ending in these domains can
-                      authenticate.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
+            </FieldGroup>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -366,11 +354,6 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
               <KeyRound className="size-5" />
               OAuth Providers
             </CardTitle>
-            <CardDescription>
-              Allow users to authenticate using external OAuth providers. Users don't need a
-              Waygates account - they can sign in directly with their Google, GitHub, or other OAuth
-              accounts.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {isLoadingProviders ? (
@@ -420,10 +403,7 @@ export function OAuthSSOTab({ groupId }: { groupId: number }) {
                         <Shield className="size-4" />
                         Enabled OAuth Providers
                       </FormLabel>
-                      <FormDescription className="mb-3">
-                        Select which OAuth providers users can use to authenticate. Click the
-                        configure button to set email and domain restrictions for each provider.
-                      </FormDescription>
+
                       <div className="grid gap-3 sm:grid-cols-2">
                         {providerList.map((provider) => {
                           const isSelected = selectedProviders.includes(provider.id);

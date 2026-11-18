@@ -1,9 +1,10 @@
-import { Button, Skeleton } from '@e412/rnui-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { ArrowLeft, ArrowRight, Check, FolderOpen, Globe } from 'lucide-react';
+import { ArrowRight, FolderOpen, Globe } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { type ACLAssignment, RedirectForm, ReverseProxyForm, StaticForm } from '@/components/proxy';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAssignACL } from '@/hooks';
 import { useProxy, useProxies } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
@@ -11,7 +12,7 @@ import type { CreateProxyRequest, ProxyConfig, ProxyType } from '@/types/proxy';
 interface ProxyTypeOption {
   type: ProxyType;
   label: string;
-  icon: JSX.Element;
+  icon: React.ReactNode;
 }
 
 const proxyTypes: ProxyTypeOption[] = [
@@ -92,35 +93,21 @@ export function ProxyCreatePage() {
     navigate({ to: '/proxies' });
   };
 
-  const renderTypePill = (option: ProxyTypeOption) => (
-    <button
-      key={option.type}
-      type="button"
-      onClick={() => setSelectedType(option.type)}
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors border ${
-        selectedType === option.type
-          ? 'bg-primary text-primary-foreground border-primary'
-          : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground'
-      }`}
-    >
-      {selectedType === option.type ? <Check className="size-3.5" /> : option.icon}
-      {option.label}
-    </button>
+  const typeControl = (
+    <Tabs value={selectedType} onValueChange={(v) => setSelectedType(v as ProxyType)}>
+      <TabsList className="w-full justify-start">
+        {proxyTypes.map((option) => (
+          <TabsTrigger key={option.type} value={option.type} disabled={dupId > 0}>
+            {option.icon}
+            {option.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
-
   return (
-    <div className="space-y-6 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies' })}>
-          <ArrowLeft className="size-4" />
-          <span className="sr-only">Back</span>
-        </Button>
-        <h1 className="text-2xl font-bold">Create Proxy</h1>
-      </div>
-
-      {/* Type switcher pills */}
-      <div className="flex flex-wrap items-center gap-2">{proxyTypes.map(renderTypePill)}</div>
+    <div className="flex max-w-[1440px] flex-col gap-6">
+      <h1 className="text-[28px] font-semibold">Create proxy</h1>
 
       {/* While waiting for duplicate source to load, show skeleton */}
       {dupId > 0 && !source ? (
@@ -134,6 +121,7 @@ export function ProxyCreatePage() {
           {selectedType === 'reverse_proxy' && (
             <ReverseProxyForm
               mode="create"
+              typeControl={typeControl}
               initialData={seed}
               onSubmit={handleSubmit}
               loading={isCreating}
@@ -143,6 +131,7 @@ export function ProxyCreatePage() {
           {selectedType === 'redirect' && (
             <RedirectForm
               mode="create"
+              typeControl={typeControl}
               initialData={seed}
               onSubmit={handleSubmit}
               loading={isCreating}
@@ -152,6 +141,7 @@ export function ProxyCreatePage() {
           {selectedType === 'static' && (
             <StaticForm
               mode="create"
+              typeControl={typeControl}
               initialData={seed}
               onSubmit={handleSubmit}
               loading={isCreating}

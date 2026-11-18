@@ -1,16 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Badge,
-  Button,
-  Skeleton,
-} from '@e412/rnui-react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { ArrowLeft, Globe, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -31,7 +18,21 @@ import {
   mapReverseValuesToRequest,
   mapStaticValuesToRequest,
 } from '@/components/proxy/forms/shared/proxy-form-mappers';
-import { useAssignACL, useProxyACL, useRemoveACL } from '@/hooks';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAssignACL, useProxyACL, useRemoveACL, useUpdateProxyACLAssignment } from '@/hooks';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
 import type { CreateProxyRequest, ProxyConfig } from '@/types/proxy';
 
@@ -44,7 +45,14 @@ export function ProxyEditPage() {
   const { update, remove, isUpdating, isDeleting } = useProxies();
   const { assignACL } = useAssignACL();
   const { removeACL } = useRemoveACL();
-  const { assignments: proxyACL } = useProxyACL(proxyId);
+  const { canReadAccess, canUpdateAccess } = usePermissions();
+  const { updateAssignment } = useUpdateProxyACLAssignment();
+  const {
+    assignments: proxyACL,
+    isLoading: aclLoading,
+    isError: aclError,
+    refetch: retryACL,
+  } = useProxyACL(proxyId, canReadAccess);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -83,8 +91,8 @@ export function ProxyEditPage() {
       await update({ id: proxy.id, data });
     }
 
-    const assignments = newACLAssignments ?? [];
-    const oldGroupIds = proxyACL.map((a) => a.acl_group_id);
+    if (!canReadAccess || !canUpdateAccess || aclError || newACLAssignments === undefined) return;
+    const assignments = newACLAssignments;
     const newGroupIds = assignments.map((a) => a.acl_group_id);
 
     for (const oldAssignment of proxyACL) {
@@ -94,15 +102,26 @@ export function ProxyEditPage() {
     }
 
     for (const newAssignment of assignments) {
-      if (!oldGroupIds.includes(newAssignment.acl_group_id)) {
+      const previous = proxyACL.find((a) => a.acl_group_id === newAssignment.acl_group_id);
+      const assignmentData = {
+        path_pattern: newAssignment.path_pattern,
+        priority: newAssignment.priority,
+        enabled: newAssignment.enabled,
+      };
+      if (!previous) {
         await assignACL({
           proxyId: proxy.id,
-          data: {
-            acl_group_id: newAssignment.acl_group_id,
-            path_pattern: newAssignment.path_pattern,
-            priority: newAssignment.priority,
-            enabled: newAssignment.enabled,
-          },
+          data: { acl_group_id: newAssignment.acl_group_id, ...assignmentData },
+        });
+      } else if (
+        previous.path_pattern !== assignmentData.path_pattern ||
+        previous.priority !== assignmentData.priority ||
+        previous.enabled !== assignmentData.enabled
+      ) {
+        await updateAssignment({
+          proxyId: proxy.id,
+          assignmentId: previous.id,
+          data: assignmentData,
         });
       }
     }
@@ -118,12 +137,12 @@ export function ProxyEditPage() {
     navigate({ to: '/proxies/$proxyId', params: { proxyId: String(proxyId) } });
   };
 
-  if (isLoading) {
+  if (isLoading || aclLoading) {
     return (
-      <div className="space-y-6 max-w-5xl">
-        <div className="flex items-center gap-4">
+      <div className="space-y-6 max-w-[1440px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Skeleton className="size-8 rounded" />
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="space-y-2">
               <Skeleton className="h-7 w-48" />
@@ -140,6 +159,17 @@ export function ProxyEditPage() {
       </div>
     );
   }
+
+  if (aclError)
+    return (
+      <div className="flex flex-col items-start gap-4">
+        <h1 className="break-words text-[28px] font-semibold">Edit proxy</h1>
+        <p role="alert">Couldn’t load this proxy’s access rules.</p>
+        <Button variant="outline" onClick={() => retryACL()}>
+          Retry
+        </Button>
+      </div>
+    );
 
   if (!proxy) {
     return (
@@ -158,10 +188,10 @@ export function ProxyEditPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1440px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
@@ -172,13 +202,13 @@ export function ProxyEditPage() {
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               {getProxyTypeIcon(proxy.type)}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{proxy.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="break-words text-[28px] font-semibold">{proxy.name}</h1>
                 <Badge variant={proxy.is_active ? 'default' : 'secondary'}>
                   {proxy.is_active ? 'Active' : 'Inactive'}
                 </Badge>

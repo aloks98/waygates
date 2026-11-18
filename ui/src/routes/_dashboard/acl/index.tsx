@@ -1,25 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Badge,
-  Button,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridPagination,
-  DataGridTable,
-  Input,
-  Skeleton,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   type ColumnDef,
@@ -35,6 +13,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getModeLabel, groupAuthMethods } from '@/components/acl/access-labels';
 import { ACLGroupFormModal } from '@/components/acl/acl-group-form-modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useACLGroups, useDeleteACLGroup } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLGroup } from '@/types/acl';
@@ -256,9 +256,9 @@ export function ACLGroupsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Access Groups</h1>
+        <h1 className="text-[28px] font-semibold">Access Groups</h1>
         {canCreateAccess && (
           <Button onClick={() => setCreateModalOpen(true)}>
             <Plus className="size-4" />

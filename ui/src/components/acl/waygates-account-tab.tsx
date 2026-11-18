@@ -1,30 +1,3 @@
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Checkbox,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-  Switch,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertCircle, Clock, Mail, Save, Shield, ShieldCheck, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -38,6 +11,30 @@ import {
   secondsToDuration,
 } from '@/components/acl/session-duration';
 import type { DurationUnit } from '@/components/acl/session-duration';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectGroup,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { TagsInput } from '@/components/ui/tags-input';
 import { useConfigureWaygatesAuth, useWaygatesAuth } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -155,17 +152,16 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
               <Users className="size-5" />
               Waygates Authentication
             </CardTitle>
-            <CardDescription>
-              Allow users with Waygates accounts to authenticate using their platform credentials.
-              This is separate from OAuth - users need an account in Waygates to use this method.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <FormField
               control={form.control}
               name="enabled"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between">
+                <FormItem
+                  orientation="horizontal"
+                  className="flex flex-row items-center justify-between"
+                >
                   <div className="space-y-0.5">
                     <FormLabel className="flex items-center gap-2">
                       {field.value ? (
@@ -175,9 +171,6 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
                       )}
                       Enable Waygates Authentication
                     </FormLabel>
-                    <FormDescription>
-                      Allow users to sign in with their Waygates account credentials
-                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -215,9 +208,7 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
                           <Users className="size-4" />
                           Allowed Roles
                         </FormLabel>
-                        <FormDescription className="mb-3">
-                          Select which roles can access this resource
-                        </FormDescription>
+
                         <div className="space-y-2">
                           {KNOWN_ROLES.map((role) => (
                             <div
@@ -273,9 +264,7 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
                           validation={emailPatternTagsValidation}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Email patterns. Use * as wildcard. Press Enter or comma to add.
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -318,23 +307,23 @@ export function WaygatesAccountTab({ groupId }: { groupId: number }) {
                           <Select
                             items={DURATION_UNIT_OPTIONS}
                             value={durationUnit}
-                            onValueChange={handleUnitChange}
+                            onValueChange={(unit) => unit && handleUnitChange(unit)}
                           >
                             <SelectTrigger className="w-32">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {DURATION_UNIT_OPTIONS.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>
-                                  {option.label}
-                                </SelectItem>
-                              ))}
+                              <SelectGroup>
+                                {DURATION_UNIT_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                         </div>
-                        <FormDescription>
-                          How long the session remains valid (60 seconds to 7 days)
-                        </FormDescription>
+
                         <FormMessage />
                       </FormItem>
                     );

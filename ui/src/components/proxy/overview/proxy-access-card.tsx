@@ -1,7 +1,9 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton } from '@e412/rnui-react';
 import { Link } from '@tanstack/react-router';
 import { AlertTriangle, ShieldOff } from 'lucide-react';
 
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useProxyACL } from '@/hooks';
 
 export function ProxyAccessCard({ proxyId }: { proxyId: number }) {

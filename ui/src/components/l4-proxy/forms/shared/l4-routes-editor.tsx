@@ -1,7 +1,8 @@
-import { Button, FormField, FormItem, FormMessage } from '@e412/rnui-react';
 import { Plus } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 
+import { Button } from '@/components/ui/button';
+import { FormField, FormItem, FormMessage } from '@/components/ui/form';
 import type { L4ProxyFormValues } from '@/lib/form-validation';
 
 import { createDefaultRoute } from './l4-proxy-form-mappers';

@@ -1,9 +1,9 @@
-import { cn } from '@e412/rnui-react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { Activity, FileQuestion, KeyRound, Palette, ScrollText, Server, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { usePermissions } from '@/hooks/use-permissions';
+import { cn } from '@/lib/utils';
 
 interface SettingsNavItem {
   to: string;
@@ -62,6 +62,13 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     description: 'Service health & version',
     icon: <Server className="size-4" />,
   },
+  {
+    to: '/caddy-config',
+    label: 'Generated config',
+    description: '',
+    icon: null,
+    requiresPermission: 'canReadCaddyConfig',
+  },
 ];
 
 export function SettingsNav() {
@@ -74,7 +81,7 @@ export function SettingsNav() {
   });
 
   return (
-    <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-56 md:flex-col md:overflow-visible">
+    <nav className="flex shrink-0 gap-1 overflow-x-auto md:w-[200px] md:flex-col md:overflow-visible">
       {visibleItems.map((item) => {
         const isActive =
           location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
@@ -83,18 +90,12 @@ export function SettingsNav() {
             key={item.to}
             to={item.to}
             className={cn(
-              'flex items-start gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors md:whitespace-normal',
+              'flex items-center gap-3 whitespace-nowrap rounded-md px-3 py-2.5 text-sm transition-colors md:whitespace-normal',
               'hover:bg-accent hover:text-accent-foreground',
               isActive ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground',
             )}
           >
-            <span className="mt-0.5">{item.icon}</span>
-            <span className="flex min-w-0 flex-col">
-              <span>{item.label}</span>
-              <span className="hidden text-xs text-muted-foreground md:block">
-                {item.description}
-              </span>
-            </span>
+            {item.label}
           </Link>
         );
       })}

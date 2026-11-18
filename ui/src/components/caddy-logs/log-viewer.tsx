@@ -1,7 +1,7 @@
-import { Alert, AlertDescription, Button } from '@e412/rnui-react';
-import { AlertCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { LogStreamError } from '@/hooks/use-caddy-logs';
 import type { CaddyLogLine, CaddyLogSource } from '@/types/caddy-logs';
 
 import { LogRow } from './log-row';
@@ -34,6 +34,7 @@ interface LogViewerProps {
   source: CaddyLogSource;
   lines: CaddyLogLine[];
   isStreaming: boolean;
+  paused: boolean;
   error: Error | null;
   onPause: () => void;
   onResume: () => void;
@@ -44,6 +45,7 @@ export function LogViewer({
   source,
   lines,
   isStreaming,
+  paused,
   error,
   onPause,
   onResume,
@@ -53,7 +55,7 @@ export function LogViewer({
   const [levelFilter, setLevelFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+
   // Track whether the user has scrolled away from the bottom
   const isAtBottomRef = useRef(true);
 
@@ -66,10 +68,15 @@ export function LogViewer({
 
   // Auto-scroll to bottom when new lines arrive, unless user scrolled up
   useEffect(() => {
-    if (isAtBottomRef.current && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (isAtBottomRef.current && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [lines]);
+
+  useEffect(() => {
+    setLevelFilter('all');
+    setStatusFilter('all');
+  }, [source]);
 
   const filteredLines = useMemo(() => {
     return lines.filter((line) => {
@@ -84,7 +91,7 @@ export function LogViewer({
     <div className="flex flex-col gap-3">
       <LogToolbar
         source={source}
-        isStreaming={isStreaming}
+        paused={paused}
         search={search}
         onSearchChange={setSearch}
         levelFilter={levelFilter}
@@ -96,22 +103,10 @@ export function LogViewer({
         onClear={onClear}
       />
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>Stream error: {error.message}</span>
-            <Button size="sm" variant="outline" onClick={onResume}>
-              Retry
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="relative h-[600px] overflow-y-auto break-all rounded border bg-muted/30 p-3 font-mono text-xs"
+        className="relative h-[calc(100dvh-280px)] min-h-72 overflow-y-auto break-all rounded-lg border bg-card p-4 font-mono text-xs"
       >
         {lines.length === 0 ? (
           <p className="text-muted-foreground">No log lines yet.</p>
@@ -120,7 +115,36 @@ export function LogViewer({
         ) : (
           filteredLines.map((line) => <LogRow key={line.id} line={line} />)
         )}
-        <div ref={bottomRef} />
+      </div>
+      <div
+        className="flex min-h-8 flex-wrap items-center gap-2 text-xs text-muted-foreground"
+        role="status"
+      >
+        <span
+          className={`size-1.5 rounded-full ${isStreaming ? 'bg-success' : error ? 'bg-warning' : 'bg-muted-foreground'}`}
+        />
+        <span>
+          {isStreaming
+            ? 'Live'
+            : error instanceof LogStreamError && [401, 403].includes(error.status)
+              ? error.message
+              : error
+                ? 'Reconnecting…'
+                : paused
+                  ? 'Paused'
+                  : 'Connecting…'}
+        </span>
+        <span className="ml-auto">{filteredLines.length.toLocaleString()} lines</span>
+        {error && !(error instanceof LogStreamError && [401, 403].includes(error.status)) && (
+          <Button variant="ghost" size="xs" onClick={onResume}>
+            Retry now
+          </Button>
+        )}
+        {error instanceof LogStreamError && error.status === 401 && (
+          <Button variant="ghost" size="xs" render={<a href="/login" />}>
+            Sign in
+          </Button>
+        )}
       </div>
     </div>
   );

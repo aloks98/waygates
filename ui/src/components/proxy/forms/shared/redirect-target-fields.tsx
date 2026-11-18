@@ -1,19 +1,15 @@
+import { useFormContext } from 'react-hook-form';
+
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@e412/rnui-react';
-import { useFormContext } from 'react-hook-form';
-
+} from '@/components/ui/select';
 import type { RedirectFormValues } from '@/lib/form-validation';
 
 // single source of truth (string values to match value={String(field.value)})
@@ -36,9 +32,9 @@ export function RedirectTargetFields() {
           <FormItem>
             <FormLabel>Target URL</FormLabel>
             <FormControl>
-              <Input placeholder="https://new.example.com" {...field} />
+              <Input className="font-mono" placeholder="https://new.example.com" {...field} />
             </FormControl>
-            <FormDescription>The URL to redirect visitors to</FormDescription>
+
             <FormMessage />
           </FormItem>
         )}
@@ -56,19 +52,21 @@ export function RedirectTargetFields() {
               onValueChange={(v) => field.onChange(Number(v))}
             >
               <FormControl>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
               </FormControl>
               <SelectContent>
-                {REDIRECT_STATUSES.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {REDIRECT_STATUSES.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
-            <FormDescription>301/308 are cached by browsers, 302/307 are temporary</FormDescription>
+
             <FormMessage />
           </FormItem>
         )}

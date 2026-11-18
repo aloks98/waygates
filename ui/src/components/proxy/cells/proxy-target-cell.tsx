@@ -1,14 +1,12 @@
-import { Badge, Tooltip, TooltipContent, TooltipTrigger } from '@e412/rnui-react';
 import { Server } from 'lucide-react';
 
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatUpstream } from '@/lib/upstream-url';
 import type { ProxyConfig } from '@/types/proxy';
 
 interface ProxyTargetCellProps {
   proxy: ProxyConfig;
-}
-
-function formatUpstream(upstream: { scheme: string; host: string; port: number }): string {
-  return `${upstream.scheme}://${upstream.host}:${upstream.port}`;
 }
 
 export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
@@ -16,11 +14,7 @@ export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
     const count = proxy.upstreams.length;
 
     if (count === 1) {
-      return (
-        <Badge variant="secondary" className="font-mono text-xs">
-          {formatUpstream(proxy.upstreams[0])}
-        </Badge>
-      );
+      return <span className="font-mono text-xs">{formatUpstream(proxy.upstreams[0])}</span>;
     }
 
     return (
@@ -48,18 +42,14 @@ export function ProxyTargetCell({ proxy }: ProxyTargetCellProps) {
 
   if (proxy.type === 'redirect' && proxy.redirect) {
     return (
-      <Badge variant="secondary" className="font-mono text-xs max-w-[250px] truncate">
+      <span className="max-w-64 truncate font-mono text-xs" title={proxy.redirect.target}>
         {proxy.redirect.target}
-      </Badge>
+      </span>
     );
   }
 
   if (proxy.type === 'static' && proxy.static) {
-    return (
-      <Badge variant="secondary" className="font-mono text-xs">
-        {proxy.static.root_path}
-      </Badge>
-    );
+    return <span className="font-mono text-xs">{proxy.static.root_path}</span>;
   }
 
   return <span className="text-muted-foreground">-</span>;

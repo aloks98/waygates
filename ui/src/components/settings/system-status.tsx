@@ -1,17 +1,21 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  StatusIndicator,
-} from '@e412/rnui-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { ReactNode } from 'react';
 
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAppStatus, useHealthStatus, useSyncStatus } from '@/hooks';
 import { formatUptime } from '@/lib/dashboard-format';
+
+function StatusIndicator({ state, label }: { state: string; label: string; size?: string }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span
+        className={`size-1.5 rounded-full ${state === 'active' ? 'bg-success' : state === 'fixing' ? 'bg-warning' : 'bg-destructive'}`}
+      />
+      {label}
+    </span>
+  );
+}
 
 function StatusRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -44,10 +48,6 @@ export function SystemStatus() {
     <Card>
       <CardHeader>
         <CardTitle>System Status</CardTitle>
-        <CardDescription>
-          Live health of the Waygates services. Configuration is applied automatically when you save
-          changes; use the sync indicator in the top bar to re-apply manually.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (

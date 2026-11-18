@@ -1,29 +1,24 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Skeleton,
-  Spinner,
-  Textarea,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, Lock, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { WaygatesBrand } from '@/components/layout/waygate-logo';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 import { useACLBranding, useUpdateACLBranding } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import { sanitizeCSS } from '@/lib/css-sanitizer';
@@ -51,7 +46,7 @@ type BrandingFormValues = z.infer<typeof brandingSchema>;
 
 const DEFAULT_BRANDING: BrandingFormValues = {
   logo_url: '',
-  primary_color: '#6E72F0',
+  primary_color: '#2563EB',
   background_color: '',
   title: 'Waygates',
   subtitle: 'Sign in to continue',
@@ -136,7 +131,7 @@ function ColorInput({
         </div>
       </div>
       {!isValidHex && inputValue.length > 0 && (
-        <p className="text-sm text-destructive">Please enter a valid hex color (e.g., #6E72F0)</p>
+        <p className="text-sm text-destructive">Please enter a valid hex color (e.g., #2563EB)</p>
       )}
     </div>
   );
@@ -200,75 +195,55 @@ function LoginPreview({
           />
         )}
 
-        {/* Centered card — same as the real page */}
-        <div className="flex items-center justify-center min-h-[480px] px-4 py-8">
-          <Card className="w-full max-w-xs shadow-lg">
-            <CardContent className="pt-6">
-              <div className="space-y-6">
-                {/* Header — matches ACLLoginContent */}
-                <div className="text-center space-y-2">
-                  {logoUrl && !imageError ? (
-                    <img
-                      src={logoUrl}
-                      alt="Logo preview"
-                      className="h-12 w-auto mx-auto object-contain"
-                      onError={() => setImageError(true)}
-                    />
-                  ) : logoUrl && imageError ? (
-                    <p className="text-xs text-muted-foreground">Failed to load image</p>
-                  ) : (
-                    <div className="h-12 w-12 mx-auto rounded bg-primary/10 flex items-center justify-center">
-                      <Lock className="size-6 text-primary" />
-                    </div>
-                  )}
-                  {title && <h1 className="text-xl font-semibold tracking-tight">{title}</h1>}
-                  {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-                </div>
-
-                {/* Host badge — matches HostBadge component */}
-                <div className="flex items-center justify-center gap-2 rounded border bg-muted/50 px-4 py-3">
-                  <Lock className="size-4 text-muted-foreground" />
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">Accessing</p>
-                    <p className="text-sm font-medium">internal.company.com</p>
-                  </div>
-                </div>
-
-                {/* Mock form — matches ACLLoginForm structure */}
-                <div className="space-y-4" aria-hidden="true">
-                  <div className="space-y-2">
-                    <span className="block text-sm font-medium">Username or Email</span>
-                    <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
-                      user@example.com
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="block text-sm font-medium">Password</span>
-                    <div className="flex h-9 w-full items-center rounded border border-input bg-transparent px-3 text-sm text-muted-foreground">
-                      ************
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="w-full h-9 rounded text-sm font-medium transition-opacity hover:opacity-90"
-                    style={{
-                      backgroundColor: validPrimary ? primaryColor : 'var(--primary)',
-                      color: validPrimary
-                        ? getContrastColor(primaryColor)
-                        : 'var(--primary-foreground)',
-                    }}
-                  >
-                    Sign in
-                  </button>
-                </div>
-
-                {/* Footer */}
-                {footerText && (
-                  <p className="text-center text-xs text-muted-foreground">{footerText}</p>
+        <div className="flex min-h-[480px] flex-col items-center justify-center gap-6 px-4 py-8">
+          {logoUrl && !imageError ? (
+            <img
+              src={logoUrl}
+              alt="Logo preview"
+              className="h-8 max-w-48 object-contain"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <WaygatesBrand />
+          )}
+          <Card className="w-full max-w-sm rounded-xl">
+            <CardContent className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <h3 className="text-xl font-semibold">
+                  {title && title !== 'Waygates' ? title : 'Sign in to continue'}
+                </h3>
+                {subtitle && subtitle !== 'Sign in to continue' && (
+                  <p className="text-sm text-muted-foreground">{subtitle}</p>
                 )}
               </div>
+              <div className="flex items-center gap-2 rounded-md bg-muted p-3">
+                <Lock className="size-4 text-muted-foreground" />
+                <span className="font-mono text-xs">internal.company.com</span>
+              </div>
+              <div className="flex flex-col gap-4" aria-hidden="true">
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium">Username or email</span>
+                  <Input tabIndex={-1} readOnly value="user@example.com" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium">Password</span>
+                  <Input tabIndex={-1} readOnly type="password" value="preview-password" />
+                </div>
+                <Button
+                  type="button"
+                  tabIndex={-1}
+                  style={
+                    validPrimary
+                      ? { backgroundColor: primaryColor, color: getContrastColor(primaryColor) }
+                      : undefined
+                  }
+                >
+                  Sign in
+                </Button>
+              </div>
+              {footerText && (
+                <p className="text-center text-xs text-muted-foreground">{footerText}</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -326,7 +301,6 @@ export function ACLBrandingSettings() {
       <Card>
         <CardHeader>
           <CardTitle>Login Branding</CardTitle>
-          <CardDescription>Customize the login page appearance.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-2">
@@ -349,9 +323,6 @@ export function ACLBrandingSettings() {
     <Card>
       <CardHeader>
         <CardTitle>Login Branding</CardTitle>
-        <CardDescription>
-          Customize the login page that users see when accessing protected resources.
-        </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -373,9 +344,7 @@ export function ACLBrandingSettings() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>
-                        URL to your logo image. Recommended size: 200x50px or similar aspect ratio.
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -429,7 +398,7 @@ export function ACLBrandingSettings() {
                       <FormControl>
                         <Input placeholder="Login Required" {...field} value={field.value ?? ''} />
                       </FormControl>
-                      <FormDescription>Main heading displayed on the login page.</FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -449,7 +418,7 @@ export function ACLBrandingSettings() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>Secondary text shown below the title.</FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -469,9 +438,7 @@ export function ACLBrandingSettings() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Text displayed at the bottom of the login page.
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -493,9 +460,7 @@ export function ACLBrandingSettings() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>
-                        Add custom CSS to further customize the login page appearance.
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -541,7 +506,7 @@ export function ACLBrandingSettings() {
               >
                 {isUpdating ? (
                   <>
-                    <Spinner variant="circle" />
+                    <Spinner />
                     Saving...
                   </>
                 ) : (

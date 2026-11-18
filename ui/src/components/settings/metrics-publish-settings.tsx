@@ -1,28 +1,22 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Skeleton,
-  Spinner,
-  Switch,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { TagsInput } from '@/components/ui/tags-input';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useMetricsPublishSettings } from '@/hooks/use-settings';
@@ -87,9 +81,9 @@ type MetricsPublishFormValues = z.infer<typeof metricsPublishSchema>;
 function settingsToFormValues(s: MetricsPublishSettings): MetricsPublishFormValues {
   return {
     enabled: s.enabled,
-    host: s.host,
+    host: s.host ?? '',
     path: s.path || '/metrics',
-    basic_auth_user: s.basic_auth_user,
+    basic_auth_user: s.basic_auth_user ?? '',
     basic_auth_password: '',
     has_basic_auth: s.has_basic_auth,
     allowed_cidrs: s.allowed_cidrs ?? [],
@@ -180,10 +174,6 @@ export function MetricsPublishSettings() {
     <Card>
       <CardHeader>
         <CardTitle>Metrics Publishing</CardTitle>
-        <CardDescription>
-          Expose a Prometheus-compatible metrics endpoint so external scrapers can collect traffic
-          statistics.
-        </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -193,12 +183,12 @@ export function MetricsPublishSettings() {
               control={form.control}
               name="enabled"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                <FormItem
+                  orientation="horizontal"
+                  className="flex items-center justify-between rounded-lg border p-4"
+                >
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Enable Metrics Publishing</FormLabel>
-                    <FormDescription>
-                      Allow external services to scrape Prometheus metrics from this instance.
-                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -222,9 +212,7 @@ export function MetricsPublishSettings() {
                     <FormControl>
                       <Input placeholder="metrics.example.com" disabled={!enabled} {...field} />
                     </FormControl>
-                    <FormDescription>
-                      The hostname under which the metrics endpoint is exposed.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -240,10 +228,7 @@ export function MetricsPublishSettings() {
                     <FormControl>
                       <Input placeholder="/metrics" disabled={!enabled} {...field} />
                     </FormControl>
-                    <FormDescription>
-                      URL path for the metrics endpoint. Defaults to{' '}
-                      <code className="font-mono">/metrics</code>.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -275,9 +260,7 @@ export function MetricsPublishSettings() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      HTTP basic auth username scrapers must use to authenticate.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -304,11 +287,7 @@ export function MetricsPublishSettings() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      {hasBasicAuth
-                        ? 'A password is already set. Leave blank to keep it unchanged.'
-                        : 'Password for HTTP basic authentication.'}
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -330,10 +309,7 @@ export function MetricsPublishSettings() {
                         delimiters={['Enter', ',']}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Restrict scraper access to these IP ranges. Leave empty to allow any source.
-                      Enter each CIDR and press Enter.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -358,7 +334,7 @@ export function MetricsPublishSettings() {
             >
               {isUpdating ? (
                 <>
-                  <Spinner variant="circle" />
+                  <Spinner />
                   Saving...
                 </>
               ) : (

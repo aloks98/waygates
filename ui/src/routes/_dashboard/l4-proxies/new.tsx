@@ -1,9 +1,10 @@
-import { Button, Skeleton } from '@e412/rnui-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { L4ProxyForm } from '@/components/l4-proxy';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
 import type { CreateL4ProxyRequest, L4Proxy } from '@/types/l4-proxy';
 
@@ -49,14 +50,14 @@ export function L4ProxyCreatePage() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1440px]">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
           <ArrowLeft className="size-4" />
           <span className="sr-only">Back</span>
         </Button>
-        <h1 className="text-2xl font-bold">Create L4 Proxy</h1>
+        <h1 className="text-[28px] font-semibold">Create TCP / UDP proxy</h1>
       </div>
 
       {/* While waiting for duplicate source to load, show skeleton */}

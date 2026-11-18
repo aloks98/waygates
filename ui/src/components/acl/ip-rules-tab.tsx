@@ -1,3 +1,11 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
+import { getRuleTypeLabel } from '@/components/acl/access-labels';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,52 +15,45 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardAction,
-  CardHeader,
-  CardTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardAction, CardHeader, CardTitle } from '@/components/ui/card';
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
-  Input,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Textarea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@e412/rnui-react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
-import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-
-import { getRuleTypeLabel } from '@/components/acl/access-labels';
+} from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAddIPRule, useDeleteIPRule, useIPRules, useUpdateIPRule } from '@/hooks';
 import { usePermissions } from '@/hooks/use-permissions';
 import type { ACLIPRule, IPRuleType } from '@/types/acl';
@@ -83,10 +84,10 @@ const RULE_TYPES = [
 
 function getRuleTypeBadgeVariant(
   type: IPRuleType,
-): 'primary' | 'secondary' | 'outline' | 'destructive' {
+): 'default' | 'secondary' | 'outline' | 'destructive' {
   switch (type) {
     case 'allow':
-      return 'primary';
+      return 'default';
     case 'deny':
       return 'destructive';
     case 'bypass':
@@ -195,9 +196,7 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                       <FormControl>
                         <Input placeholder="e.g., 192.168.1.0/24 or 10.0.0.1" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Single IP or CIDR notation (e.g., 192.168.1.0/24)
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -216,17 +215,16 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {RULE_TYPES.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {`${option.label} — ${option.description}`}
-                            </SelectItem>
-                          ))}
+                          <SelectGroup>
+                            {RULE_TYPES.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {`${option.label} — ${option.description}`}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <FormDescription>
-                        "Trusted" IPs skip all other authentication methods and are granted access
-                        directly.
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -250,7 +248,7 @@ function IPRuleFormModal({ open, onOpenChange, groupId, mode, initialData }: IPR
                           onBlur={field.onBlur}
                         />
                       </FormControl>
-                      <FormDescription>Lower numbers are evaluated first (0-1000)</FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}
@@ -316,9 +314,7 @@ export function IPRulesTab({ groupId }: IPRulesTabProps) {
             <Network className="size-5" />
             IP Rules
           </CardTitle>
-          <CardDescription>
-            Control access based on client IP addresses. Rules are evaluated in priority order.
-          </CardDescription>
+
           {canUpdateAccess && (
             <CardAction>
               <Button onClick={() => setCreateModalOpen(true)}>

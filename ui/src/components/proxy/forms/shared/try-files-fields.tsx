@@ -1,7 +1,9 @@
-import { Button, FormControl, FormField, FormItem, FormMessage, Input } from '@e412/rnui-react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useFieldArray, useFormContext } from 'react-hook-form';
 
+import { Button } from '@/components/ui/button';
+import { FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
 import type { StaticFormValues } from '@/lib/form-validation';
 
 export function TryFilesFields() {

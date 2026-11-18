@@ -1,6 +1,7 @@
-import { cn } from '@e412/rnui-react';
 import { Link } from '@tanstack/react-router';
 import { Globe, Network } from 'lucide-react';
+
+import { cn } from '@/lib/utils';
 
 const tabs = [
   { key: 'http', label: 'HTTP', to: '/proxies', icon: Globe },

@@ -86,3 +86,55 @@ describe('useCaddyLogs', () => {
     expect(result.current.isStreaming).toBe(false);
   });
 });
+
+it('Retry reconnects after failure even when the user never paused', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce({ ok: false, status: 502, body: null })
+    .mockImplementation((_url: string, init: RequestInit) =>
+      Promise.resolve(abortableStreamResponse(init.signal as AbortSignal)),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  const { result, unmount } = renderHook(() => useCaddyLogs('runtime'));
+  await waitFor(() => expect(result.current.error).not.toBeNull());
+  act(() => result.current.resume());
+  await waitFor(() => expect(result.current.isStreaming).toBe(true));
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(result.current.error).toBeNull();
+  unmount();
+});
+
+it('automatically reconnects and cancels pending retry on pause', async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 502, body: null });
+  vi.stubGlobal('fetch', fetcher);
+  const { result, unmount } = renderHook(() => useCaddyLogs('runtime'));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000);
+  });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  act(() => result.current.pause());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  unmount();
+  vi.useRealTimers();
+});
+
+it('does not repeatedly retry a forbidden stream', async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 403, body: null });
+  vi.stubGlobal('fetch', fetcher);
+  const { result, unmount } = renderHook(() => useCaddyLogs('runtime'));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(result.current.error?.message).toContain('access');
+  unmount();
+  vi.useRealTimers();
+});

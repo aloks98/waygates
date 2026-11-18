@@ -1,13 +1,7 @@
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  Switch,
-} from '@e412/rnui-react';
 import { useFormContext } from 'react-hook-form';
 
+import { FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { Switch } from '@/components/ui/switch';
 import type { RedirectFormValues } from '@/lib/form-validation';
 
 export function RedirectOptionsFields() {
@@ -17,30 +11,11 @@ export function RedirectOptionsFields() {
     <div className="space-y-4">
       <FormField
         control={form.control}
-        name="ssl_enabled"
-        render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between">
-            <div className="space-y-0.5">
-              <FormLabel>Enable HTTPS</FormLabel>
-              <FormDescription>
-                Automatically obtain and manage SSL/TLS certificates
-              </FormDescription>
-            </div>
-            <FormControl>
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            </FormControl>
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
         name="preserve_path"
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between">
+          <FormItem orientation="horizontal" className="flex flex-row items-center justify-between">
             <div className="space-y-0.5">
               <FormLabel>Preserve Path</FormLabel>
-              <FormDescription>Append the original path to the target URL</FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -53,12 +28,9 @@ export function RedirectOptionsFields() {
         control={form.control}
         name="preserve_query"
         render={({ field }) => (
-          <FormItem className="flex flex-row items-center justify-between">
+          <FormItem orientation="horizontal" className="flex flex-row items-center justify-between">
             <div className="space-y-0.5">
               <FormLabel>Preserve Query String</FormLabel>
-              <FormDescription>
-                Append the original query parameters to the target URL
-              </FormDescription>
             </div>
             <FormControl>
               <Switch checked={field.value} onCheckedChange={field.onChange} />

@@ -1,20 +1,13 @@
-import {
-  Button,
-  Calendar,
-  type Filter,
-  type FilterFieldsConfig,
-  Filters,
-  Input,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from '@e412/rnui-react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Download, Search } from 'lucide-react';
 import { useMemo } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { type Filter, type FilterFieldsConfig, Filters } from '@/components/ui/filters';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Parse a yyyy-MM-dd string as a LOCAL date (avoids the UTC off-by-one that
 // `new Date('2026-06-21')` causes in negative-offset timezones).
@@ -170,7 +163,6 @@ export function ActivityToolbar({
         filters={filters}
         fields={filterFields}
         onChange={onFiltersChange}
-        addButtonText="Add Filter"
         variant="default"
         size="default"
       />

@@ -239,6 +239,9 @@ const auditLogsRoute = createRoute({
 const caddyLogsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: '/caddy-logs',
+  validateSearch: (search: Record<string, unknown>) => ({
+    source: search.source === 'access' ? ('access' as const) : ('runtime' as const),
+  }),
   component: lazyRouteComponent(() => import('@/routes/_dashboard/caddy-logs'), 'CaddyLogsPage'),
 });
 
@@ -290,16 +293,9 @@ const auditRedirectRoute = createRoute({
   },
 });
 
-const themePreviewRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/theme-preview',
-  component: lazyRouteComponent(() => import('@/routes/theme-preview'), 'ThemePreviewPage'),
-});
-
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
-  themePreviewRoute,
   aclLoginRoute,
   aclForbiddenRoute,
   ssoCallbackRoute,

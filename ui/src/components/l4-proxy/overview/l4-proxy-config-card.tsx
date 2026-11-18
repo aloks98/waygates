@@ -1,91 +1,115 @@
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@e412/rnui-react';
-
+import { GeneratedConfig } from '@/components/proxy/generated-config';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DetailRow } from '@/components/ui/detail-row';
-import { L4_MATCHER_CONFIG, type L4LoadBalancingPolicy, type L4Proxy } from '@/types/l4-proxy';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { L4_MATCHER_CONFIG, type L4Proxy, type L4Upstream } from '@/types/l4-proxy';
 
-const LB_POLICY_LABELS: Record<L4LoadBalancingPolicy, string> = {
-  round_robin: 'Round Robin',
-  least_conn: 'Least Connections',
-  random: 'Random',
-  first: 'First Available',
-  ip_hash: 'Sticky (IP Hash)',
-};
-
+const endpoint = (upstream: L4Upstream) =>
+  `${upstream.host.includes(':') && !upstream.host.startsWith('[') ? `[${upstream.host}]` : upstream.host}:${upstream.port}`;
 export function L4ProxyConfigCard({ proxy }: { proxy: L4Proxy }) {
   const routes = proxy.routes ?? [];
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Configuration</CardTitle>
-      </CardHeader>
-      <CardContent className="divide-y">
-        <DetailRow label="Listen port">
-          <span className="font-mono text-xs">:{proxy.listen_port}</span>
-        </DetailRow>
-        <DetailRow label="Protocol">
-          <Badge variant="outline">{proxy.protocol.toUpperCase()}</Badge>
-        </DetailRow>
-        {routes.length > 0 && (
-          <DetailRow label="Routes">
-            <div className="flex flex-col gap-3">
-              {routes.map((route) => {
-                const matcherConfig = L4_MATCHER_CONFIG[route.matcher_type];
-                const tlsMode = route.tls_terminate
-                  ? 'Terminate'
-                  : route.tls_passthrough
-                    ? 'Passthrough'
-                    : null;
-
-                return (
-                  <div key={route.id} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        {matcherConfig?.shortLabel ?? route.matcher_type}
-                      </Badge>
-                      {tlsMode && (
-                        <Badge variant="outline" className="text-xs">
-                          TLS {tlsMode}
-                        </Badge>
-                      )}
-                    </div>
-                    {route.upstreams.length > 0 && (
-                      <div className="flex flex-col gap-0.5 pl-1">
-                        {route.upstreams.map((u) => (
-                          <span
-                            key={`${u.host}:${u.port}`}
-                            className="font-mono text-xs text-muted-foreground"
-                          >
-                            {u.host}:{u.port}
-                            {u.weight !== undefined && u.weight !== 1 && (
-                              <span className="ml-1 text-muted-foreground/60">
-                                (weight {u.weight})
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-1 text-xs text-muted-foreground">
-                      <span>
-                        Load balancing:{' '}
-                        {LB_POLICY_LABELS[route.load_balancing_policy] ??
-                          route.load_balancing_policy}
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <dl className="divide-y">
+            <DetailRow label="Protocol">{proxy.protocol.toUpperCase()}</DetailRow>
+            <DetailRow label="Listen port">
+              <span className="font-mono">:{proxy.listen_port}</span>
+            </DetailRow>
+            <DetailRow label="Destination">
+              <span className="font-mono">
+                {routes[0]?.upstreams[0] ? endpoint(routes[0].upstreams[0]) : '—'}
+              </span>
+            </DetailRow>
+            <DetailRow label="Routes">{routes.length}</DetailRow>
+            {proxy.description && <DetailRow label="Description">{proxy.description}</DetailRow>}
+          </dl>
+          <div>
+            <GeneratedConfig
+              request={{ ...proxy, routes }}
+              enabled
+              saved
+              trigger={<Button variant="outline">View generated config</Button>}
+            />
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="gap-0 overflow-hidden pb-0">
+        <CardHeader className="mb-5">
+          <CardTitle>Routes</CardTitle>
+        </CardHeader>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40">
+              <TableHead className="px-6">Priority</TableHead>
+              <TableHead>Matcher</TableHead>
+              <TableHead>Destinations</TableHead>
+              <TableHead>TLS</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {routes.map((route) => (
+              <TableRow key={route.id}>
+                <TableCell className="px-6 py-4">{route.priority}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <span>
+                      {L4_MATCHER_CONFIG[route.matcher_type]?.shortLabel ?? route.matcher_type}
+                    </span>
+                    {route.sni_hostnames?.length ||
+                    route.allowed_ip_ranges?.length ||
+                    route.regex_pattern ? (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {route.sni_hostnames?.join(', ') ||
+                          route.allowed_ip_ranges?.join(', ') ||
+                          route.regex_pattern}
                       </span>
-                      <span>Priority: {route.priority}</span>
-                    </div>
+                    ) : null}
                   </div>
-                );
-              })}
-            </div>
-          </DetailRow>
-        )}
-        {routes.length === 0 && (
-          <DetailRow label="Routes">
-            <span className="text-muted-foreground">No routes configured</span>
-          </DetailRow>
-        )}
-      </CardContent>
-    </Card>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    {route.upstreams.map((upstream) => (
+                      <span className="font-mono text-sm" key={endpoint(upstream)}>
+                        {endpoint(upstream)}
+                        {upstream.weight && upstream.weight !== 1
+                          ? ` · weight ${upstream.weight}`
+                          : ''}
+                      </span>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {route.tls_terminate
+                    ? 'Terminate'
+                    : route.tls_passthrough
+                      ? 'Passthrough'
+                      : 'Off'}
+                </TableCell>
+              </TableRow>
+            ))}
+            {!routes.length && (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                  No routes configured.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+    </>
   );
 }

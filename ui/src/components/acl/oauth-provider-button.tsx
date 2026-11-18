@@ -1,6 +1,6 @@
-import { Button } from '@e412/rnui-react';
 import type { ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
 import type { OAuthProvider } from '@/types/acl';
 
 // Provider icons as inline SVGs for better control

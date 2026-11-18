@@ -1,16 +1,15 @@
+import { Link } from '@tanstack/react-router';
+import { format } from 'date-fns';
+
+import { Badge } from '@/components/ui/badge';
 import {
-  Badge,
-  JsonViewer,
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-  Skeleton,
-} from '@e412/rnui-react';
-import { Link } from '@tanstack/react-router';
-import { format } from 'date-fns';
-
+} from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuditLogById } from '@/hooks';
 import { getActivityLink } from '@/lib/dashboard-format';
 
@@ -104,7 +103,9 @@ export function ActivityDetailSheet({ logId, open, onOpenChange }: ActivityDetai
             ) : log.details && Object.keys(log.details).length > 0 ? (
               <div>
                 <h3 className="mb-2 text-sm font-semibold">Details</h3>
-                <JsonViewer data={log.details} />
+                <pre className="overflow-auto rounded-md bg-muted p-4 font-mono text-xs">
+                  {JSON.stringify(log.details, null, 2)}
+                </pre>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No additional details.</p>

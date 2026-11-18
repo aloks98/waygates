@@ -1,17 +1,17 @@
+import { Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
-  Badge,
-  Button,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Textarea,
-} from '@e412/rnui-react';
-import { Upload } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
-
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useProxyImport } from '@/hooks/use-proxy-import';
 import type { ImportItemResult, ImportReport } from '@/lib/proxy-import';
 import { parseImportJson } from '@/lib/proxy-import';
@@ -91,6 +91,7 @@ export function ProxyImportDialog({ open, onOpenChange }: ProxyImportDialogProps
     }
     try {
       const report = await previewImport(result.items);
+      if (!report) throw new Error('Empty import preview');
       setPendingItems(result.items);
       setPreviewReport(report);
       setStage('preview');
@@ -113,6 +114,7 @@ export function ProxyImportDialog({ open, onOpenChange }: ProxyImportDialogProps
     if (!previewReport) return;
     try {
       const report = await applyImport(pendingItems);
+      if (!report) throw new Error('Empty import report');
       setApplyReport(report);
       setStage('report');
       const s = report.summary;

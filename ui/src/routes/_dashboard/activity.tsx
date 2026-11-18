@@ -1,4 +1,3 @@
-import type { Filter } from '@e412/rnui-react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import type { PaginationState } from '@tanstack/react-table';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +9,7 @@ import {
   ActivityToolbar,
   type ActivityView,
 } from '@/components/activity';
+import type { Filter } from '@/components/ui/filters';
 import { useAuditLogs, useExportAuditLogs } from '@/hooks';
 import type { AuditLogListParams } from '@/types/audit';
 
@@ -26,7 +26,7 @@ const operatorMap: Record<string, string> = {
 export function ActivityPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { view?: string };
-  const view: ActivityView = search.view === 'table' ? 'table' : 'timeline';
+  const view: ActivityView = search.view === 'timeline' ? 'timeline' : 'table';
 
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 20 });
   const [searchText, setSearchText] = useState('');
@@ -122,8 +122,8 @@ export function ActivityPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Activity</h1>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-[28px] font-semibold">Activity</h1>
 
       <ActivityToolbar
         search={searchText}

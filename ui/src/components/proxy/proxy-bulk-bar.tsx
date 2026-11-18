@@ -1,5 +1,6 @@
-import { Button } from '@e412/rnui-react';
 import { Ban, Check, Trash2, X } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
 
 interface ProxyBulkBarProps {
   count: number;
@@ -21,9 +22,9 @@ export function ProxyBulkBar({
   if (count === 0) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
       <span className="text-sm font-medium text-muted-foreground">{count} selected</span>
-      <div className="flex items-center gap-2 ml-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onEnable} disabled={running}>
           <Check className="size-4" />
           Enable

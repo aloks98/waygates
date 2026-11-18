@@ -1,3 +1,12 @@
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { ArrowLeft, Copy, Globe, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { getProxyTypeLabel } from '@/components/proxy';
+import { getProxyTypeIcon } from '@/components/proxy/cells';
+import { ProxyConfigCard } from '@/components/proxy/overview/proxy-config-card';
+import { ProxyConfigPreviewCard } from '@/components/proxy/overview/proxy-config-preview-card';
+import { ProxyConnectionCard } from '@/components/proxy/overview/proxy-connection-card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,25 +16,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
-  Button,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Skeleton,
-} from '@e412/rnui-react';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Copy, Globe, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-
-import { getProxyTypeLabel } from '@/components/proxy';
-import { getProxyTypeIcon } from '@/components/proxy/cells';
-import { ProxyAccessCard } from '@/components/proxy/overview/proxy-access-card';
-import { ProxyConfigCard } from '@/components/proxy/overview/proxy-config-card';
-import { ProxyConfigPreviewCard } from '@/components/proxy/overview/proxy-config-preview-card';
-import { ProxyDetailsCard, ProxyHttpsCard } from '@/components/proxy/overview/proxy-meta-cards';
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useProxies, useProxy } from '@/hooks/use-proxies';
 
@@ -47,8 +48,8 @@ export function ProxyOverviewPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl">
-        <div className="flex items-center gap-4">
+      <div className="flex max-w-[1440px] flex-col gap-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Skeleton className="size-8 rounded" />
           <Skeleton className="size-10 rounded-lg" />
           <div className="space-y-2">
@@ -79,20 +80,20 @@ export function ProxyOverviewPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="flex max-w-[1440px] flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               {getProxyTypeIcon(proxy.type)}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{proxy.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="break-words text-[28px] font-semibold">{proxy.name}</h1>
                 <Badge variant={proxy.is_active ? 'default' : 'secondary'}>
                   {proxy.is_active ? 'Active' : 'Inactive'}
                 </Badge>
@@ -104,7 +105,7 @@ export function ProxyOverviewPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canUpdateProxies && (
             <Button
               onClick={() =>
@@ -158,15 +159,40 @@ export function ProxyOverviewPage() {
         </div>
       </div>
 
-      <ProxyConfigCard proxy={proxy} />
-
-      <ProxyAccessCard proxyId={proxy.id} />
-
-      <ProxyConfigPreviewCard proxyId={proxy.id} />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ProxyHttpsCard proxy={proxy} />
-        <ProxyDetailsCard proxy={proxy} />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
+        <div className="flex min-w-0 flex-col gap-3">
+          <ProxyConfigCard proxy={proxy} />
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            <dl className="flex flex-wrap gap-x-4 gap-y-2">
+              <div className="flex flex-wrap gap-x-1">
+                <dt>Updated</dt>
+                <dd>
+                  <time dateTime={proxy.updated_at}>
+                    {new Date(proxy.updated_at).toLocaleString()}
+                  </time>
+                </dd>
+              </div>
+              <div className="flex flex-wrap gap-x-1">
+                <dt>Created</dt>
+                <dd>
+                  <time dateTime={proxy.created_at}>
+                    {new Date(proxy.created_at).toLocaleString()}
+                  </time>
+                </dd>
+              </div>
+            </dl>
+            <Link
+              to="/activity"
+              className={buttonVariants({ variant: 'link', size: 'xs', className: 'px-0' })}
+            >
+              View activity
+            </Link>
+          </div>
+        </div>
+        <aside className="flex min-w-0 flex-col gap-5">
+          <ProxyConnectionCard proxy={proxy} />
+          <ProxyConfigPreviewCard proxyId={proxy.id} />
+        </aside>
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -1,7 +1,7 @@
-import { Badge } from '@e412/rnui-react';
 import { ArrowRight, FolderOpen, Globe, Network, Radio } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import type { L4Protocol } from '@/types/l4-proxy';
 import type { ProxyType } from '@/types/proxy';
 

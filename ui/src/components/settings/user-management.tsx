@@ -1,51 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  DataGrid,
-  DataGridColumnHeader,
-  DataGridContainer,
-  DataGridPagination,
-  DataGridTable,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-  Spinner,
-  Switch,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   type ColumnDef,
@@ -59,6 +11,60 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DataGrid,
+  DataGridColumnHeader,
+  DataGridContainer,
+  DataGridPagination,
+  DataGridTable,
+} from '@/components/ui/data-grid';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectGroup,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { useRegistrationSetting, useUsers } from '@/hooks/use-users';
 import type { ManagedUser, Role } from '@/types/user';
 
@@ -256,11 +262,13 @@ function AddUserModal({ open, onOpenChange }: AddUserModalProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {ROLE_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          {ROLE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -301,7 +309,7 @@ function AddUserModal({ open, onOpenChange }: AddUserModalProps) {
                         </Button>
                       </div>
                     </FormControl>
-                    <FormDescription>Minimum 8 characters</FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -311,12 +319,12 @@ function AddUserModal({ open, onOpenChange }: AddUserModalProps) {
                 control={form.control}
                 name="must_change_password"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormItem
+                    orientation="horizontal"
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
                     <div className="space-y-0.5">
                       <FormLabel>Must change on first login</FormLabel>
-                      <FormDescription>
-                        Require the user to set a new password when they first log in.
-                      </FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -333,7 +341,7 @@ function AddUserModal({ open, onOpenChange }: AddUserModalProps) {
               <Button type="submit" disabled={isCreating}>
                 {isCreating ? (
                   <>
-                    <Spinner variant="circle" />
+                    <Spinner />
                     Creating...
                   </>
                 ) : (
@@ -454,11 +462,13 @@ function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {ROLE_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          {ROLE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -470,10 +480,12 @@ function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) {
                 control={form.control}
                 name="active"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormItem
+                    orientation="horizontal"
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
                     <div className="space-y-0.5">
                       <FormLabel>Active</FormLabel>
-                      <FormDescription>Inactive users cannot log in.</FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -490,7 +502,7 @@ function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) {
               <Button type="submit" disabled={isUpdating}>
                 {isUpdating ? (
                   <>
-                    <Spinner variant="circle" />
+                    <Spinner />
                     Saving...
                   </>
                 ) : (
@@ -590,7 +602,7 @@ function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordModalProp
                         </Button>
                       </div>
                     </FormControl>
-                    <FormDescription>Minimum 8 characters</FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -600,12 +612,12 @@ function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordModalProp
                 control={form.control}
                 name="must_change_password"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <FormItem
+                    orientation="horizontal"
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
                     <div className="space-y-0.5">
                       <FormLabel>Must change on next login</FormLabel>
-                      <FormDescription>
-                        Require the user to set a new password when they next log in.
-                      </FormDescription>
                     </div>
                     <FormControl>
                       <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -622,7 +634,7 @@ function ResetPasswordModal({ open, onOpenChange, user }: ResetPasswordModalProp
               <Button type="submit" disabled={isResettingPassword}>
                 {isResettingPassword ? (
                   <>
-                    <Spinner variant="circle" />
+                    <Spinner />
                     Resetting...
                   </>
                 ) : (
@@ -662,10 +674,6 @@ function OpenRegistrationCard() {
     <Card>
       <CardHeader>
         <CardTitle>Open Registration</CardTitle>
-        <CardDescription>
-          Allow anyone to create an account without an invitation. Disable this in production
-          environments to restrict access.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center justify-between rounded-lg border p-4">

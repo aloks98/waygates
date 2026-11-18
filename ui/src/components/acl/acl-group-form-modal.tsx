@@ -1,27 +1,3 @@
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Textarea,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { Info, Shield } from 'lucide-react';
@@ -30,6 +6,33 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 import { getModeLabel } from '@/components/acl/access-labels';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectGroup,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useCreateACLGroup, useUpdateACLGroup } from '@/hooks';
 import type { ACLGroup, CombinationMode } from '@/types/acl';
 
@@ -214,21 +217,21 @@ export function ACLGroupFormModal({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {combinationModeOptions.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{option.label}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {option.description}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                          <SelectGroup>
+                            {combinationModeOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium">{option.label}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {option.description}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
-                      <FormDescription>
-                        {combinationModeOptions.find((o) => o.value === field.value)?.description}
-                      </FormDescription>
+
                       <FormMessage />
                     </FormItem>
                   )}

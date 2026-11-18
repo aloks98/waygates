@@ -1,34 +1,31 @@
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Skeleton,
-  Spinner,
-  Switch,
-} from '@e412/rnui-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Copy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectGroup,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useSsoSettings } from '@/hooks/use-settings';
 import type { SsoConfig } from '@/hooks/use-settings';
@@ -214,10 +211,6 @@ export function SSOSettings() {
     <Card>
       <CardHeader>
         <CardTitle>Single Sign-On</CardTitle>
-        <CardDescription>
-          Configure OIDC-based single sign-on so administrators can log in through an external
-          identity provider.
-        </CardDescription>
       </CardHeader>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -227,12 +220,12 @@ export function SSOSettings() {
               control={form.control}
               name="enabled"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                <FormItem
+                  orientation="horizontal"
+                  className="flex items-center justify-between rounded-lg border p-4"
+                >
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Enable Single Sign-On</FormLabel>
-                    <FormDescription>
-                      Allow administrators to authenticate via an external OIDC identity provider.
-                    </FormDescription>
                   </div>
                   <FormControl>
                     <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -259,10 +252,7 @@ export function SSOSettings() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      The OIDC issuer URL of your identity provider (e.g. Keycloak realm URL,
-                      Authentik provider URL).
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -286,9 +276,7 @@ export function SSOSettings() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      The OAuth2 client ID registered with your identity provider.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -317,11 +305,7 @@ export function SSOSettings() {
                         {...field}
                       />
                     </FormControl>
-                    <FormDescription>
-                      {hasClientSecret
-                        ? 'A secret is already set. Leave blank to keep it unchanged.'
-                        : 'The OAuth2 client secret from your identity provider.'}
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -338,7 +322,7 @@ export function SSOSettings() {
                 >
                   {isTesting ? (
                     <>
-                      <Spinner variant="circle" />
+                      <Spinner />
                       Testing...
                     </>
                   ) : (
@@ -369,12 +353,12 @@ export function SSOSettings() {
                 control={form.control}
                 name="auto_provision"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                  <FormItem
+                    orientation="horizontal"
+                    className="flex items-center justify-between rounded-lg border p-4"
+                  >
                     <div className="space-y-0.5">
                       <FormLabel className="text-base">Auto-provision Users</FormLabel>
-                      <FormDescription>
-                        Automatically create accounts for new SSO users on first login.
-                      </FormDescription>
                     </div>
                     <FormControl>
                       <Switch
@@ -406,16 +390,16 @@ export function SSOSettings() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {ROLE_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          {ROLE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      Role assigned to auto-provisioned users on first login.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -431,9 +415,7 @@ export function SSOSettings() {
                     <FormControl>
                       <Input placeholder="Login with SSO" disabled={!enabled} {...field} />
                     </FormControl>
-                    <FormDescription>
-                      Text shown on the SSO login button on the login page.
-                    </FormDescription>
+
                     <FormMessage />
                   </FormItem>
                 )}
@@ -487,7 +469,7 @@ export function SSOSettings() {
             >
               {isUpdating ? (
                 <>
-                  <Spinner variant="circle" />
+                  <Spinner />
                   Saving...
                 </>
               ) : (

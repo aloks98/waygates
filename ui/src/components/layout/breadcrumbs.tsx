@@ -1,3 +1,6 @@
+import { Link, useLocation } from '@tanstack/react-router';
+import { Fragment } from 'react';
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -5,15 +8,15 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@e412/rnui-react';
-import { Link, useLocation } from '@tanstack/react-router';
-import { Fragment } from 'react';
+} from '@/components/ui/breadcrumb';
 
 const LABELS: Record<string, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Overview',
   proxies: 'Proxies',
   'tcp-udp': 'TCP/UDP',
-  new: 'New',
+  new: 'Create',
+  'caddy-logs': 'Logs',
+  'caddy-config': 'Generated config',
   access: 'Access',
   activity: 'Activity',
   settings: 'Settings',
@@ -43,6 +46,11 @@ export function Breadcrumbs() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
+        {crumbs.length === 0 && (
+          <BreadcrumbItem>
+            <BreadcrumbPage>Overview</BreadcrumbPage>
+          </BreadcrumbItem>
+        )}
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
           return (

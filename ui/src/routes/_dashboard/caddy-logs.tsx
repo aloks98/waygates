@@ -1,19 +1,27 @@
-import { Tabs, TabsList, TabsTrigger } from '@e412/rnui-react';
-import { useState } from 'react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 
 import { LogViewer } from '@/components/caddy-logs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCaddyLogs } from '@/hooks/use-caddy-logs';
 import type { CaddyLogSource } from '@/types/caddy-logs';
 
 export function CaddyLogsPage() {
-  const [source, setSource] = useState<CaddyLogSource>('runtime');
-  const { lines, isStreaming, error, pause, resume, clear } = useCaddyLogs(source);
+  const { source = 'runtime' } = useSearch({ strict: false }) as { source?: CaddyLogSource };
+  const navigate = useNavigate();
+  const { lines, isStreaming, error, paused, pause, resume, clear } = useCaddyLogs(source);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Caddy Logs</h1>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-[28px] font-semibold">
+        {source === 'access' ? 'Access logs' : 'Runtime logs'}
+      </h1>
 
-      <Tabs value={source} onValueChange={(v) => setSource(v as CaddyLogSource)}>
+      <Tabs
+        value={source}
+        onValueChange={(v) =>
+          navigate({ to: '/caddy-logs', search: { source: v as CaddyLogSource } })
+        }
+      >
         <TabsList variant="line">
           <TabsTrigger value="runtime">Runtime</TabsTrigger>
           <TabsTrigger value="access">Access</TabsTrigger>
@@ -24,6 +32,7 @@ export function CaddyLogsPage() {
         source={source}
         lines={lines}
         isStreaming={isStreaming}
+        paused={paused}
         error={error}
         onPause={pause}
         onResume={resume}

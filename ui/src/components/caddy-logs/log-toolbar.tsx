@@ -1,14 +1,15 @@
+import { Pause, Play, Search, Trash2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
-  Button,
-  Input,
   Select,
+  SelectGroup,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@e412/rnui-react';
-import { Pause, Play, Search, Trash2 } from 'lucide-react';
-
+} from '@/components/ui/select';
 import type { CaddyLogSource } from '@/types/caddy-logs';
 
 const RUNTIME_LEVELS = [
@@ -29,7 +30,7 @@ const ACCESS_STATUSES = [
 
 interface LogToolbarProps {
   source: CaddyLogSource;
-  isStreaming: boolean;
+  paused: boolean;
   search: string;
   onSearchChange: (v: string) => void;
   levelFilter: string;
@@ -43,7 +44,7 @@ interface LogToolbarProps {
 
 export function LogToolbar({
   source,
-  isStreaming,
+  paused,
   search,
   onSearchChange,
   levelFilter,
@@ -68,37 +69,49 @@ export function LogToolbar({
       </div>
 
       {source === 'runtime' && (
-        <Select items={RUNTIME_LEVELS} value={levelFilter} onValueChange={onLevelFilterChange}>
+        <Select
+          items={RUNTIME_LEVELS}
+          value={levelFilter}
+          onValueChange={(v) => v && onLevelFilterChange(v)}
+        >
           <SelectTrigger className="w-[120px]">
             <SelectValue placeholder="Level" />
           </SelectTrigger>
           <SelectContent>
-            {RUNTIME_LEVELS.map((level) => (
-              <SelectItem key={level.value} value={level.value}>
-                {level.label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {RUNTIME_LEVELS.map((level) => (
+                <SelectItem key={level.value} value={level.value}>
+                  {level.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       )}
 
       {source === 'access' && (
-        <Select items={ACCESS_STATUSES} value={statusFilter} onValueChange={onStatusFilterChange}>
+        <Select
+          items={ACCESS_STATUSES}
+          value={statusFilter}
+          onValueChange={(v) => v && onStatusFilterChange(v)}
+        >
           <SelectTrigger className="w-[130px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            {ACCESS_STATUSES.map((status) => (
-              <SelectItem key={status.value} value={status.value}>
-                {status.label}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {ACCESS_STATUSES.map((status) => (
+                <SelectItem key={status.value} value={status.value}>
+                  {status.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
       )}
 
       <div className="ml-auto flex items-center gap-2">
-        {isStreaming ? (
+        {!paused ? (
           <Button variant="outline" size="sm" onClick={onPause}>
             <Pause className="size-4" />
             Pause

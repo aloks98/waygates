@@ -1,3 +1,8 @@
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { ArrowLeft, Network, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { L4ProxyForm } from '@/components/l4-proxy';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,15 +12,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
-  Button,
-  Skeleton,
-} from '@e412/rnui-react';
-import { useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Network, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-
-import { L4ProxyForm } from '@/components/l4-proxy';
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
 import type { CreateL4ProxyRequest } from '@/types/l4-proxy';
 
@@ -57,10 +57,10 @@ export function L4ProxyEditPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl">
-        <div className="flex items-center gap-4">
+      <div className="space-y-6 max-w-[1440px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Skeleton className="size-8 rounded" />
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
             <div className="space-y-2">
               <Skeleton className="h-7 w-48" />
@@ -95,10 +95,10 @@ export function L4ProxyEditPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1440px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
@@ -112,13 +112,13 @@ export function L4ProxyEditPage() {
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               {getProtocolIcon(proxy.protocol)}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{proxy.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="break-words text-[28px] font-semibold">{proxy.name}</h1>
                 <Badge variant="outline">{getProtocolLabel(proxy.protocol)}</Badge>
                 <Badge variant={proxy.is_active ? 'default' : 'secondary'}>
                   {proxy.is_active ? 'Active' : 'Inactive'}

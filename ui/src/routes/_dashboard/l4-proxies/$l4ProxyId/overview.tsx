@@ -1,3 +1,8 @@
+import { useNavigate, useParams } from '@tanstack/react-router';
+import { ArrowLeft, Copy, MoreHorizontal, Network, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { L4ProxyConfigCard } from '@/components/l4-proxy/overview/l4-proxy-config-card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -7,25 +12,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+} from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Skeleton,
-} from '@e412/rnui-react';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { ArrowLeft, Copy, MoreHorizontal, Network, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-
-import { L4ProxyConfigCard } from '@/components/l4-proxy/overview/l4-proxy-config-card';
-import { DetailRow } from '@/components/ui/detail-row';
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useL4Proxies, useL4Proxy } from '@/hooks/use-l4-proxies';
 import { usePermissions } from '@/hooks/use-permissions';
 
@@ -35,8 +32,8 @@ export function L4ProxyOverviewPage() {
   const navigate = useNavigate();
 
   const { proxy, isLoading } = useL4Proxy(l4ProxyId);
-  const { remove, isDeleting } = useL4Proxies();
-  const { canCreateProxies, canDeleteProxies, canUpdateProxies } = usePermissions();
+  const { remove, isDeleting, toggleActive, isToggling } = useL4Proxies();
+  const { canCreateL4Proxies, canDeleteL4Proxies, canUpdateL4Proxies } = usePermissions();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -48,8 +45,8 @@ export function L4ProxyOverviewPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl">
-        <div className="flex items-center gap-4">
+      <div className="space-y-6 max-w-[1440px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Skeleton className="size-8 rounded" />
           <Skeleton className="size-10 rounded-lg" />
           <div className="space-y-2">
@@ -80,21 +77,21 @@ export function L4ProxyOverviewPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-[1440px]">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/proxies/tcp-udp' })}>
             <ArrowLeft className="size-4" />
             <span className="sr-only">Back</span>
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex items-center justify-center size-10 rounded bg-primary/10">
               <Network className="size-5 text-primary" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{proxy.name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="break-words text-[28px] font-semibold">{proxy.name}</h1>
                 <Badge variant="outline">{proxy.protocol.toUpperCase()}</Badge>
                 <Badge variant={proxy.is_active ? 'default' : 'secondary'}>
                   {proxy.is_active ? 'Active' : 'Inactive'}
@@ -104,8 +101,8 @@ export function L4ProxyOverviewPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {canUpdateProxies && (
+        <div className="flex flex-wrap items-center gap-2">
+          {canUpdateL4Proxies && (
             <Button
               onClick={() =>
                 navigate({
@@ -118,7 +115,12 @@ export function L4ProxyOverviewPage() {
               Edit
             </Button>
           )}
-          {(canCreateProxies || canDeleteProxies) && (
+          {canUpdateL4Proxies && (
+            <Button variant="outline" disabled={isToggling} onClick={() => toggleActive(proxy.id)}>
+              {proxy.is_active ? 'Disable' : 'Enable'}
+            </Button>
+          )}
+          {(canCreateL4Proxies || canDeleteL4Proxies) && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={<Button variant="ghost" size="icon" className="size-9" />}
@@ -127,7 +129,7 @@ export function L4ProxyOverviewPage() {
                 <span className="sr-only">More actions</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                {canCreateProxies && (
+                {canCreateL4Proxies && (
                   <DropdownMenuItem
                     onClick={() =>
                       navigate({
@@ -140,9 +142,9 @@ export function L4ProxyOverviewPage() {
                     Duplicate
                   </DropdownMenuItem>
                 )}
-                {canDeleteProxies && (
+                {canDeleteL4Proxies && (
                   <>
-                    {canCreateProxies && <DropdownMenuSeparator />}
+                    {canCreateL4Proxies && <DropdownMenuSeparator />}
                     <DropdownMenuItem
                       onClick={() => setDeleteDialogOpen(true)}
                       className="text-destructive focus:text-destructive"
@@ -160,27 +162,6 @@ export function L4ProxyOverviewPage() {
 
       {/* Config card */}
       <L4ProxyConfigCard proxy={proxy} />
-
-      {/* Details card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="divide-y">
-          <DetailRow label="Description">{proxy.description || '—'}</DetailRow>
-          <DetailRow label="Generated config">
-            <Link
-              to="/caddy-config"
-              className="text-sm text-primary underline-offset-4 hover:underline"
-            >
-              View full config
-            </Link>
-          </DetailRow>
-          <DetailRow label="Created">{new Date(proxy.created_at).toLocaleString()}</DetailRow>
-          <DetailRow label="Updated">{new Date(proxy.updated_at).toLocaleString()}</DetailRow>
-        </CardContent>
-      </Card>
-
       {/* Delete Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
