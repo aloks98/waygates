@@ -1,0 +1,13 @@
+{
+  "schema": 2,
+  "workflow": "nexus-release.yaml",
+  "helperRevision": "3030ac062210acebd35e0b9c2c85d1c0c0237207",
+  "artifacts": [
+    {
+      "id": "image",
+      "kind": "oci",
+      "repository": "registry.nexus.e412.in/aloks98/waygates",
+      "platforms": ["linux/amd64", "linux/arm64"]
+    }
+  ]
+}

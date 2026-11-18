@@ -1,0 +1,96 @@
+name: Nexus release
+run-name: Release ${{ inputs.version }} · ${{ inputs.attempt_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      release_id: { required: true }
+      attempt_id: { required: true }
+      version: { required: true }
+      source_sha: { required: true }
+      plan_hash: { required: true }
+concurrency:
+  group: nexus-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: large
+    timeout-minutes: 90
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: "true"
+      WAYGATES_BUILDX_CACHE: /tmp/.buildx-cache
+    steps:
+      - name: Check out the immutable reviewed source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enable pnpm and locate its store
+        id: pnpm-store
+        working-directory: ui
+        run: |
+          corepack enable
+          echo "path=$(pnpm store path --silent)" >> "$FORGEJO_OUTPUT"
+      - name: Cache pnpm downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - name: Cache container build layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-waygates-release-buildx-${{ inputs.source_sha }}
+          restore-keys: |
+            ${{ runner.os }}-waygates-release-buildx-
+            ${{ runner.os }}-buildx-
+      - name: Download the pinned release helper
+        env:
+          HELPER_REVISION: 3030ac062210acebd35e0b9c2c85d1c0c0237207
+          HELPER_TAG: helper-v0.2.0
+          HELPER_SHA256: 33964000280e720dcdc1ebb07ef9f52c1d698ec55f97384ef381581c1fdaf876
+        run: |
+          set -euo pipefail
+          [[ "$(uname -s)/$(uname -m)" == Linux/x86_64 ]] || { echo 'The pinned helper requires Linux/amd64.' >&2; exit 1; }
+          revision=$(jq -er '.helperRevision | strings' nexus-release.json)
+          [[ "$revision" =~ ^[0-9a-f]{40}$ && "$revision" == "$HELPER_REVISION" ]] || { echo 'Helper revision differs from the workflow pin.' >&2; exit 1; }
+          [[ "$HELPER_TAG" =~ ^helper-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Invalid helper release tag pin.' >&2; exit 1; }
+          [[ "$HELPER_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo 'Invalid helper checksum pin.' >&2; exit 1; }
+          download=$(mktemp "$RUNNER_TEMP/nexus-release-helper.XXXXXX")
+          trap 'rm -f "$download"' EXIT
+          url="https://git.nexus.e412.in/aloks98/releaser/releases/download/$HELPER_TAG/nexus-release-helper-linux-amd64"
+          status=$(curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 3 --connect-timeout 15 --max-time 120 --output "$download" --write-out '%{http_code}' "$url")
+          test "$status" = 200 || { echo 'Helper download did not return HTTP 200.' >&2; exit 1; }
+          printf '%s  %s\n' "$HELPER_SHA256" "$download" | sha256sum --check --status || { echo 'Downloaded helper checksum mismatch.' >&2; exit 1; }
+          chmod 700 "$download"
+          mv "$download" "$RUNNER_TEMP/nexus-release-helper"
+          printf 'Verified release helper %s (sha256:%s)\n' "$revision" "$HELPER_SHA256"
+      - name: Claim, check, build, stage, and publish
+        env:
+          NEXUS_URL: https://releaser.nexus.e412.in
+          NEXUS_RELEASE_ID: ${{ inputs.release_id }}
+          NEXUS_ATTEMPT_ID: ${{ inputs.attempt_id }}
+          NEXUS_VERSION: ${{ inputs.version }}
+          NEXUS_SOURCE_SHA: ${{ inputs.source_sha }}
+          NEXUS_PLAN_HASH: ${{ inputs.plan_hash }}
+          FORGEJO_TOKEN: ${{ forgejo.token }}
+          PUBLISH_USERNAME: ${{ secrets.NEXUS_PUBLISH_USERNAME }}
+          PUBLISH_TOKEN: ${{ secrets.NEXUS_PUBLISH_TOKEN }}
+        run: |
+          set -euo pipefail
+          : "${PUBLISH_USERNAME:?Configure NEXUS_PUBLISH_USERNAME}"
+          : "${PUBLISH_TOKEN:?Configure NEXUS_PUBLISH_TOKEN}"
+          printf '%s' "$PUBLISH_TOKEN" | docker login registry.nexus.e412.in --username "$PUBLISH_USERNAME" --password-stdin
+          "$RUNNER_TEMP/nexus-release-helper"
+      - name: Log out of the registry
+        if: always()
+        run: docker logout registry.nexus.e412.in

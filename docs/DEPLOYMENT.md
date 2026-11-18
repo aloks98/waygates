@@ -18,16 +18,19 @@ This guide covers deploying Waygates in various environments.
 
 ## Quick Start
 
-```bash
-# Pull the image
-docker pull ghcr.io/aloks98/waygates:latest
+Choose a published tag from [Releases](https://git.nexus.e412.in/aloks98/waygates/releases)
+and create `docker-compose.yml` using the example in the next section.
 
-# Run with Docker Compose
-curl -O https://raw.githubusercontent.com/aloks98/waygates/main/docker-compose.yml
-curl -O https://raw.githubusercontent.com/aloks98/waygates/main/.env.example
+```bash
+# Replace vX.Y.Z with the exact published version you want
+export WAYGATES_VERSION=vX.Y.Z
+docker pull "registry.nexus.e412.in/aloks98/waygates:$WAYGATES_VERSION"
+
+# Configure the environment
+curl -O https://git.nexus.e412.in/aloks98/waygates/raw/branch/master/.env.example
 cp .env.example .env
 
-# Edit .env with your settings
+# Edit .env with your settings and persist WAYGATES_VERSION=vX.Y.Z
 nano .env
 
 # Start
@@ -61,7 +64,7 @@ services:
       retries: 5
 
   waygates:
-    image: ghcr.io/aloks98/waygates:latest
+    image: registry.nexus.e412.in/aloks98/waygates:${WAYGATES_VERSION:?Set WAYGATES_VERSION to a published vX.Y.Z tag}
     container_name: waygates
     restart: unless-stopped
     ports:
@@ -96,6 +99,7 @@ nano .env  # Edit with your settings
 ```
 
 Required variables:
+- `WAYGATES_VERSION` - Exact published image tag, including the `v` prefix
 - `DB_PASSWORD` - Database password
 - `JWT_SECRET` - Min 32 characters for JWT signing
 
@@ -385,7 +389,7 @@ For HA deployments:
 
 ```yaml
 waygates:
-  image: ghcr.io/aloks98/waygates:latest
+  image: registry.nexus.e412.in/aloks98/waygates:${WAYGATES_VERSION:?Set WAYGATES_VERSION to a published vX.Y.Z tag}
   deploy:
     resources:
       limits:
@@ -402,8 +406,12 @@ waygates:
 
 ### Using Docker Compose
 
+Set `WAYGATES_VERSION` in `.env` to the exact published tag you want before pulling.
+Nexus Releaser publishes `vX.Y.Z` tags, not `latest` or moving minor tags. Existing
+GHCR images are historical releases and are no longer updated by this repository.
+
 ```bash
-# Pull latest image
+# Pull the selected release
 docker compose pull
 
 # Restart with new image
@@ -417,7 +425,7 @@ docker compose logs -f waygates
 
 ```yaml
 waygates:
-  image: ghcr.io/aloks98/waygates:1.2.3
+  image: registry.nexus.e412.in/aloks98/waygates:v1.2.3 # Example: use a published tag
 ```
 
 ### Database Migrations

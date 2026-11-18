@@ -49,8 +49,12 @@ For a complete deployment walkthrough (TLS, DNS providers, reverse-proxy-behind-
 
 ### Quickstart with prebuilt image
 
+Choose a published version from [Releases](https://git.nexus.e412.in/aloks98/waygates/releases).
+Nexus publishes exact `vX.Y.Z` tags; it does not publish `latest` or moving minor tags.
+
 ```bash
-docker pull ghcr.io/aloks98/waygates:latest
+export WAYGATES_VERSION=vX.Y.Z # Replace with the published version you want
+docker pull "registry.nexus.e412.in/aloks98/waygates:$WAYGATES_VERSION"
 # then run with docker compose — see docs/DEPLOYMENT.md
 ```
 
@@ -202,6 +206,7 @@ The UI dev server proxies API requests to the backend. Hot reload works for both
 
 - **[API Reference](docs/API.md)** — Full REST API documentation
 - **[Deployment Guide](docs/DEPLOYMENT.md)** — Deployment scenarios, configuration, and TLS setup
+- **[Release Guide](docs/RELEASING.md)** — Nexus Releaser setup, publishing, and recovery
 - **[Contributor Guide](.claude/rules/development-guidelines.md)** — Architecture, conventions, and development workflow
 
 ## License

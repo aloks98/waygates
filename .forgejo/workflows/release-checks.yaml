@@ -1,0 +1,24 @@
+name: Release contract checks
+on:
+  pull_request:
+    paths:
+      - nexus-release.json
+      - .forgejo/workflows/nexus-release.yaml
+      - .forgejo/workflows/release-checks.yaml
+      - scripts/nexus-release*
+  push:
+    branches: [master]
+    paths:
+      - nexus-release.json
+      - .forgejo/workflows/nexus-release.yaml
+      - .forgejo/workflows/release-checks.yaml
+      - scripts/nexus-release*
+jobs:
+  check:
+    runs-on: medium
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate release contract without publishing
+        run: |
+          bash -n scripts/nexus-release-build.sh
+          node --test scripts/nexus-release.test.mjs
