@@ -68,7 +68,10 @@ tag, or republish a candidate under the same release ID.
 ## Validate release-file changes
 
 Run `bash -n scripts/nexus-release-build.sh` and
-`node --test scripts/nexus-release.test.mjs`. The contract tests replace build
-tools with recorders and never publish an image. The release-file CI check runs
-them on pull requests. A successful contract check does not replace the first
-owner-approved end-to-end release.
+`node --test scripts/nexus-release.test.mjs`. Most contract tests replace build
+tools with recorders. With Docker available, run
+`WAYGATES_TEST_DOCKER=1 node --test scripts/nexus-release.test.mjs` to also verify
+the real context/builder setup using isolated client metadata. This checks the
+runner's Docker endpoint, including DinD TLS, without building or publishing
+images. CI enables this check on pull requests. A successful contract check does
+not replace the first owner-approved end-to-end release.

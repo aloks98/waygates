@@ -111,6 +111,11 @@ for (const warmCache of [false, true]) {
       (c) => c.command === 'docker' && c.args[0] === 'buildx' && c.args[1] === 'build',
     );
     assert.equal(builds.length, 2);
+    const builder = commands.find((c) => c.args[0] === 'buildx' && c.args[1] === 'create');
+    const builderName = builder.args[builder.args.indexOf('--name') + 1];
+    assert(
+      builds.every((build) => build.args[build.args.indexOf('--builder') + 1] === builderName),
+    );
     assert(builds[0].args.includes('--load'));
     assert.equal(builds[0].args[builds[0].args.indexOf('--tag') + 1], 'waygates-test:latest');
     const publish = builds[1];
@@ -152,7 +157,46 @@ test('preserves DinD TLS when creating the Buildx context', (t) => {
   );
   const builder = result.commands.find((c) => c.args[0] === 'buildx' && c.args[1] === 'create');
   assert.equal(builder.args.at(-1), 'waygates-release');
+  assert.notEqual(builder.args[builder.args.indexOf('--name') + 1], create.args[2]);
 });
+
+test(
+  'Docker accepts the release builder alongside its context',
+  { skip: process.env.WAYGATES_TEST_DOCKER !== '1' },
+  (t) => {
+    const result = runBuild(t, { tls: true });
+    assert.equal(result.status, 0, result.stderr);
+    const context = result.commands.find((c) => c.args[0] === 'context' && c.args[1] === 'create');
+    const builder = result.commands.find((c) => c.args[0] === 'buildx' && c.args[1] === 'create');
+    const builderName = builder.args[builder.args.indexOf('--name') + 1];
+    const configDir = mkdtempSync(join(tmpdir(), 'waygates-buildx-test-'));
+    t.after(() => rmSync(configDir, { recursive: true, force: true }));
+    // Isolate Docker/Buildx metadata and use the runner's daemon/TLS endpoint.
+    // No bootstrap, image build, or publication: create only inspects the daemon.
+    const env = { ...process.env, DOCKER_CONFIG: configDir };
+    delete env.BUILDX_CONFIG;
+    delete env.BUILDX_BUILDER;
+    delete env.DOCKER_CONTEXT;
+    const docker = (...args) => spawnSync('docker', args, { env, encoding: 'utf8' });
+    const certPath = process.env.DOCKER_CERT_PATH;
+    let endpoint = `host=${process.env.DOCKER_HOST || 'unix:///var/run/docker.sock'}`;
+    if (certPath) {
+      endpoint += `,ca=${certPath}/ca.pem,cert=${certPath}/cert.pem,key=${certPath}/key.pem`;
+    }
+    const createdContext = docker('context', 'create', context.args[2], '--docker', endpoint);
+    assert.equal(createdContext.status, 0, createdContext.stderr);
+    const createdBuilder = docker(
+      'buildx',
+      'create',
+      '--name',
+      builderName,
+      '--driver',
+      'docker-container',
+      builder.args.at(-1),
+    );
+    assert.equal(createdBuilder.status, 0, createdBuilder.stderr);
+  },
+);
 
 for (const fail of [
   'pnpm check',

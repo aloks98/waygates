@@ -30,7 +30,9 @@ platforms=$(jq -er '.config.artifacts[] | select(.id == "image" and .kind == "oc
 docker run --privileged --rm tonistiigi/binfmt --install arm64
 
 # Preserve the runner's DinD TLS connection when creating the Buildx builder.
+# Context names already identify implicit builders, so use a distinct custom name.
 docker_context=default
+builder_name=waygates-release-builder
 if [[ -n "${DOCKER_CERT_PATH:-}" ]]; then
   docker context inspect waygates-release >/dev/null 2>&1 || docker context create waygates-release \
     --docker "host=${DOCKER_HOST:?},ca=$DOCKER_CERT_PATH/ca.pem,cert=$DOCKER_CERT_PATH/cert.pem,key=$DOCKER_CERT_PATH/key.pem"
@@ -42,9 +44,9 @@ cat > "$buildkit_config" <<'BUILDKIT'
 [registry."docker.io"]
   mirrors = ["docker-cache.e412.in"]
 BUILDKIT
-docker buildx create --name waygates-release --driver docker-container --use \
+docker buildx create --name "$builder_name" --driver docker-container --use \
   --buildkitd-config "$buildkit_config" "$docker_context"
-docker buildx inspect --bootstrap
+docker buildx inspect "$builder_name" --bootstrap
 
 cache_dir=${WAYGATES_BUILDX_CACHE:-/tmp/.buildx-cache}
 cache_from=()
@@ -52,6 +54,7 @@ if [[ -f "$cache_dir/index.json" ]]; then
   cache_from=(--cache-from "type=local,src=$cache_dir")
 fi
 build_args=(
+  --builder "$builder_name"
   --file Dockerfile
   --build-arg "VERSION=$NEXUS_VERSION"
   --label "org.opencontainers.image.source=https://git.nexus.e412.in/aloks98/waygates"
