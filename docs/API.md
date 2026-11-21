@@ -782,7 +782,7 @@ Sensitive setting keys (e.g., `metrics.basic_auth_hash`) are never returned via 
 }
 ```
 
-`mode` is `"default"` (Caddy's built-in 404) or `"redirect"`. When `redirect`, `redirect_url` must be set.
+`mode` is `"default"` (the branded Waygates HTML page), `"generic"` (a plain-text `Not Found` response), or `"redirect"`. Both page modes return HTTP 404. When `redirect`, `redirect_url` must be set.
 
 ### PUT /api/settings/404
 

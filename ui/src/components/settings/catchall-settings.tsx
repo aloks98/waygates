@@ -21,7 +21,7 @@ import { useNotFoundSettings } from '@/hooks/use-settings';
 
 const settingsSchema = z
   .object({
-    mode: z.enum(['default', 'redirect']),
+    mode: z.enum(['default', 'generic', 'redirect']),
     redirect_url: z.string(),
   })
   .refine(
@@ -107,7 +107,7 @@ export function CatchallSettings() {
                     <RadioGroup
                       value={field.value}
                       onValueChange={field.onChange}
-                      className="mt-2 space-y-3"
+                      className="mt-2 gap-3"
                     >
                       <div className="flex items-start space-x-3">
                         <RadioGroupItem value="default" id="mode-default" className="mt-1" />
@@ -116,10 +116,24 @@ export function CatchallSettings() {
                             htmlFor="mode-default"
                             className="text-sm font-medium cursor-pointer"
                           >
-                            Show Default 404 Page
+                            Branded 404 Page
                           </label>
                           <p className="text-sm text-muted-foreground">
                             Display a branded &quot;Page Not Found&quot; message
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <RadioGroupItem value="generic" id="mode-generic" className="mt-1" />
+                        <div className="flex flex-col gap-1">
+                          <label
+                            htmlFor="mode-generic"
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            Generic 404 Response
+                          </label>
+                          <p className="text-sm text-muted-foreground">
+                            Display a plain &quot;Not Found&quot; message without branding
                           </p>
                         </div>
                       </div>

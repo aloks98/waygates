@@ -322,7 +322,11 @@ func TestNewCatchAllRoute(t *testing.T) {
 	handler := route.Handle[0]
 	assert.Equal(t, HandlerStaticResponse, handler["handler"])
 	assert.Equal(t, 404, handler["status_code"])
-	assert.Equal(t, "Not Found", handler["body"])
+	assert.Contains(t, handler["body"], "<!DOCTYPE html>")
+	assert.Contains(t, handler["body"], "<title>404 | Waygates</title>")
+	assert.Equal(t, map[string][]string{
+		"Content-Type": {"text/html; charset=utf-8"},
+	}, handler["headers"])
 }
 
 func TestNewCatchAllRedirectRoute(t *testing.T) {

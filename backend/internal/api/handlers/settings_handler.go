@@ -152,7 +152,7 @@ func (h *SettingsHandler) GetNotFound(w http.ResponseWriter, _ *http.Request) {
 
 // UpdateNotFoundRequest represents the request body for updating 404 settings
 type UpdateNotFoundRequest struct {
-	Mode        string `json:"mode"`         // "default" or "redirect"
+	Mode        string `json:"mode"`         // "default", "generic", or "redirect"
 	RedirectURL string `json:"redirect_url"` // URL to redirect when mode is "redirect"
 }
 
@@ -179,8 +179,8 @@ func (h *SettingsHandler) UpdateNotFound(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate mode
-	if req.Mode != "default" && req.Mode != "redirect" {
-		utils.BadRequest(w, "Mode must be 'default' or 'redirect'", nil)
+	if req.Mode != "default" && req.Mode != "generic" && req.Mode != "redirect" {
+		utils.BadRequest(w, "Mode must be 'default', 'generic', or 'redirect'", nil)
 		return
 	}
 

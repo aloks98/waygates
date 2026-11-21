@@ -35,7 +35,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
       password: '',
     },
     validators: {
-      onBlur: loginSchema,
+      onChange: loginSchema,
     },
     onSubmit: async ({ value }) => {
       setError(null);
@@ -104,6 +104,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
                 <FieldLabel htmlFor={field.name}>Username or Email</FieldLabel>
                 <Input
                   id={field.name}
+                  name={field.name}
                   type="text"
                   placeholder="Enter your username or email"
                   autoFocus
@@ -127,6 +128,7 @@ export function ACLLoginForm({ redirectUrl, onSuccess, primaryColor }: ACLLoginF
                 <FieldLabel htmlFor={field.name}>Password</FieldLabel>
                 <Input
                   id={field.name}
+                  name={field.name}
                   type="password"
                   placeholder="Enter your password"
                   value={field.state.value}

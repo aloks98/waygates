@@ -21,7 +21,7 @@ export interface SsoConfig {
 const QUERY_KEY = ['settings', '404'] as const;
 
 export interface NotFoundSettings {
-  mode: 'default' | 'redirect';
+  mode: 'default' | 'generic' | 'redirect';
   redirect_url: string;
 }
 

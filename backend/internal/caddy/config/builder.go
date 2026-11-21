@@ -449,6 +449,10 @@ func (b *Builder) buildCatchAllRoute() *HTTPRoute {
 		return NewCatchAllRedirectRoute(b.notFound.RedirectURL)
 	}
 
+	if b.notFound.Mode == "generic" {
+		return NewErrorRoute(nil, 404, "Not Found")
+	}
+
 	return NewCatchAllRoute()
 }
 

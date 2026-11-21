@@ -18,7 +18,7 @@ func (Setting) TableName() string {
 
 // NotFoundSettings represents the 404 page configuration
 type NotFoundSettings struct {
-	Mode        string `json:"mode"`         // "default" or "redirect"
+	Mode        string `json:"mode"`         // "default", "generic", or "redirect"
 	RedirectURL string `json:"redirect_url"` // URL to redirect when mode is "redirect"
 }
 

@@ -368,28 +368,32 @@ func TestSettingsHandler_GetNotFound_ServiceError(t *testing.T) {
 // UpdateNotFound Tests
 // =============================================================================
 
-func TestSettingsHandler_UpdateNotFound_DefaultMode(t *testing.T) {
+func TestSettingsHandler_UpdateNotFound_PageModes(t *testing.T) {
 	t.Parallel()
-	var capturedSettings *models.NotFoundSettings
-	mockService := &mocks.MockSettingsService{
-		SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
-			capturedSettings = settings
-			return nil
-		},
+	for _, mode := range []string{"default", "generic"} {
+		t.Run(mode, func(t *testing.T) {
+			var capturedSettings *models.NotFoundSettings
+			mockService := &mocks.MockSettingsService{
+				SetNotFoundSettingsFunc: func(settings *models.NotFoundSettings) error {
+					capturedSettings = settings
+					return nil
+				},
+			}
+			handler := NewSettingsHandler(mockService, nil, nil)
+
+			body, _ := json.Marshal(map[string]string{"mode": mode, "redirect_url": ""})
+			req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			handler.UpdateNotFound(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			require.NotNil(t, capturedSettings)
+			assert.Equal(t, mode, capturedSettings.Mode)
+		})
 	}
-	handler := NewSettingsHandler(mockService, nil, nil)
-
-	body, _ := json.Marshal(map[string]string{"mode": "default", "redirect_url": ""})
-	req := httptest.NewRequest(http.MethodPut, "/api/settings/404", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-
-	handler.UpdateNotFound(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-
-	require.NotNil(t, capturedSettings)
-	assert.Equal(t, "default", capturedSettings.Mode)
 }
 
 func TestSettingsHandler_UpdateNotFound_RedirectMode(t *testing.T) {

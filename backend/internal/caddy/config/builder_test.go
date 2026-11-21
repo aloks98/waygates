@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -331,6 +332,54 @@ func TestBuilder_Build_WithNotFoundDefault(t *testing.T) {
 	assert.Equal(t, 404, handler["status_code"])
 }
 
+func TestBuilder_BuildJSON_BrandedNotFoundPage(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		settings *models.NotFoundSettings
+	}{
+		{name: "unset"},
+		{name: "default", settings: &models.NotFoundSettings{Mode: "default"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := NewBuilder()
+			b.SetNotFoundSettings(tc.settings)
+			data, err := b.BuildJSON()
+			require.NoError(t, err)
+
+			var config CaddyConfig
+			require.NoError(t, json.Unmarshal(data, &config))
+			server := config.Apps.HTTP.Servers[DefaultServerName]
+			require.NotNil(t, server)
+			require.NotEmpty(t, server.Routes)
+			route := server.Routes[len(server.Routes)-1]
+			assert.Empty(t, route.Match)
+			require.Len(t, route.Handle, 1)
+			handler := route.Handle[0]
+			assert.Equal(t, float64(404), handler["status_code"])
+			assert.Contains(t, handler["body"], "<title>404 | Waygates</title>")
+			assert.Contains(t, handler["body"], "This gateway leads nowhere... yet.")
+			assert.Equal(t, map[string]interface{}{
+				"Content-Type": []interface{}{"text/html; charset=utf-8"},
+			}, handler["headers"])
+		})
+	}
+}
+
+func TestBuilder_Build_WithNotFoundGeneric(t *testing.T) {
+	b := NewBuilder()
+	b.SetNotFoundSettings(&models.NotFoundSettings{Mode: "generic"})
+	config, err := b.Build()
+	require.NoError(t, err)
+	server := config.Apps.HTTP.Servers[DefaultServerName]
+	require.NotNil(t, server)
+	require.NotEmpty(t, server.Routes)
+	route := server.Routes[len(server.Routes)-1]
+	assert.Empty(t, route.Match)
+	require.Len(t, route.Handle, 1)
+	assert.Equal(t, 404, route.Handle[0]["status_code"])
+	assert.Equal(t, "Not Found", route.Handle[0]["body"])
+}
+
 func TestBuilder_BuildJSON(t *testing.T) {
 	b := NewBuilder(WithLogger(newTestLogger()))
 
@@ -358,7 +407,9 @@ func TestBuilder_BuildCompactJSON(t *testing.T) {
 
 	// Should be valid compact JSON (no newlines/indentation)
 	assert.NotContains(t, string(jsonBytes), "\n")
-	assert.NotContains(t, string(jsonBytes), "  ")
+	var compact bytes.Buffer
+	require.NoError(t, json.Compact(&compact, jsonBytes))
+	assert.Equal(t, compact.Bytes(), jsonBytes)
 }
 
 func TestBuilder_BuildSingleProxy(t *testing.T) {

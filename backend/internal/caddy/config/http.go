@@ -1,6 +1,8 @@
 // Package config provides typed Go structs for generating Caddy JSON configuration.
 package config
 
+import "github.com/aloks98/waygates/backend/templates"
+
 // DefaultServerName is the default HTTP server name.
 const DefaultServerName = "srv0"
 
@@ -152,11 +154,16 @@ func NewErrorRoute(hosts []string, statusCode int, body string) *HTTPRoute {
 	return route
 }
 
-// NewCatchAllRoute creates a catch-all route that responds with a 404.
+// NewCatchAllRoute creates a catch-all route that serves the branded 404 page.
 func NewCatchAllRoute() *HTTPRoute {
+	handler := NewStaticResponseHandler(404, templates.NotFoundPage)
+	handler.Headers = map[string][]string{
+		"Content-Type": {"text/html; charset=utf-8"},
+	}
+
 	return &HTTPRoute{
 		Handle: []HTTPHandler{
-			ToHTTPHandler(NewStaticResponseHandler(404, "Not Found")),
+			ToHTTPHandler(handler),
 		},
 	}
 }

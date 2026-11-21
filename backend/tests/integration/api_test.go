@@ -17,6 +17,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/aloks98/waygates/backend/templates"
 )
 
 // ContainerTestEnv holds the container-based test infrastructure
@@ -1032,6 +1034,75 @@ func TestIntegration_SettingsAPI(t *testing.T) {
 			t.Error("JSON config should not contain redirect URL for default mode")
 		}
 		t.Logf("JSON config updated with default 404 mode")
+	})
+
+	assertNotFoundResponse := func(t *testing.T, contentType, expectedBody string) {
+		t.Helper()
+		endpoint, err := env.WaygatesContainer.PortEndpoint(env.ctx, "80/tcp", "http")
+		if err != nil {
+			t.Fatalf("Get Caddy endpoint: %v", err)
+		}
+		req, err := http.NewRequestWithContext(env.ctx, http.MethodGet, endpoint+"/", nil)
+		if err != nil {
+			t.Fatalf("Create unknown-host request: %v", err)
+		}
+		req.Host = "unknown.test.local"
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("Request unknown host: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Read branded page: %v", err)
+		}
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("Expected 404, got %d", resp.StatusCode)
+		}
+		if got := resp.Header.Get("Content-Type"); got != contentType {
+			t.Errorf("Expected content type %q, got %q", contentType, got)
+		}
+		if string(body) != expectedBody {
+			t.Error("Caddy did not serve the expected 404 response body")
+		}
+	}
+
+	t.Run("Default404ServesBrandedHTML", func(t *testing.T) {
+		assertNotFoundResponse(t, "text/html; charset=utf-8", templates.NotFoundPage)
+	})
+
+	t.Run("Generic404PersistsAndServesPlainText", func(t *testing.T) {
+		resp := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", map[string]string{
+			"mode": "generic", "redirect_url": "",
+		})
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("Save generic mode: expected 200, got %d", resp.StatusCode)
+		}
+		getResp := env.MakeAuthenticatedRequest(t, http.MethodGet, "/api/settings/404", nil)
+		defer func() { _ = getResp.Body.Close() }()
+		var saved struct {
+			Data struct {
+				Mode string `json:"mode"`
+			} `json:"data"`
+		}
+		if err := json.NewDecoder(getResp.Body).Decode(&saved); err != nil {
+			t.Fatalf("Read saved generic mode: %v", err)
+		}
+		if saved.Data.Mode != "generic" {
+			t.Fatalf("Expected saved generic mode, got %q", saved.Data.Mode)
+		}
+		assertNotFoundResponse(t, "text/plain; charset=utf-8", "Not Found")
+
+		defaultResp := env.MakeAuthenticatedRequest(t, http.MethodPut, "/api/settings/404", map[string]string{
+			"mode": "default", "redirect_url": "",
+		})
+		defer func() { _ = defaultResp.Body.Close() }()
+		if defaultResp.StatusCode != http.StatusOK {
+			t.Fatalf("Restore branded mode: expected 200, got %d", defaultResp.StatusCode)
+		}
+		assertNotFoundResponse(t, "text/html; charset=utf-8", templates.NotFoundPage)
 	})
 }
 
