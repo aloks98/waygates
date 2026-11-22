@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 
@@ -30,6 +30,45 @@ vi.mock('@/hooks/use-permissions', () => ({
 import { ExternalProvidersTab } from './external-providers-tab';
 
 beforeEach(() => updateProvider.mockReset().mockResolvedValue(undefined));
+
+test('shows guidance and header suggestions for the selected provider without replacing entered URLs', async () => {
+  const user = userEvent.setup();
+  render(<ExternalProvidersTab groupId={1} />);
+  await user.click(screen.getByRole('button', { name: 'Add Provider' }));
+  const dialog = within(await screen.findByRole('dialog'));
+  const verify = dialog.getByLabelText('Verify URL');
+  const headers = dialog.getByLabelText('Headers to Copy (optional)');
+  const providerType = dialog.getByRole('combobox', { name: 'Provider Type' });
+
+  expect(verify).toHaveAttribute('placeholder', 'https://auth.example.com/api/authz/forward-auth');
+  expect(dialog.getByText('Use your Authelia forward-auth endpoint.')).toBeVisible();
+  expect(dialog.queryByLabelText('Outpost URL (optional)')).not.toBeInTheDocument();
+  await user.click(headers);
+  expect(await screen.findByRole('option', { name: 'Remote-User' })).toBeVisible();
+  expect(screen.queryByRole('option', { name: /Authentik/ })).not.toBeInTheDocument();
+  await user.keyboard('{Escape}');
+  fireEvent.change(verify, { target: { value: 'https://my-auth.example/verify?app=demo' } });
+
+  await user.click(providerType);
+  await user.click(await screen.findByRole('option', { name: 'Authentik' }));
+  expect(verify).toHaveAttribute(
+    'placeholder',
+    'https://auth.example.com/outpost.goauthentik.io/auth/caddy',
+  );
+  expect(dialog.getByText('Use your Authentik outpost’s Caddy endpoint.')).toBeVisible();
+  expect(dialog.getByLabelText('Outpost URL (optional)')).toBeVisible();
+  await user.click(headers);
+  expect(await screen.findByRole('option', { name: 'X-Authentik-Username' })).toBeVisible();
+  expect(screen.queryByRole('option', { name: 'Remote-User' })).not.toBeInTheDocument();
+  await user.keyboard('{Escape}');
+
+  await user.click(providerType);
+  await user.click(await screen.findByRole('option', { name: 'Custom Provider' }));
+  expect(dialog.getByText('Enter the full verification endpoint URL.')).toBeVisible();
+  expect(verify).toHaveAttribute('placeholder', 'https://auth.example.com/verify');
+  expect(dialog.queryByLabelText('Outpost URL (optional)')).not.toBeInTheDocument();
+  expect(verify).toHaveValue('https://my-auth.example/verify?app=demo');
+});
 
 test('edits the Authentik outpost destination and omits the deprecated redirect setting', async () => {
   const user = userEvent.setup();

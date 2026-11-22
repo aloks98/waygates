@@ -54,17 +54,6 @@ import {
 } from '@/components/ui/table';
 import { TagsInput } from '@/components/ui/tags-input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-
-const FORWARD_AUTH_HEADER_SUGGESTIONS = [
-  'Remote-User',
-  'Remote-Name',
-  'Remote-Email',
-  'Remote-Groups',
-  'X-Forwarded-User',
-  'X-Authentik-Username',
-  'X-Authentik-Groups',
-  'X-Authentik-Email',
-];
 import {
   useAddExternalProvider,
   useDeleteExternalProvider,
@@ -89,6 +78,27 @@ const PROVIDER_TYPE_OPTIONS = [
   { value: 'authentik', label: 'Authentik' },
   { value: 'custom', label: 'Custom Provider' },
 ] as const;
+
+const PROVIDER_GUIDANCE: Record<
+  ProviderType,
+  { verifyPlaceholder: string; verifyHint: string; headerSuggestions: string[] }
+> = {
+  authelia: {
+    verifyPlaceholder: 'https://auth.example.com/api/authz/forward-auth',
+    verifyHint: 'Use your Authelia forward-auth endpoint.',
+    headerSuggestions: ['Remote-User', 'Remote-Name', 'Remote-Email', 'Remote-Groups'],
+  },
+  authentik: {
+    verifyPlaceholder: 'https://auth.example.com/outpost.goauthentik.io/auth/caddy',
+    verifyHint: 'Use your Authentik outpost’s Caddy endpoint.',
+    headerSuggestions: ['X-Authentik-Username', 'X-Authentik-Groups', 'X-Authentik-Email'],
+  },
+  custom: {
+    verifyPlaceholder: 'https://auth.example.com/verify',
+    verifyHint: 'Enter the full verification endpoint URL.',
+    headerSuggestions: ['Remote-User', 'Remote-Email', 'Remote-Groups', 'X-Forwarded-User'],
+  },
+};
 
 function getProviderTypeLabel(type: ProviderType): string {
   switch (type) {
@@ -171,7 +181,9 @@ function ProviderFormModal({
     }
   }, [open, isEditMode, initialData, form]);
 
-  const isAuthentik = useWatch({ control: form.control, name: 'provider_type' }) === 'authentik';
+  const providerType = useWatch({ control: form.control, name: 'provider_type' });
+  const isAuthentik = providerType === 'authentik';
+  const guidance = PROVIDER_GUIDANCE[providerType];
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -206,16 +218,16 @@ function ProviderFormModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogHeader className="shrink-0 p-4 pr-12">
           <DialogTitle className="flex items-center gap-2">
-            <Globe className="size-5" />
+            <Globe className="size-5 shrink-0" />
             {isEditMode ? 'Edit Forward Auth Provider' : 'Add Forward Auth Provider'}
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-4 py-2">
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="min-h-0 overflow-y-auto p-4 pt-0">
               <div className="grid gap-4">
                 <FormField
                   control={form.control}
@@ -270,18 +282,10 @@ function ProviderFormModal({
                     <FormItem>
                       <FormLabel>Verify URL</FormLabel>
                       <FormControl>
-                        <Input
-                          type="url"
-                          placeholder="https://auth.example.com/api/verify"
-                          {...field}
-                        />
+                        <Input type="url" placeholder={guidance.verifyPlaceholder} {...field} />
                       </FormControl>
 
-                      <FormDescription>
-                        Full HTTP(S) verification URL, including path and query. For Authentik, use
-                        /outpost.goauthentik.io/auth/caddy. The provider controls login redirects,
-                        cookies and access-denied responses.
-                      </FormDescription>
+                      <FormDescription>{guidance.verifyHint}</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -295,11 +299,10 @@ function ProviderFormModal({
                       <FormItem>
                         <FormLabel>Outpost URL (optional)</FormLabel>
                         <FormControl>
-                          <Input type="url" placeholder="https://id.nexus.e412.in" {...field} />
+                          <Input type="url" placeholder="https://auth.example.com" {...field} />
                         </FormControl>
                         <FormDescription>
-                          Origin only. Defaults to the Verify URL origin. Receives
-                          /outpost.goauthentik.io/ callbacks and logout on the application host.
+                          Origin only. Leave blank to use the Verify URL origin.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -317,16 +320,14 @@ function ProviderFormModal({
                         <TagsInput
                           value={field.value ?? []}
                           onValueChange={field.onChange}
-                          placeholder="e.g., Remote-User, Remote-Groups, Remote-Email"
+                          placeholder={`e.g., ${guidance.headerSuggestions[0]}`}
                           delimiters={['Enter', ',']}
-                          suggestions={FORWARD_AUTH_HEADER_SUGGESTIONS}
+                          suggestions={guidance.headerSuggestions}
                         />
                       </FormControl>
 
                       <FormDescription>
-                        Verified response headers sent to the application. Empty uses provider
-                        defaults. Client-supplied identity headers are removed, including on IP
-                        exceptions.
+                        Leave blank to use the provider’s default identity headers.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -334,7 +335,7 @@ function ProviderFormModal({
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="m-0 shrink-0">
               <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
