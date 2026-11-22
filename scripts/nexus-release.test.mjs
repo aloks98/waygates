@@ -23,7 +23,18 @@ test('CI and Docker share the pinned Node runtime', () => {
   assert.doesNotMatch(dockerfile, /pnpm@latest|\|\| pnpm install/);
 });
 
-function runBuild(t, { fail = '', tls = false, warmCache = false, version = '1.2.3', plan } = {}) {
+function runBuild(
+  t,
+  {
+    fail = '',
+    tls = false,
+    warmCache = false,
+    version = '1.2.3',
+    plan,
+    failPushes = 0,
+    pushError = `failed to push registry.nexus.e412.in/aloks98/waygates:nexus-${releaseId}-image: unknown`,
+  } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), 'waygates-release-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const bin = join(dir, 'bin');
@@ -48,8 +59,19 @@ if (configFlag >= 0) entry.buildkit = fs.readFileSync(args[configFlag + 1], 'utf
 fs.appendFileSync(process.env.RELEASE_TEST_LOG, JSON.stringify(entry) + '\\n');
 if (process.env.RELEASE_TEST_FAIL === [command, ...args].join(' ')) process.exit(1);
 if (command === 'docker' && args[0] === 'context' && args[1] === 'inspect') process.exit(1);
+if (command === 'docker' && args.includes('--push')) {
+  const pushes = fs.readFileSync(process.env.RELEASE_TEST_LOG, 'utf8').trim().split('\\n')
+    .map(JSON.parse).filter(c => c.command === 'docker' && c.args.includes('--push')).length;
+  const cache = process.env.WAYGATES_BUILDX_CACHE + '-new';
+  fs.mkdirSync(cache, { recursive: true });
+  fs.writeFileSync(path.join(cache, 'index.json'), '{"candidate":true}');
+  if (pushes <= Number(process.env.RELEASE_TEST_FAIL_PUSHES)) {
+    console.error('ERROR: failed to build: failed to solve: ' + process.env.RELEASE_TEST_PUSH_ERROR);
+    process.exit(23);
+  }
+}
 `;
-  for (const command of ['pnpm', 'go', 'docker']) {
+  for (const command of ['pnpm', 'go', 'docker', 'sleep']) {
     writeFileSync(join(bin, command), recorder, { mode: 0o755 });
   }
   const result = spawnSync('bash', [join(root, 'scripts/nexus-release-build.sh')], {
@@ -59,6 +81,8 @@ if (command === 'docker' && args[0] === 'context' && args[1] === 'inspect') proc
       PATH: `${bin}:${process.env.PATH}`,
       RELEASE_TEST_LOG: log,
       RELEASE_TEST_FAIL: fail,
+      RELEASE_TEST_FAIL_PUSHES: String(failPushes),
+      RELEASE_TEST_PUSH_ERROR: pushError,
       NEXUS_PLAN: join(dir, 'plan.json'),
       NEXUS_VERSION: version,
       NEXUS_SOURCE_SHA: source,
@@ -159,6 +183,50 @@ test('preserves DinD TLS when creating the Buildx context', (t) => {
   assert.equal(builder.args.at(-1), 'waygates-release');
   assert.notEqual(builder.args[builder.args.indexOf('--name') + 1], create.args[2]);
 });
+
+for (const failPushes of [1, 2]) {
+  test(`retries ${failPushes} unknown candidate push failures without repeating checks`, (t) => {
+    const result = runBuild(t, { failPushes, warmCache: true });
+    assert.equal(result.status, 0, result.stderr);
+    const pushes = result.commands.filter((c) => c.args.includes('--push'));
+    assert.equal(pushes.length, failPushes + 1);
+    assert(pushes.every((c) => JSON.stringify(c.args) === JSON.stringify(pushes[0].args)));
+    assert.equal(result.commands.filter((c) => c.command === 'pnpm').length, 4);
+    assert.equal(result.commands.filter((c) => c.command === 'go').length, 1);
+    assert.equal(result.commands.filter((c) => c.args.includes('--load')).length, 1);
+    assert.deepEqual(
+      result.commands.filter((c) => c.command === 'sleep').map((c) => c.args),
+      [['5'], ['10']].slice(0, failPushes),
+    );
+    assert.match(result.stdout, /failed to push.*unknown/);
+    assert.match(result.stderr, /retrying/);
+    assert.deepEqual(JSON.parse(readFileSync(join(result.cache, 'index.json'))), {
+      candidate: true,
+    });
+  });
+}
+
+test('stops after three unknown push failures and preserves the previous cache', (t) => {
+  const result = runBuild(t, { failPushes: 10, warmCache: true });
+  assert.equal(result.status, 23);
+  assert.equal(result.commands.filter((c) => c.args.includes('--push')).length, 3);
+  assert.equal(result.commands.filter((c) => c.command === 'sleep').length, 2);
+  assert.deepEqual(JSON.parse(readFileSync(join(result.cache, 'index.json'))), {});
+});
+
+for (const pushError of [
+  `failed to push registry.nexus.e412.in/aloks98/waygates:nexus-${releaseId}-image: unauthorized`,
+  'executor failed running build: unknown',
+  'failed to push registry.nexus.e412.in/aloks98/another-image: unknown',
+]) {
+  test(`does not retry a different failure: ${pushError}`, (t) => {
+    const result = runBuild(t, { failPushes: 10, pushError, warmCache: true });
+    assert.equal(result.status, 23);
+    assert.equal(result.commands.filter((c) => c.args.includes('--push')).length, 1);
+    assert(!result.commands.some((c) => c.command === 'sleep'));
+    assert.deepEqual(JSON.parse(readFileSync(join(result.cache, 'index.json'))), {});
+  });
+}
 
 test(
   'Docker accepts the release builder alongside its context',

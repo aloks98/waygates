@@ -65,6 +65,30 @@ If the build failed before candidates existed, fix the source and prepare a new,
 unused version. Do not manually dispatch this workflow, overwrite a reserved
 tag, or republish a candidate under the same release ID.
 
+## Registry upload race
+
+For `failed to push <candidate>: unknown`, the candidate staging step makes up to
+three attempts, waiting 5 and 10 seconds between them. It reuses the same candidate reference,
+source, build arguments, and local BuildKit cache within the current build
+attempt. Frontend/backend checks and the test-image build run once. Other build
+or authentication errors stop immediately, and persistent push failures still
+block final publication. This is a workaround for the registry; it does not
+retry the release helper or replace an already committed candidate.
+
+Release runs [#138](https://git.nexus.e412.in/aloks98/waygates/actions/runs/138)
+and [#146](https://git.nexus.e412.in/aloks98/waygates/actions/runs/146) passed their
+tests and failed at candidate image upload with this signature. For #146,
+Forgejo's logs confirmed a PostgreSQL `UQE_package_version_s` violation while
+creating the internal `_upload` version, followed by HTTP 500. The two running
+Forgejo 17.0.1 replicas use a [process-local mutex](https://codeberg.org/forgejo/forgejo/src/tag/v17.0.1/services/packages/container/blob.go)
+for this operation, which does not coordinate concurrent uploads across pods. A registry-side fix is still
+needed; workflow concurrency does not serialize layer uploads within a push.
+
+If retries are exhausted, inspect the Forgejo logs at the failure timestamp.
+`unknown` is a generic registry error, so it does not by itself prove the same
+database race. Use the normal Releaser recovery procedure above; do not manually
+publish the final version tag.
+
 ## Validate release-file changes
 
 Run `bash -n scripts/nexus-release-build.sh` and

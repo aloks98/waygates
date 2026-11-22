@@ -39,7 +39,8 @@ if [[ -n "${DOCKER_CERT_PATH:-}" ]]; then
   docker_context=waygates-release
 fi
 buildkit_config=$(mktemp)
-trap 'rm -f "$buildkit_config"' EXIT
+push_log=$(mktemp)
+trap 'rm -f "$buildkit_config" "$push_log"' EXIT
 cat > "$buildkit_config" <<'BUILDKIT'
 [registry."docker.io"]
   mirrors = ["docker-cache.e412.in"]
@@ -70,9 +71,30 @@ docker buildx build "${build_args[@]}" "${cache_from[@]}" \
 go test -count=1 ./backend/...
 
 # Only stage the unique candidate. The helper alone promotes the final vX.Y.Z tag.
-docker buildx build "${build_args[@]}" "${cache_from[@]}" \
-  --platform "$platforms" --tag "$repository:nexus-$release-image" \
-  --cache-to "type=local,dest=$cache_dir-new,mode=max" --push .
+candidate="$repository:nexus-$release-image"
+for attempt in 1 2 3; do
+  if docker buildx build "${build_args[@]}" "${cache_from[@]}" \
+    --platform "$platforms" --tag "$candidate" --progress=plain \
+    --cache-to "type=local,dest=$cache_dir-new,mode=max" --push . 2>&1 | tee "$push_log"; then
+    break
+  else
+    push_status=("${PIPESTATUS[@]}")
+  fi
+
+  # Forgejo's HA replicas can race to create the internal _upload version,
+  # returning HTTP 500 / "unknown" to BuildKit. Retry only that push signature,
+  # using the same candidate and builder cache within this uncommitted attempt.
+  # Checks, build errors, auth failures, and final publication are never retried.
+  if (( push_status[1] != 0 )); then
+    exit "${push_status[1]}"
+  fi
+  if (( attempt == 3 )) || ! grep -Fq "failed to push $candidate: unknown" "$push_log"; then
+    exit "${push_status[0]}"
+  fi
+  delay=$((attempt * 5))
+  printf 'Candidate push returned unknown; retrying in %ss (attempt %s/3).\n' "$delay" "$((attempt + 1))" >&2
+  sleep "$delay"
+done
 if [[ -d "$cache_dir-new" ]]; then
   rm -rf "$cache_dir"
   mv "$cache_dir-new" "$cache_dir"
