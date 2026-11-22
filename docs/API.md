@@ -632,9 +632,14 @@ Passwords are bcrypt-hashed; the hash is never returned. `username` is unique wi
 | `acl_group_id` | int | |
 | `provider_type` | string | `"authelia"`, `"authentik"`, or `"custom"` |
 | `name` | string | |
-| `verify_url` | string | URL Caddy calls to verify the request |
-| `auth_redirect_url` | string\|null | Redirect URL when auth fails |
-| `headers_to_copy` | string[] | Headers to copy from the verify response |
+| `verify_url` | string | Absolute HTTP(S) verification URL, including path/query. Caddy sends GET and forwards the original method/URI in headers. HTTPS certificates are verified. |
+| `outpost_url` | string\|null | Authentik only: HTTP(S) origin for `/outpost.goauthentik.io/*` callback/logout routing; defaults to the verify URL origin. No path/query. |
+| `auth_redirect_url` | string\|null | **Deprecated, ignored.** Retained for API/storage compatibility. The provider controls redirects; non-2xx responses pass through. |
+| `headers_to_copy` | string[] | Literal identity header names copied from a successful verify response onto the application request. Empty uses provider defaults. Missing claims and client-supplied identity are stripped. Routing/cookie/hop-by-hop names and wildcards are rejected. |
+
+PUT requires `provider_type`, `name` and `verify_url`. Omitting/nulling `outpost_url` resets the origin override.
+See [external auth configuration and migration](AUTHENTIK.md) for default headers, mode limitations,
+removed static-path exemptions, the provider form, and a Radarr example with explicit API-key exceptions.
 
 ### 6.6 Waygates Auth (per group)
 

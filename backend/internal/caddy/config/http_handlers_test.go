@@ -342,10 +342,3 @@ func TestAddHostToMatcher(t *testing.T) {
 	assert.Contains(t, hosts, "example.com")
 	assert.Contains(t, hosts, "api.example.com")
 }
-
-func TestNewStaticAssetMatcher(t *testing.T) {
-	matcher := NewStaticAssetMatcher()
-
-	require.NotNil(t, matcher)
-	assert.Contains(t, matcher, "path")
-}

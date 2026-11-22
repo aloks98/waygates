@@ -797,3 +797,37 @@ func TestProxyACLAssignment_DefaultValues(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
+
+func TestExternalProviderEndpointValidation(t *testing.T) {
+	for _, raw := range []string{"/relative", "ftp://auth.example/verify", "https://user:pass@auth.example/verify", "https://auth.example/verify#fragment", "https://auth.example:0/verify", "https://auth.example:65536/verify", "https://{http.request.host}/verify", "https://auth.example/%7Bplaceholder%7D", "https:///verify"} {
+		t.Run(raw, func(t *testing.T) {
+			p := ACLExternalProvider{Name: "test", ProviderType: ACLProviderTypeAuthentik, VerifyURL: raw}
+			if p.Validate() == nil {
+				t.Fatalf("accepted invalid auth URL %q", raw)
+			}
+		})
+	}
+	for _, header := range []string{"X-User\r\nInjected", "X-*", "Before>After", "Host", "Cookie", "Connection", "X-Forwarded-Host", "Content-Length"} {
+		t.Run(header, func(t *testing.T) {
+			p := ACLExternalProvider{Name: "test", ProviderType: ACLProviderTypeCustom, VerifyURL: "http://auth.example/verify", HeadersToCopy: JSONStringArray{header}}
+			if p.Validate() == nil {
+				t.Fatalf("accepted invalid identity header %q", header)
+			}
+		})
+	}
+	for _, origin := range []string{"https://outpost.example/path", "https://outpost.example?query=1", "https://outpost.example?", "https://outpost.example/#fragment"} {
+		p := ACLExternalProvider{Name: "test", ProviderType: ACLProviderTypeAuthentik, VerifyURL: "http://auth.example/verify", OutpostURL: &origin}
+		if p.Validate() == nil {
+			t.Fatalf("accepted invalid outpost origin %q", origin)
+		}
+	}
+	origin := "https://outpost.example:9443"
+	p := ACLExternalProvider{Name: "test", ProviderType: ACLProviderTypeAuthentik, VerifyURL: "http://[::1]:9000/verify?a=b", OutpostURL: &origin, HeadersToCopy: JSONStringArray{"Authorization", "X-Forwarded-User", "X-Custom-Identity"}}
+	if err := p.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	p.ProviderType = ACLProviderTypeCustom
+	if p.Validate() == nil {
+		t.Fatal("accepted outpost_url for non-Authentik provider")
+	}
+}

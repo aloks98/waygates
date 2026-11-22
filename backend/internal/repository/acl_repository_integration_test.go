@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -618,6 +619,8 @@ func TestACLRepository_ExternalProviders(t *testing.T) {
 
 		// Update
 		provider.Name = "Updated Authelia"
+		outpostURL := "https://outpost.example:9443"
+		provider.OutpostURL = &outpostURL
 		redirectURL := "https://auth.example.com/login"
 		provider.AuthRedirectURL = &redirectURL
 		err = repo.UpdateExternalProvider(provider)
@@ -627,6 +630,14 @@ func TestACLRepository_ExternalProviders(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Authelia", updated.Name)
 		assert.NotNil(t, updated.AuthRedirectURL)
+		require.NotNil(t, updated.OutpostURL)
+		assert.Equal(t, outpostURL, *updated.OutpostURL)
+
+		provider.OutpostURL = nil
+		require.NoError(t, repo.UpdateExternalProvider(provider))
+		updated, err = repo.GetExternalProviderByID(provider.ID)
+		require.NoError(t, err)
+		assert.Nil(t, updated.OutpostURL)
 
 		// Delete
 		err = repo.DeleteExternalProvider(provider.ID)
@@ -1149,4 +1160,25 @@ func TestACLRepository_FullWorkflow(t *testing.T) {
 	assignments, err = repo.GetProxyACLAssignments(proxy.ID)
 	require.NoError(t, err)
 	assert.Empty(t, assignments)
+}
+
+func TestACLRepository_OutpostMigrationRollback(t *testing.T) {
+	tdb := SetupTestDB(t)
+	defer tdb.Cleanup(t)
+	user := CreateTestUser(t, tdb.DB)
+	group := CreateTestACLGroup(t, tdb.DB, user.ID, "outpost migration")
+	provider := CreateTestExternalProvider(t, tdb.DB, group.ID, "NexusID", models.ACLProviderTypeAuthentik, "https://id.example/verify")
+	up, err := os.ReadFile("../../migrations/000014_add_acl_outpost_url.up.sql")
+	require.NoError(t, err)
+	down, err := os.ReadFile("../../migrations/000014_add_acl_outpost_url.down.sql")
+	require.NoError(t, err)
+	require.NoError(t, tdb.DB.Exec(string(down)).Error)
+	var verify string
+	require.NoError(t, tdb.DB.Raw("SELECT verify_url FROM acl_external_providers WHERE id = ?", provider.ID).Scan(&verify).Error)
+	assert.Equal(t, provider.VerifyURL, verify)
+	require.NoError(t, tdb.DB.Exec(string(up)).Error)
+	restored, err := NewACLRepository(tdb.DB).GetExternalProviderByID(provider.ID)
+	require.NoError(t, err)
+	assert.Nil(t, restored.OutpostURL)
+	assert.Equal(t, provider.VerifyURL, restored.VerifyURL)
 }

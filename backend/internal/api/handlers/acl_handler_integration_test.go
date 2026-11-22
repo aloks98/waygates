@@ -2061,3 +2061,29 @@ func TestACLHandler_SyncProxiesUsingGroup_NoProxiesUsing(t *testing.T) {
 	// No proxies should have been synced
 	assert.Equal(t, 0, len(mockSync.SyncProxyByIDCalls))
 }
+
+func TestACLHandler_ExternalOutpostConfiguration(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodPut} {
+		t.Run(method, func(t *testing.T) {
+			check := func(_ int, p *models.ACLExternalProvider) error {
+				require.NotNil(t, p.OutpostURL)
+				assert.Equal(t, "https://outpost.example:9443", *p.OutpostURL)
+				assert.Equal(t, "https://id.example/outpost.goauthentik.io/auth/caddy?tenant=nexus", p.VerifyURL)
+				assert.Equal(t, models.JSONStringArray{"X-Identity"}, p.HeadersToCopy)
+				return p.Validate()
+			}
+			r := setupACLTestRouter(&MockACLService{AddExternalProviderFunc: check, UpdateExternalProviderFunc: check}, &MockACLRepository{})
+			path := "/api/acl/groups/1/providers"
+			status := http.StatusCreated
+			if method == http.MethodPut {
+				path = "/api/acl/providers/1"
+				status = http.StatusOK
+			}
+			body := `{"provider_type":"authentik","name":"NexusID","verify_url":"https://id.example/outpost.goauthentik.io/auth/caddy?tenant=nexus","outpost_url":"https://outpost.example:9443","headers_to_copy":["X-Identity"]}`
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(method, path, bytes.NewBufferString(body)))
+			assert.Equal(t, status, w.Code)
+			assert.Contains(t, w.Body.String(), `"outpost_url":"https://outpost.example:9443"`)
+		})
+	}
+}

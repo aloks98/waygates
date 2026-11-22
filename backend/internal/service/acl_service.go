@@ -618,6 +618,7 @@ func (s *ACLService) UpdateExternalProvider(id int, provider *models.ACLExternal
 	existing.ProviderType = provider.ProviderType
 	existing.Name = provider.Name
 	existing.VerifyURL = provider.VerifyURL
+	existing.OutpostURL = provider.OutpostURL
 	existing.AuthRedirectURL = provider.AuthRedirectURL
 	existing.HeadersToCopy = provider.HeadersToCopy
 

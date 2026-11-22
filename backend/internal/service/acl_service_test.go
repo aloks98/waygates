@@ -6851,3 +6851,28 @@ func TestACLService_SingleIPToNetwork(t *testing.T) {
 func ptr(s string) *string {
 	return &s
 }
+
+func TestExternalProviderOutpostURLUpdate(t *testing.T) {
+	existing := &models.ACLExternalProvider{ID: 7, ACLGroupID: 1, Name: "auth", ProviderType: models.ACLProviderTypeAuthentik, VerifyURL: "https://id.example/verify"}
+	var saved *models.ACLExternalProvider
+	repo := &MockACLRepository{
+		GetExternalProviderByIDFunc: func(_ int) (*models.ACLExternalProvider, error) { return existing, nil },
+		UpdateExternalProviderFunc:  func(provider *models.ACLExternalProvider) error { saved = provider; return nil },
+	}
+	svc := NewACLService(ACLServiceConfig{ACLRepo: repo})
+	outpost := "https://outpost.example:9443"
+	update := &models.ACLExternalProvider{Name: "auth", ProviderType: models.ACLProviderTypeAuthentik, VerifyURL: "https://id.example/verify", OutpostURL: &outpost}
+	if err := svc.UpdateExternalProvider(7, update); err != nil {
+		t.Fatal(err)
+	}
+	if saved == nil || saved.OutpostURL == nil || *saved.OutpostURL != outpost {
+		t.Fatal("outpost URL was not saved")
+	}
+	update.OutpostURL = nil
+	if err := svc.UpdateExternalProvider(7, update); err != nil {
+		t.Fatal(err)
+	}
+	if saved.OutpostURL != nil {
+		t.Fatal("outpost URL was not cleared")
+	}
+}

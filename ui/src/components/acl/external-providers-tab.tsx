@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { ExternalLink, Globe, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
 import {
@@ -28,6 +28,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -60,6 +61,9 @@ const FORWARD_AUTH_HEADER_SUGGESTIONS = [
   'Remote-Email',
   'Remote-Groups',
   'X-Forwarded-User',
+  'X-Authentik-Username',
+  'X-Authentik-Groups',
+  'X-Authentik-Email',
 ];
 import {
   useAddExternalProvider,
@@ -74,7 +78,7 @@ const externalProviderSchema = z.object({
   provider_type: z.enum(['authelia', 'authentik', 'custom']),
   name: z.string().min(1, 'Name is required').max(100, 'Name must be at most 100 characters'),
   verify_url: z.string().min(1, 'Verify URL is required').url('Must be a valid URL'),
-  auth_redirect_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  outpost_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   headers_to_copy: z.array(z.string()).optional(),
 });
 
@@ -141,7 +145,7 @@ function ProviderFormModal({
       provider_type: 'authelia' as ProviderType,
       name: '',
       verify_url: '',
-      auth_redirect_url: '',
+      outpost_url: '',
       headers_to_copy: [],
     },
   });
@@ -153,7 +157,7 @@ function ProviderFormModal({
         provider_type: initialData.provider_type,
         name: initialData.name,
         verify_url: initialData.verify_url,
-        auth_redirect_url: initialData.auth_redirect_url || '',
+        outpost_url: initialData.outpost_url || '',
         headers_to_copy: initialData.headers_to_copy || [],
       });
     } else {
@@ -161,11 +165,13 @@ function ProviderFormModal({
         provider_type: 'authelia',
         name: '',
         verify_url: '',
-        auth_redirect_url: '',
+        outpost_url: '',
         headers_to_copy: [],
       });
     }
   }, [open, isEditMode, initialData, form]);
+
+  const isAuthentik = useWatch({ control: form.control, name: 'provider_type' }) === 'authentik';
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -179,7 +185,7 @@ function ProviderFormModal({
       provider_type: value.provider_type,
       name: value.name,
       verify_url: value.verify_url,
-      auth_redirect_url: value.auth_redirect_url || undefined,
+      outpost_url: value.provider_type === 'authentik' ? value.outpost_url || undefined : undefined,
       headers_to_copy: value.headers_to_copy?.length ? value.headers_to_copy : undefined,
     };
 
@@ -271,25 +277,35 @@ function ProviderFormModal({
                         />
                       </FormControl>
 
+                      <FormDescription>
+                        Full HTTP(S) verification URL, including path and query. For Authentik, use
+                        /outpost.goauthentik.io/auth/caddy. The provider controls login redirects,
+                        cookies and access-denied responses.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="auth_redirect_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Auth Redirect URL (optional)</FormLabel>
-                      <FormControl>
-                        <Input type="url" placeholder="https://auth.example.com/login" {...field} />
-                      </FormControl>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {isAuthentik ? (
+                  <FormField
+                    control={form.control}
+                    name="outpost_url"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Outpost URL (optional)</FormLabel>
+                        <FormControl>
+                          <Input type="url" placeholder="https://id.nexus.e412.in" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Origin only. Defaults to the Verify URL origin. Receives
+                          /outpost.goauthentik.io/ callbacks and logout on the application host.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
 
                 <FormField
                   control={form.control}
@@ -307,6 +323,11 @@ function ProviderFormModal({
                         />
                       </FormControl>
 
+                      <FormDescription>
+                        Verified response headers sent to the application. Empty uses provider
+                        defaults. Client-supplied identity headers are removed, including on IP
+                        exceptions.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

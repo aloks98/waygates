@@ -127,7 +127,8 @@ type AddExternalProviderRequest struct {
 	ProviderType    string   `json:"provider_type"`
 	Name            string   `json:"name"`
 	VerifyURL       string   `json:"verify_url"`
-	AuthRedirectURL *string  `json:"auth_redirect_url,omitempty"`
+	OutpostURL      *string  `json:"outpost_url,omitempty"`
+	AuthRedirectURL *string  `json:"auth_redirect_url,omitempty"` // Deprecated; ignored by rendering.
 	HeadersToCopy   []string `json:"headers_to_copy,omitempty"`
 }
 
@@ -136,7 +137,8 @@ type UpdateExternalProviderRequest struct {
 	ProviderType    string   `json:"provider_type"`
 	Name            string   `json:"name"`
 	VerifyURL       string   `json:"verify_url"`
-	AuthRedirectURL *string  `json:"auth_redirect_url,omitempty"`
+	OutpostURL      *string  `json:"outpost_url,omitempty"`
+	AuthRedirectURL *string  `json:"auth_redirect_url,omitempty"` // Deprecated; ignored by rendering.
 	HeadersToCopy   []string `json:"headers_to_copy,omitempty"`
 }
 
@@ -1042,6 +1044,7 @@ func (h *ACLHandler) AddExternalProvider(w http.ResponseWriter, r *http.Request)
 		ProviderType:    req.ProviderType,
 		Name:            req.Name,
 		VerifyURL:       req.VerifyURL,
+		OutpostURL:      req.OutpostURL,
 		AuthRedirectURL: req.AuthRedirectURL,
 		HeadersToCopy:   req.HeadersToCopy,
 	}
@@ -1121,6 +1124,7 @@ func (h *ACLHandler) UpdateExternalProvider(w http.ResponseWriter, r *http.Reque
 		ProviderType:    req.ProviderType,
 		Name:            req.Name,
 		VerifyURL:       req.VerifyURL,
+		OutpostURL:      req.OutpostURL,
 		AuthRedirectURL: req.AuthRedirectURL,
 		HeadersToCopy:   req.HeadersToCopy,
 	}

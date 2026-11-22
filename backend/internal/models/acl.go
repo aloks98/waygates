@@ -3,9 +3,13 @@ package models
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/http/httpguts"
 )
 
 // ACL Combination Mode constants
@@ -150,11 +154,13 @@ func (u *ACLBasicAuthUser) CheckPassword(password string) bool {
 
 // ACLExternalProvider represents an external auth provider config
 type ACLExternalProvider struct {
-	ID              int             `json:"id" gorm:"primaryKey;autoIncrement"`
-	ACLGroupID      int             `json:"acl_group_id" gorm:"not null;index"`
-	ProviderType    string          `json:"provider_type" gorm:"type:varchar(50);not null"`
-	Name            string          `json:"name" gorm:"type:varchar(255);not null"`
-	VerifyURL       string          `json:"verify_url" gorm:"type:varchar(500);not null"`
+	ID           int     `json:"id" gorm:"primaryKey;autoIncrement"`
+	ACLGroupID   int     `json:"acl_group_id" gorm:"not null;index"`
+	ProviderType string  `json:"provider_type" gorm:"type:varchar(50);not null"`
+	Name         string  `json:"name" gorm:"type:varchar(255);not null"`
+	VerifyURL    string  `json:"verify_url" gorm:"type:varchar(500);not null"`
+	OutpostURL   *string `json:"outpost_url,omitempty" gorm:"type:varchar(500)"`
+	// AuthRedirectURL is deprecated and ignored; retained for storage/API compatibility.
 	AuthRedirectURL *string         `json:"auth_redirect_url,omitempty" gorm:"type:varchar(500)"`
 	HeadersToCopy   JSONStringArray `json:"headers_to_copy,omitempty" gorm:"type:text"`
 	CreatedAt       time.Time       `json:"created_at" gorm:"autoCreateTime"`
@@ -367,6 +373,49 @@ func (p *ACLExternalProvider) Validate() error {
 	if p.VerifyURL == "" {
 		return ErrProviderVerifyURLEmpty
 	}
+	if _, err := ParseAuthURL(p.VerifyURL); err != nil {
+		return err
+	}
+	if p.OutpostURL != nil && *p.OutpostURL != "" {
+		u, err := ParseAuthURL(*p.OutpostURL)
+		if err != nil {
+			return err
+		}
+		if p.ProviderType != ACLProviderTypeAuthentik || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery {
+			return &ValidationError{Message: "outpost_url must be an HTTP(S) origin for an Authentik provider"}
+		}
+	}
+	for _, header := range p.HeadersToCopy {
+		if !httpguts.ValidHeaderFieldName(header) || strings.Contains(header, "*") {
+			return &ValidationError{Message: "headers_to_copy must contain literal HTTP header names"}
+		}
+		// Identity headers must not rewrite routing, framing, or credentials used
+		// by the auth service itself. Authorization is supported as an explicit
+		// trusted output (e.g. Authentik-generated Basic credentials).
+		switch strings.ToLower(header) {
+		case "host", "connection", "content-length", "transfer-encoding", "te", "trailer", "upgrade", "keep-alive", "proxy-connection", "cookie", "set-cookie":
+			return &ValidationError{Message: "headers_to_copy cannot contain routing, cookie, or hop-by-hop headers"}
+		}
+		switch strings.ToLower(header) {
+		case "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for", "x-forwarded-method", "x-forwarded-uri", "x-forwarded-port", "x-forwarded-prefix", "x-real-ip", "x-waygates-client-ip":
+			return &ValidationError{Message: "headers_to_copy cannot replace forwarded routing headers"}
+		}
+	}
 
 	return nil
+}
+
+// ParseAuthURL validates a literal HTTP(S) endpoint before it enters Caddy JSON.
+func ParseAuthURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" || strings.ContainsAny(raw, "{}\\\r\n") || strings.ContainsAny(u.Path, "{}") || len(raw) > 500 {
+		return nil, &ValidationError{Message: "auth URL must be an absolute HTTP(S) URL without credentials, fragments, or placeholders (max 500 characters)"}
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return nil, &ValidationError{Message: "auth URL port must be between 1 and 65535"}
+		}
+	}
+	return u, nil
 }

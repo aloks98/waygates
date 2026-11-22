@@ -404,6 +404,11 @@ waygates:
 
 ## Upgrading
 
+For upgrades after `0.6.2+hotfix.1`, review the [external ACL migration notes](AUTHENTIK.md#migration-and-compatibility).
+The outpost URL schema migration is additive; removal of implicit static-path auth exemptions
+is a security behavior change affecting every ACL provider. Production ACL assignment and
+Authentik provider creation are separate operator actions.
+
 ### Using Docker Compose
 
 Set `WAYGATES_VERSION` in `.env` to the exact published tag you want before pulling.

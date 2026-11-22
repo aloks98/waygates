@@ -197,7 +197,7 @@ type HandleResponse struct {
 	StatusCode int            `json:"status_code,omitempty"`
 }
 
-// CopyResponseHeadersHandler copies headers from upstream response to the request.
+// CopyResponseHeadersHandler copies headers from upstream response to the client response.
 // This handler can only be used inside reverse_proxy's handle_response routes.
 type CopyResponseHeadersHandler struct {
 	Handler string   `json:"handler"` // Must be "copy_response_headers"

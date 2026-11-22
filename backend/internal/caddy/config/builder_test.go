@@ -1478,7 +1478,7 @@ func TestACLBuilder_BuildACLRoutes_AnyMode_WithIPRules(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
 
-	// Should have routes for deny, bypass, allow, static assets
+	// Should have routes for deny, bypass, allow, and remaining requests
 	assert.GreaterOrEqual(t, len(routes), 4)
 }
 
@@ -1754,7 +1754,7 @@ func TestGetProviderDefaultHeaders(t *testing.T) {
 		},
 		{
 			providerType:    models.ACLProviderTypeAuthentik,
-			expectedHeaders: []string{"X-authentik-username", "X-authentik-groups", "X-authentik-email"},
+			expectedHeaders: []string{"X-Authentik-Username", "X-Authentik-Groups", "X-Authentik-Email"},
 		},
 		{
 			providerType:    "unknown",

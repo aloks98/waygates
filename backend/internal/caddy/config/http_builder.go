@@ -79,19 +79,34 @@ func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(
 	// Sort assignments by priority (lower number = higher priority)
 	sortedAssignments := make([]models.ProxyACLAssignment, len(assignments))
 	copy(sortedAssignments, assignments)
-	sort.Slice(sortedAssignments, func(i, j int) bool {
+	sort.SliceStable(sortedAssignments, func(i, j int) bool {
 		return sortedAssignments[i].Priority < sortedAssignments[j].Priority
 	})
 
-	// Build ACL routes
-	var routes []*HTTPRoute
+	// Scrub identity before any assignment can grant an IP/API exception. Keep
+	// outpost callbacks ahead of path-scoped authentication and application routes.
+	groups := make([]*models.ACLGroup, 0, len(sortedAssignments))
+	for _, assignment := range sortedAssignments {
+		groups = append(groups, aclGroups[int64(assignment.ACLGroupID)])
+	}
+	routes := []*HTTPRoute{{Match: []MatcherSet{NewHostMatcher(hostname)}, Handle: []HTTPHandler{identityHeaderSanitizer(groups...)}}}
+	outpost, err := authentikOutpostRoute(hostname, groups)
+	if err != nil {
+		b.logger.Error("Invalid Authentik outpost configuration; failing closed", zap.Error(err))
+		return []*HTTPRoute{aclUnavailableRoute(hostname, "/*")}, nil
+	}
+	if outpost != nil {
+		routes = append(routes, outpost)
+	}
+
 	for _, assignment := range sortedAssignments {
 		group, ok := aclGroups[int64(assignment.ACLGroupID)]
-		if !ok {
+		if !ok || group == nil {
 			b.logger.Warn("ACL group not found for assignment",
 				zap.Int("assignment_id", assignment.ID),
 				zap.Int("group_id", assignment.ACLGroupID),
 			)
+			routes = append(routes, aclUnavailableRoute(hostname, assignment.PathPattern))
 			continue
 		}
 
@@ -101,6 +116,7 @@ func (b *HTTPBuilder) BuildReverseProxyRoutesWithACL(
 				zap.Int("assignment_id", assignment.ID),
 				zap.Error(err),
 			)
+			routes = append(routes, aclUnavailableRoute(hostname, assignment.PathPattern))
 			continue
 		}
 

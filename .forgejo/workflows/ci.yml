@@ -310,7 +310,16 @@ jobs:
 
       - name: run tests with coverage
         working-directory: backend
-        run: go test -v -count=1 -coverprofile=coverage.txt -coverpkg=./internal/... ./...
+        run: |
+          # Run the forward-auth wire tests with the exact bundled Caddy version.
+          # No application entrypoint, network, or production configuration is used.
+          caddy_test_binary=$(mktemp)
+          trap 'rm -f "$caddy_test_binary"' EXIT
+          docker run --rm --network none --read-only --entrypoint cat \
+            waygates-test:latest /usr/bin/caddy > "$caddy_test_binary"
+          chmod +x "$caddy_test_binary"
+          export CADDY_BINARY="$caddy_test_binary"
+          go test -v -count=1 -coverprofile=coverage.txt -coverpkg=./internal/... ./...
 
       # Report coverage to coverdash. Skipped when COVERDASH_TOKEN is unset
       # (fork PRs / before the secret is configured) so it never fails CI.

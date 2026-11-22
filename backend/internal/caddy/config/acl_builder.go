@@ -3,6 +3,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/http"
 	"net/url"
 	"sort"
 
@@ -51,11 +53,18 @@ var providerDefaultHeaders = map[string][]string{
 		"Remote-Email",
 	},
 	models.ACLProviderTypeAuthentik: {
-		"X-authentik-username",
-		"X-authentik-groups",
-		"X-authentik-email",
-		"X-authentik-name",
-		"X-authentik-uid",
+		"X-Authentik-Username",
+		"X-Authentik-Groups",
+		"X-Authentik-Email",
+		"X-Authentik-Name",
+		"X-Authentik-Uid",
+		"X-Authentik-Entitlements",
+		"X-Authentik-Jwt",
+		"X-Authentik-Meta-Jwks",
+		"X-Authentik-Meta-Outpost",
+		"X-Authentik-Meta-Provider",
+		"X-Authentik-Meta-App",
+		"X-Authentik-Meta-Version",
 	},
 }
 
@@ -83,15 +92,29 @@ func (b *ACLBuilder) BuildACLRoutes(
 		return nil, nil
 	}
 
-	// Build routes based on combination mode
+	// Validate stored configurations too; invalid legacy data must never produce
+	// an unprotected fallback route or prevent unrelated sites from loading.
+	for i := range group.ExternalProviders {
+		if err := group.ExternalProviders[i].Validate(); err != nil {
+			b.logger.Error("Invalid external ACL provider; failing closed", zap.Error(err))
+			return []*HTTPRoute{aclUnavailableRoute(hostname, pathPattern)}, nil
+		}
+	}
+
+	var routes []*HTTPRoute
+	var err error
 	switch group.CombinationMode {
 	case models.ACLCombinationModeAll:
-		return b.buildAllModeRoutes(hostname, pathPattern, group, upstreamHandler)
+		routes, err = b.buildAllModeRoutes(hostname, pathPattern, group, upstreamHandler)
 	case models.ACLCombinationModeIPBypass:
-		return b.buildIPBypassModeRoutes(hostname, pathPattern, group, upstreamHandler)
-	default: // "any" mode is default
-		return b.buildAnyModeRoutes(hostname, pathPattern, group, upstreamHandler)
+		routes, err = b.buildIPBypassModeRoutes(hostname, pathPattern, group, upstreamHandler)
+	default:
+		routes, err = b.buildAnyModeRoutes(hostname, pathPattern, group, upstreamHandler)
 	}
+	for _, route := range routes {
+		route.Handle = append([]HTTPHandler{identityHeaderSanitizer(group)}, route.Handle...)
+	}
+	return routes, err
 }
 
 // buildAnyModeRoutes builds routes for ANY mode (OR logic).
@@ -125,11 +148,7 @@ func (b *ACLBuilder) buildAnyModeRoutes(
 		routes = append(routes, route)
 	}
 
-	// 4. Static assets bypass route
-	route := b.buildStaticAssetsBypassRoute(hostname, upstreamHandler)
-	routes = append(routes, route)
-
-	// 5. Authentication route for remaining requests
+	// 4. Authentication route for remaining requests
 	authRoute := b.buildAuthRoute(hostname, pathPattern, group, upstreamHandler, bypassIPs, allowIPs)
 	if authRoute != nil {
 		routes = append(routes, authRoute)
@@ -166,11 +185,7 @@ func (b *ACLBuilder) buildAllModeRoutes(
 		routes = append(routes, route)
 	}
 
-	// 3. Static assets bypass
-	route := b.buildStaticAssetsBypassRoute(hostname, upstreamHandler)
-	routes = append(routes, route)
-
-	// 4. Auth route for requests from allowed IPs
+	// 3. Auth route for requests from allowed IPs
 	authRoute := b.buildAuthRouteWithIPRestriction(hostname, pathPattern, group, upstreamHandler, allAllowedIPs)
 	if authRoute != nil {
 		routes = append(routes, authRoute)
@@ -248,23 +263,6 @@ func (b *ACLBuilder) buildIPAllowRoute(hostname, pathPattern string, allowIPs []
 		AddPathToMatcher(matcher, pathPattern)
 	}
 	AddRemoteIPToMatcher(matcher, allowIPs...)
-
-	return &HTTPRoute{
-		Match:    []MatcherSet{matcher},
-		Handle:   []HTTPHandler{handlerToMap(upstreamHandler)},
-		Terminal: true,
-	}
-}
-
-// buildStaticAssetsBypassRoute creates a route that bypasses auth for static assets.
-func (b *ACLBuilder) buildStaticAssetsBypassRoute(hostname string, upstreamHandler *ReverseProxyHandler) *HTTPRoute {
-	// Combine static asset paths and extensions
-	paths := append(StaticAssetPaths(), StaticAssetExtensions()...)
-
-	matcher := CombineMatchers(
-		NewHostMatcher(hostname),
-		NewPathMatcher(paths...),
-	)
 
 	return &HTTPRoute{
 		Match:    []MatcherSet{matcher},
@@ -387,160 +385,172 @@ func (b *ACLBuilder) buildForwardAuthHandler(group *models.ACLGroup) HTTPHandler
 	return b.buildWaygatesForwardAuthHandler()
 }
 
-// buildWaygatesForwardAuthHandler creates a Waygates forward auth handler.
+// buildWaygatesForwardAuthHandler keeps Waygates' base-URL configuration and
+// 401 login behavior, while sharing GET/body/TLS/identity handling with external auth.
 func (b *ACLBuilder) buildWaygatesForwardAuthHandler() HTTPHandler {
-	// Fail closed: if the verify URL is unset there is no upstream to authenticate
-	// against. Emitting a reverse_proxy with dial:"" produces an invalid upstream
-	// that Caddy rejects, breaking the entire config reload. Instead emit a static
-	// 503 so the route fails closed (deny) and never proxies to a blank upstream.
 	if b.waygatesVerifyURL == "" {
-		b.logger.Error("Waygates forward-auth verify URL is empty; failing closed (deny)")
-		return ToHTTPHandler(NewStaticResponseHandler(
-			503,
-			"Waygates forward-auth is not configured (ACL_WAYGATES_VERIFY_URL is empty)",
-		))
+		return ToHTTPHandler(NewStaticResponseHandler(503,
+			"Waygates forward-auth is not configured (ACL_WAYGATES_VERIFY_URL is empty)"))
 	}
+	u, err := models.ParseAuthURL(b.waygatesVerifyURL)
+	if err != nil {
+		return ToHTTPHandler(NewStaticResponseHandler(503, "Invalid Waygates authentication URL"))
+	}
+	// ACL_WAYGATES_VERIFY_URL has historically been a base URL.
+	u.Path, u.RawPath, u.RawQuery, u.ForceQuery = "/api/auth/acl/verify", "", "", false
+	handler := newForwardAuthHandler(u, waygatesDefaultHeaders)
+	handler["headers"].(*HeadersConfig).Request.Set["X-Waygates-Client-IP"] = []string{"{http.vars.client_ip}"}
 
-	// Extract host:port from URL for Caddy's Dial field
-	dialAddr := extractDialAddress(b.waygatesVerifyURL)
-
-	// Build the 401 (unauthorized) handler. Normally this redirects to the login
-	// page, but if the login URL is unset a "%s?redirect=..." template would yield
-	// a host-less self-redirect loop. Fail closed with a 503 deny instead.
-	var unauthorizedHandler HTTPHandler
+	var unauthorized HTTPHandler
 	if b.waygatesLoginURL == "" {
-		b.logger.Error("Waygates forward-auth login URL is empty; failing closed (deny) on 401")
-		unauthorizedHandler = ToHTTPHandler(NewStaticResponseHandler(
-			503,
-			"Waygates forward-auth is not configured (ACL_WAYGATES_LOGIN_URL is empty)",
-		))
+		unauthorized = ToHTTPHandler(NewStaticResponseHandler(503,
+			"Waygates forward-auth is not configured (ACL_WAYGATES_LOGIN_URL is empty)"))
 	} else {
-		unauthorizedHandler = ToHTTPHandler(NewRedirectHandler(
-			fmt.Sprintf("%s?redirect={http.request.scheme}://{http.request.host}{http.request.uri}", b.waygatesLoginURL),
-			302,
-		))
+		unauthorized = ToHTTPHandler(NewRedirectHandler(
+			fmt.Sprintf("%s?redirect={http.request.scheme}://{http.request.host}{http.request.uri}", b.waygatesLoginURL), 302))
 	}
+	handler["handle_response"] = append(handler["handle_response"].([]*HandleResponse),
+		&HandleResponse{Match: &ResponseMatch{StatusCode: []int{401}}, Routes: []*HTTPRoute{{Handle: []HTTPHandler{unauthorized}}}},
+		&HandleResponse{Match: &ResponseMatch{StatusCode: []int{403}}, Routes: []*HTTPRoute{{Handle: []HTTPHandler{ToHTTPHandler(NewStaticResponseHandler(403, "Access Denied"))}}}},
+	)
+	return handler
+}
 
-	// Waygates forward auth is implemented as a reverse_proxy with specific configuration
+// buildExternalProviderHandler leaves non-2xx responses untouched: the provider
+// owns its login redirects, cookies and denials. AuthRedirectURL is deprecated.
+func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalProvider) HTTPHandler {
+	u, err := models.ParseAuthURL(provider.VerifyURL)
+	if err != nil {
+		return ToHTTPHandler(NewStaticResponseHandler(503, "Invalid external authentication URL"))
+	}
+	return newForwardAuthHandler(u, externalIdentityHeaders(provider))
+}
+
+func externalIdentityHeaders(provider models.ACLExternalProvider) []string {
+	if len(provider.HeadersToCopy) > 0 {
+		return provider.HeadersToCopy
+	}
+	return providerDefaultHeaders[provider.ProviderType]
+}
+
+func newForwardAuthHandler(endpoint *url.URL, headers []string) HTTPHandler {
+	handler := authEndpointProxy(endpoint)
+	// An explicit '?' also clears the application's query when the configured
+	// endpoint has none. Caddy otherwise preserves the old query on a path rewrite.
+	uri := endpoint.EscapedPath()
+	if uri == "" {
+		uri = "/"
+	}
+	handler["rewrite"] = &RewriteHeaders{Method: http.MethodGet, URI: uri + "?" + endpoint.RawQuery}
+	handler["handle_response"] = []*HandleResponse{forwardAuthSuccess(headers)}
+	return handler
+}
+
+// authEndpointProxy also serves the outpost's callback/logout routes. Without a
+// rewrite, it preserves their method, URI, body and response exactly.
+func authEndpointProxy(endpoint *url.URL) HTTPHandler {
+	requestHeaders := &HeaderOps{Set: map[string][]string{
+		"X-Forwarded-Method": {"{http.request.method}"},
+		"X-Forwarded-Proto":  {"{http.request.scheme}"},
+		"X-Forwarded-Host":   {"{http.request.host}"},
+		"X-Forwarded-Uri":    {"{http.request.uri}"},
+	}}
+	transport := &HTTPTransport{Protocol: "http", DialTimeout: Duration("5s"), ResponseHeaderTimeout: Duration("10s")}
+	if endpoint.Scheme == "https" {
+		transport.TLS = &TLSConfig{ServerName: endpoint.Hostname()}
+		requestHeaders.Set["Host"] = []string{endpoint.Host}
+	}
 	return HTTPHandler{
-		"handler": HandlerReverseProxy,
-		"upstreams": []*Upstream{
-			{Dial: dialAddr},
-		},
-		"headers": &HeadersConfig{
-			Request: &HeaderOps{
-				Set: map[string][]string{
-					"X-Forwarded-Method": {"{http.request.method}"},
-					"X-Forwarded-Proto":  {"{http.request.scheme}"},
-					"X-Forwarded-Host":   {"{http.request.host}"},
-					"X-Forwarded-Uri":    {"{http.request.uri}"},
-					// Trusted client IP for IP-based ACL decisions. Using `set`
-					// overwrites any client-supplied value, so the verify endpoint
-					// can rely on it instead of the spoofable X-Forwarded-For.
-					// {http.vars.client_ip} is the trusted-proxy-aware client
-					// address: it equals the connection peer when no trusted
-					// proxies are configured, and the real client behind the
-					// server's trusted_proxies/client_ip_headers when they are
-					// (e.g. behind a Cloudflare/Pangolin tunnel). Must match the
-					// header read by the ACL verify handler
-					// (handlers.trustedClientIPHeader).
-					"X-Waygates-Client-IP": {"{http.vars.client_ip}"},
-				},
-			},
-		},
-		"rewrite": &RewriteHeaders{
-			URI: "/api/auth/acl/verify",
-		},
-		"handle_response": []*HandleResponse{
-			// On 2xx (successful auth): copy headers and continue to upstream
-			{
-				Match: &ResponseMatch{
-					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
-				},
-				Routes: []*HTTPRoute{
-					{
-						Handle: []HTTPHandler{
-							ToHTTPHandler(NewCopyResponseHeadersHandler(waygatesDefaultHeaders)),
-						},
-					},
-				},
-			},
-			// On 401 (unauthorized): redirect to login (or fail closed if login URL unset)
-			{
-				Match: &ResponseMatch{
-					StatusCode: []int{401},
-				},
-				Routes: []*HTTPRoute{
-					{
-						Handle: []HTTPHandler{
-							unauthorizedHandler,
-						},
-					},
-				},
-			},
-			// On 403 (forbidden): show access denied
-			{
-				Match: &ResponseMatch{
-					StatusCode: []int{403},
-				},
-				Routes: []*HTTPRoute{
-					{
-						Handle: []HTTPHandler{
-							ToHTTPHandler(NewStaticResponseHandler(403, "Access Denied")),
-						},
-					},
-				},
-			},
-		},
+		"handler":   HandlerReverseProxy,
+		"upstreams": []*Upstream{{Dial: extractDialAddress(endpoint.String())}},
+		"transport": transport,
+		"headers":   &HeadersConfig{Request: requestHeaders},
 	}
 }
 
-// buildExternalProviderHandler creates an external provider forward auth handler.
-func (b *ACLBuilder) buildExternalProviderHandler(provider models.ACLExternalProvider) HTTPHandler {
-	// Get headers to copy
-	headers := provider.HeadersToCopy
-	if len(headers) == 0 {
-		if defaultHeaders, ok := providerDefaultHeaders[provider.ProviderType]; ok {
-			headers = defaultHeaders
+// forwardAuthSuccess mirrors Caddy forward_auth's request-header copy semantics.
+// Delete first, then copy only nonempty values, so missing claims cannot retain
+// client input or turn into literal unresolved placeholders.
+func forwardAuthSuccess(headers []string) *HandleResponse {
+	routes := make([]*HTTPRoute, 0, 1+2*len(headers))
+	routes = append(routes, &HTTPRoute{Handle: []HTTPHandler{
+		ToHTTPHandler(NewCopyResponseHeadersHandler([]string{"Set-Cookie"})),
+	}})
+	for _, name := range headers {
+		name = http.CanonicalHeaderKey(name)
+		placeholder := "{http.reverse_proxy.header." + name + "}"
+		routes = append(routes,
+			&HTTPRoute{Handle: []HTTPHandler{ToHTTPHandler(NewHeadersHandler(&HeaderOps{Delete: []string{name}}, nil))}},
+			&HTTPRoute{
+				Match:  []MatcherSet{NewNotMatcher(MatcherSet{"vars": map[string][]string{placeholder: {""}}})},
+				Handle: []HTTPHandler{ToHTTPHandler(NewHeadersHandler(&HeaderOps{Set: map[string][]string{name: {placeholder}}}, nil))},
+			},
+		)
+	}
+	return &HandleResponse{Match: &ResponseMatch{StatusCode: []int{2}}, Routes: routes}
+}
+
+// identityHeaderSanitizer runs before authentication AND on IP/API exceptions.
+// Reserve known identity namespaces even when a custom copy list is configured.
+func identityHeaderSanitizer(groups ...*models.ACLGroup) HTTPHandler {
+	names := []string{"X-Authentik-*", "X-Auth-*", "Remote-User", "Remote-Groups", "Remote-Name", "Remote-Email", "X-Forwarded-User"}
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		for i := range group.ExternalProviders {
+			names = append(names, group.ExternalProviders[i].HeadersToCopy...)
 		}
 	}
+	return ToHTTPHandler(NewHeadersHandler(&HeaderOps{Delete: names}, nil))
+}
 
-	// Extract host:port from URL for Caddy's Dial field
-	dialAddr := extractDialAddress(provider.VerifyURL)
-
-	handler := HTTPHandler{
-		"handler": HandlerReverseProxy,
-		"upstreams": []*Upstream{
-			{Dial: dialAddr},
-		},
-		"headers": &HeadersConfig{
-			Request: &HeaderOps{
-				Set: map[string][]string{
-					"X-Forwarded-Method": {"{http.request.method}"},
-					"X-Forwarded-Proto":  {"{http.request.scheme}"},
-					"X-Forwarded-Host":   {"{http.request.host}"},
-					"X-Forwarded-Uri":    {"{http.request.uri}"},
-				},
-			},
-		},
-		"handle_response": []*HandleResponse{
-			// On 2xx (successful auth): copy headers and continue to upstream
-			{
-				Match: &ResponseMatch{
-					StatusCode: []int{200, 201, 202, 203, 204, 205, 206},
-				},
-				Routes: []*HTTPRoute{
-					{
-						Handle: []HTTPHandler{
-							ToHTTPHandler(NewCopyResponseHeadersHandler(headers)),
-						},
-					},
-				},
-			},
-		},
+func aclUnavailableRoute(hostname, pathPattern string) *HTTPRoute {
+	matcher := NewHostMatcher(hostname)
+	if pathPattern != "" && pathPattern != "/*" {
+		AddPathToMatcher(matcher, pathPattern)
 	}
+	return &HTTPRoute{Match: []MatcherSet{matcher}, Handle: []HTTPHandler{
+		ToHTTPHandler(NewStaticResponseHandler(503, "ACL authentication is not configured correctly")),
+	}, Terminal: true}
+}
 
-	return handler
+// authentikOutpostRoute reserves only Authentik's own namespace on the app host.
+// A hostname can have only one outpost origin, even with path-scoped ACLs.
+func authentikOutpostRoute(hostname string, groups []*models.ACLGroup) (*HTTPRoute, error) {
+	var destination *url.URL
+	for _, group := range groups {
+		if group == nil || len(group.ExternalProviders) == 0 {
+			continue
+		}
+		// Preserve the existing selection of the first external provider.
+		provider := group.ExternalProviders[0]
+		if provider.ProviderType != models.ACLProviderTypeAuthentik {
+			continue
+		}
+		if err := provider.Validate(); err != nil {
+			return nil, err
+		}
+		raw := provider.VerifyURL
+		if provider.OutpostURL != nil && *provider.OutpostURL != "" {
+			raw = *provider.OutpostURL
+		}
+		u, err := models.ParseAuthURL(raw)
+		if err != nil {
+			return nil, err
+		}
+		if destination != nil && (destination.Scheme != u.Scheme || destination.Host != u.Host) {
+			return nil, fmt.Errorf("conflicting Authentik outpost origins on %s", hostname)
+		}
+		destination = u
+	}
+	if destination == nil {
+		return nil, nil
+	}
+	return &HTTPRoute{
+		Match:  []MatcherSet{NewHostPathMatcher(hostname, "/outpost.goauthentik.io", "/outpost.goauthentik.io/*")},
+		Handle: []HTTPHandler{authEndpointProxy(destination)}, Terminal: true,
+	}, nil
 }
 
 // categorizeIPRules separates IP rules by type.
@@ -606,7 +616,7 @@ func extractDialAddress(rawURL string) string {
 		}
 	}
 
-	return fmt.Sprintf("%s:%s", host, port)
+	return net.JoinHostPort(host, port)
 }
 
 // containsScheme checks if a string contains a URL scheme (e.g., "http://", "https://").

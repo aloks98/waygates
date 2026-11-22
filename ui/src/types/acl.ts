@@ -45,6 +45,8 @@ export interface ACLExternalProvider {
   provider_type: ProviderType;
   name: string;
   verify_url: string;
+  outpost_url?: string;
+  /** @deprecated Ignored; the authentication provider owns redirects. */
   auth_redirect_url?: string;
   headers_to_copy?: string[];
   created_at: string;
@@ -154,6 +156,8 @@ export interface CreateExternalProviderRequest {
   provider_type: ProviderType;
   name: string;
   verify_url: string;
+  outpost_url?: string;
+  /** @deprecated Ignored; the authentication provider owns redirects. */
   auth_redirect_url?: string;
   headers_to_copy?: string[];
 }
@@ -162,6 +166,8 @@ export interface UpdateExternalProviderRequest {
   provider_type?: ProviderType;
   name?: string;
   verify_url?: string;
+  outpost_url?: string;
+  /** @deprecated Ignored; the authentication provider owns redirects. */
   auth_redirect_url?: string;
   headers_to_copy?: string[];
 }
